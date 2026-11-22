@@ -1,0 +1,2512 @@
+// ============================================================
+// DEVICE SPOOF MANAGER UI — Right-edge slide-out drawer (`#dv-tab` + `#dv-drawer`)
+// ============================================================
+// - Sits on the right edge directly below Jail (`#jl-tab`), with a gear icon (`⚙️`).
+// - Tab 1 ("จัดกลุ่มอัตโนมัติ"): Groups unisolated profiles by IP block (`screensPerIp`, default 6),
+//   subdivides each IP block into Device Spoof groups of at most 3 screens per Device,
+//   and shows tiered merit surcharge rate relative to baseline (1 IP : 6 จอ = +0%).
+// - Tab 2 ("แยก IP / Device พิเศษ"): Lets users create dedicated Custom IP Groups
+//   (reserving 1 Proxy IP upfront), create flexible Custom Device Groups inside each IP
+//   (e.g. 1 IP -> 2 Device Groups of 1 Client each), assign/remove specific clients,
+//   and rotate Device/Machine IDs independently.
+
+(function () {
+  const MAX_SCREENS_PER_DEVICE = 3;
+  const DEFAULT_SURCHARGE_CFG = {
+    enabled: true,
+    baseline: 6,
+    tiers: { '6': 0, '5': 5, '4': 10, '3': 15, '2': 20, '1': 25 },
+    customExtraPct: 0
+  };
+
+  let isOpen = false;
+  let activeTab = 'auto'; // 'auto' | 'custom' | 'unban'
+  let cachedProfiles = [];
+  let cachedGroups = [];
+  let cachedScreensPerIp = 6;
+  let cachedCustomConfig = { ipGroups: [], jailAutoCloseMode: 'off' };
+  let cachedCustomLeases = [];
+  let cachedLastJailAutoCloseEvent = null;
+  let cachedScreenProxySummary = null;
+  let cachedSurchargeConfig = JSON.parse(JSON.stringify(DEFAULT_SURCHARGE_CFG));
+
+  let rotatingGroups = new Set();
+  let rotatingCustomDevices = new Set();
+  let rotatingAll = false;
+  let rotatingIpBlocks = new Set();
+  let rotatingCustomIps = new Set();
+  let rotatingAllIps = false;
+  let savingScreensPerIp = false;
+  let customMutating = false;
+  let justRotatedGroupSet = new Set();
+  let justRotatedIpBlocks = new Set();
+  let justRotatedCustomIps = new Set();
+
+  let pickerState = null; // { ipGroupId, deviceGroupId, ipGroupName, deviceGroupName, search, initialIds: Set, selected: Set }
+  let editingTitleState = null; // { kind: 'ip'|'device', ipGroupId, deviceGroupId, value }
+  let pendingDeleteState = null; // { kind: 'ip'|'device', ipGroupId, deviceGroupId, label }
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, m => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[m]));
+  }
+
+  function mergeSurchargeConfig(cfg) {
+    if (!cfg || typeof cfg !== 'object') return;
+    cachedSurchargeConfig = {
+      ...DEFAULT_SURCHARGE_CFG,
+      ...cfg,
+      tiers: {
+        ...DEFAULT_SURCHARGE_CFG.tiers,
+        ...(cfg.tiers || {})
+      }
+    };
+  }
+
+  function computeSurchargePctForShare(shareCount, isCustom = false) {
+    const cfg = cachedSurchargeConfig || DEFAULT_SURCHARGE_CFG;
+    if (cfg.enabled === false) return 0;
+    const base = Math.max(1, Math.min(20, Math.floor(Number(cfg.baseline) || 6)));
+    const n = Math.max(1, Math.min(20, Math.floor(Number(shareCount) || base)));
+    let pct = 0;
+    if (n < base) {
+      const tierVal = Number(cfg.tiers && cfg.tiers[String(n)]);
+      pct = Number.isFinite(tierVal) ? Math.max(0, tierVal) : 0;
+    }
+    if (isCustom && Number(cfg.customExtraPct) > 0) {
+      pct += Number(cfg.customExtraPct);
+    }
+    return Math.min(500, Math.max(0, Math.round(pct * 100) / 100));
+  }
+
+  function formatSurchargeTag(pct, shareCount) {
+    if (!pct || pct <= 0) {
+      return `เรทปกติ +0% (1:${shareCount})`;
+    }
+    return `ส่วนบุญ +${pct}% (1:${shareCount})`;
+  }
+
+  function getCustomAssignedMap() {
+    const map = new Map();
+    const groups = Array.isArray(cachedCustomConfig?.ipGroups) ? cachedCustomConfig.ipGroups : [];
+    for (const ig of groups) {
+      const dgs = Array.isArray(ig.deviceGroups) ? ig.deviceGroups : [];
+      for (const dg of dgs) {
+        const pids = Array.isArray(dg.profileIds) ? dg.profileIds : [];
+        for (const pid of pids) {
+          map.set(pid, { ig, dg });
+        }
+      }
+    }
+    return map;
+  }
+
+  function getCustomLeaseMap() {
+    const map = new Map();
+    if (Array.isArray(cachedCustomLeases)) {
+      for (const l of cachedCustomLeases) {
+        if (l && (l.id || l.ipGroupId)) {
+          map.set(String(l.id || l.ipGroupId), l);
+        }
+      }
+    }
+    return map;
+  }
+
+  function getEffectiveScreensPerIp(serverGroups) {
+    if (Array.isArray(serverGroups) && serverGroups.length > 0) {
+      const fromGrp = Number(serverGroups[0].screensPerIp);
+      if (Number.isFinite(fromGrp) && fromGrp >= 1) {
+        return Math.max(1, Math.min(20, Math.floor(fromGrp)));
+      }
+    }
+    if (typeof currentScreenProxySettings !== 'undefined' && currentScreenProxySettings) {
+      const fromProxy = Number(currentScreenProxySettings.maxScreensPerIp);
+      if (Number.isFinite(fromProxy) && fromProxy >= 1) {
+        return Math.max(1, Math.min(20, Math.floor(fromProxy)));
+      }
+    }
+    return Math.max(1, Math.min(20, Number(cachedScreensPerIp) || 6));
+  }
+
+  function computeSubSizes(perIp) {
+    const n = Math.max(1, Math.min(20, Number(perIp) || 6));
+    const count = Math.ceil(n / MAX_SCREENS_PER_DEVICE);
+    const out = [];
+    for (let i = 0; i < count; i++) {
+      out.push(Math.min(MAX_SCREENS_PER_DEVICE, Math.max(1, n - i * MAX_SCREENS_PER_DEVICE)));
+    }
+    return out;
+  }
+
+  function buildGroupsFromProfiles(profiles, serverGroups) {
+    const list = Array.isArray(profiles)
+      ? profiles
+      : (typeof currentProfiles !== 'undefined' && Array.isArray(currentProfiles) ? currentProfiles : cachedProfiles);
+    const customMap = getCustomAssignedMap();
+    const byId = new Map();
+    const autoList = [];
+    list.forEach((p, idx) => {
+      if (p && p.id) {
+        byId.set(p.id, { profile: p, orderIndex: idx + 1 });
+        if (!customMap.has(p.id)) {
+          autoList.push({ profile: p, orderIndex: idx + 1 });
+        }
+      }
+    });
+
+    const perIp = getEffectiveScreensPerIp(serverGroups);
+    cachedScreensPerIp = perIp;
+    const defaultSubSizes = computeSubSizes(perIp);
+    const defaultDevicesPerIp = defaultSubSizes.length;
+
+    if (Array.isArray(serverGroups) && serverGroups.length > 0) {
+      const built = [];
+      serverGroups.forEach((g, idx) => {
+        const members = (g.profileIds || [])
+          .filter(pid => !customMap.has(pid))
+          .map(pid => byId.get(pid))
+          .filter(Boolean);
+        if (members.length > 0) {
+          const screensPerIp = Number(g.screensPerIp) || perIp;
+          const subSizes = Array.isArray(g.deviceSubSizes) && g.deviceSubSizes.length > 0
+            ? g.deviceSubSizes
+            : computeSubSizes(screensPerIp);
+          built.push({
+            groupIndex: Number(g.groupIndex) || (idx + 1),
+            ipIndex: Number(g.ipIndex) || (Math.floor(idx / Math.max(1, defaultDevicesPerIp)) + 1),
+            deviceIndexInIp: Number(g.deviceIndexInIp) || 1,
+            devicesPerIp: Number(g.devicesPerIp) || subSizes.length,
+            screensPerIp,
+            deviceSubSizes: subSizes,
+            ipSlotStart: Number(g.ipSlotStart) || 1,
+            proxyId: g.proxyId || null,
+            proxyIp: g.proxyIp || null,
+            proxyPort: g.proxyPort || null,
+            platform: g.platform || (members[0].profile && members[0].profile.devicePlatform) || 'pc',
+            platformOverride: g.platformOverride || null,
+            defaultPlatformMode: g.defaultPlatformMode || cachedCustomConfig?.defaultPlatformMode || 'pc',
+            deviceModel: g.deviceModel || (members[0].profile && members[0].profile.deviceModel) || '',
+            deviceGpu: g.deviceGpu || (members[0].profile && members[0].profile.deviceGpu) || '',
+            deviceTouch: typeof g.deviceTouch === 'number' ? g.deviceTouch : ((g.platform === 'android') ? 5 : 0),
+            deviceId: g.deviceId || (members[0].profile && members[0].profile.deviceId) || '-',
+            machineId: g.machineId || (members[0].profile && members[0].profile.machineId) || '',
+            maxScreens: Number(g.maxScreens) || MAX_SCREENS_PER_DEVICE,
+            members
+          });
+        }
+      });
+      if (built.length > 0) return built;
+      // If all profiles moved into Custom IP groups, serverGroups matching autoList may genuinely be empty
+      if (autoList.length === 0) return [];
+    }
+
+    const totalIpBlocks = Math.ceil(autoList.length / perIp);
+    const groups = [];
+    let globalGroupIdx = 0;
+
+    for (let ipIdx = 0; ipIdx < totalIpBlocks; ipIdx++) {
+      const ipSlice = autoList.slice(ipIdx * perIp, (ipIdx + 1) * perIp);
+      for (let sub = 0; sub < defaultDevicesPerIp; sub++) {
+        const subStart = sub * MAX_SCREENS_PER_DEVICE;
+        const subEnd = Math.min(perIp, (sub + 1) * MAX_SCREENS_PER_DEVICE);
+        const slice = ipSlice.slice(subStart, subEnd);
+        if (slice.length === 0) break;
+        globalGroupIdx++;
+        const subMax = Math.min(MAX_SCREENS_PER_DEVICE, Math.max(1, perIp - subStart));
+        const members = slice;
+        const first = (slice[0] && slice[0].profile) || {};
+        groups.push({
+          groupIndex: globalGroupIdx,
+          ipIndex: ipIdx + 1,
+          deviceIndexInIp: sub + 1,
+          devicesPerIp: defaultDevicesPerIp,
+          screensPerIp: perIp,
+          deviceSubSizes: defaultSubSizes,
+          ipSlotStart: subStart + 1,
+          proxyIp: (first.screenProxy && first.screenProxy.ip) || null,
+          proxyPort: (first.screenProxy && first.screenProxy.proxyPort) || null,
+          platform: first.devicePlatform || 'pc',
+          deviceModel: first.deviceModel || '',
+          deviceGpu: first.deviceGpu || '',
+          deviceTouch: first.devicePlatform === 'android' ? 5 : 0,
+          deviceId: first.deviceId || '-',
+          machineId: first.machineId || '',
+          maxScreens: subMax,
+          members
+        });
+      }
+    }
+    return groups;
+  }
+
+  async function refreshCustomIpDevices(refreshReserve = false) {
+    try {
+      const q = refreshReserve ? '?refresh=1' : '';
+      const res = await fetch(`/api/custom-ip-devices${q}`).then(r => r.json());
+      if (res && res.success) {
+        if (res.customIpConfig) cachedCustomConfig = res.customIpConfig;
+        if (Array.isArray(res.customGroupLeases)) cachedCustomLeases = res.customGroupLeases;
+        if (res.lastJailAutoCloseEvent) cachedLastJailAutoCloseEvent = res.lastJailAutoCloseEvent;
+        if (res.screenProxySummary) cachedScreenProxySummary = res.screenProxySummary;
+        if (res.surchargeConfig) mergeSurchargeConfig(res.surchargeConfig);
+        if (Array.isArray(res.deviceGroups)) cachedGroups = res.deviceGroups;
+        if (Number.isFinite(Number(res.screensPerIp)) && Number(res.screensPerIp) >= 1) {
+          cachedScreensPerIp = Number(res.screensPerIp);
+        }
+        renderDrawerList(true);
+      }
+    } catch (_) {}
+  }
+
+  async function mutateCustomApi(payload, successToast) {
+    if (customMutating) return null;
+    customMutating = true;
+    renderDrawerList(true);
+    try {
+      const res = await fetch('/api/custom-ip-devices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload || {})
+      }).then(r => r.json());
+      if (!res || !res.success) {
+        throw new Error((res && res.error) || 'ดำเนินการไม่สำเร็จ');
+      }
+      if (res.customIpConfig) cachedCustomConfig = res.customIpConfig;
+      if (Array.isArray(res.customGroupLeases)) cachedCustomLeases = res.customGroupLeases;
+      if (res.lastJailAutoCloseEvent) cachedLastJailAutoCloseEvent = res.lastJailAutoCloseEvent;
+      if (res.surchargeConfig) mergeSurchargeConfig(res.surchargeConfig);
+      if (Array.isArray(res.deviceGroups)) cachedGroups = res.deviceGroups;
+      if (typeof fetchProfiles === 'function') {
+        fetchProfiles();
+      }
+      if (successToast && typeof showToast === 'function') {
+        showToast(successToast, 'success');
+      }
+      return res;
+    } catch (e) {
+      if (typeof showToast === 'function') {
+        showToast(`❌ ${e.message}`, 'error');
+      }
+      return null;
+    } finally {
+      customMutating = false;
+      renderDrawerList(true);
+    }
+  }
+
+  async function applyScreensPerIpFromDrawer(nextScreensPerIp) {
+    const perIp = Math.max(1, Math.min(20, Number(nextScreensPerIp) || 6));
+    if (savingScreensPerIp) return;
+    savingScreensPerIp = true;
+    cachedScreensPerIp = perIp;
+    const maxInputModal = document.getElementById('sp-max-screens');
+    if (maxInputModal) maxInputModal.value = String(perIp);
+    if (typeof currentScreenProxySettings !== 'undefined' && currentScreenProxySettings) {
+      currentScreenProxySettings.maxScreensPerIp = perIp;
+    }
+    renderDrawerList(true);
+    try {
+      const res = await fetch('/api/screen-proxy/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ maxScreensPerIp: perIp })
+      }).then(r => r.json());
+      if (res && res.success) {
+        if (Array.isArray(res.deviceGroups)) {
+          cachedGroups = res.deviceGroups;
+        }
+        if (res.customIpConfig) {
+          cachedCustomConfig = res.customIpConfig;
+        }
+        if (Array.isArray(res.customGroupLeases)) {
+          cachedCustomLeases = res.customGroupLeases;
+        }
+        if (res.surchargeConfig) {
+          mergeSurchargeConfig(res.surchargeConfig);
+        }
+        if (res.settings && typeof window.updateScreenProxyToolbarBtn === 'function') {
+          window.updateScreenProxyToolbarBtn(res.settings);
+        }
+        if (typeof fetchProfiles === 'function') {
+          fetchProfiles();
+        }
+        if (typeof showToast === 'function') {
+          const subSizes = computeSubSizes(perIp);
+          const pct = computeSurchargePctForShare(perIp, false);
+          const pctMsg = pct > 0 ? ` · อัตราส่วนบุญ +${pct}%` : ' · อัตรามาตรฐาน +0%';
+          showToast(
+            `🌐 ตั้งค่า 1 IP ต่อ ${perIp} จอสำเร็จ — แบ่งเป็น ${subSizes.length} Device (${subSizes.join(' + ')} จอ)${pctMsg}`,
+            'success'
+          );
+        }
+      }
+    } catch (e) {
+      if (typeof showToast === 'function') {
+        showToast(`❌ บันทึกจำนวนจอต่อ IP ไม่สำเร็จ: ${e.message}`, 'error');
+      }
+    } finally {
+      savingScreensPerIp = false;
+      renderDrawerList(true);
+    }
+  }
+
+  function mountShell() {
+    if (document.getElementById('dv-drawer')) return;
+
+    const tab = document.createElement('button');
+    tab.id = 'dv-tab';
+    tab.type = 'button';
+    tab.title = 'จัดการ Device Spoof & แยก IP/Device พิเศษ (คลิกเพื่อดูและตั้งค่า)';
+    tab.innerHTML = `
+      <span class="dv-tab-icon">⚙️</span>
+      <span class="dv-tab-label">Device</span>
+      <span class="dv-tab-count" id="dv-tab-count">0</span>
+    `;
+    tab.addEventListener('click', () => toggleDrawer());
+
+    const backdrop = document.createElement('div');
+    backdrop.id = 'dv-backdrop';
+    backdrop.addEventListener('click', () => {
+      if (pickerState) {
+        pickerState = null;
+        renderPickerModal();
+        return;
+      }
+      setOpen(false);
+    });
+
+    const drawer = document.createElement('aside');
+    drawer.id = 'dv-drawer';
+    drawer.setAttribute('aria-label', 'จัดการ Device Spoof & แยก IP พิเศษ');
+    drawer.innerHTML = `
+      <header class="dv-header">
+        <div class="dv-header-title">
+          <span class="dv-header-icon">⚙️</span>
+          <div>
+            <h2 id="dv-header-title-text">จัดการ Device Spoof (1 IP : 6 จอ)</h2>
+            <p id="dv-header-sub-text">จัดกลุ่มอัตโนมัติ หรือแยก IP/Device พิเศษเฉพาะจอที่ต้องการ</p>
+          </div>
+        </div>
+        <div class="dv-header-actions">
+          <button type="button" class="dv-btn dv-btn-reip-header" id="dv-reip-all-btn" title="หา IP ว่างชุดใหม่ในระบบแล้วสลับให้ทุกวง IP ที่เปิดใช้งานอยู่พร้อมกัน">🔄 Re-IP ทุกวง</button>
+          <button type="button" class="dv-btn dv-btn-primary" id="dv-rotate-all-btn" title="สุ่มเลข Device ID และ Machine ID ใหม่ให้ทุกกลุ่มอัตโนมัติพร้อมกัน">🎲 Random ทุกกลุ่ม</button>
+          <button type="button" class="dv-btn" id="dv-close-btn" title="ปิดแถบ (Esc)">✕</button>
+        </div>
+      </header>
+
+      <div class="dv-mode-tabs" role="tablist">
+        <button type="button" class="dv-mode-tab active" id="dv-mode-tab-auto" data-dv-tab="auto" role="tab">
+          <span>📦 จัดกลุ่มอัตโนมัติ</span>
+          <span class="dv-mode-badge" id="dv-mode-badge-auto">0 จอ</span>
+        </button>
+        <button type="button" class="dv-mode-tab" id="dv-mode-tab-custom" data-dv-tab="custom" role="tab">
+          <span>🎯 แยก IP / Device พิเศษ</span>
+          <span class="dv-mode-badge" id="dv-mode-badge-custom">0 วง</span>
+        </button>
+        <button type="button" class="dv-mode-tab" id="dv-mode-tab-unban" data-dv-tab="unban" role="tab">
+          <span>🔓 โหมดปลด</span>
+          <span class="dv-mode-badge" id="dv-mode-badge-unban">0</span>
+        </button>
+      </div>
+
+      <div class="dv-jail-stop-bar" id="dv-jail-stop-bar">
+        <div class="dv-jail-stop-row">
+          <span class="dv-jail-stop-lbl">🚨 ระบบปิดจอเมื่อติดคุก:</span>
+          <div class="dv-jail-stop-group" id="dv-jail-stop-group">
+            <button type="button" class="dv-jail-stop-btn active" data-dv-jail-stop-mode="off" title="ปิดระบบ: หยุดเฉพาะบอทในตัวที่ติดคุก ไม่ปิดหน้าต่างจออื่น">⚪ ปิดไว้</button>
+            <button type="button" class="dv-jail-stop-btn" data-dv-jail-stop-mode="same_ip" title="เมื่อมีตัวใดตัวหนึ่งในวง IP ติดคุก จะปิดทุกจอในวง IP นั้นทันที">🌐 ปิดเฉพาะวง IP นั้น</button>
+            <button type="button" class="dv-jail-stop-btn" data-dv-jail-stop-mode="all_ips" title="เมื่อมีตัวใดตัวหนึ่งติดคุก จะปิดทุกจอในทุกวง IP ทั้งหมดทันที">🛑 ปิดทุกวง IP</button>
+          </div>
+        </div>
+        <div class="dv-jail-stop-hint" id="dv-jail-stop-hint">เมื่อมีตัวติดคุก จะหยุดเฉพาะบอทในจอนั้น (ไม่สั่งปิดหน้าต่างจออื่น)</div>
+      </div>
+
+      <div id="dv-auto-controls-wrap">
+        <div class="dv-ip-config-bar">
+          <div class="dv-ip-config-left">
+            <span class="dv-ip-config-lbl">🌐 1 IP ใช้กี่จอ:</span>
+            <input type="number" id="dv-screens-per-ip-input" min="1" max="20" value="6" class="dv-ip-config-input" title="กำหนดจำนวนจอต่อ 1 IP (มาตรฐาน 1:6 ไม่บวกเพิ่ม)">
+            <span style="font-size: 11px; color: #94a3b8;">จอ</span>
+            <div class="dv-ip-preset-group" id="dv-ip-preset-group">
+              <button type="button" class="dv-ip-preset-btn" data-dv-per-ip="1" title="1 IP = 1 จอ">1</button>
+              <button type="button" class="dv-ip-preset-btn" data-dv-per-ip="2" title="1 IP = 2 จอ">2</button>
+              <button type="button" class="dv-ip-preset-btn" data-dv-per-ip="3" title="1 IP = 3 จอ">3</button>
+              <button type="button" class="dv-ip-preset-btn" data-dv-per-ip="4" title="1 IP = 4 จอ">4</button>
+              <button type="button" class="dv-ip-preset-btn" data-dv-per-ip="5" title="1 IP = 5 จอ">5</button>
+              <button type="button" class="dv-ip-preset-btn" data-dv-per-ip="6" title="1 IP = 6 จอ (มาตรฐาน +0%)">6</button>
+            </div>
+            <span class="dv-surcharge-hint is-std" id="dv-auto-surcharge-hint">+0% มาตรฐาน</span>
+          </div>
+          <button type="button" class="dv-open-proxy-btn" id="dv-open-proxy-modal-btn" title="เปิดหน้าต่างตั้งค่า Proxy แยก IP รายจอ">
+            🛡️ ตั้งค่า Proxy IP
+          </button>
+        </div>
+        <div class="dv-platform-mode-bar" id="dv-platform-mode-bar">
+          <span class="dv-platform-mode-lbl">📱 โหมดจำลองอุปกรณ์:</span>
+          <div class="dv-platform-mode-group" id="dv-platform-mode-group">
+            <button type="button" class="dv-platform-mode-btn active" data-dv-platform-mode="pc" title="จำลองทุกกลุ่มอัตโนมัติเป็นเครื่องคอมพิวเตอร์ Windows PC">🖥️ PC ทั้งหมด</button>
+            <button type="button" class="dv-platform-mode-btn" data-dv-platform-mode="android" title="จำลองทุกกลุ่มอัตโนมัติเป็นมือถือ/แท็บเล็ต Android (Adreno/Mali + Touch)">📱 Android ทั้งหมด</button>
+            <button type="button" class="dv-platform-mode-btn" data-dv-platform-mode="mixed" title="สลับอัตโนมัติ: ใน 1 IP ให้ Device 1 เป็น PC และ Device 2 เป็น Android">🔀 ผสม PC + Android</button>
+          </div>
+        </div>
+        <div class="dv-ip-split-banner" id="dv-ip-split-banner">
+          ⚙️ 1 IP (6 จอ) ➜ แบ่งเป็น <b>2 กลุ่ม · 2 Device</b> (3 + 3 จอ)
+        </div>
+
+        <div class="dv-summary-bar">
+          <div class="dv-summary-pills">
+            <span class="dv-summary-pill">🌐 บล็อก IP: <b id="dv-summary-ips">0</b> IP</span>
+            <span class="dv-summary-pill dv-summary-pill-free" id="dv-summary-free-ips-pill" style="display:none;" title="จำนวน Proxy IP ที่ว่างพร้อมสลับใช้งานในระบบขณะนี้">✨ IP ว่าง: <b id="dv-summary-free-ips">0</b> IP</span>
+            <span class="dv-summary-pill">📦 กลุ่ม Device: <b id="dv-summary-groups">0</b> กลุ่ม</span>
+            <span class="dv-summary-pill">🖥️ จออัตโนมัติ: <b id="dv-summary-profiles">0</b> จอ</span>
+            <span class="dv-summary-pill">🟢 ออนไลน์: <b id="dv-summary-online">0</b> จอ</span>
+          </div>
+          <span style="font-size: 10.5px; color: #94a3b8;">คลิกที่จอเพื่อเลื่อนไปหาการ์ด</span>
+        </div>
+      </div>
+
+      <div class="dv-body" id="dv-list-body"></div>
+      <div id="dv-picker-host"></div>
+    `;
+
+    document.body.appendChild(tab);
+    document.body.appendChild(backdrop);
+    document.body.appendChild(drawer);
+
+    document.getElementById('dv-close-btn').addEventListener('click', () => setOpen(false));
+    document.getElementById('dv-rotate-all-btn').addEventListener('click', () => rotateAllGroups());
+    document.getElementById('dv-reip-all-btn').addEventListener('click', () => reIpAllRings());
+
+    drawer.querySelectorAll('[data-dv-tab]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tabVal = btn.getAttribute('data-dv-tab');
+        const nextTab = tabVal === 'custom' ? 'custom' : (tabVal === 'unban' ? 'unban' : 'auto');
+        if (activeTab !== nextTab) {
+          activeTab = nextTab;
+          editingTitleState = null;
+          pendingDeleteState = null;
+          renderDrawerList(true);
+          if (activeTab === 'custom') refreshCustomIpDevices(true);
+          if (activeTab === 'unban') refreshUnbanStatus();
+        }
+      });
+    });
+
+    const perIpInput = document.getElementById('dv-screens-per-ip-input');
+    if (perIpInput) {
+      perIpInput.addEventListener('change', () => {
+        applyScreensPerIpFromDrawer(perIpInput.value);
+      });
+    }
+    drawer.querySelectorAll('[data-dv-per-ip]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const val = Number(btn.getAttribute('data-dv-per-ip')) || 6;
+        if (perIpInput) perIpInput.value = String(val);
+        applyScreensPerIpFromDrawer(val);
+      });
+    });
+
+    drawer.querySelectorAll('[data-dv-platform-mode]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const mode = btn.getAttribute('data-dv-platform-mode') || 'pc';
+        const modeLabel = mode === 'android' ? '📱 Android ทั้งหมด' : (mode === 'mixed' ? '🔀 ผสม PC + Android' : '🖥️ PC ทั้งหมด');
+        mutateCustomApi({ action: 'set_default_platform_mode', mode, clearOverrides: true }, `✅ ตั้งโหมดจำลองอุปกรณ์เป็น "${modeLabel}" เรียบร้อย`);
+      });
+    });
+
+    drawer.querySelectorAll('[data-dv-jail-stop-mode]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const mode = btn.getAttribute('data-dv-jail-stop-mode') || 'off';
+        const toastMsg = mode === 'same_ip'
+          ? '🌐 เปิดระบบปิดจอเมื่อติดคุก: ปิดทุกจอในวง IP นั้นทันที'
+          : (mode === 'all_ips'
+            ? '🛑 เปิดระบบปิดจอเมื่อติดคุก: ปิดทุกจอในทุกวง IP ทันที'
+            : '⚪ ปิดระบบปิดจออัตโนมัติเมื่อติดคุกแล้ว');
+        mutateCustomApi({ action: 'set_jail_auto_close_mode', mode }, toastMsg);
+      });
+    });
+
+    const openProxyBtn = document.getElementById('dv-open-proxy-modal-btn');
+    if (openProxyBtn) {
+      openProxyBtn.addEventListener('click', () => {
+        setOpen(false);
+        if (typeof window.openScreenProxyModal === 'function') {
+          window.openScreenProxyModal();
+        }
+      });
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && isOpen) {
+        if (pickerState) {
+          pickerState = null;
+          renderPickerModal();
+        } else {
+          setOpen(false);
+        }
+      }
+    });
+
+    const bodyObserver = new MutationObserver(() => {
+      if (isOpen && (
+        document.body.classList.contains('jl-open') ||
+        document.body.classList.contains('pt-open') ||
+        document.body.classList.contains('pm-open') ||
+        document.body.classList.contains('gd-open')
+      )) {
+        isOpen = false;
+        pickerState = null;
+        document.body.classList.remove('dv-open');
+      }
+    });
+    bodyObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+  }
+
+  function setOpen(next) {
+    isOpen = Boolean(next);
+    if (isOpen) {
+      document.body.classList.remove('jl-open', 'pt-open', 'pm-open', 'gd-open');
+    } else {
+      pickerState = null;
+      editingTitleState = null;
+      pendingDeleteState = null;
+    }
+    document.body.classList.toggle('dv-open', isOpen);
+    if (isOpen) {
+      renderDrawerList(true);
+      refreshCustomIpDevices(activeTab === 'custom');
+      refreshProxyFreeIpSummary();
+    }
+  }
+
+  async function refreshProxyFreeIpSummary() {
+    try {
+      const st = await fetch('/api/screen-proxy/status').then(r => r.json());
+      if (st && st.success && st.settings) {
+        cachedScreenProxySummary = st.settings;
+        if (Array.isArray(st.customGroupLeases)) cachedCustomLeases = st.customGroupLeases;
+        if (st.surchargeConfig) mergeSurchargeConfig(st.surchargeConfig);
+        if (isOpen) renderDrawerList(true);
+      }
+    } catch (_) {}
+  }
+
+  function toggleDrawer(force) {
+    setOpen(typeof force === 'boolean' ? force : !isOpen);
+  }
+
+  function openDeviceDrawerTab(tabName) {
+    activeTab = tabName === 'custom' ? 'custom' : 'auto';
+    editingTitleState = null;
+    pendingDeleteState = null;
+    setOpen(true);
+  }
+
+  function scrollToProfileCard(profileId) {
+    if (!profileId) return;
+    setOpen(false);
+    setTimeout(() => {
+      const cardEl = document.getElementById(`card-${profileId}`);
+      if (!cardEl) {
+        if (typeof showToast === 'function') {
+          showToast(`ไม่พบการ์ดของโปรไฟล์ ${profileId}`, 'warn');
+        }
+        return;
+      }
+      cardEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      cardEl.classList.remove('jail-card-focus-pulse');
+      void cardEl.offsetWidth;
+      cardEl.classList.add('jail-card-focus-pulse');
+      setTimeout(() => {
+        cardEl.classList.remove('jail-card-focus-pulse');
+      }, 2600);
+    }, 120);
+  }
+
+  async function rotateSingleGroup(groupIndex, event) {
+    if (event) event.stopPropagation();
+    const gIdx = Number(groupIndex);
+    if (!gIdx || rotatingGroups.has(gIdx) || rotatingAll) return;
+    rotatingGroups.add(gIdx);
+    renderDrawerList();
+    try {
+      const res = await fetch('/api/device-groups/rotate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ groupIndex: gIdx })
+      });
+      const data = await res.json();
+      if (!data || !data.success) {
+        throw new Error((data && data.error) || 'Rotate failed');
+      }
+      if (Array.isArray(data.deviceGroups)) {
+        cachedGroups = data.deviceGroups;
+      }
+      if (data.group && Array.isArray(data.group.profileIds)) {
+        const list = typeof currentProfiles !== 'undefined' && Array.isArray(currentProfiles) ? currentProfiles : cachedProfiles;
+        list.forEach(p => {
+          if (p && data.group.profileIds.includes(p.id)) {
+            p.deviceId = data.group.deviceId;
+            p.machineId = data.group.machineId;
+            p.deviceGroupIndex = data.group.groupIndex;
+          }
+        });
+      }
+      justRotatedGroupSet.add(gIdx);
+      setTimeout(() => {
+        justRotatedGroupSet.delete(gIdx);
+        if (isOpen) renderDrawerList();
+      }, 2200);
+      if (typeof showToast === 'function') {
+        const shortDev = data.group && data.group.deviceId ? data.group.deviceId.slice(0, 8) + '...' : '';
+        showToast(`🎲 สุ่มเลข Device ใหม่ให้ Group #${gIdx} เรียบร้อย (${shortDev})`, 'info');
+      }
+    } catch (e) {
+      console.error('Failed to rotate device group:', e);
+      if (typeof showToast === 'function') {
+        showToast(`❌ สุ่ม Device ไม่สำเร็จ: ${e.message}`, 'error');
+      }
+    } finally {
+      rotatingGroups.delete(gIdx);
+      renderDrawerList();
+    }
+  }
+
+  async function rotateAllGroups() {
+    if (rotatingAll) return;
+    rotatingAll = true;
+    renderDrawerList();
+    try {
+      const res = await fetch('/api/profiles/rotate-all-device-ids', { method: 'POST' });
+      const data = await res.json();
+      if (!data || !data.success) {
+        throw new Error((data && data.error) || 'Rotate all failed');
+      }
+      if (Array.isArray(data.deviceGroups)) {
+        cachedGroups = data.deviceGroups;
+      }
+      const map = data.deviceIds || {};
+      const list = typeof currentProfiles !== 'undefined' && Array.isArray(currentProfiles) ? currentProfiles : cachedProfiles;
+      list.forEach(p => {
+        if (p && map[p.id]) {
+          p.deviceId = map[p.id];
+        }
+      });
+      if (Array.isArray(data.groups)) {
+        data.groups.forEach(g => {
+          if (g && g.groupIndex) justRotatedGroupSet.add(Number(g.groupIndex));
+        });
+        setTimeout(() => {
+          justRotatedGroupSet.clear();
+          if (isOpen) renderDrawerList();
+        }, 2200);
+      }
+      if (typeof showToast === 'function') {
+        const gCount = Array.isArray(data.groups) ? data.groups.length : cachedGroups.length;
+        showToast(`🎲 สุ่มเลข Device ใหม่ทั้งหมด ${gCount} กลุ่มเรียบร้อยแล้ว`, 'info');
+      }
+    } catch (e) {
+      console.error('Failed to rotate all device groups:', e);
+      if (typeof showToast === 'function') {
+        showToast(`❌ สุ่ม Device ทั้งหมดไม่สำเร็จ: ${e.message}`, 'error');
+      }
+    } finally {
+      rotatingAll = false;
+      renderDrawerList();
+    }
+  }
+
+  function applyReIpResponseState(data) {
+    if (!data || typeof data !== 'object') return;
+    if (Array.isArray(data.deviceGroups)) cachedGroups = data.deviceGroups;
+    if (data.customIpConfig) cachedCustomConfig = data.customIpConfig;
+    if (Array.isArray(data.customGroupLeases)) cachedCustomLeases = data.customGroupLeases;
+    if (data.surchargeConfig) mergeSurchargeConfig(data.surchargeConfig);
+    if (data.screenProxySummary) cachedScreenProxySummary = data.screenProxySummary;
+
+    const list = typeof currentProfiles !== 'undefined' && Array.isArray(currentProfiles) ? currentProfiles : cachedProfiles;
+    const rotatedList = Array.isArray(data.rotated) ? data.rotated : [];
+    for (const r of rotatedList) {
+      if (!r || !r.newIp || !Array.isArray(r.profileIds)) continue;
+      for (const p of list) {
+        if (p && r.profileIds.includes(p.id)) {
+          p.screenProxy = {
+            ...(p.screenProxy || {}),
+            active: true,
+            ip: r.newIp,
+            proxyId: r.newProxyId || null
+          };
+        }
+      }
+    }
+    if (typeof fetchProfiles === 'function') {
+      try { fetchProfiles(); } catch (_) {}
+    }
+  }
+
+  async function reIpAutoBlock(ipIndex, profileIds, currentIp, currentProxyId, event) {
+    if (event) event.stopPropagation();
+    const ipIdx = Number(ipIndex) || 1;
+    if (rotatingIpBlocks.has(ipIdx) || rotatingAllIps) return;
+    rotatingIpBlocks.add(ipIdx);
+    renderDrawerList(true);
+    try {
+      const res = await fetch('/api/screen-proxy/re-ip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          scope: 'auto_block',
+          ipIndex: ipIdx,
+          profileIds: Array.isArray(profileIds) ? profileIds : [],
+          currentIp: currentIp || '',
+          currentProxyId: currentProxyId || ''
+        })
+      }).then(r => r.json());
+
+      applyReIpResponseState(res);
+      if (!res || !res.success) {
+        if (typeof showToast === 'function') {
+          showToast(`⚠️ ${(res && res.error) || 'ไม่สามารถเปลี่ยน IP ใหม่ได้'}`, 'warning');
+        }
+        return;
+      }
+
+      const item = Array.isArray(res.rotated) && res.rotated[0] ? res.rotated[0] : null;
+      justRotatedIpBlocks.add(ipIdx);
+      setTimeout(() => {
+        justRotatedIpBlocks.delete(ipIdx);
+        if (isOpen) renderDrawerList(true);
+      }, 2600);
+
+      if (typeof showToast === 'function') {
+        const fromIp = (item && item.oldIp) || currentIp || 'IP เดิม';
+        const toIp = (item && item.newIp) || 'IP ใหม่';
+        const freePart = Number.isFinite(Number(res.freeIpsRemaining)) ? ` (ว่างอีก ${res.freeIpsRemaining} IP)` : '';
+        showToast(`🔄 Re-IP วง IP #${ipIdx} สำเร็จ: ${fromIp} ➜ ${toIp}${freePart}`, 'success');
+      }
+    } catch (e) {
+      if (typeof showToast === 'function') {
+        showToast(`❌ Re-IP ไม่สำเร็จ: ${e.message}`, 'error');
+      }
+    } finally {
+      rotatingIpBlocks.delete(ipIdx);
+      renderDrawerList(true);
+    }
+  }
+
+  async function reIpCustomGroup(ipGroupId, groupName, currentIp, currentProxyId, event) {
+    if (event) event.stopPropagation();
+    const gid = String(ipGroupId || '').trim();
+    if (!gid || rotatingCustomIps.has(gid) || rotatingAllIps) return;
+    rotatingCustomIps.add(gid);
+    renderDrawerList(true);
+    try {
+      const res = await fetch('/api/screen-proxy/re-ip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          scope: 'custom_group',
+          customGroupId: gid,
+          currentIp: currentIp || '',
+          currentProxyId: currentProxyId || ''
+        })
+      }).then(r => r.json());
+
+      applyReIpResponseState(res);
+      if (!res || !res.success) {
+        if (typeof showToast === 'function') {
+          showToast(`⚠️ ${(res && res.error) || 'ไม่สามารถเปลี่ยน IP ใหม่ได้'}`, 'warning');
+        }
+        return;
+      }
+
+      const item = Array.isArray(res.rotated) && res.rotated[0] ? res.rotated[0] : null;
+      justRotatedCustomIps.add(gid);
+      setTimeout(() => {
+        justRotatedCustomIps.delete(gid);
+        if (isOpen) renderDrawerList(true);
+      }, 2600);
+
+      if (typeof showToast === 'function') {
+        const fromIp = (item && item.oldIp) || currentIp || 'IP เดิม';
+        const toIp = (item && item.newIp) || 'IP ใหม่';
+        const freePart = Number.isFinite(Number(res.freeIpsRemaining)) ? ` (ว่างอีก ${res.freeIpsRemaining} IP)` : '';
+        showToast(`🔄 Re-IP "${groupName || gid}" สำเร็จ: ${fromIp} ➜ ${toIp}${freePart}`, 'success');
+      }
+    } catch (e) {
+      if (typeof showToast === 'function') {
+        showToast(`❌ Re-IP ไม่สำเร็จ: ${e.message}`, 'error');
+      }
+    } finally {
+      rotatingCustomIps.delete(gid);
+      renderDrawerList(true);
+    }
+  }
+
+  async function reIpAllRings() {
+    if (rotatingAllIps) return;
+    rotatingAllIps = true;
+    renderDrawerList(true);
+    try {
+      const list = typeof currentProfiles !== 'undefined' && Array.isArray(currentProfiles) ? currentProfiles : cachedProfiles;
+      const groups = buildGroupsFromProfiles(list, cachedGroups);
+      const byIp = new Map();
+      groups.forEach(g => {
+        const idx = g.ipIndex || 1;
+        if (!byIp.has(idx)) byIp.set(idx, []);
+        g.members.forEach(m => {
+          if (m && m.profile && m.profile.id && !byIp.get(idx).includes(m.profile.id)) {
+            byIp.get(idx).push(m.profile.id);
+          }
+        });
+      });
+      const autoBlocks = Array.from(byIp.entries()).map(([ipIndex, profileIds]) => ({ ipIndex, profileIds }));
+
+      const res = await fetch('/api/screen-proxy/re-ip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scope: 'all', autoBlocks })
+      }).then(r => r.json());
+
+      applyReIpResponseState(res);
+      if (!res || !res.success) {
+        if (typeof showToast === 'function') {
+          showToast(`⚠️ ${(res && res.error) || 'ไม่สามารถ Re-IP ทุกวงได้'}`, 'warning');
+        }
+        return;
+      }
+
+      const rotatedList = Array.isArray(res.rotated) ? res.rotated : [];
+      rotatedList.forEach(r => {
+        if (r.scope === 'custom_group' && r.customGroupId) justRotatedCustomIps.add(r.customGroupId);
+        if (r.scope === 'auto_block' && r.ipIndex) justRotatedIpBlocks.add(Number(r.ipIndex));
+      });
+      if (rotatedList.length > 0) {
+        setTimeout(() => {
+          justRotatedIpBlocks.clear();
+          justRotatedCustomIps.clear();
+          if (isOpen) renderDrawerList(true);
+        }, 2600);
+      }
+
+      if (typeof showToast === 'function') {
+        if (res.clearedStickyOnly && res.message) {
+          showToast(`🔄 ${res.message}`, 'info');
+        } else {
+          const freePart = Number.isFinite(Number(res.freeIpsRemaining)) ? ` · ว่างอีก ${res.freeIpsRemaining} IP` : '';
+          showToast(`🔄 Re-IP สลับเป็น IP ว่างชุดใหม่สำเร็จ ${rotatedList.length} วง${freePart}`, 'success');
+        }
+      }
+    } catch (e) {
+      if (typeof showToast === 'function') {
+        showToast(`❌ Re-IP ทุกวงไม่สำเร็จ: ${e.message}`, 'error');
+      }
+    } finally {
+      rotatingAllIps = false;
+      renderDrawerList(true);
+    }
+  }
+
+  function copyDeviceText(text, label) {
+    if (!text || text === '-') return;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => {
+        if (typeof showToast === 'function') {
+          showToast(`📋 คัดลอก ${label}: ${text.slice(0, 18)}... แล้ว`, 'info');
+        }
+      }).catch(() => {});
+    }
+  }
+
+  function renderPickerListOnly() {
+    const listEl = document.getElementById('dv-picker-list');
+    const countEl = document.getElementById('dv-picker-selected-count');
+    if (!pickerState) return;
+    if (countEl) countEl.textContent = String(pickerState.selected.size);
+    if (!listEl) return;
+
+    const list = typeof currentProfiles !== 'undefined' && Array.isArray(currentProfiles) ? currentProfiles : cachedProfiles;
+    const customMap = getCustomAssignedMap();
+    const q = String(pickerState.search || '').trim().toLowerCase();
+
+    const filtered = list.filter(p => {
+      if (!p || !p.id) return false;
+      if (!q) return true;
+      const state = p.isRunning ? p.liveState : null;
+      const charName = (state && state.charName) || p.lastCharName || '';
+      const accountId = p.account || (state && state.username) || '';
+      const hay = `${p.name || ''} ${p.id} ${accountId} ${charName}`.toLowerCase();
+      return hay.includes(q);
+    });
+
+    if (filtered.length === 0) {
+      listEl.innerHTML = `<div class="dv-custom-empty-dev">ไม่พบโปรไฟล์ที่ตรงกับ "${esc(pickerState.search)}"</div>`;
+      return;
+    }
+
+    listEl.innerHTML = filtered.map(p => {
+      const checked = pickerState.selected.has(p.id);
+      const state = p.isRunning ? p.liveState : null;
+      const charName = (state && state.charName) || p.lastCharName || '';
+      const accountId = p.account || (state && state.username) || 'ยังไม่ตั้งไอดี';
+      const curAssign = customMap.get(p.id);
+      let tagHtml = `<span class="dv-picker-tag is-auto">อัตโนมัติ</span>`;
+      if (curAssign) {
+        if (curAssign.dg.id === pickerState.deviceGroupId) {
+          tagHtml = `<span class="dv-picker-tag is-here">อยู่ใน Device นี้แล้ว</span>`;
+        } else {
+          tagHtml = `<span class="dv-picker-tag is-other-custom" title="หากเลือก จะย้ายมาจาก ${esc(curAssign.ig.name)} · ${esc(curAssign.dg.name)}">ย้ายจาก ${esc(curAssign.ig.name)}</span>`;
+        }
+      }
+      return `
+        <label class="dv-picker-item ${checked ? 'is-selected' : ''}" data-picker-pid="${esc(p.id)}">
+          <div class="dv-picker-item-left">
+            <input type="checkbox" class="dv-picker-chk" data-picker-pid="${esc(p.id)}" ${checked ? 'checked' : ''}>
+            <div style="min-width:0;">
+              <div style="font-size:12px;font-weight:700;color:#f8fafc;">${esc(p.name || p.id)} ${p.isRunning ? '<span style="color:#34d399;font-size:10px;">● ออนไลน์</span>' : ''}</div>
+              <div style="font-size:10.5px;color:#94a3b8;">🆔 ${esc(accountId)}${charName ? ` · 👤 ${esc(charName)}` : ''}</div>
+            </div>
+          </div>
+          ${tagHtml}
+        </label>
+      `;
+    }).join('');
+
+    listEl.querySelectorAll('.dv-picker-chk').forEach(chk => {
+      chk.addEventListener('change', () => {
+        const pid = chk.getAttribute('data-picker-pid');
+        if (!pid || !pickerState) return;
+        if (chk.checked) pickerState.selected.add(pid);
+        else pickerState.selected.delete(pid);
+        const row = chk.closest('.dv-picker-item');
+        if (row) row.classList.toggle('is-selected', chk.checked);
+        const cntEl = document.getElementById('dv-picker-selected-count');
+        if (cntEl) cntEl.textContent = String(pickerState.selected.size);
+      });
+    });
+  }
+
+  function renderPickerModal() {
+    const host = document.getElementById('dv-picker-host');
+    if (!host) return;
+    if (!pickerState) {
+      host.innerHTML = '';
+      return;
+    }
+
+    host.innerHTML = `
+      <div class="dv-picker-overlay" id="dv-picker-overlay">
+        <div class="dv-picker-dialog" role="dialog" aria-modal="true">
+          <div class="dv-picker-head">
+            <div>
+              <h3>👥 เลือกจอเข้า ${esc(pickerState.deviceGroupName)}</h3>
+              <div style="font-size:10.5px;color:#bae6fd;margin-top:2px;">วง IP: <b>${esc(pickerState.ipGroupName)}</b> · จอที่เลือกจะออกจากกลุ่มอัตโนมัติทันที</div>
+            </div>
+            <button type="button" class="dv-btn dv-btn-xs" id="dv-picker-close-x">✕</button>
+          </div>
+          <div class="dv-picker-search-wrap">
+            <input type="text" class="dv-picker-search" id="dv-picker-search" placeholder="🔍 ค้นหาชื่อจอ / ไอดีเกม / ชื่อตัวละคร..." value="${esc(pickerState.search)}">
+            <button type="button" class="dv-btn dv-btn-xs" id="dv-picker-select-all-btn">เลือกทั้งหมดที่เห็น</button>
+            <button type="button" class="dv-btn dv-btn-xs" id="dv-picker-clear-btn">ล้าง</button>
+          </div>
+          <div class="dv-picker-list" id="dv-picker-list"></div>
+          <div class="dv-picker-foot">
+            <span style="font-size:11px;color:#cbd5e1;">เลือกแล้ว <b id="dv-picker-selected-count" style="color:#6ee7b7;">${pickerState.selected.size}</b> จอ</span>
+            <div style="display:flex;gap:6px;">
+              <button type="button" class="dv-btn" id="dv-picker-cancel-btn">ยกเลิก</button>
+              <button type="button" class="dv-btn dv-btn-emerald" id="dv-picker-save-btn">✅ บันทึกเข้า Device นี้</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    renderPickerListOnly();
+
+    const searchInput = document.getElementById('dv-picker-search');
+    if (searchInput) {
+      searchInput.addEventListener('input', () => {
+        if (!pickerState) return;
+        pickerState.search = searchInput.value;
+        renderPickerListOnly();
+      });
+      setTimeout(() => searchInput.focus(), 30);
+    }
+
+    const closeFn = () => {
+      pickerState = null;
+      renderPickerModal();
+    };
+    document.getElementById('dv-picker-close-x')?.addEventListener('click', closeFn);
+    document.getElementById('dv-picker-cancel-btn')?.addEventListener('click', closeFn);
+    document.getElementById('dv-picker-overlay')?.addEventListener('click', (e) => {
+      if (e.target && e.target.id === 'dv-picker-overlay') closeFn();
+    });
+
+    document.getElementById('dv-picker-select-all-btn')?.addEventListener('click', () => {
+      if (!pickerState) return;
+      document.querySelectorAll('#dv-picker-list .dv-picker-chk').forEach(chk => {
+        const pid = chk.getAttribute('data-picker-pid');
+        if (pid) pickerState.selected.add(pid);
+      });
+      renderPickerListOnly();
+    });
+    document.getElementById('dv-picker-clear-btn')?.addEventListener('click', () => {
+      if (!pickerState) return;
+      pickerState.selected.clear();
+      renderPickerListOnly();
+    });
+
+    document.getElementById('dv-picker-save-btn')?.addEventListener('click', async () => {
+      if (!pickerState) return;
+      const snap = pickerState;
+      const toRemove = Array.from(snap.initialIds).filter(pid => !snap.selected.has(pid));
+      const toAdd = Array.from(snap.selected);
+      pickerState = null;
+      renderPickerModal();
+      if (toRemove.length > 0) {
+        await mutateCustomApi({ action: 'remove_profile', profileIds: toRemove }, null);
+      }
+      if (toAdd.length > 0) {
+        await mutateCustomApi(
+          { action: 'assign_profiles', ipGroupId: snap.ipGroupId, deviceGroupId: snap.deviceGroupId, profileIds: toAdd },
+          `✅ บันทึก ${toAdd.length} จอเข้า ${snap.deviceGroupName} (${snap.ipGroupName}) แล้ว`
+        );
+      } else if (toRemove.length > 0 && typeof showToast === 'function') {
+        showToast(`✅ ถอด ${toRemove.length} จอออกจาก ${snap.deviceGroupName} แล้ว`, 'info');
+      }
+    });
+  }
+
+  function renderCustomTabBody(bodyEl, list) {
+    const profileById = new Map();
+    list.forEach((p, idx) => {
+      if (p && p.id) profileById.set(p.id, { profile: p, orderIndex: idx + 1 });
+    });
+    const customGroups = Array.isArray(cachedCustomConfig?.ipGroups) ? cachedCustomConfig.ipGroups : [];
+    const leaseMap = getCustomLeaseMap();
+
+    const toolbarHtml = `
+      <div class="dv-custom-toolbar">
+        <div class="dv-custom-toolbar-top">
+          <div>
+            <div style="font-size:12.5px;font-weight:800;color:#fef3c7;">🎯 จัดการวงแยก IP / Device พิเศษรายจอ</div>
+            <div class="dv-custom-toolbar-desc">สร้างวงจอง Proxy IP เฉพาะกิจ หรือวงใช้ <b>🏠 IP บ้าน (เน็ตบ้านปกติ)</b> แล้วเพิ่มหลายกลุ่ม Device ภายในวงเดียวกันได้อิสระ</div>
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+            <button type="button" class="dv-btn dv-btn-amber" id="dv-add-custom-ip-btn" ${customMutating ? 'disabled' : ''}>
+              ${customMutating ? '⏳ กำลังบันทึก...' : '+ เพิ่มวง IP พิเศษ (จอง 1 IP)'}
+            </button>
+            <button type="button" class="dv-btn dv-btn-emerald" id="dv-add-custom-home-ip-btn" style="border-color:rgba(52,211,153,0.55);" ${customMutating ? 'disabled' : ''} title="สร้างวงแยก Device โดยใช้เน็ตบ้านปกติ (ไม่ผ่าน Proxy และไม่คิดส่วนบุญเพิ่ม)">
+              ${customMutating ? '⏳ กำลังบันทึก...' : '🏠 + เพิ่มวงใช้ IP บ้าน'}
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    let groupsHtml = '';
+    if (customGroups.length === 0) {
+      groupsHtml = `
+        <div class="dv-empty">
+          <div class="dv-empty-icon">🎯</div>
+          <div class="dv-empty-title">ยังไม่มีวงแยก IP / Device พิเศษ</div>
+          <div class="dv-empty-sub">
+            กดปุ่ม <b>"+ เพิ่มวง IP พิเศษ (จอง 1 IP)"</b> หรือ <b>"🏠 + เพิ่มวงใช้ IP บ้าน"</b> ด้านบน<br>
+            แล้วค่อยเพิ่มกลุ่ม Device ย่อย และกดเลือก Client ที่ต้องการได้เลย
+          </div>
+        </div>
+      `;
+    } else {
+      groupsHtml = customGroups.map(ig => {
+        const lease = leaseMap.get(ig.id) || null;
+        const isHomeIp = Boolean(ig.useHomeIp || ig.ipMode === 'home' || (lease && lease.useHomeIp));
+        const devGroups = Array.isArray(ig.deviceGroups) ? ig.deviceGroups : [];
+        const totalMembers = devGroups.reduce((sum, dg) => sum + (Array.isArray(dg.profileIds) ? dg.profileIds.length : 0), 0);
+        const shareCount = Math.max(1, totalMembers);
+        const surchargePct = isHomeIp
+          ? 0
+          : (lease && Number.isFinite(Number(lease.surchargePct))
+              ? Number(lease.surchargePct)
+              : computeSurchargePctForShare(shareCount, true));
+
+        const reservedIpText = isHomeIp
+          ? '🏠 ใช้ IP บ้าน (เน็ตบ้านปกติ · ไม่ผ่าน Proxy)'
+          : (lease && lease.assigned && (lease.ip || lease.proxyHost)
+              ? `🛡️ จอง IP: ${lease.ip || lease.proxyHost}${lease.proxyPort ? `:${lease.proxyPort}` : ''}`
+              : (lease && lease.error ? `⏳ ${lease.error}` : '⏳ รอเปิด Proxy / จองคิว IP'));
+        const resClass = (isHomeIp || (lease && lease.assigned && (lease.ip || lease.proxyHost))) ? 'is-reserved' : 'is-waiting';
+        const rateText = isHomeIp
+          ? '🏠 เน็ตบ้าน +0% (ไม่ใช้ Proxy)'
+          : `💰 ${formatSurchargeTag(surchargePct, shareCount)}`;
+
+        const isEditingIp = editingTitleState && editingTitleState.kind === 'ip' && editingTitleState.ipGroupId === ig.id;
+        const isDeletingIp = pendingDeleteState && pendingDeleteState.kind === 'ip' && pendingDeleteState.ipGroupId === ig.id;
+
+        const editIpBar = isEditingIp ? `
+          <div class="dv-inline-bar">
+            <input type="text" class="dv-inline-input" id="dv-inline-rename-input" value="${esc(editingTitleState.value)}" maxlength="64" placeholder="ชื่อวง IP พิเศษ...">
+            <div style="display:flex;gap:4px;">
+              <button type="button" class="dv-btn dv-btn-xs dv-btn-emerald" data-inline-save="1">บันทึก</button>
+              <button type="button" class="dv-btn dv-btn-xs" data-inline-cancel="1">ยกเลิก</button>
+            </div>
+          </div>
+        ` : '';
+
+        const deleteIpBar = isDeletingIp ? `
+          <div class="dv-inline-bar is-danger">
+            <span style="font-size:11px;color:#fecaca;">ยืนยันลบวง <b>${esc(ig.name)}</b> (จอในวงจะกลับเข้ากลุ่มอัตโนมัติ และคืน IP ที่จองไว้)?</span>
+            <div style="display:flex;gap:4px;">
+              <button type="button" class="dv-btn dv-btn-xs dv-btn-danger-soft" data-confirm-del-ip="${esc(ig.id)}">ยืนยันลบ</button>
+              <button type="button" class="dv-btn dv-btn-xs" data-cancel-del="1">ยกเลิก</button>
+            </div>
+          </div>
+        ` : '';
+
+        const devCardsHtml = devGroups.length === 0
+          ? `<div class="dv-custom-empty-dev">ยังไม่มีกลุ่ม Device ในวง IP นี้ — กด <b>"+ เพิ่มกลุ่ม Device"</b> ด้านบน</div>`
+          : devGroups.map((dg, dgIdx) => {
+              const dgKey = `${ig.id}:${dg.id}`;
+              const isRotDg = rotatingCustomDevices.has(dgKey);
+              const dgPids = Array.isArray(dg.profileIds) ? dg.profileIds : [];
+              const devId = dg.deviceId || '-';
+              const machId = dg.machineId || '';
+              const shortMach = machId.length >= 20 ? `${machId.slice(0, 12)}...${machId.slice(-10)}` : (machId || '-');
+              const dgPlat = dg.platform === 'android' ? 'android' : 'pc';
+              const dgModel = dg.deviceModel || (dgPlat === 'android' ? 'Android Mobile' : 'Windows PC');
+              const dgGpu = dg.deviceGpu || (dgPlat === 'android' ? 'Adreno 750' : 'GeForce RTX 4060');
+              const shortDgGpu = dgGpu.replace(/\s*Direct3D11.*$/i, '');
+
+              const isEditingDg = editingTitleState && editingTitleState.kind === 'device' && editingTitleState.deviceGroupId === dg.id;
+              const isDeletingDg = pendingDeleteState && pendingDeleteState.kind === 'device' && pendingDeleteState.deviceGroupId === dg.id;
+
+              const editDgBar = isEditingDg ? `
+                <div class="dv-inline-bar">
+                  <input type="text" class="dv-inline-input" id="dv-inline-rename-input" value="${esc(editingTitleState.value)}" maxlength="64" placeholder="ชื่อกลุ่ม Device...">
+                  <div style="display:flex;gap:4px;">
+                    <button type="button" class="dv-btn dv-btn-xs dv-btn-emerald" data-inline-save="1">บันทึก</button>
+                    <button type="button" class="dv-btn dv-btn-xs" data-inline-cancel="1">ยกเลิก</button>
+                  </div>
+                </div>
+              ` : '';
+
+              const deleteDgBar = isDeletingDg ? `
+                <div class="dv-inline-bar is-danger">
+                  <span style="font-size:11px;color:#fecaca;">ยืนยันลบ <b>${esc(dg.name)}</b> (จอในกลุ่มนี้จะกลับไปกลุ่มอัตโนมัติ)?</span>
+                  <div style="display:flex;gap:4px;">
+                    <button type="button" class="dv-btn dv-btn-xs dv-btn-danger-soft" data-confirm-del-dg="${esc(ig.id)}:${esc(dg.id)}">ยืนยันลบ</button>
+                    <button type="button" class="dv-btn dv-btn-xs" data-cancel-del="1">ยกเลิก</button>
+                  </div>
+                </div>
+              ` : '';
+
+              const membersHtml = dgPids.length === 0
+                ? `<div class="dv-custom-empty-dev">ยังไม่มีจอใน Device นี้ — กด <b>"+ เลือกจอเข้า Device"</b> เพื่อเพิ่ม Client</div>`
+                : dgPids.map((pid, mIdx) => {
+                    const found = profileById.get(pid);
+                    const p = found ? found.profile : { id: pid, name: pid, isRunning: false };
+                    const state = p.isRunning ? p.liveState : null;
+                    const charName = (state && state.charName) || p.lastCharName || '';
+                    const accountId = p.account || (state && state.username) || 'ยังไม่ตั้งไอดี';
+                    const portrait = (typeof getPortraitSrc === 'function') ? getPortraitSrc(p, state) : '';
+                    const isOnline = Boolean(p.isRunning);
+                    return `
+                      <div class="dv-member-row ${isOnline ? 'is-online' : ''}" data-profile-id="${esc(p.id)}" title="คลิกเพื่อเลื่อนไปหาการ์ดของ ${esc(p.name)}">
+                        <div class="dv-member-left">
+                          <span class="dv-slot-pill">จอ ${mIdx + 1}</span>
+                          <div class="dv-member-avatar">
+                            ${portrait ? `<img src="${esc(portrait)}" alt="" onerror="this.style.display='none'">` : '🎮'}
+                          </div>
+                          <div class="dv-member-info">
+                            <div class="dv-member-title">
+                              <span>${esc(p.name || p.id)}</span>
+                              ${found ? `<span style="font-size:10px;color:#64748b;font-family:'JetBrains Mono',monospace;">#${found.orderIndex}</span>` : ''}
+                            </div>
+                            <div class="dv-member-sub">
+                              <span>🆔 <b class="dv-member-account">${esc(accountId)}</b></span>
+                              ${charName ? `<span>• 👤 ${esc(charName)}</span>` : ''}
+                            </div>
+                          </div>
+                        </div>
+                        <div class="dv-member-right">
+                          <span class="dv-status-dot ${isOnline ? 'online' : 'offline'}">${isOnline ? '🟢 ออนไลน์' : '⚪ ออฟไลน์'}</span>
+                          <button type="button" class="dv-remove-member-btn" data-remove-custom-pid="${esc(p.id)}" title="ถอดจอนี้ออกจากวงพิเศษ (กลับเข้ากลุ่มอัตโนมัติ)">✕ ถอดออก</button>
+                        </div>
+                      </div>
+                    `;
+                  }).join('');
+
+              return `
+                <div class="dv-custom-dev-card ${dgPlat === 'android' ? 'is-android-card' : ''}">
+                  <div class="dv-custom-dev-top">
+                    <div class="dv-custom-dev-title">
+                      <span>${dgPlat === 'android' ? '📱' : '🖥️'} ${esc(dg.name || `Device #${dgIdx + 1}`)}</span>
+                      <span class="dv-group-slots-badge">${dgPids.length} จอ</span>
+                    </div>
+                    <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;">
+                      <div class="dv-plat-toggle" title="สลับโหมดจำลองอุปกรณ์ของ Device นี้ (PC / Android)">
+                        <button type="button" class="dv-plat-btn ${dgPlat === 'pc' ? 'active is-pc' : ''}" data-set-custom-plat="${esc(ig.id)}:${esc(dg.id)}:pc" ${customMutating ? 'disabled' : ''}>🖥️ PC</button>
+                        <button type="button" class="dv-plat-btn ${dgPlat === 'android' ? 'active is-android' : ''}" data-set-custom-plat="${esc(ig.id)}:${esc(dg.id)}:android" ${customMutating ? 'disabled' : ''}>📱 Android</button>
+                      </div>
+                      <button type="button" class="dv-btn dv-btn-xs dv-btn-emerald" data-open-picker="${esc(ig.id)}:${esc(dg.id)}" ${customMutating ? 'disabled' : ''}>+ เลือกจอเข้า Device</button>
+                      <button type="button" class="dv-random-group-btn" data-rotate-custom-dg="${esc(ig.id)}:${esc(dg.id)}" ${isRotDg || customMutating ? 'disabled' : ''} title="สุ่มเลข Device ID และ Machine ID ใหม่">
+                        ${isRotDg ? '⏳ กำลังสุ่ม...' : '🎲 Random Device'}
+                      </button>
+                      <button type="button" class="dv-btn dv-btn-xs" data-rename-dg="${esc(ig.id)}:${esc(dg.id)}" title="เปลี่ยนชื่อกลุ่ม Device">✏️</button>
+                      <button type="button" class="dv-btn dv-btn-xs dv-btn-danger-soft" data-ask-del-dg="${esc(ig.id)}:${esc(dg.id)}" title="ลบกลุ่ม Device นี้">🗑️</button>
+                    </div>
+                  </div>
+                  ${editDgBar}
+                  ${deleteDgBar}
+                  <div class="dv-device-box">
+                    <div class="dv-device-row">
+                      <span class="dv-device-label">${dgPlat === 'android' ? '📱 รุ่น Android:' : '🖥️ สเปก PC:'}</span>
+                      <div class="dv-device-val-wrap">
+                        <span class="dv-spec-badge ${dgPlat === 'android' ? 'is-android' : 'is-pc'}" title="Model: ${esc(dgModel)} · GPU: ${esc(dgGpu)} · Touch: ${dgPlat === 'android' ? 5 : 0}">
+                          ${esc(dgModel)} · <b>${esc(shortDgGpu)}</b>
+                        </span>
+                      </div>
+                    </div>
+                    <div class="dv-device-row">
+                      <span class="dv-device-label">🔑 Device ID:</span>
+                      <div class="dv-device-val-wrap">
+                        <code class="dv-device-code" title="${esc(devId)}">${esc(devId)}</code>
+                        <button type="button" class="dv-copy-btn" data-copy-dev="${esc(devId)}" title="คัดลอก Device ID">📋</button>
+                      </div>
+                    </div>
+                    <div class="dv-device-row">
+                      <span class="dv-device-label">🧬 Machine ID:</span>
+                      <div class="dv-device-val-wrap">
+                        <code class="dv-machine-code" title="${esc(machId)}">${esc(shortMach)}</code>
+                        ${machId ? `<button type="button" class="dv-copy-btn" data-copy-mach="${esc(machId)}" title="คัดลอก Machine ID">📋</button>` : ''}
+                      </div>
+                    </div>
+                  </div>
+                  <div class="dv-members-list">${membersHtml}</div>
+                </div>
+              `;
+            }).join('');
+
+        const isCustomReIpBusy = rotatingCustomIps.has(ig.id) || rotatingAllIps;
+        const isJustRotCustomIp = justRotatedCustomIps.has(ig.id);
+
+        return `
+          <section class="dv-custom-ip-card ${isJustRotCustomIp ? 'dv-ip-just-rotated' : ''}" style="${isHomeIp ? 'border-color:rgba(52,211,153,0.45);' : ''}">
+            <div class="dv-custom-ip-header">
+              <div class="dv-custom-ip-row">
+                <div class="dv-custom-ip-name">
+                  <span>${isHomeIp ? '🏠' : '🎯'} ${esc(ig.name)}</span>
+                  <span class="dv-ip-screens-badge">${totalMembers} จอ · ${devGroups.length} Device</span>
+                </div>
+                <div class="dv-custom-ip-actions" style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;">
+                  <div class="dv-plat-toggle" title="เลือกโหมด IP ของวงนี้ (จอง Proxy IP หรือ ใช้ IP บ้าน)">
+                    <button type="button" class="dv-plat-btn ${!isHomeIp ? 'active is-pc' : ''}" data-set-ip-mode="${esc(ig.id)}:proxy" ${customMutating ? 'disabled' : ''}>🛡️ จอง Proxy IP</button>
+                    <button type="button" class="dv-plat-btn ${isHomeIp ? 'active is-android' : ''}" data-set-ip-mode="${esc(ig.id)}:home" ${customMutating ? 'disabled' : ''}>🏠 ใช้ IP บ้าน</button>
+                  </div>
+                  ${!isHomeIp ? `<button type="button" class="dv-reip-btn" data-reip-custom="${esc(ig.id)}" ${isCustomReIpBusy || customMutating ? 'disabled' : ''} title="หา IP ว่างตัวใหม่ในระบบมาเปลี่ยนให้วง ${esc(ig.name)} ทันที">${isCustomReIpBusy ? '⏳ กำลังหา IP...' : '🔄 Re-IP'}</button>` : ''}
+                  <button type="button" class="dv-btn dv-btn-xs dv-btn-primary" data-add-custom-dg="${esc(ig.id)}" ${customMutating ? 'disabled' : ''}>+ เพิ่มกลุ่ม Device</button>
+                  <button type="button" class="dv-btn dv-btn-xs" data-rename-ip="${esc(ig.id)}" title="เปลี่ยนชื่อวง IP พิเศษ">✏️</button>
+                  <button type="button" class="dv-btn dv-btn-xs dv-btn-danger-soft" data-ask-del-ip="${esc(ig.id)}" title="ลบวง IP พิเศษ">🗑️</button>
+                </div>
+              </div>
+              <div class="dv-custom-ip-row">
+                <span class="dv-custom-res-pill ${resClass}" style="${isHomeIp ? 'background:rgba(16,185,129,0.18);color:#6ee7b7;border-color:rgba(52,211,153,0.45);' : ''}">${esc(reservedIpText)}</span>
+                <span class="dv-custom-rate-pill" style="${isHomeIp ? 'background:rgba(16,185,129,0.14);color:#a7f3d0;border-color:rgba(52,211,153,0.35);' : ''}">${esc(rateText)}</span>
+              </div>
+              ${editIpBar}
+              ${deleteIpBar}
+            </div>
+            <div class="dv-custom-dev-list">${devCardsHtml}</div>
+          </section>
+        `;
+      }).join('');
+    }
+
+    const fullHtml = toolbarHtml + groupsHtml;
+    delete bodyEl.__pmLastHtml;
+    bodyEl.innerHTML = fullHtml;
+
+    document.getElementById('dv-add-custom-ip-btn')?.addEventListener('click', () => {
+      mutateCustomApi({ action: 'add_ip_group', useHomeIp: false }, '🎯 สร้างวง IP พิเศษ + จองคิว IP สำเร็จแล้ว');
+    });
+
+    document.getElementById('dv-add-custom-home-ip-btn')?.addEventListener('click', () => {
+      mutateCustomApi({ action: 'add_ip_group', useHomeIp: true }, '🏠 สร้างวงแยก Device ใช้ IP บ้านสำเร็จแล้ว');
+    });
+
+    bodyEl.querySelectorAll('[data-set-ip-mode]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const [ipGroupId, mode] = String(btn.getAttribute('data-set-ip-mode') || '').split(':');
+        if (!ipGroupId || !mode) return;
+        const wantHome = mode === 'home';
+        const ig = customGroups.find(x => x.id === ipGroupId);
+        const curHome = Boolean(ig && (ig.useHomeIp || ig.ipMode === 'home'));
+        if (curHome === wantHome) return;
+        mutateCustomApi(
+          { action: 'set_ip_group_mode', ipGroupId, useHomeIp: wantHome },
+          wantHome
+            ? '🏠 สลับวงนี้เป็น "ใช้ IP บ้าน (เน็ตบ้านปกติ)" แล้ว (คืน Proxy IP ให้คิวเรียบร้อย)'
+            : '🛡️ สลับวงนี้เป็น "จอง Proxy IP" แล้ว'
+        );
+      });
+    });
+
+    bodyEl.querySelectorAll('[data-add-custom-dg]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const ipGroupId = btn.getAttribute('data-add-custom-dg');
+        mutateCustomApi({ action: 'add_device_group', ipGroupId }, '🖥️ เพิ่มกลุ่ม Device ย่อยในวง IP แล้ว');
+      });
+    });
+
+    bodyEl.querySelectorAll('[data-reip-custom]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const ipGroupId = btn.getAttribute('data-reip-custom');
+        const ig = customGroups.find(x => x.id === ipGroupId);
+        const cl = leaseMap.get(ipGroupId) || null;
+        reIpCustomGroup(ipGroupId, ig ? ig.name : ipGroupId, cl?.ip || cl?.proxyHost || '', cl?.proxyId || '', e);
+      });
+    });
+
+    bodyEl.querySelectorAll('[data-rename-ip]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const ipGroupId = btn.getAttribute('data-rename-ip');
+        const ig = customGroups.find(x => x.id === ipGroupId);
+        pendingDeleteState = null;
+        editingTitleState = ig ? { kind: 'ip', ipGroupId: ig.id, value: ig.name } : null;
+        renderDrawerList(true);
+      });
+    });
+
+    bodyEl.querySelectorAll('[data-rename-dg]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const [ipGroupId, deviceGroupId] = String(btn.getAttribute('data-rename-dg') || '').split(':');
+        const ig = customGroups.find(x => x.id === ipGroupId);
+        const dg = (ig?.deviceGroups || []).find(d => d.id === deviceGroupId);
+        pendingDeleteState = null;
+        editingTitleState = dg ? { kind: 'device', ipGroupId, deviceGroupId, value: dg.name } : null;
+        renderDrawerList(true);
+      });
+    });
+
+    const inlineInput = document.getElementById('dv-inline-rename-input');
+    if (inlineInput) {
+      setTimeout(() => { inlineInput.focus(); inlineInput.select(); }, 20);
+      inlineInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') bodyEl.querySelector('[data-inline-save]')?.click();
+        if (e.key === 'Escape') { editingTitleState = null; renderDrawerList(true); }
+      });
+    }
+    bodyEl.querySelector('[data-inline-save]')?.addEventListener('click', async () => {
+      if (!editingTitleState) return;
+      const val = document.getElementById('dv-inline-rename-input')?.value?.trim() || '';
+      const st = editingTitleState;
+      editingTitleState = null;
+      if (!val) {
+        renderDrawerList(true);
+        return;
+      }
+      if (st.kind === 'ip') {
+        await mutateCustomApi({ action: 'rename_ip_group', ipGroupId: st.ipGroupId, name: val }, `✏️ เปลี่ยนชื่อวงเป็น "${val}" แล้ว`);
+      } else {
+        await mutateCustomApi({ action: 'rename_device_group', ipGroupId: st.ipGroupId, deviceGroupId: st.deviceGroupId, name: val }, `✏️ เปลี่ยนชื่อกลุ่ม Device เป็น "${val}" แล้ว`);
+      }
+    });
+    bodyEl.querySelector('[data-inline-cancel]')?.addEventListener('click', () => {
+      editingTitleState = null;
+      renderDrawerList(true);
+    });
+
+    bodyEl.querySelectorAll('[data-ask-del-ip]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const ipGroupId = btn.getAttribute('data-ask-del-ip');
+        editingTitleState = null;
+        pendingDeleteState = { kind: 'ip', ipGroupId };
+        renderDrawerList(true);
+      });
+    });
+    bodyEl.querySelectorAll('[data-ask-del-dg]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const [ipGroupId, deviceGroupId] = String(btn.getAttribute('data-ask-del-dg') || '').split(':');
+        editingTitleState = null;
+        pendingDeleteState = { kind: 'device', ipGroupId, deviceGroupId };
+        renderDrawerList(true);
+      });
+    });
+    bodyEl.querySelectorAll('[data-cancel-del]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        pendingDeleteState = null;
+        renderDrawerList(true);
+      });
+    });
+    bodyEl.querySelectorAll('[data-confirm-del-ip]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const ipGroupId = btn.getAttribute('data-confirm-del-ip');
+        pendingDeleteState = null;
+        mutateCustomApi({ action: 'delete_ip_group', ipGroupId }, '🗑️ ลบวง IP พิเศษและคืนคิว IP แล้ว');
+      });
+    });
+    bodyEl.querySelectorAll('[data-confirm-del-dg]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const [ipGroupId, deviceGroupId] = String(btn.getAttribute('data-confirm-del-dg') || '').split(':');
+        pendingDeleteState = null;
+        mutateCustomApi({ action: 'delete_device_group', ipGroupId, deviceGroupId }, '🗑️ ลบกลุ่ม Device ย่อยแล้ว');
+      });
+    });
+
+    bodyEl.querySelectorAll('[data-rotate-custom-dg]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const key = String(btn.getAttribute('data-rotate-custom-dg') || '');
+        const [ipGroupId, deviceGroupId] = key.split(':');
+        if (!ipGroupId || !deviceGroupId || rotatingCustomDevices.has(key)) return;
+        rotatingCustomDevices.add(key);
+        renderDrawerList(true);
+        try {
+          await mutateCustomApi({ action: 'rotate_custom_device', ipGroupId, deviceGroupId }, '🎲 สุ่มเลข Device ใหม่ให้กลุ่มพิเศษเรียบร้อย');
+        } finally {
+          rotatingCustomDevices.delete(key);
+          renderDrawerList(true);
+        }
+      });
+    });
+
+    bodyEl.querySelectorAll('[data-set-custom-plat]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const [ipGroupId, deviceGroupId, platform] = String(btn.getAttribute('data-set-custom-plat') || '').split(':');
+        if (!ipGroupId || !deviceGroupId || !platform) return;
+        mutateCustomApi(
+          { action: 'set_custom_device_platform', ipGroupId, deviceGroupId, platform },
+          platform === 'android' ? '📱 เปลี่ยนเป็นโหมดจำลอง Android แล้ว' : '🖥️ เปลี่ยนเป็นโหมดจำลอง Windows PC แล้ว'
+        );
+      });
+    });
+
+    bodyEl.querySelectorAll('[data-open-picker]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const [ipGroupId, deviceGroupId] = String(btn.getAttribute('data-open-picker') || '').split(':');
+        const ig = customGroups.find(x => x.id === ipGroupId);
+        const dg = (ig?.deviceGroups || []).find(d => d.id === deviceGroupId);
+        if (!ig || !dg) return;
+        const initSet = new Set(Array.isArray(dg.profileIds) ? dg.profileIds : []);
+        pickerState = {
+          ipGroupId: ig.id,
+          deviceGroupId: dg.id,
+          ipGroupName: ig.name,
+          deviceGroupName: dg.name,
+          search: '',
+          initialIds: new Set(initSet),
+          selected: new Set(initSet)
+        };
+        renderPickerModal();
+      });
+    });
+
+    bodyEl.querySelectorAll('[data-remove-custom-pid]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const profileId = btn.getAttribute('data-remove-custom-pid');
+        if (!profileId) return;
+        mutateCustomApi({ action: 'remove_profile', profileId }, '↩️ ย้ายจอกลับเข้ากลุ่มอัตโนมัติแล้ว');
+      });
+    });
+
+    bodyEl.querySelectorAll('[data-copy-dev]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        copyDeviceText(btn.getAttribute('data-copy-dev'), 'Device ID');
+      });
+    });
+
+    bodyEl.querySelectorAll('[data-copy-mach]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        copyDeviceText(btn.getAttribute('data-copy-mach'), 'Machine ID');
+      });
+    });
+
+    bodyEl.querySelectorAll('.dv-member-row').forEach(row => {
+      row.addEventListener('click', () => {
+        const pid = row.getAttribute('data-profile-id');
+        scrollToProfileCard(pid);
+      });
+    });
+  }
+
+  function renderDrawerList(force = true) {
+    mountShell();
+    const list = typeof currentProfiles !== 'undefined' && Array.isArray(currentProfiles) ? currentProfiles : cachedProfiles;
+    const customMap = getCustomAssignedMap();
+    const customGroups = Array.isArray(cachedCustomConfig?.ipGroups) ? cachedCustomConfig.ipGroups : [];
+    const customDevCount = customGroups.reduce((s, ig) => s + (Array.isArray(ig.deviceGroups) ? ig.deviceGroups.length : 0), 0);
+
+    const groups = buildGroupsFromProfiles(list, cachedGroups);
+    const perIp = getEffectiveScreensPerIp(cachedGroups);
+    const subSizes = computeSubSizes(perIp);
+    const splitText = subSizes.map(n => `${n} จอ`).join(' + ');
+
+    const autoProfiles = list.filter(p => p && p.id && !customMap.has(p.id));
+    const totalAutoGroups = groups.length;
+    const totalAutoProfiles = autoProfiles.length;
+    const totalAutoOnline = autoProfiles.filter(p => p && p.isRunning).length;
+    const totalAutoIps = Math.ceil(totalAutoProfiles / perIp);
+
+    const tabCount = document.getElementById('dv-tab-count');
+    const sumIps = document.getElementById('dv-summary-ips');
+    const sumFreePill = document.getElementById('dv-summary-free-ips-pill');
+    const sumFreeIps = document.getElementById('dv-summary-free-ips');
+    const sumGroups = document.getElementById('dv-summary-groups');
+    const sumProfiles = document.getElementById('dv-summary-profiles');
+    const sumOnline = document.getElementById('dv-summary-online');
+    const rotateAllBtn = document.getElementById('dv-rotate-all-btn');
+    const reIpAllBtn = document.getElementById('dv-reip-all-btn');
+    const headerTitleEl = document.getElementById('dv-header-title-text');
+    const headerSubEl = document.getElementById('dv-header-sub-text');
+    const perIpInput = document.getElementById('dv-screens-per-ip-input');
+    const splitBannerEl = document.getElementById('dv-ip-split-banner');
+    const surchargeHintEl = document.getElementById('dv-auto-surcharge-hint');
+    const autoControlsWrap = document.getElementById('dv-auto-controls-wrap');
+    const jailStopBar = document.getElementById('dv-jail-stop-bar');
+    const jailStopHintEl = document.getElementById('dv-jail-stop-hint');
+    const badgeAuto = document.getElementById('dv-mode-badge-auto');
+    const badgeCustom = document.getElementById('dv-mode-badge-custom');
+    const bodyEl = document.getElementById('dv-list-body');
+
+    if (tabCount) tabCount.textContent = String(totalAutoGroups + customDevCount);
+    if (badgeAuto) badgeAuto.textContent = `${totalAutoProfiles} จอ`;
+    if (badgeCustom) badgeCustom.textContent = `${customGroups.length} วง · ${customMap.size} จอ`;
+
+    document.querySelectorAll('[data-dv-tab]').forEach(btn => {
+      btn.classList.toggle('active', btn.getAttribute('data-dv-tab') === activeTab);
+    });
+    if (jailStopBar) {
+      jailStopBar.classList.toggle('dv-hidden', activeTab === 'unban');
+      const jailStopMode = String(cachedCustomConfig?.jailAutoCloseMode || 'off').toLowerCase();
+      jailStopBar.classList.toggle('is-same-ip', jailStopMode === 'same_ip');
+      jailStopBar.classList.toggle('is-all-ips', jailStopMode === 'all_ips');
+      document.querySelectorAll('[data-dv-jail-stop-mode]').forEach(btn => {
+        const m = btn.getAttribute('data-dv-jail-stop-mode');
+        btn.classList.toggle('active', m === jailStopMode);
+        btn.disabled = customMutating;
+      });
+      if (jailStopHintEl) {
+        let baseHint = 'เมื่อมีตัวติดคุก จะหยุดเฉพาะบอทในจอนั้น (ไม่สั่งปิดหน้าต่างจออื่น)';
+        if (jailStopMode === 'same_ip') {
+          baseHint = 'ทำงานอยู่: หากมีตัวใดตัวหนึ่งในวง IP ติดคุก ระบบจะสั่งปิดทุกจอในวง IP นั้นทันที (ยกเว้นจอในโหมดปลด)';
+        } else if (jailStopMode === 'all_ips') {
+          baseHint = 'ทำงานอยู่: หากมีตัวใดตัวหนึ่งติดคุก ระบบจะสั่งปิดทุกจอในทุกวง IP ทั้งหมดทันที (ยกเว้นจอในโหมดปลด)';
+        }
+        const ev = cachedLastJailAutoCloseEvent;
+        const recentEv = ev && Number(ev.ts) > 0 && (Date.now() - Number(ev.ts) < 12 * 3600 * 1000);
+        if (recentEv) {
+          const hhmm = new Date(ev.ts).toLocaleTimeString('th-TH', { hour12: false });
+          const charPart = ev.triggerCharName ? ` (${ev.triggerCharName})` : '';
+          baseHint += ` · ล่าสุด ${hhmm}: "${ev.triggerProfileName || ev.triggerProfileId}"${charPart} ปิดไป ${ev.closedCount || 0} จอ (${ev.groupLabel || '-'})`;
+        }
+        jailStopHintEl.textContent = baseHint;
+      }
+    }
+    if (autoControlsWrap) {
+      autoControlsWrap.classList.toggle('dv-hidden', activeTab === 'custom' || activeTab === 'unban');
+    }
+
+    if (sumIps) sumIps.textContent = String(totalAutoIps);
+    if (sumFreePill && sumFreeIps) {
+      const proxyMeta = cachedScreenProxySummary || (typeof currentScreenProxySettings !== 'undefined' ? currentScreenProxySettings : null);
+      const isProxyOn = Boolean(proxyMeta && proxyMeta.enabled);
+      const freeCount = proxyMeta && Number.isFinite(Number(proxyMeta.freeIps)) ? Math.max(0, Math.floor(Number(proxyMeta.freeIps))) : null;
+      if (isProxyOn && freeCount !== null) {
+        sumFreePill.style.display = 'inline-flex';
+        sumFreeIps.textContent = String(freeCount);
+      } else {
+        sumFreePill.style.display = 'none';
+      }
+    }
+    if (sumGroups) sumGroups.textContent = String(totalAutoGroups);
+    if (sumProfiles) sumProfiles.textContent = String(totalAutoProfiles);
+    if (sumOnline) sumOnline.textContent = String(totalAutoOnline);
+
+    if (headerTitleEl) {
+      if (activeTab === 'custom') {
+        headerTitleEl.textContent = `แยก IP / Device พิเศษ (${customGroups.length} วง)`;
+      } else if (activeTab === 'unban') {
+        headerTitleEl.textContent = '🔓 โหมดปลด (DataImpulse Mobile)';
+      } else {
+        headerTitleEl.textContent = subSizes.length > 1
+          ? `จัดการ Device Spoof (1 IP : ${perIp} จอ · ${subSizes.length} Device)`
+          : `จัดการ Device Spoof (1 IP : ${perIp} จอ · 1 Device)`;
+      }
+    }
+    if (headerSubEl) {
+      if (activeTab === 'custom') {
+        headerSubEl.textContent = 'จอง Proxy IP แยกเฉพาะวง · เพิ่มหลาย Device ใน IP เดียว หรือแยก 1 จอต่อ 1 IP ได้อิสระ';
+      } else if (activeTab === 'unban') {
+        headerSubEl.textContent = 'เปิดจอเกมผ่าน IP มือถือไทย (DataImpulse) เพื่อขอปลดแบน · บอทปิด · ผู้ใช้เข้าเล่นเอง · ปลดสำเร็จ = ปิดจอ + แจ้งเตือน';
+      } else {
+        headerSubEl.textContent = subSizes.length > 1
+          ? `1 IP (${perIp} จอ) แบ่งเป็น ${subSizes.length} กลุ่ม · ${subSizes.length} Device (${splitText}) · กด Random เพื่อสุ่มเลขใหม่`
+          : `แบ่งกลุ่มอัตโนมัติ กลุ่มละ ${perIp} จอ (1 IP : 1 Device) · กด Random เพื่อสุ่มเลข Device ใหม่`;
+      }
+    }
+
+    if (perIpInput && document.activeElement !== perIpInput) {
+      perIpInput.value = String(perIp);
+    }
+    document.querySelectorAll('[data-dv-per-ip]').forEach(btn => {
+      const val = Number(btn.getAttribute('data-dv-per-ip'));
+      const pct = computeSurchargePctForShare(val, false);
+      btn.classList.toggle('active', val === perIp);
+      btn.title = pct > 0
+        ? `1 IP = ${val} จอ (ส่วนบุญเพิ่ม +${pct}%)`
+        : `1 IP = ${val} จอ (เรทมาตรฐาน +0%)`;
+    });
+
+    if (surchargeHintEl) {
+      const pct = computeSurchargePctForShare(perIp, false);
+      surchargeHintEl.textContent = pct > 0 ? `+${pct}% ส่วนบุญ` : '+0% มาตรฐาน';
+      surchargeHintEl.className = `dv-surcharge-hint ${pct > 0 ? 'is-extra' : 'is-std'}`;
+    }
+
+    const currentDefaultPlatMode = String(
+      cachedCustomConfig?.defaultPlatformMode ||
+      (groups[0] && groups[0].defaultPlatformMode) ||
+      'pc'
+    ).toLowerCase();
+    document.querySelectorAll('[data-dv-platform-mode]').forEach(btn => {
+      const m = btn.getAttribute('data-dv-platform-mode');
+      btn.classList.toggle('active', m === currentDefaultPlatMode);
+      btn.disabled = customMutating;
+    });
+
+    if (splitBannerEl) {
+      const pills = subSizes.map((sz, i) => {
+        const chipPlat = currentDefaultPlatMode === 'android'
+          ? 'android'
+          : (currentDefaultPlatMode === 'mixed' && i % 2 === 1 ? 'android' : 'pc');
+        const chipIcon = chipPlat === 'android' ? '📱' : '🖥️';
+        return `<span class="dv-split-chip">${chipIcon} Device ${i + 1}: <b>${sz} จอ</b></span>`;
+      }).join(' <span style="color:#64748b;">+</span> ');
+      splitBannerEl.innerHTML = `
+        <span>⚙️ <b>สูตรแบ่งต่อ 1 IP:</b> 1 IP (<b>${perIp} จอ</b>) = <b style="color:#fde047;">${subSizes.length} กลุ่ม · ${subSizes.length} Device</b></span>
+        <span class="dv-split-chips-wrap">${pills}</span>
+      `;
+    }
+
+    if (rotateAllBtn) {
+      rotateAllBtn.classList.toggle('dv-hidden', activeTab === 'custom' || activeTab === 'unban');
+      rotateAllBtn.disabled = rotatingAll || totalAutoGroups === 0;
+      rotateAllBtn.textContent = rotatingAll ? '⏳ กำลังสุ่ม...' : '🎲 Random ทุกกลุ่ม';
+    }
+    if (reIpAllBtn) {
+      reIpAllBtn.classList.toggle('dv-hidden', activeTab === 'unban');
+      reIpAllBtn.disabled = rotatingAllIps || (totalAutoGroups === 0 && customGroups.length === 0);
+      reIpAllBtn.textContent = rotatingAllIps ? '⏳ กำลังหา IP...' : '🔄 Re-IP ทุกวง';
+    }
+    if (!bodyEl) return;
+
+    if (activeTab === 'unban') {
+      renderUnbanTabBody(bodyEl, list);
+      return;
+    }
+    if (activeTab === 'custom') {
+      renderCustomTabBody(bodyEl, list);
+      return;
+    }
+
+    if (!force && window.PmUiGuard && window.PmUiGuard.deferIfInteracting('dv-list-body', bodyEl, () => renderDrawerList(false))) {
+      return;
+    }
+
+    if (totalAutoGroups === 0) {
+      const emptyHtml = `
+        <div class="dv-empty">
+          <div class="dv-empty-icon">⚙️</div>
+          <div class="dv-empty-title">${customMap.size > 0 ? 'ทุกจอถูกย้ายไปอยู่วงแยก IP / Device พิเศษแล้ว' : 'ยังไม่มีโปรไฟล์ในกลุ่มอัตโนมัติ'}</div>
+          <div class="dv-empty-sub">
+            ${customMap.size > 0
+              ? 'สามารถสลับไปดูหรือถอดจอออกจากแท็บ <b>"🎯 แยก IP / Device พิเศษ"</b> ด้านบนได้ตลอดเวลา'
+              : `เมื่อสร้างโปรไฟล์จอเกม ระบบจะจัดกลุ่มให้อัตโนมัติ<br><b>1 IP ต่อ ${perIp} จอ</b> แบ่งเป็น <b>${subSizes.length} Device (${splitText})</b>`}
+          </div>
+        </div>
+      `;
+      if (window.PmUiGuard) window.PmUiGuard.setHtmlIfChanged(bodyEl, emptyHtml);
+      else bodyEl.innerHTML = emptyHtml;
+      return;
+    }
+
+    // Group Device groups by IP block (`ipIndex`)
+    const ipBlocksMap = new Map();
+    groups.forEach(grp => {
+      const ipIdx = grp.ipIndex || 1;
+      if (!ipBlocksMap.has(ipIdx)) {
+        ipBlocksMap.set(ipIdx, []);
+      }
+      ipBlocksMap.get(ipIdx).push(grp);
+    });
+
+    const ipBlocksHtml = Array.from(ipBlocksMap.entries()).map(([ipIdx, ipGroups]) => {
+      const firstGrp = ipGroups[0];
+      const ipScreensCount = ipGroups.reduce((sum, g) => sum + g.members.length, 0);
+      const ipOnlineCount = ipGroups.reduce((sum, g) => sum + g.members.filter(m => m.profile && m.profile.isRunning).length, 0);
+      const ipSubSizes = ipGroups.map(g => g.maxScreens);
+      const ipSplitLabel = ipGroups.length > 1
+        ? `แบ่ง ${ipGroups.length} กลุ่ม · ${ipGroups.length} Device (${ipSubSizes.join(' + ')} จอ)`
+        : `1 กลุ่ม · 1 Device (${firstGrp.maxScreens} จอ)`;
+
+      let activeProxyIp = firstGrp.proxyIp || null;
+      let activeProxyId = firstGrp.proxyId || null;
+      const ipBlockProfileIds = [];
+      for (const g of ipGroups) {
+        for (const m of g.members) {
+          if (m.profile && m.profile.id && !ipBlockProfileIds.includes(m.profile.id)) {
+            ipBlockProfileIds.push(m.profile.id);
+          }
+          if (m.profile && m.profile.screenProxy && m.profile.screenProxy.active && m.profile.screenProxy.ip) {
+            activeProxyIp = m.profile.screenProxy.ip;
+            if (m.profile.screenProxy.proxyId) activeProxyId = m.profile.screenProxy.proxyId;
+          }
+        }
+      }
+      const isReIpBusy = rotatingIpBlocks.has(ipIdx) || rotatingAllIps;
+      const isIpJustRot = justRotatedIpBlocks.has(ipIdx);
+
+      const subGroupsHtml = ipGroups.map(grp => {
+        const gIdx = grp.groupIndex;
+        const isRot = rotatingGroups.has(gIdx) || rotatingAll;
+        const isJustRot = justRotatedGroupSet.has(gIdx);
+        const onlineInGroup = grp.members.filter(m => m.profile && m.profile.isRunning).length;
+        const devId = grp.deviceId || '-';
+        const machId = grp.machineId || '';
+        const shortMach = machId.length >= 20 ? `${machId.slice(0, 12)}...${machId.slice(-10)}` : (machId || '-');
+        const grpPlat = grp.platform === 'android' ? 'android' : 'pc';
+        const grpModel = grp.deviceModel || (grpPlat === 'android' ? 'Android Mobile' : 'Windows PC');
+        const grpGpu = grp.deviceGpu || (grpPlat === 'android' ? 'Adreno 750' : 'GeForce RTX 4060');
+        const shortGrpGpu = grpGpu.replace(/\s*Direct3D11.*$/i, '');
+
+        const membersHtml = grp.members.map((m, slotIdx) => {
+          const p = m.profile || {};
+          const state = p.isRunning ? p.liveState : null;
+          const charName = (state && state.charName) || p.lastCharName || '';
+          const accountId = p.account || (state && state.username) || 'ยังไม่ตั้งไอดี';
+          const portrait = (typeof getPortraitSrc === 'function') ? getPortraitSrc(p, state) : '';
+          const isOnline = Boolean(p.isRunning);
+          const ipSlotNo = (grp.ipSlotStart || 1) + slotIdx;
+
+          return `
+            <div class="dv-member-row ${isOnline ? 'is-online' : ''}" data-profile-id="${esc(p.id)}" title="คลิกเพื่อเลื่อนไปยังการ์ดของ ${esc(p.name)}">
+              <div class="dv-member-left">
+                <div class="dv-slot-pills-col">
+                  <span class="dv-slot-pill" title="ลำดับจอใน Device นี้">จอ ${slotIdx + 1}/${grp.maxScreens}</span>
+                  ${grp.screensPerIp > MAX_SCREENS_PER_DEVICE ? `<span class="dv-ip-slot-pill" title="ลำดับจอใน IP #${ipIdx}">IP ${ipSlotNo}/${grp.screensPerIp}</span>` : ''}
+                </div>
+                <div class="dv-member-avatar">
+                  ${portrait ? `<img src="${esc(portrait)}" alt="" onerror="this.style.display='none'">` : '🎮'}
+                </div>
+                <div class="dv-member-info">
+                  <div class="dv-member-title">
+                    <span>${esc(p.name || p.id)}</span>
+                    <span style="font-size:10px;color:#64748b;font-family:'JetBrains Mono',monospace;">#${m.orderIndex}</span>
+                  </div>
+                  <div class="dv-member-sub">
+                    <span>🆔 <b class="dv-member-account">${esc(accountId)}</b></span>
+                    ${charName ? `<span>• 👤 ${esc(charName)}</span>` : ''}
+                  </div>
+                </div>
+              </div>
+              <div class="dv-member-right">
+                <span class="dv-status-dot ${isOnline ? 'online' : 'offline'}">${isOnline ? '🟢 ออนไลน์' : '⚪ ออฟไลน์'}</span>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        return `
+          <div class="dv-group-card ${isJustRot ? 'dv-just-rotated' : ''} ${grpPlat === 'android' ? 'is-android-card' : ''}" data-group-index="${gIdx}">
+            <div class="dv-group-top">
+              <div class="dv-group-badges">
+                <span class="dv-group-title-badge">${grpPlat === 'android' ? '📱' : '🖥️'} Group #${gIdx}</span>
+                <span class="dv-group-subdevice-badge">Device ${grp.deviceIndexInIp}/${grp.devicesPerIp}</span>
+                <span class="dv-group-slots-badge">${grp.members.length} / ${grp.maxScreens} จอ</span>
+                ${onlineInGroup > 0 ? `<span class="dv-group-online-badge">🟢 ออนไลน์ ${onlineInGroup} จอ</span>` : ''}
+              </div>
+              <div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap;">
+                <div class="dv-plat-toggle" title="สลับโหมดจำลองอุปกรณ์เฉพาะ Group #${gIdx} (PC / Android)">
+                  <button type="button" class="dv-plat-btn ${grpPlat === 'pc' ? 'active is-pc' : ''}" data-set-auto-plat="${gIdx}:pc" ${customMutating ? 'disabled' : ''}>🖥️ PC</button>
+                  <button type="button" class="dv-plat-btn ${grpPlat === 'android' ? 'active is-android' : ''}" data-set-auto-plat="${gIdx}:android" ${customMutating ? 'disabled' : ''}>📱 Android</button>
+                </div>
+                <button type="button" class="dv-random-group-btn" data-rotate-group="${gIdx}" ${isRot ? 'disabled' : ''} title="สุ่มเลข Device ID และ Machine ID ใหม่ให้จอทั้งหมดใน Group #${gIdx}">
+                  ${isRot ? '⏳ กำลังสุ่ม...' : '🎲 Random Device'}
+                </button>
+              </div>
+            </div>
+
+            <div class="dv-device-box">
+              <div class="dv-device-row">
+                <span class="dv-device-label">${grpPlat === 'android' ? '📱 รุ่น Android:' : '🖥️ สเปก PC:'}</span>
+                <div class="dv-device-val-wrap">
+                  <span class="dv-spec-badge ${grpPlat === 'android' ? 'is-android' : 'is-pc'}" title="Model: ${esc(grpModel)} · GPU: ${esc(grpGpu)} · Touch: ${grpPlat === 'android' ? 5 : 0}">
+                    ${esc(grpModel)} · <b>${esc(shortGrpGpu)}</b>
+                  </span>
+                </div>
+              </div>
+              <div class="dv-device-row">
+                <span class="dv-device-label">🔑 Device ID:</span>
+                <div class="dv-device-val-wrap">
+                  <code class="dv-device-code" title="${esc(devId)}">${esc(devId)}</code>
+                  <button type="button" class="dv-copy-btn" data-copy-dev="${esc(devId)}" title="คัดลอก Device ID">📋</button>
+                </div>
+              </div>
+              <div class="dv-device-row">
+                <span class="dv-device-label">🧬 Machine ID:</span>
+                <div class="dv-device-val-wrap">
+                  <code class="dv-machine-code" title="${esc(machId)}">${esc(shortMach)}</code>
+                  ${machId ? `<button type="button" class="dv-copy-btn" data-copy-mach="${esc(machId)}" title="คัดลอก Machine ID">📋</button>` : ''}
+                </div>
+              </div>
+            </div>
+
+            <div class="dv-members-list">
+              ${membersHtml}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      return `
+        <section class="dv-ip-block ${isIpJustRot ? 'dv-ip-just-rotated' : ''}" data-ip-index="${ipIdx}">
+          <div class="dv-ip-block-header">
+            <div class="dv-ip-block-left">
+              <span class="dv-ip-badge">🌐 IP #${ipIdx}</span>
+              <span class="dv-ip-screens-badge">${ipScreensCount} / ${firstGrp.screensPerIp} จอ</span>
+              <span class="dv-ip-split-badge">${esc(ipSplitLabel)}</span>
+            </div>
+            <div class="dv-ip-block-right">
+              ${activeProxyIp ? `<span class="dv-ip-addr-pill" title="Proxy IP ของกลุ่มนี้">🛡️ ${esc(activeProxyIp)}</span>` : ''}
+              ${ipOnlineCount > 0 ? `<span class="dv-group-online-badge">🟢 ${ipOnlineCount} จอ</span>` : ''}
+              <button type="button" class="dv-reip-btn" data-reip-auto="${ipIdx}" data-reip-pids="${esc(ipBlockProfileIds.join(','))}" data-reip-cur-ip="${esc(activeProxyIp || '')}" data-reip-cur-id="${esc(activeProxyId || '')}" ${isReIpBusy ? 'disabled' : ''} title="หา IP ว่างตัวใหม่ในระบบมาเปลี่ยนให้ทุกจอในวง IP #${ipIdx} ทันที">
+                ${isReIpBusy ? '⏳ กำลังหา IP...' : '🔄 Re-IP'}
+              </button>
+            </div>
+          </div>
+          <div class="dv-ip-block-groups">
+            ${subGroupsHtml}
+          </div>
+        </section>
+      `;
+    }).join('');
+
+    const changed = window.PmUiGuard ? window.PmUiGuard.setHtmlIfChanged(bodyEl, ipBlocksHtml) : (bodyEl.innerHTML = ipBlocksHtml, true);
+    if (!changed) return;
+
+    bodyEl.querySelectorAll('[data-reip-auto]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const ipIdx = Number(btn.getAttribute('data-reip-auto'));
+        const pids = String(btn.getAttribute('data-reip-pids') || '').split(',').map(x => x.trim()).filter(Boolean);
+        const curIp = btn.getAttribute('data-reip-cur-ip') || '';
+        const curId = btn.getAttribute('data-reip-cur-id') || '';
+        reIpAutoBlock(ipIdx, pids, curIp, curId, e);
+      });
+    });
+
+    bodyEl.querySelectorAll('[data-rotate-group]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const gIdx = btn.getAttribute('data-rotate-group');
+        rotateSingleGroup(gIdx, e);
+      });
+    });
+
+    bodyEl.querySelectorAll('[data-set-auto-plat]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const [gIdxStr, platform] = String(btn.getAttribute('data-set-auto-plat') || '').split(':');
+        const groupIndex = Number(gIdxStr);
+        if (!groupIndex || !platform) return;
+        mutateCustomApi(
+          { action: 'set_auto_group_platform', groupIndex, platform },
+          platform === 'android' ? `📱 เปลี่ยน Group #${groupIndex} เป็นโหมดจำลอง Android แล้ว` : `🖥️ เปลี่ยน Group #${groupIndex} เป็นโหมดจำลอง Windows PC แล้ว`
+        );
+      });
+    });
+
+    bodyEl.querySelectorAll('[data-copy-dev]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        copyDeviceText(btn.getAttribute('data-copy-dev'), 'Device ID');
+      });
+    });
+
+    bodyEl.querySelectorAll('[data-copy-mach]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        copyDeviceText(btn.getAttribute('data-copy-mach'), 'Machine ID');
+      });
+    });
+
+    bodyEl.querySelectorAll('.dv-member-row').forEach(row => {
+      row.addEventListener('click', () => {
+        const pid = row.getAttribute('data-profile-id');
+        scrollToProfileCard(pid);
+      });
+    });
+  }
+
+  function updateDeviceManagerFromProfiles(profiles, deviceGroups, screensPerIp, extra) {
+    if (Array.isArray(profiles)) {
+      cachedProfiles = profiles;
+    }
+    if (Array.isArray(deviceGroups)) {
+      cachedGroups = deviceGroups;
+    }
+    if (Number.isFinite(Number(screensPerIp)) && Number(screensPerIp) >= 1) {
+      cachedScreensPerIp = Math.max(1, Math.min(20, Math.floor(Number(screensPerIp))));
+    }
+    if (extra && typeof extra === 'object') {
+      if (extra.customIpConfig && Array.isArray(extra.customIpConfig.ipGroups)) {
+        cachedCustomConfig = extra.customIpConfig;
+      }
+      if (Array.isArray(extra.customGroupLeases)) {
+        cachedCustomLeases = extra.customGroupLeases;
+      }
+      if (extra.ipSurchargeConfig) {
+        mergeSurchargeConfig(extra.ipSurchargeConfig);
+      }
+      if (extra.lastJailAutoCloseEvent) {
+        cachedLastJailAutoCloseEvent = extra.lastJailAutoCloseEvent;
+      }
+      if (extra.screenProxySummary) {
+        cachedScreenProxySummary = extra.screenProxySummary;
+      }
+    }
+    mountShell();
+    const list = typeof currentProfiles !== 'undefined' && Array.isArray(currentProfiles) ? currentProfiles : cachedProfiles;
+    const groups = buildGroupsFromProfiles(list, cachedGroups);
+    const customGroups = Array.isArray(cachedCustomConfig?.ipGroups) ? cachedCustomConfig.ipGroups : [];
+    const customDevCount = customGroups.reduce((s, ig) => s + (Array.isArray(ig.deviceGroups) ? ig.deviceGroups.length : 0), 0);
+    const tabCount = document.getElementById('dv-tab-count');
+    if (tabCount) tabCount.textContent = String(groups.length + customDevCount);
+    if (isOpen) {
+      if (activeTab === 'custom' && (editingTitleState || pendingDeleteState || pickerState)) {
+        return;
+      }
+      if (activeTab === 'unban' && document.getElementById('dv-unban-top-zone')) {
+        return;
+      }
+      renderDrawerList(false);
+    }
+  }
+
+  // ====================== UNBAN MODE UI ======================
+  let cachedUnbanStatus = { activeSessions: [], configuredProfileIds: [], poolEntries: [], hasCredentials: false, profileMap: {} };
+  let unbanRefreshing = false;
+  let unbanSSE = null;
+  let unbanSearchText = '';
+
+  function formatUnbanBytes(bytes) {
+    const b = Number(bytes) || 0;
+    if (b < 1024) return `${b} B`;
+    if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`;
+    return `${(b / (1024 * 1024)).toFixed(2)} MB`;
+  }
+
+  async function refreshUnbanStatus() {
+    if (unbanRefreshing) return;
+    unbanRefreshing = true;
+    try {
+      const res = await fetch('/api/unban/status').then(r => r.json());
+      if (res.success) {
+        cachedUnbanStatus = res;
+        const badge = document.getElementById('dv-mode-badge-unban');
+        const poolCount = res.poolEntries?.length || res.configuredProfileIds?.length || 0;
+        const activeCount = res.activeSessions?.length || 0;
+        if (badge) badge.textContent = activeCount > 0 ? `${activeCount}/${poolCount} จอ` : `${poolCount} จอ`;
+      }
+      if (activeTab === 'unban') {
+        const bodyEl = document.getElementById('dv-list-body');
+        if (bodyEl) renderUnbanTabBody(bodyEl, cachedProfiles);
+      }
+    } catch (_) {}
+    unbanRefreshing = false;
+  }
+
+  function ensureUnbanSSE() {
+    if (unbanSSE) return;
+    try {
+      unbanSSE = new EventSource('/api/unban/events');
+      unbanSSE.onmessage = (ev) => {
+        try {
+          const data = JSON.parse(ev.data);
+          if (data.type === 'unban-success') {
+            playUnbanSound();
+            if (typeof showToast === 'function') {
+              showToast(data.message || `🔔 ปลดสำเร็จ! ปิดจอและถอดออกจากวงแล้ว`, 'success');
+            }
+            if (typeof fetchProfiles === 'function') {
+              try { fetchProfiles(); } catch (_) {}
+            }
+            setTimeout(() => refreshUnbanStatus(), 1200);
+          }
+        } catch (_) {}
+      };
+      unbanSSE.onerror = () => {
+        unbanSSE?.close();
+        unbanSSE = null;
+        setTimeout(() => ensureUnbanSSE(), 10000);
+      };
+    } catch (_) {}
+  }
+
+  function playUnbanSound() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const playTone = (freq, startTime, duration, gain = 0.32) => {
+        const osc = ctx.createOscillator();
+        const g = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, startTime);
+        g.gain.setValueAtTime(gain, startTime);
+        g.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+        osc.connect(g);
+        g.connect(ctx.destination);
+        osc.start(startTime);
+        osc.stop(startTime + duration);
+      };
+      const now = ctx.currentTime;
+      playTone(523.25, now, 0.35, 0.28);
+      playTone(659.25, now + 0.14, 0.35, 0.28);
+      playTone(783.99, now + 0.28, 0.55, 0.32);
+      playTone(1046.5, now + 0.55, 0.85, 0.35);
+    } catch (_) {}
+  }
+
+  async function addProfilesToUnban(profileIds) {
+    try {
+      const ids = Array.isArray(profileIds) ? profileIds : [profileIds];
+      const res = await fetch('/api/unban/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profileIds: ids })
+      }).then(r => r.json());
+      if (res.success) {
+        if (typeof showToast === 'function') showToast(res.message || '✅ เพิ่มเข้าวงโหมดปลดแล้ว', 'success');
+      } else {
+        if (typeof showToast === 'function') showToast(`❌ ${res.error || 'ไม่สำเร็จ'}`, 'error');
+      }
+    } catch (e) {
+      if (typeof showToast === 'function') showToast(`❌ เกิดข้อผิดพลาด: ${e.message}`, 'error');
+    }
+    await refreshUnbanStatus();
+  }
+
+  async function removeProfileFromUnban(profileId) {
+    try {
+      const res = await fetch('/api/unban/remove', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profileId })
+      }).then(r => r.json());
+      if (res.success) {
+        if (typeof showToast === 'function') showToast(res.message || '✅ ถอดออกจากวงโหมดปลดแล้ว', 'success');
+      } else {
+        if (typeof showToast === 'function') showToast(`❌ ${res.error || 'ไม่สำเร็จ'}`, 'error');
+      }
+    } catch (e) {
+      if (typeof showToast === 'function') showToast(`❌ เกิดข้อผิดพลาด: ${e.message}`, 'error');
+    }
+    await refreshUnbanStatus();
+  }
+
+  async function rotateUnbanProfileDevice(profileId) {
+    try {
+      const res = await fetch('/api/unban/rotate-device', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profileId })
+      }).then(r => r.json());
+      if (res.success) {
+        if (typeof showToast === 'function') showToast(res.message || '🎲 สุ่มมือถือและ IP Session ใหม่แล้ว', 'success');
+      } else {
+        if (typeof showToast === 'function') showToast(`❌ ${res.error || 'ไม่สำเร็จ'}`, 'error');
+      }
+    } catch (e) {
+      if (typeof showToast === 'function') showToast(`❌ เกิดข้อผิดพลาด: ${e.message}`, 'error');
+    }
+    await refreshUnbanStatus();
+  }
+
+  async function startUnbanSession(profileId, rotateDevice = false) {
+    try {
+      const res = await fetch('/api/unban/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profileId, rotateDevice })
+      }).then(r => r.json());
+      if (res.success) {
+        if (typeof showToast === 'function') showToast(res.message || '✅ เปิดโหมดปลดสำเร็จ', 'success');
+      } else {
+        if (typeof showToast === 'function') showToast(`❌ ${res.error || 'ไม่สำเร็จ'}`, 'error');
+      }
+    } catch (e) {
+      if (typeof showToast === 'function') showToast(`❌ เกิดข้อผิดพลาด: ${e.message}`, 'error');
+    }
+    await refreshUnbanStatus();
+  }
+
+  async function stopUnbanSession(profileId, removeFromPool = false, markUnbanned = false) {
+    try {
+      const res = await fetch('/api/unban/stop', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profileId, removeFromPool, markUnbanned, reason: markUnbanned ? 'manual-unbanned' : 'manual' })
+      }).then(r => r.json());
+      if (res.success) {
+        if (markUnbanned) playUnbanSound();
+        if (typeof showToast === 'function') showToast(res.message || '✅ ปิดโหมดปลดแล้ว', 'success');
+      } else {
+        if (typeof showToast === 'function') showToast(`❌ ${res.error || 'ไม่สำเร็จ'}`, 'error');
+      }
+    } catch (e) {
+      if (typeof showToast === 'function') showToast(`❌ เกิดข้อผิดพลาด: ${e.message}`, 'error');
+    }
+    await refreshUnbanStatus();
+  }
+
+  function renderUnbanTabBody(bodyEl, profiles) {
+    ensureUnbanSSE();
+    const status = cachedUnbanStatus;
+    const allProfiles = Array.isArray(profiles) ? profiles : cachedProfiles;
+    const poolEntries = Array.isArray(status.poolEntries) ? status.poolEntries : [];
+    const poolSet = new Set(poolEntries.map(e => e.profileId));
+    const activeSessionMap = new Map();
+    for (const s of (status.activeSessions || [])) {
+      activeSessionMap.set(s.profileId, s);
+    }
+
+    const jailedUnassigned = allProfiles.filter(p => {
+      if (!p || !p.id || poolSet.has(p.id)) return false;
+      const pm = status.profileMap?.[p.id];
+      return Boolean(p.isJailed || pm?.isJailed);
+    });
+
+    const availableProfiles = allProfiles.filter(p => {
+      if (!p || !p.id || poolSet.has(p.id)) return false;
+      if (!unbanSearchText) return true;
+      const pm = status.profileMap?.[p.id] || {};
+      const q = unbanSearchText.toLowerCase();
+      return (
+        String(p.name || '').toLowerCase().includes(q) ||
+        String(p.account || pm.account || '').toLowerCase().includes(q) ||
+        String(p.charName || p.lastCharName || pm.charName || '').toLowerCase().includes(q)
+      );
+    }).sort((a, b) => {
+      const aJ = Boolean(a.isJailed || status.profileMap?.[a.id]?.isJailed);
+      const bJ = Boolean(b.isJailed || status.profileMap?.[b.id]?.isJailed);
+      if (aJ !== bJ) return aJ ? -1 : 1;
+      return 0;
+    });
+
+    let topHtml = '';
+    const useMobileProxy = Boolean(status.useMobileProxy);
+
+    // Top summary & actions card
+    topHtml += `
+      <div class="dv-custom-intro-card" style="border-color:rgba(16,185,129,0.35);background:linear-gradient(135deg,rgba(6,78,59,0.35),rgba(15,23,42,0.85));">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
+          <div>
+            <div style="font-size:13px;font-weight:800;color:#6ee7b7;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+              <span>🔓 โหมดปลดคุก — จำลองมือถือ Android แท้ 100% (Stealth สูงสุด)</span>
+              <span class="dv-chip" style="background:${useMobileProxy ? 'rgba(245,158,11,0.2)' : 'rgba(16,185,129,0.22)'};color:${useMobileProxy ? '#fde68a' : '#a7f3d0'};border:1px solid ${useMobileProxy ? 'rgba(245,158,11,0.45)' : 'rgba(16,185,129,0.45)'};font-size:10.5px;padding:1px 8px;border-radius:999px;">
+                ${useMobileProxy ? `📱 เน็ตซิม DataImpulse (${esc(status.proxyHost || 'gw.dataimpulse.com')})` : '📶 เน็ตบ้าน / Wi-Fi ปกติ (ไม่เสีย GB DataImpulse)'}
+              </span>
+            </div>
+            <div style="font-size:11px;color:#cbd5e1;margin-top:4px;line-height:1.5;">
+              • จำลอง <b>มือถือ Android แท้ระดับเบราว์เซอร์</b> (ตรงทั้ง HTTP Headers, Client Hints, ความละเอียดจอ, Touch, ปุ่มบังคับมือถือ Joystick)<br>
+              • <b>ซ่อนตัวแปรระบบและร่องรอย CDP 100%</b> · <b>ปิดบอท</b> (ล็อกอินและเลือกตัวละครเข้าเกมให้อัตโนมัติ แต่ไม่มีโค้ดบอทและไม่มี HUD บอทในจอ)<br>
+              • <b>ตรวจจับอัตโนมัติ:</b> เมื่อแอดมินปล่อยตัวออกจากคุก ระบบจะ<b>ส่งเสียงระฆังแจ้งเตือน + ปิดจอ + ถอดออกจากคิวปลดทันที</b>
+            </div>
+            <div style="margin-top:8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+              <span style="font-size:11px;color:#94a3b8;font-weight:700;">🌐 ช่องทางเน็ตโหมดปลด:</span>
+              <button type="button" class="dv-btn ${!useMobileProxy ? 'dv-btn-primary' : ''}" style="font-size:11px;padding:3px 10px;${!useMobileProxy ? 'background:#059669;border-color:#34d399;' : ''}"
+                onclick="window.__unbanSetProxyMode(false)">
+                📶 เน็ตบ้าน / Wi-Fi (แนะนำ · ไม่เสีย GB)
+              </button>
+              <button type="button" class="dv-btn ${useMobileProxy ? 'dv-btn-amber' : ''}" style="font-size:11px;padding:3px 10px;"
+                onclick="window.__unbanSetProxyMode(true)" title="เปิดใช้เฉพาะเมื่อต้องการสุ่ม IP มือถือ 4G/5G จาก DataImpulse">
+                📱 เน็ตซิม DataImpulse (ใช้ GB)
+              </button>
+            </div>
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            ${jailedUnassigned.length > 0 ? `
+              <button type="button" class="dv-btn dv-btn-amber" onclick="window.__unbanAddAllJailed()">
+                🚨 ดึงจอติดคุกเข้าวงปลด (${jailedUnassigned.length} จอ)
+              </button>
+            ` : ''}
+            <button type="button" class="dv-btn" onclick="window.__unbanTestBell()" title="ทดสอบเสียงแจ้งเตือนเมื่อปลดสำเร็จ">
+              🔔 ทดสอบเสียง
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    // Pool entries (Clients added to Unban Mode)
+    topHtml += `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin:14px 0 8px 0;">
+        <div style="font-size:12.5px;font-weight:800;color:#fde68a;">
+          📱 รายการ Client ในวงปลด (${poolEntries.length} จอ · กำลังเปิด ${activeSessionMap.size} จอ)
+        </div>
+        ${activeSessionMap.size > 0 ? `
+          <button type="button" class="dv-btn" style="background:rgba(239,68,68,0.2);color:#fca5a5;border:1px solid rgba(239,68,68,0.4);font-size:11px;padding:3px 10px;" onclick="window.__unbanStopAll()">
+            ⏹ ปิดจอที่กำลังปลดทั้งหมด
+          </button>
+        ` : ''}
+      </div>
+    `;
+
+    if (poolEntries.length === 0) {
+      topHtml += `
+        <div class="dv-empty" style="padding:20px 14px;margin-bottom:14px;">
+          <div class="dv-empty-icon">📱</div>
+          <div class="dv-empty-title">ยังไม่มี Client ในวงโหมดปลด</div>
+          <div class="dv-empty-sub">กดปุ่ม <b>"+ เพิ่มเข้าวงปลด"</b> จากรายการด้านล่าง (หรือกดดึงจอติดคุกเข้าวงปลดด้านบน)</div>
+        </div>
+      `;
+    } else {
+      topHtml += `<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">`;
+      for (const item of poolEntries) {
+        const pid = item.profileId;
+        const pInfo = status.profileMap?.[pid] || {};
+        const pObj = allProfiles.find(p => p && p.id === pid) || {};
+        const pName = pObj.name || pInfo.name || pid;
+        const account = pObj.account || pInfo.account || '-';
+        const charName = pObj.charName || pObj.lastCharName || pInfo.charName || '-';
+        const isJailed = Boolean(pObj.isJailed || pInfo.isJailed);
+        const isBotRunning = Boolean(pObj.isRunning);
+        const active = item.activeSession || activeSessionMap.get(pid) || null;
+
+        topHtml += `
+          <div class="dv-custom-ip-card" style="padding:10px 12px;border-color:${active ? 'rgba(16,185,129,0.55)' : 'rgba(148,163,184,0.22)'};background:${active ? 'rgba(6,78,59,0.18)' : 'rgba(15,23,42,0.65)'};">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;">
+              <div>
+                <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                  <span style="font-size:13px;font-weight:800;color:#f8fafc;">${esc(pName)}</span>
+                  <span style="font-size:11px;color:#fde047;font-weight:600;">ID: ${esc(account)}</span>
+                  <span style="font-size:11px;color:#cbd5e1;">• ตัวละคร: <b>${esc(charName)}</b></span>
+                  ${isJailed ? `<span style="background:rgba(239,68,68,0.2);color:#fca5a5;border:1px solid rgba(239,68,68,0.45);font-size:10px;padding:1px 6px;border-radius:999px;font-weight:700;">🔒 ติดคุก</span>` : ''}
+                  ${active ? `<span style="background:rgba(16,185,129,0.22);color:#6ee7b7;border:1px solid rgba(16,185,129,0.5);font-size:10px;padding:1px 7px;border-radius:999px;font-weight:700;">🟢 กำลังเปิดโหมดปลด</span>` : ''}
+                </div>
+                <div style="font-size:11px;color:#94a3b8;margin-top:5px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                  <span>📱 รุ่น: <b style="color:#6ee7b7;">${esc(item.deviceModel || 'Android')}</b> (${esc(item.deviceGpu || 'Adreno')})</span>
+                  <span>🔑 Device: <code style="color:#93c5fd;">${esc((item.deviceId || '').slice(0, 13))}...</code></span>
+                </div>
+                ${active ? `
+                  <div style="margin-top:6px;padding:6px 10px;border-radius:8px;background:rgba(15,23,42,0.75);border:1px solid rgba(16,185,129,0.3);font-size:11px;color:#e2e8f0;display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
+                    <span>🌐 IP: <b style="color:#38bdf8;">${esc(active.egressIp || 'กำลังเช็ค...')}</b></span>
+                    <span>🗺️ สถานะ/แมพ: <b style="color:${active.inJail ? '#fca5a5' : '#fde047'};">${esc(active.currentMap || 'กำลังโหลด...')}</b></span>
+                    ${active.useMobileProxy ? `<span>📊 เน็ตซิมที่ใช้: <b style="color:#a7f3d0;">${formatUnbanBytes(active.bytesUsed || 0)}</b></span>` : ''}
+                    <span>🕐 ${active.runningMinutes || 0} นาที</span>
+                  </div>
+                ` : ''}
+              </div>
+              <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+                ${active ? `
+                  <button type="button" class="dv-btn" style="background:rgba(16,185,129,0.25);color:#6ee7b7;border:1px solid rgba(16,185,129,0.5);font-size:11px;padding:4px 10px;"
+                    onclick="window.__unbanStop('${esc(pid)}', true, true)" title="กดเมื่อได้รับการปลดแล้ว: ปิดจอ + เคลียร์สถานะคุก + ถอดออกจากวงปลด">
+                    ✅ ปลดสำเร็จ (ปิด+ถอดออก)
+                  </button>
+                  <button type="button" class="dv-btn" style="background:#dc2626;color:#fff;font-size:11px;padding:4px 10px;"
+                    onclick="window.__unbanStop('${esc(pid)}', false, false)">
+                    ⏹ ปิดจอ
+                  </button>
+                ` : `
+                  <button type="button" class="dv-btn dv-btn-primary" style="font-size:11px;padding:4px 11px;background:linear-gradient(135deg,#059669,#10b981);border-color:#34d399;"
+                    ${isBotRunning ? 'disabled title="กรุณาปิดจอบอทปกติก่อนเปิดโหมดปลด"' : ''}
+                    onclick="window.__unbanStart('${esc(pid)}', false)">
+                    🔓 เปิดจอปลด (Android)
+                  </button>
+                  <button type="button" class="dv-btn" style="font-size:11px;padding:4px 9px;"
+                    onclick="window.__unbanRotate('${esc(pid)}')" title="สุ่มรุ่นมือถือ Android, เลขเครื่อง และ IP Session ใหม่">
+                    🎲 สุ่มใหม่
+                  </button>
+                  <button type="button" class="dv-btn" style="color:#fca5a5;border-color:rgba(239,68,68,0.35);font-size:11px;padding:4px 9px;"
+                    onclick="window.__unbanRemove('${esc(pid)}')" title="ถอดออกจากวงโหมดปลด">
+                    ✕ ถอดออก
+                  </button>
+                `}
+              </div>
+            </div>
+          </div>
+        `;
+      }
+      topHtml += `</div>`;
+    }
+
+    let availHtml = '';
+    if (availableProfiles.length === 0) {
+      availHtml = `
+        <div style="font-size:11.5px;color:#64748b;text-align:center;padding:14px;">
+          ไม่พบโปรไฟล์ที่ค้นหา หรือทุกจออยู่ในวงปลดแล้ว
+        </div>
+      `;
+    } else {
+      for (const p of availableProfiles) {
+        const pm = status.profileMap?.[p.id] || {};
+        const pName = p.name || pm.name || p.id;
+        const account = p.account || pm.account || '-';
+        const charName = p.charName || p.lastCharName || pm.charName || '-';
+        const isJailed = Boolean(p.isJailed || pm.isJailed);
+        const isRunning = Boolean(p.isRunning);
+        availHtml += `
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 12px;border-radius:8px;background:${isJailed ? 'rgba(239,68,68,0.08)' : 'rgba(255,255,255,0.03)'};border:1px solid ${isJailed ? 'rgba(239,68,68,0.3)' : 'rgba(255,255,255,0.07)'};">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+              <span style="font-size:12px;color:#f1f5f9;font-weight:700;">${esc(pName)}</span>
+              <span style="font-size:11px;color:#fde047;">${esc(account)}</span>
+              <span style="font-size:11px;color:#94a3b8;">• ${esc(charName)}</span>
+              ${isJailed ? `<span style="background:rgba(239,68,68,0.22);color:#fca5a5;border:1px solid rgba(239,68,68,0.45);font-size:10px;padding:1px 6px;border-radius:999px;font-weight:700;">🔒 ติดคุก</span>` : ''}
+              ${isRunning ? `<span style="font-size:10px;color:#4ade80;">(เปิดบอทอยู่)</span>` : ''}
+            </div>
+            <div style="display:flex;gap:5px;">
+              <button type="button" class="dv-btn" style="font-size:11px;padding:3px 10px;border-color:rgba(56,189,248,0.4);color:#7dd3fc;"
+                onclick="window.__unbanAdd('${esc(p.id)}')">
+                + เพิ่มเข้าวงปลด
+              </button>
+              ${!isRunning ? `
+                <button type="button" class="dv-btn dv-btn-primary" style="font-size:11px;padding:3px 10px;background:linear-gradient(135deg,#059669,#10b981);border-color:#34d399;"
+                  onclick="window.__unbanStart('${esc(p.id)}', false)">
+                  🔓 เพิ่ม+เปิดทันที
+                </button>
+              ` : ''}
+            </div>
+          </div>
+        `;
+      }
+    }
+
+    // Mount stable skeleton once so scrolling in #dv-unban-avail-list or bodyEl never resets on polling!
+    let topZone = document.getElementById('dv-unban-top-zone');
+    let availTitleEl = document.getElementById('dv-unban-avail-title');
+    let availListEl = document.getElementById('dv-unban-avail-list');
+    if (!topZone || !availListEl) {
+      delete bodyEl.__pmLastHtml;
+      bodyEl.innerHTML = `
+        <div id="dv-unban-top-zone"></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin:14px 0 8px 0;flex-wrap:wrap;">
+          <div id="dv-unban-avail-title" style="font-size:12.5px;font-weight:800;color:#e2e8f0;"></div>
+          <input type="text" id="dv-unban-search-input" value="${esc(unbanSearchText)}" placeholder="🔍 ค้นหาชื่อจอ / ไอดี / ตัวละคร..."
+            style="background:rgba(15,23,42,0.8);border:1px solid rgba(148,163,184,0.3);color:#f8fafc;border-radius:7px;padding:4px 10px;font-size:11.5px;width:220px;">
+        </div>
+        <div id="dv-unban-avail-list" style="display:flex;flex-direction:column;gap:5px;max-height:320px;overflow-y:auto;padding-right:4px;"></div>
+      `;
+      topZone = document.getElementById('dv-unban-top-zone');
+      availTitleEl = document.getElementById('dv-unban-avail-title');
+      availListEl = document.getElementById('dv-unban-avail-list');
+      const searchInput = document.getElementById('dv-unban-search-input');
+      if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
+          unbanSearchText = e.target.value || '';
+          renderUnbanTabBody(bodyEl, cachedProfiles);
+        });
+      }
+    }
+
+    if (topZone && topZone.dataset.renderSig !== topHtml) {
+      const prevBodyScroll = bodyEl.scrollTop;
+      topZone.innerHTML = topHtml;
+      topZone.dataset.renderSig = topHtml;
+      bodyEl.scrollTop = prevBodyScroll;
+    }
+
+    const nextTitleTxt = `➕ เลือกเพิ่ม Client เข้าวงปลด (${availableProfiles.length} จอ)`;
+    if (availTitleEl && availTitleEl.textContent !== nextTitleTxt) {
+      availTitleEl.textContent = nextTitleTxt;
+    }
+
+    if (availListEl && availListEl.dataset.renderSig !== availHtml) {
+      const prevAvailScroll = availListEl.scrollTop;
+      const prevBodyScroll = bodyEl.scrollTop;
+      availListEl.innerHTML = availHtml;
+      availListEl.dataset.renderSig = availHtml;
+      availListEl.scrollTop = prevAvailScroll;
+      bodyEl.scrollTop = prevBodyScroll;
+    }
+  }
+
+  // Expose unban actions globally
+  window.__unbanAdd = async (profileId) => {
+    await addProfilesToUnban([profileId]);
+  };
+  window.__unbanAddAllJailed = async () => {
+    const status = cachedUnbanStatus;
+    const poolSet = new Set((status.poolEntries || []).map(e => e.profileId));
+    const list = typeof currentProfiles !== 'undefined' && Array.isArray(currentProfiles) ? currentProfiles : cachedProfiles;
+    const ids = list.filter(p => p && p.id && !poolSet.has(p.id) && (p.isJailed || status.profileMap?.[p.id]?.isJailed)).map(p => p.id);
+    if (ids.length > 0) await addProfilesToUnban(ids);
+  };
+  window.__unbanRemove = async (profileId) => {
+    await removeProfileFromUnban(profileId);
+  };
+  window.__unbanRotate = async (profileId) => {
+    await rotateUnbanProfileDevice(profileId);
+  };
+  window.__unbanStart = async (profileId, rotateDevice = false) => {
+    await startUnbanSession(profileId, rotateDevice);
+  };
+  window.__unbanStop = async (profileId, removeFromPool = false, markUnbanned = false) => {
+    await stopUnbanSession(profileId, removeFromPool, markUnbanned);
+  };
+  window.__unbanStopAll = async () => {
+    try {
+      await fetch('/api/unban/stop-all', { method: 'POST' });
+      if (typeof showToast === 'function') showToast('⏹ ปิดจอโหมดปลดทั้งหมดแล้ว', 'success');
+    } catch (_) {}
+    await refreshUnbanStatus();
+  };
+  window.__unbanSetProxyMode = async (useMobileProxy) => {
+    try {
+      const res = await fetch('/api/unban/proxy-mode', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ useMobileProxy: Boolean(useMobileProxy) })
+      }).then(r => r.json());
+      if (res.success) {
+        if (typeof showToast === 'function') showToast(res.message || '✅ บันทึกโหมดการเชื่อมต่อแล้ว', 'success');
+      } else {
+        if (typeof showToast === 'function') showToast(`❌ ${res.error || 'ไม่สำเร็จ'}`, 'error');
+      }
+    } catch (e) {
+      if (typeof showToast === 'function') showToast(`❌ เกิดข้อผิดพลาด: ${e.message}`, 'error');
+    }
+    await refreshUnbanStatus();
+  };
+  window.__unbanTestBell = () => {
+    playUnbanSound();
+    if (typeof showToast === 'function') showToast('🔔 ทดสอบเสียงแจ้งเตือนเมื่อปลดคุกสำเร็จ!', 'success');
+  };
+
+  // Auto-refresh unban status every 5 seconds when the tab is open
+  setInterval(() => {
+    if (isOpen && activeTab === 'unban') {
+      refreshUnbanStatus();
+    }
+  }, 5000);
+
+  // ====================== END UNBAN MODE UI ======================
+
+  window.updateDeviceManagerFromProfiles = updateDeviceManagerFromProfiles;
+  window.toggleDeviceDrawer = toggleDrawer;
+  window.openDeviceDrawerTab = openDeviceDrawerTab;
+  window.rotateDeviceGroupByIndex = rotateSingleGroup;
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+      mountShell();
+      updateDeviceManagerFromProfiles(typeof currentProfiles !== 'undefined' ? currentProfiles : [], []);
+    });
+  } else {
+    mountShell();
+    updateDeviceManagerFromProfiles(typeof currentProfiles !== 'undefined' ? currentProfiles : [], []);
+  }
+})();

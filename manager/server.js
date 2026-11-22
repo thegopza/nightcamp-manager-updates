@@ -1,0 +1,12456 @@
+// ==========================================
+// SUPERVISOR: PelicanManager.exe runs `node server.js`. That process stays a thin supervisor and runs the
+// real server as a child, so an update can restart the server (exit code 75) without restarting
+// PelicanManager.exe — whose job object would also close every game window. See manager_self_update.js.
+// If an updated server fails to start, the files backed up by the updater are restored automatically.
+// ==========================================
+if (process.env.PELICAN_SERVER_CHILD !== "1") {
+  const { fork } = require("child_process");
+  const fs = require("fs");
+  const path = require("path");
+  const marker = path.join(__dirname, "data", "manager_update_pending.json");
+  let child = null;
+  let crashes = [];
+  const rollback = () => {
+    try {
+      const m = JSON.parse(fs.readFileSync(marker, "utf8"));
+      for (const rel of m.files || []) {
+        const src = path.join(m.backupDir, rel);
+        if (fs.existsSync(src)) fs.copyFileSync(src, path.join(__dirname, rel));
+      }
+      fs.unlinkSync(marker);
+      // Remember the bad version so the updater doesn't apply it again automatically
+      fs.writeFileSync(path.join(__dirname, "data", "manager_update_failed.json"), JSON.stringify({ sha: m.sha, at: Date.now() }));
+      console.log("[Supervisor] ⏪ Updated server failed to start — restored the previous files");
+      return true;
+    } catch (e) {
+      return false;
+    }
+  };
+  const startChild = () => {
+    child = fork(__filename, process.argv.slice(2), { env: { ...process.env, PELICAN_SERVER_CHILD: "1" } });
+    child.on("exit", (code) => {
+      if (code === 75) {
+        console.log("[Supervisor] ♻️ Restarting Manager server after update...");
+        return setTimeout(startChild, 800);
+      }
+      if (code === 0) return process.exit(0);
+      if (rollback()) return setTimeout(startChild, 800);
+      crashes = crashes.filter(t => Date.now() - t < 120000);
+      crashes.push(Date.now());
+      if (crashes.length <= 3) {
+        console.log("[Supervisor] ⚠️ Manager server stopped unexpectedly (code " + code + ") — restarting");
+        return setTimeout(startChild, 2000);
+      }
+      process.exit(code == null ? 1 : code);
+    });
+  };
+  const stop = () => { try { if (child) child.kill(); } catch (e) {} process.exit(0); };
+  process.on("SIGINT", stop);
+  process.on("SIGTERM", stop);
+  startChild();
+  return;
+}
+// Child: exit together with the supervisor if it is killed (e.g. PelicanManager.exe "Restart")
+process.on("disconnect", () => process.exit(0));
+
+const http = require("http");
+const https = require("https");
+const fs = require("fs");
+const path = require("path");
+const os = require("os");
+const { spawn, exec } = require("child_process");
+
+const TEST_INSTANCE=process.env.PELICAN_TEST_INSTANCE==='1';
+const testPort=Number(process.env.PELICAN_TEST_PORT),testCdpPort=Number(process.env.PELICAN_TEST_CDP_PORT);
+if(TEST_INSTANCE) {
+  const tempRoot=path.resolve(os.tmpdir())+path.sep;
+  if(!path.resolve(__dirname).toLowerCase().startsWith(tempRoot.toLowerCase())||!Number.isInteger(testPort)||testPort<3899||testPort>65535||!Number.isInteger(testCdpPort)||testCdpPort<9400||testCdpPort>65535||testCdpPort===testPort)throw Error('ISOLATED_TEMP_MANAGER_REQUIRED');
+  for(const name of ['bot_update_state.json','manager_update_state.json']) {
+    const data=JSON.parse(fs.readFileSync(path.join(__dirname,'data',name),'utf8'));
+    if(data.enabled!==false)throw Error('TEST_AUTO_UPDATE_MUST_BE_DISABLED');
+  }
+  // Review R6: only a manager seeded by the fixture builder (fake data, no customer files) may run as a test
+  // instance, and it may only reach loopback fixture ports.
+  const marker=(()=>{try{return JSON.parse(fs.readFileSync(path.join(__dirname,'data','test_fixture_marker.json'),'utf8'));}catch(_){return null;}})();
+  if(marker?.fixture!==true||marker.customerData!==false)throw Error('TEST_FIXTURE_MARKER_REQUIRED');
+}
+const testFixturePort=Number(process.env.PELICAN_TEST_FIXTURE_PORT);
+if(TEST_INSTANCE&&(!Number.isInteger(testFixturePort)||testFixturePort<1024||testFixturePort>65535||[testPort,testCdpPort,3888].includes(testFixturePort)))throw Error('TEST_FIXTURE_PORT_REQUIRED');
+const testIsolation=TEST_INSTANCE?require('./test_isolation').installTestIsolation({allowedPorts:[testPort,testCdpPort,testFixturePort]}):null;
+const PORT = TEST_INSTANCE ? testPort : (Number(process.env.NIGHTCAMP_PORT) || 3891);
+const BASE_DIR = path.resolve(__dirname, "..");
+const PROFILES_FILE = path.join(__dirname, "profiles.json");
+const PLANS_FILE = path.join(__dirname, "plans.json");
+const PRESETS_FILE = path.join(__dirname, "presets.json");
+const installer = require("./installer");
+const { handleInventoryMarketRoute } = require("./inventory_market_api");
+const { createPartyService } = require("./party_api");
+const { createPremiumService } = require("./premium_api");
+const { createGuildService } = require("./guild_api");
+const { createCardMarketService } = require("./card_market_api");
+const { createMarketSniperService } = require("./market_sniper_api");
+const { createTowerCarryService } = require("./tower_carry");
+const { createBotAutoUpdater } = require("./bot_auto_update");
+const { createManagerSelfUpdater } = require("./manager_self_update");
+const { handleConfigCopyRoute } = require("./config_copy_api");
+const { createPlanSync } = require("./plan_sync");
+const { createAuthSync } = require("./auth_sync");
+const credentials = require("./credentials");
+const { createBrowserMode, extractPelicanStorageFromLevelDb, mergeAuthConfigString, mergeSellConfigString } = require("./browser_mode");
+const { createDiscordBotService } = require("./discord_bot");
+const { allowLocalRequest } = require("./local_request_security");
+const { createHumanCheckSolver } = require("./human_check_solver");
+const humanCheckSolver = createHumanCheckSolver({ dataDir: path.join(__dirname, "data"), requireUserLogin: true, ...(TEST_INSTANCE ? { requestJSON: require('./test_isolation').createFixtureRequestJSON(testFixturePort) } : {}) });
+const { createProxyRegisterService } = require("./proxy_register");
+const proxyRegister = createProxyRegisterService({ dataDir: path.join(__dirname, "data"), solver: humanCheckSolver });
+const { createScreenProxyManager } = require("./screen_proxy_manager");
+const imageBoardSolver = require('./image_board_solver');
+const { createScriptCoordinator } = require('./script_coordinator');
+const { loadScriptRollout, saveScriptRolloutSelection } = require('./script_rollout');
+const { createRemoteFleetService } = require('./remote_fleet');
+const { createFleetZenyConsolidationService } = require('./fleet_zeny_consolidation');
+const { createEmbeddedHumanCheckBridge, buildClientCaptchaPolicyInstallSnippet } = require('./embedded_human_check_bridge');
+const PROFILES_BACKUP_FILE = path.join(__dirname, "data", "profiles.backup.json");
+const PLANS_BACKUP_FILE = path.join(__dirname, "data", "plans.backup.json");
+const PRESETS_BACKUP_FILE = path.join(__dirname, "data", "presets.backup.json");
+
+function writeJsonAtomic(filePath, data) {
+  const dir = path.dirname(filePath);
+  try {
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  } catch (_) {}
+  const text = JSON.stringify(data, null, 2);
+  const tmpFile = `${filePath}.${process.pid}.${Date.now()}.tmp`;
+  try {
+    const fd = fs.openSync(tmpFile, "w");
+    try {
+      fs.writeFileSync(fd, text, "utf8");
+      try { fs.fsyncSync(fd); } catch (_) {}
+    } finally {
+      try { fs.closeSync(fd); } catch (_) {}
+    }
+    fs.renameSync(tmpFile, filePath);
+  } catch (e) {
+    try { if (fs.existsSync(tmpFile)) fs.unlinkSync(tmpFile); } catch (_) {}
+    // Never overwrite/truncate an existing non-empty file if the disk is full (ENOSPC)!
+    if (e && e.code === "ENOSPC") {
+      try {
+        if (fs.existsSync(filePath) && fs.statSync(filePath).size > 0) {
+          console.warn(`[Storage] ⚠️ ไดรฟ์เต็ม (ENOSPC) ข้ามการเขียนทับ ${path.basename(filePath)} เพื่อรักษาไฟล์เดิมไว้`);
+          return;
+        }
+      } catch (_) {}
+    }
+    try {
+      fs.writeFileSync(filePath, text, "utf8");
+    } catch (e2) {
+      if (e2 && e2.code === "ENOSPC") {
+        console.warn(`[Storage] ⚠️ ไดรฟ์เต็ม (ENOSPC) บันทึกไฟล์ ${path.basename(filePath)} ไม่สำเร็จ`);
+        return;
+      }
+      throw e2;
+    }
+  }
+}
+
+let lastValidPresetsCache = null;
+function loadPresets() {
+  if (fs.existsSync(PRESETS_FILE)) {
+    try {
+      const parsed = JSON.parse(fs.readFileSync(PRESETS_FILE, "utf8"));
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        lastValidPresetsCache = parsed;
+        if (!fs.existsSync(PRESETS_BACKUP_FILE)) {
+          try { writeJsonAtomic(PRESETS_BACKUP_FILE, parsed); } catch (_) {}
+        }
+        return parsed;
+      }
+    } catch (e) {}
+  }
+  if (fs.existsSync(PRESETS_BACKUP_FILE)) {
+    try {
+      const backup = JSON.parse(fs.readFileSync(PRESETS_BACKUP_FILE, "utf8"));
+      if (Array.isArray(backup) && backup.length > 0) {
+        lastValidPresetsCache = backup;
+        try { writeJsonAtomic(PRESETS_FILE, backup); } catch (_) {}
+        return backup;
+      }
+    } catch (_) {}
+  }
+  if (lastValidPresetsCache && lastValidPresetsCache.length > 0) {
+    return lastValidPresetsCache;
+  }
+  if (!fs.existsSync(PRESETS_FILE)) {
+    const defaultPresets = [
+      {
+        id: "preset_archer_ruins",
+        name: "Archer ฟาร์มซากโบราณสถาน (ลูป 24 ชม.)",
+        description: "ลูกธนู 200 ดอก, ขยะขายหมด, ล็อคของตีบวกและออฟชั่น, ลูป 24 ชม.",
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        config: {
+          targetMap: "ซากโบราณสถาน Lv.45–55",
+          autoLoop: true,
+          sellConfig: {
+            enabled: true,
+            weightCheckEnabled: true,
+            weightThreshold: 80,
+            sellMaterials: true,
+            weaponRarity: "normal",
+            armorRarity: "normal",
+            accRarity: "none",
+            sellWeapons: true,
+            sellArmors: true,
+            keepRefined: true,
+            keepSpecial: true,
+            keepSockets: true,
+            whitelist: "Phracon, Rough Elunium, Enchant Rune, Composite Bow, Crossbow, Gakkung, Hunter Bow"
+          },
+          archerConfig: {
+            requireArrow: false,
+            smartArrow: false,
+            arrowType: 90030,
+            arrowBuyQty: 200,
+            useBwing: true,
+            bwingBuyQty: 5,
+            bwingItemId: 90311,
+            ammoThreshold: 50,
+            autoEquipArrow: false,
+            arrowHotbarSlot: -1
+          },
+          shopConfig: {
+            enabled: true,
+            npcKey: "n2"
+          },
+          autoMarketSellConfig: {
+            enabled: false,
+            rules: []
+          },
+          authConfig: {
+            enabled: true,
+            autoResumeBot: true,
+            charName: ""
+          }
+        }
+      }
+    ];
+    writeJsonAtomic(PRESETS_FILE, defaultPresets);
+    return defaultPresets;
+  }
+  return [];
+}
+function savePresets(presets) {
+  if (!Array.isArray(presets)) return;
+  lastValidPresetsCache = presets;
+  writeJsonAtomic(PRESETS_FILE, presets);
+  if (presets.length > 0) {
+    try { writeJsonAtomic(PRESETS_BACKUP_FILE, presets); } catch (_) {}
+  }
+}
+
+
+// Job Lv. at which the plan changes to Class 1 / Class 2 (the bot also caps it at the class's max job level)
+function planJobLevel(v, def) {
+  const n = Math.round(Number(v));
+  return Number.isFinite(n) && n >= 1 && n <= 99 ? n : def;
+}
+
+const META_PLAN_STAT_EXTENSIONS = {
+  plan_meta_crusader_1_99: {
+    appendQueue: [
+      { stat: "INT", to: 70 },
+      { stat: "STR", to: 70 },
+      { stat: "DEX", to: 65 },
+      { stat: "INT", to: 85 },
+      { stat: "STR", to: 85 }
+    ],
+    targets: { STR: 85, AGI: 1, VIT: 99, INT: 85, DEX: 65, LUK: 1 }
+  },
+  plan_meta_priest_1_99: {
+    appendQueue: [
+      { stat: "VIT", to: 90 },
+      { stat: "DEX", to: 85 },
+      { stat: "VIT", to: 99 },
+      { stat: "DEX", to: 99 }
+    ],
+    targets: { STR: 1, AGI: 1, VIT: 99, INT: 99, DEX: 99, LUK: 1 }
+  },
+  plan_meta_hunter_1_99: {
+    appendQueue: [
+      { stat: "AGI", to: 90 },
+      { stat: "LUK", to: 65 },
+      { stat: "VIT", to: 40 },
+      { stat: "AGI", to: 99 },
+      { stat: "LUK", to: 80 }
+    ],
+    targets: { STR: 1, AGI: 99, VIT: 40, INT: 25, DEX: 99, LUK: 80 }
+  },
+  plan_meta_bard_1_99: {
+    appendQueue: [
+      { stat: "VIT", to: 70 },
+      { stat: "INT", to: 50 },
+      { stat: "AGI", to: 90 },
+      { stat: "VIT", to: 85 },
+      { stat: "AGI", to: 99 }
+    ],
+    targets: { STR: 1, AGI: 99, VIT: 85, INT: 50, DEX: 99, LUK: 1 }
+  },
+  plan_meta_dancer_1_99: {
+    appendQueue: [
+      { stat: "VIT", to: 70 },
+      { stat: "INT", to: 50 },
+      { stat: "AGI", to: 90 },
+      { stat: "VIT", to: 85 },
+      { stat: "AGI", to: 99 }
+    ],
+    targets: { STR: 1, AGI: 99, VIT: 85, INT: 50, DEX: 99, LUK: 1 }
+  },
+  plan_meta_blacksmith_1_99: {
+    appendQueue: [
+      { stat: "AGI", to: 85 },
+      { stat: "VIT", to: 70 },
+      { stat: "DEX", to: 65 },
+      { stat: "AGI", to: 95 },
+      { stat: "VIT", to: 85 }
+    ],
+    targets: { STR: 99, AGI: 95, VIT: 85, INT: 1, DEX: 65, LUK: 1 }
+  }
+};
+
+function normalizePlansData(raw) {
+  if (raw && Array.isArray(raw.profiles)) {
+    let migrated = false;
+    for (const p of raw.profiles) {
+      if (!p || !p.statBuild || !Array.isArray(p.statBuild.queue)) continue;
+      const ext = META_PLAN_STAT_EXTENSIONS[p.id];
+      if (ext) {
+        const q = p.statBuild.queue;
+        let planChanged = false;
+        for (const item of ext.appendQueue) {
+          if (!q.some(x => x && x.stat === item.stat && Number(x.to) >= item.to)) {
+            q.push({ stat: item.stat, to: item.to });
+            planChanged = true;
+          }
+        }
+        if (planChanged) {
+          p.statBuild.targets = { ...(p.statBuild.targets || {}), ...ext.targets };
+          p.updatedAt = Date.now();
+          migrated = true;
+        }
+      }
+    }
+    const result = {
+      profiles: raw.profiles,
+      assignments: raw.assignments || {},
+      pendingEnable: raw.pendingEnable || {}
+    };
+    if (migrated) {
+      try { writeJsonAtomic(PLANS_FILE, result); } catch (_) {}
+      try { writeJsonAtomic(PLANS_BACKUP_FILE, result); } catch (_) {}
+    }
+    return result;
+  }
+
+  // Initial starter plan matching user specifications:
+  // Level 8: Equip Gakkung bow, Angelic Protection, Change map to ซากโบราณสถาน
+  // Job Level 10: Change class to Archer
+  const defaultProfiles = [
+    {
+      id: "plan_starter_archer",
+      name: "Archer Speedrun Lv.1-50 (ตัวอย่างเริ่มต้น)",
+      description: "Lv.8 สวมใส่ Gakkung Bow + Angelic Protection, ย้ายแมพ, Job 10 เปลี่ยนอาชีพ Archer",
+      triggers: [
+        {
+          id: "trig_1",
+          type: "base_level",
+          targetLevel: 8,
+          actions: [
+            {
+              id: "act_1",
+              type: "equip_item",
+              itemName: "Gakkung Bow",
+              optionFilter: "dex",
+              buyFromMarket: true,
+              maxPrice: 100000
+            },
+            {
+              id: "act_2",
+              type: "equip_item",
+              itemName: "Angelic Protection",
+              optionFilter: "",
+              buyFromMarket: true,
+              maxPrice: 50000
+            },
+            {
+              id: "act_3",
+              type: "change_map",
+              targetMap: "ซากโบราณสถาน"
+            }
+          ]
+        },
+        {
+          id: "trig_2",
+          type: "job_level",
+          targetLevel: 10,
+          actions: [
+            {
+              id: "act_4",
+              type: "change_class",
+              targetClass: "Archer"
+            }
+          ]
+        }
+      ],
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    }
+  ];
+
+  const assignments = {};
+  return { profiles: defaultProfiles, assignments };
+}
+
+let lastValidPlansCache = null;
+function loadPlans() {
+  if (fs.existsSync(PLANS_FILE)) {
+    try {
+      const raw = JSON.parse(fs.readFileSync(PLANS_FILE, "utf8"));
+      if (raw && Array.isArray(raw.profiles)) {
+        const norm = normalizePlansData(raw);
+        lastValidPlansCache = norm;
+        if (!fs.existsSync(PLANS_BACKUP_FILE)) {
+          try { writeJsonAtomic(PLANS_BACKUP_FILE, norm); } catch (_) {}
+        }
+        return norm;
+      }
+    } catch (e) {}
+  }
+  if (fs.existsSync(PLANS_BACKUP_FILE)) {
+    try {
+      const backup = JSON.parse(fs.readFileSync(PLANS_BACKUP_FILE, "utf8"));
+      if (backup && Array.isArray(backup.profiles)) {
+        const norm = normalizePlansData(backup);
+        lastValidPlansCache = norm;
+        try { writeJsonAtomic(PLANS_FILE, norm); } catch (_) {}
+        return norm;
+      }
+    } catch (_) {}
+  }
+  if (lastValidPlansCache) return lastValidPlansCache;
+  return normalizePlansData({});
+}
+function savePlans(plans) {
+  if (!plans || typeof plans !== "object") return;
+  lastValidPlansCache = plans;
+  writeJsonAtomic(PLANS_FILE, plans);
+  try { writeJsonAtomic(PLANS_BACKUP_FILE, plans); } catch (_) {}
+}
+
+const SESSIONS_DIR = path.join(BASE_DIR, "sessions");
+const PUBLIC_DIR = path.join(__dirname, "public");
+
+// Game executable on *this* PC: the patcher's saved folder if it exists, else %LOCALAPPDATA%/Programs/Aetheria Online
+const getGameExe = () => path.join(installer.getEffectiveGamePath(), "Aetheria Online.exe");
+// Why opening a game window would not work (null = fine)
+function gameLaunchProblem() {
+  const exe = getGameExe();
+  if (!fs.existsSync(exe)) return `ไม่พบตัวเกม (${exe}) — กดปุ่ม "สคริปต์เกม" แล้วกด Auto-Detect หรือ Browse เลือกโฟลเดอร์เกม`;
+  const st = installer.checkStatus();
+  if (!st.isInstalled) return `ยังไม่ได้ติดตั้งสคริปต์ PmheeAether ในโฟลเดอร์เกม (${st.gamePath}) — กดปุ่ม "สคริปต์เกม" แล้วกด "ติดตั้ง" ก่อน`;
+  if (st.asarActive) return `ตัวเกมยังใช้ไฟล์ app.asar เดิมอยู่ บอทจะไม่ทำงาน — กดปุ่ม "สคริปต์เกม" แล้วกด "ติดตั้ง" อีกครั้ง (อาจมีหน้าต่างขอสิทธิ์ผู้ดูแลระบบ ให้กด Yes)`;
+  return null;
+}
+
+// Ensure sessions directory exists
+if (!fs.existsSync(SESSIONS_DIR)) {
+  fs.mkdirSync(SESSIONS_DIR, { recursive: true });
+}
+
+// Track running processes in memory: { [profileId]: { pid, startTime } }
+const runningProcesses = {};
+const windowStates = {}; // profileId -> { isHidden: boolean }
+let allWindowsHidden = false;
+
+const DEFAULT_WHITELIST_STR = "Phracon, Rough Elunium, Enchant Rune, Composite Bow, Crossbow, Gakkung, Hunter Bow";
+
+function getDefaultMockProfiles() {
+  return [
+    {
+      id: "profile_1",
+      name: "Hunter Main",
+      account: "Main Account",
+      charClass: "Hunter",
+      targetMap: "ซากโบราณสถาน Lv.45–55",
+      debugPort: 48876,
+      autoStart: true,
+      notes: "ฟาร์มหลัก ธนูเพลิง / Arrow Crafting",
+      createdAt: Date.now()
+    },
+    {
+      id: "profile_2",
+      name: "Farmer Alt",
+      account: "Second Account",
+      charClass: "Archer / Rogue",
+      targetMap: "ถนนต้นหลิว",
+      debugPort: 48877,
+      autoStart: true,
+      notes: "ฟาร์มหาขยะและวัตถุดิบทำยา",
+      createdAt: Date.now()
+    }
+  ];
+}
+
+function isSingleDefaultMockProfile(p) {
+  if (!p || typeof p !== "object") return false;
+  if (p.lastCharName || p.generatedAccount) return false;
+  if (p.id === "profile_1" && p.name === "Hunter Main" && p.account === "Main Account") return true;
+  if (p.id === "profile_2" && p.name === "Farmer Alt" && p.account === "Second Account") return true;
+  return false;
+}
+
+function isUntouchedDefaultMockProfiles(profiles) {
+  if (loadDeletedProfileIds().size > 0) return false;
+  if (!Array.isArray(profiles) || profiles.length === 0) return true;
+  if (profiles.length > 2) return false;
+  return profiles.every(isSingleDefaultMockProfile);
+}
+
+const DELETED_PROFILES_FILE = path.join(__dirname, "data", "deleted_profiles.json");
+function loadDeletedProfileIds() {
+  try {
+    if (!fs.existsSync(DELETED_PROFILES_FILE)) return new Set();
+    const arr = JSON.parse(fs.readFileSync(DELETED_PROFILES_FILE, "utf8"));
+    return new Set(Array.isArray(arr) ? arr.map(String) : []);
+  } catch (_) {
+    return new Set();
+  }
+}
+function recordDeletedProfileId(id) {
+  if (!id) return;
+  recordDeletedProfileIds([id]);
+}
+function recordDeletedProfileIds(ids) {
+  if (!Array.isArray(ids) || !ids.length) return;
+  try {
+    const set = loadDeletedProfileIds();
+    for (const id of ids) {
+      if (id) set.add(String(id));
+    }
+    writeJsonAtomic(DELETED_PROFILES_FILE, Array.from(set));
+  } catch (_) {}
+}
+
+function isVerifiedAuthConfig(auth) {
+  if (!auth || typeof auth !== "object") return false;
+  const u = String(auth.username || "").trim();
+  const pw = String(auth.password || "").trim();
+  if (!u && !pw) return false;
+  if (auth.register === true) return false;
+  if (auth.registerError && String(auth.registerError).trim() && !auth.registerDone && !auth.verifiedLoginAt && !auth.userEditedAt) return false;
+  if (auth.generatedUser && !auth.registerDone && !auth.verifiedLoginAt && !auth.userEditedAt && !(auth.charName && String(auth.charName).trim())) return false;
+  return true;
+}
+
+function writeOrMergeProfileStorageFile(pid, incomingMap) {
+  if (!pid || !incomingMap || typeof incomingMap !== "object") return false;
+  if (loadDeletedProfileIds().has(String(pid))) return false;
+  try {
+    const bsDir = path.join(SESSIONS_DIR, "_browser_storage");
+    fs.mkdirSync(bsDir, { recursive: true });
+    const f = path.join(bsDir, `${pid}.json`);
+    let cur = {};
+    if (fs.existsSync(f)) {
+      try {
+        const parsed = JSON.parse(fs.readFileSync(f, "utf8"));
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) cur = parsed;
+      } catch (_) {}
+    }
+    let changed = false;
+    for (const [k, v] of Object.entries(incomingMap)) {
+      if (typeof v !== "string") continue;
+      if (k.endsWith("__auth_cfg") || k === "pelican_auth_cfg") {
+        const merged = mergeAuthConfigString(cur[k], v);
+        if (merged !== cur[k]) {
+          cur[k] = merged;
+          changed = true;
+        }
+        try {
+          const auth = JSON.parse(cur[k]);
+          if (isVerifiedAuthConfig(auth) && auth.password && String(auth.password).trim() && !credentials.getPassword(pid)) {
+            credentials.setPassword(pid, String(auth.password).trim());
+          }
+        } catch (_) {}
+      } else if (k.endsWith("__sell_cfg") || k === "pelican_sell_cfg") {
+        const merged = mergeSellConfigString(cur[k], v);
+        if (merged !== cur[k]) {
+          cur[k] = merged;
+          changed = true;
+        }
+      } else if (cur[k] !== v) {
+        cur[k] = v;
+        changed = true;
+      }
+    }
+    if (changed) {
+      writeJsonAtomic(f, cur);
+    }
+    return changed;
+  } catch (_) {
+    return false;
+  }
+}
+
+function recoverProfilesFromLocalEvidence() {
+  const deletedIds = loadDeletedProfileIds();
+  try {
+    const dataDir = path.join(__dirname, "data");
+    const map = new Map();
+    let seededFromBackup = false;
+    const ensure = (id, allowCreate = true) => {
+      const s = String(id || "").trim();
+      if (!s.startsWith("profile_") || deletedIds.has(s)) return null;
+      if (!map.has(s)) {
+        if (!allowCreate || seededFromBackup) return null;
+        map.set(s, { id: s });
+      }
+      return map.get(s);
+    };
+
+    // 1. Seed from dedicated backup file if present (enrich existing IDs only; do not resurrect unreferenced old session dirs)
+    if (fs.existsSync(PROFILES_BACKUP_FILE)) {
+      try {
+        const backup = JSON.parse(fs.readFileSync(PROFILES_BACKUP_FILE, "utf8"));
+        const filteredBackup = Array.isArray(backup) ? backup.filter(p => {
+          if (!p || !p.id || deletedIds.has(String(p.id))) return false;
+          if (!p.account && !p.lastCharName && /^Client \d+$/i.test(String(p.name || "").trim())) return false;
+          return true;
+        }) : [];
+        if (filteredBackup.length > 0 && !isUntouchedDefaultMockProfiles(filteredBackup)) {
+          for (const bp of filteredBackup) {
+            const p = ensure(bp.id, true);
+            if (!p) continue;
+            Object.assign(p, bp, { id: String(bp.id).trim(), hasRealEvidence: true });
+          }
+          if (map.size > 0) seededFromBackup = true;
+        }
+      } catch (_) {}
+    }
+
+    // 2.0 Harvest Chromium LevelDB directly from disk into sessions/_browser_storage/*.json
+    try {
+      const browserLdbDir = path.join(SESSIONS_DIR, "_browser", "Default", "Local Storage", "leveldb");
+      if (fs.existsSync(browserLdbDir)) {
+        const diskHarvest = extractPelicanStorageFromLevelDb(browserLdbDir);
+        if (diskHarvest && diskHarvest.byProfile) {
+          for (const [pid, entries] of Object.entries(diskHarvest.byProfile)) {
+            writeOrMergeProfileStorageFile(pid, entries);
+          }
+        }
+      }
+    } catch (_) {}
+
+    // 2a. sessions/_browser_storage/*.json
+    const bsDir = path.join(SESSIONS_DIR, "_browser_storage");
+    const seenRecoveredUsers = new Set();
+    if (fs.existsSync(bsDir)) {
+      for (const f of fs.readdirSync(bsDir)) {
+        if (!f.endsWith(".json")) continue;
+        const id = f.slice(0, -5);
+        const p = ensure(id);
+        if (!p) continue;
+        try {
+          const d = JSON.parse(fs.readFileSync(path.join(bsDir, f), "utf8"));
+          const pfx = `pelican_${id}__`;
+          const rawAuth = d[`${pfx}auth_cfg`];
+          if (rawAuth) {
+            try {
+              const auth = JSON.parse(rawAuth);
+              if (auth && typeof auth === "object") {
+                const verified = isVerifiedAuthConfig(auth);
+                const candUser = auth.username ? String(auth.username).trim() : "";
+                const candLower = candUser.toLowerCase();
+                const isDupUser = Boolean(candLower && seenRecoveredUsers.has(candLower));
+                if (verified && candUser && !isDupUser) {
+                  seenRecoveredUsers.add(candLower);
+                  p.account = candUser;
+                  p.hasRealEvidence = true;
+                }
+                if (!isDupUser && auth.charName && String(auth.charName).trim()) {
+                  p.lastCharName = String(auth.charName).trim();
+                  p.hasRealEvidence = true;
+                }
+                if (verified && !isDupUser && auth.password && String(auth.password).trim() && !credentials.getPassword(id)) {
+                  credentials.setPassword(id, String(auth.password).trim());
+                  p.hasRealEvidence = true;
+                }
+              }
+            } catch (_) {}
+          }
+          const farmMap = d[`${pfx}farm_map`] || d[`${pfx}target_map`] || d[`${pfx}last_farm_map`];
+          if (farmMap && typeof farmMap === "string" && farmMap.trim()) {
+            p.targetMap = farmMap.trim();
+            p.hasRealEvidence = true;
+          }
+          const rawSell = d[`${pfx}sell_cfg`];
+          if (rawSell) {
+            try {
+              const sell = JSON.parse(rawSell);
+              if (sell && typeof sell.whitelist === "string" && sell.whitelist.trim()) {
+                p.whitelist = sell.whitelist.trim();
+              }
+            } catch (_) {}
+          }
+          if (!p.lastCharName) {
+            for (const k of Object.keys(d)) {
+              const m = k.match(new RegExp(`^pelican_${id}__plan_state_(.+)_plan_`));
+              if (m && m[1]) {
+                p.lastCharName = m[1];
+                p.hasRealEvidence = true;
+                break;
+              }
+            }
+          }
+        } catch (_) {}
+      }
+    }
+
+    // 2b. credentials.json
+    if (typeof credentials.listProfileIds === "function") {
+      for (const id of credentials.listProfileIds()) {
+        const p = ensure(id);
+        if (p) {
+          p.hasSavedPassword = true;
+          p.hasRealEvidence = true;
+        }
+      }
+    }
+
+    // 2c. proxy_register_state_v1.json
+    const proxyRegFile = path.join(dataDir, "proxy_register_state_v1.json");
+    if (fs.existsSync(proxyRegFile)) {
+      try {
+        const prx = JSON.parse(fs.readFileSync(proxyRegFile, "utf8"))?.entries || {};
+        for (const [id, entry] of Object.entries(prx)) {
+          const p = ensure(id);
+          if (p && entry && entry.username) {
+            if (!p.account) p.account = String(entry.username).trim();
+            p.generatedAccount = true;
+            p.hasRealEvidence = true;
+          }
+        }
+      } catch (_) {}
+    }
+
+    // 2d. zeny_rate_state.json
+    const zenyFile = path.join(dataDir, "zeny_rate_state.json");
+    if (fs.existsSync(zenyFile)) {
+      try {
+        const trackers = JSON.parse(fs.readFileSync(zenyFile, "utf8"))?.trackers || {};
+        for (const [id, trk] of Object.entries(trackers)) {
+          const p = ensure(id);
+          if (p && trk && trk.charName) {
+            if (!p.lastCharName) p.lastCharName = String(trk.charName).trim();
+            p.hasRealEvidence = true;
+          }
+        }
+      } catch (_) {}
+    }
+
+    // 2e. guilds.json
+    const guildsFile = path.join(dataDir, "guilds.json");
+    if (fs.existsSync(guildsFile)) {
+      try {
+        const guilds = JSON.parse(fs.readFileSync(guildsFile, "utf8"))?.guilds || [];
+        for (const g of guilds) {
+          for (const [id, m] of Object.entries(g?.members || {})) {
+            const p = ensure(id);
+            if (p && m) {
+              if (m.charName && !p.lastCharName) p.lastCharName = String(m.charName).trim();
+              if (m.charClass && !p.charClass) p.charClass = String(m.charClass).trim();
+              p.hasRealEvidence = true;
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
+    // 2f. parties.json & premium.json & plans.json
+    const partiesFile = path.join(dataDir, "parties.json");
+    if (fs.existsSync(partiesFile)) {
+      try {
+        const parties = JSON.parse(fs.readFileSync(partiesFile, "utf8"))?.parties || [];
+        for (const pt of parties) {
+          for (const id of [pt?.leaderId, ...(pt?.memberIds || []), ...(pt?.excludedIds || [])]) {
+            const p = ensure(id);
+            if (p) p.hasRealEvidence = true;
+          }
+        }
+      } catch (_) {}
+    }
+    const premiumFile = path.join(premiumDirOrData(dataDir), "premium.json");
+    if (fs.existsSync(premiumFile)) {
+      try {
+        const clients = JSON.parse(fs.readFileSync(premiumFile, "utf8"))?.clients || {};
+        for (const id of Object.keys(clients)) {
+          const p = ensure(id);
+          if (p) p.hasRealEvidence = true;
+        }
+      } catch (_) {}
+    }
+    if (fs.existsSync(PLANS_FILE)) {
+      try {
+        const assignments = JSON.parse(fs.readFileSync(PLANS_FILE, "utf8"))?.assignments || {};
+        for (const id of Object.keys(assignments)) {
+          const p = ensure(id);
+          if (p) p.hasRealEvidence = true;
+        }
+      } catch (_) {}
+    }
+
+    // 2g. screen_proxy_leases.json (preserve assigned debugPort)
+    const leasesFile = path.join(dataDir, "screen_proxy_leases.json");
+    if (fs.existsSync(leasesFile)) {
+      try {
+        const leases = JSON.parse(fs.readFileSync(leasesFile, "utf8"))?.leases || {};
+        for (const [id, l] of Object.entries(leases)) {
+          if (map.has(id) && Number(l?.debugPort) >= 1024) {
+            map.get(id).debugPort = Number(l.debugPort);
+          }
+        }
+      } catch (_) {}
+    }
+
+    // 2h. sessions/profile_* folders (for Electron mode)
+    if (fs.existsSync(SESSIONS_DIR)) {
+      for (const entry of fs.readdirSync(SESSIONS_DIR, { withFileTypes: true })) {
+        if (!entry.isDirectory() || !entry.name.startsWith("profile_")) continue;
+        const id = entry.name;
+        const ldbDir = path.join(SESSIONS_DIR, id, "Local Storage", "leveldb");
+        const hasLevelDb = fs.existsSync(path.join(SESSIONS_DIR, id, "Local Storage"));
+        let p = null;
+        if (id !== "profile_1" && id !== "profile_2") {
+          p = ensure(id);
+          if (p) p.hasRealEvidence = true;
+        } else if (hasLevelDb) {
+          p = ensure(id);
+          if (p) p.hasRealEvidence = true;
+        }
+        if (p && fs.existsSync(ldbDir)) {
+          try {
+            const parsedLdb = extractPelicanStorageFromLevelDb(ldbDir, id);
+            if (parsedLdb && parsedLdb.byProfile && parsedLdb.byProfile[id]) {
+              writeOrMergeProfileStorageFile(id, parsedLdb.byProfile[id]);
+              const rawAuth = parsedLdb.byProfile[id][`pelican_${id}__auth_cfg`] || parsedLdb.byProfile[id]["pelican_auth_cfg"];
+              if (rawAuth) {
+                try {
+                  const auth = JSON.parse(rawAuth);
+                  if (auth && auth.username && !p.account) p.account = String(auth.username).trim();
+                  if (auth && auth.charName && !p.lastCharName) p.lastCharName = String(auth.charName).trim();
+                  if (auth && auth.password && !credentials.getPassword(id)) credentials.setPassword(id, String(auth.password).trim());
+                  p.hasRealEvidence = true;
+                } catch (_) {}
+              }
+            }
+            let foundCred = null;
+            for (const f of fs.readdirSync(ldbDir)) {
+              if (!f.endsWith(".ldb") && !f.endsWith(".log")) continue;
+              const str = fs.readFileSync(path.join(ldbDir, f)).toString("latin1");
+              const re = /username\x22:\x22([a-zA-Z0-9_.-]{3,32})\x22,\x22password\x22:\x22([^\x22\x00-\x1f]{3,64})\x22/g;
+              let m;
+              while ((m = re.exec(str)) !== null) {
+                foundCred = { username: m[1], password: m[2] };
+              }
+            }
+            if (foundCred) {
+              if (!p.account) p.account = foundCred.username;
+              if (!credentials.getPassword(id)) credentials.setPassword(id, foundCred.password);
+              p.hasRealEvidence = true;
+            }
+          } catch (_) {}
+        }
+      }
+    }
+
+    const validCandidates = Array.from(map.values()).filter(p => {
+      if (!p.hasRealEvidence) return false;
+      // Never recover blank unconfigured shells that have neither an account username nor a character name
+      return Boolean(p.account || p.lastCharName || p.id === "profile_main");
+    });
+    if (validCandidates.length === 0) return null;
+
+    // Sort: profile_main first, profile_1, profile_2, then profile_<ts> by timestamp
+    validCandidates.sort((a, b) => {
+      const rank = (id) => {
+        if (id === "profile_main") return 0;
+        if (id === "profile_1") return 1;
+        if (id === "profile_2") return 2;
+        const m = id.match(/^profile_(\d+)/);
+        return m ? Number(m[1]) : Number.MAX_SAFE_INTEGER;
+      };
+      return rank(a.id) - rank(b.id) || a.id.localeCompare(b.id);
+    });
+
+    const usedPorts = new Set();
+    let nextPort = 48876;
+    const recovered = validCandidates.map((c, idx) => {
+      let port = Number(c.debugPort) || 0;
+      if (port < 1024 || usedPorts.has(port)) {
+        while (usedPorts.has(nextPort)) nextPort++;
+        port = nextPort++;
+      }
+      usedPorts.add(port);
+      const tsMatch = c.id.match(/^profile_(\d{10,})/);
+      const createdAt = Number(c.createdAt) || (tsMatch ? Number(tsMatch[1]) : (Date.now() - (validCandidates.length - idx) * 1000));
+      const wl = c.whitelist || DEFAULT_WHITELIST_STR;
+      const isMain = Boolean(c.isMain) || c.id === "profile_main";
+      const existingCustomName = c.name && !/^Client \d+$/.test(c.name) ? c.name : "";
+      const displayName = existingCustomName || (isMain
+        ? (c.lastCharName ? `Main (${c.lastCharName})` : "Main")
+        : (c.lastCharName || c.account || (c.id === "profile_2" ? "Farmer Alt" : `Client ${idx + 1}`)));
+      const { hasRealEvidence, hasSavedPassword, ...rest } = c;
+      return {
+        ...rest,
+        id: c.id,
+        name: displayName,
+        account: c.account || "",
+        autoRegister: Boolean(c.autoRegister),
+        ...(c.generatedAccount ? { generatedAccount: true } : {}),
+        charClass: c.charClass || "Hunter",
+        targetMap: c.targetMap || "ถนนต้นหลิว",
+        debugPort: port,
+        autoStart: c.autoStart !== undefined ? Boolean(c.autoStart) : !isMain,
+        ...(isMain ? { isMain: true } : {}),
+        notes: c.notes !== undefined ? c.notes : (isMain ? "จอหลัก (Main Session)" : ""),
+        createdAt,
+        whitelist: wl,
+        sellConfig: c.sellConfig && typeof c.sellConfig === "object" ? c.sellConfig : { whitelist: wl },
+        ...(c.lastCharName ? { lastCharName: c.lastCharName } : {}),
+        ...(c.charClass ? { lastCharClass: c.charClass } : {})
+      };
+    });
+
+    console.log(`[PmheeAether Manager] 🛡️ กู้คืนโปรไฟล์อัตโนมัติ ${recovered.length} จอจากข้อมูลในเครื่อง (sessions / data) สำเร็จ!`);
+    return recovered;
+  } catch (e) {
+    console.warn(`[PmheeAether Manager] ⚠️ Auto-recovery check failed: ${e.message}`);
+    return null;
+  }
+}
+function premiumDirOrData(dataDir) { return dataDir; }
+
+let lastValidProfilesCache = null;
+
+function loadProfiles() {
+  let parsed = null;
+  let readFailed = false;
+  if (fs.existsSync(PROFILES_FILE)) {
+    try {
+      const raw = JSON.parse(fs.readFileSync(PROFILES_FILE, "utf8"));
+      if (Array.isArray(raw)) parsed = raw;
+      else readFailed = true;
+    } catch (e) {
+      readFailed = true;
+    }
+  }
+
+  // If file was transiently unreadable or corrupted mid-write, never return [] when we have cache/backup
+  if (readFailed) {
+    if (lastValidProfilesCache && lastValidProfilesCache.length > 0) {
+      return lastValidProfilesCache.map(p => ({ ...p }));
+    }
+    if (fs.existsSync(PROFILES_BACKUP_FILE)) {
+      try {
+        const backup = JSON.parse(fs.readFileSync(PROFILES_BACKUP_FILE, "utf8"));
+        if (Array.isArray(backup) && backup.length > 0) {
+          lastValidProfilesCache = backup.map(p => ({ ...p }));
+          try { writeJsonAtomic(PROFILES_FILE, backup); } catch (_) {}
+          return backup;
+        }
+      } catch (_) {}
+    }
+  }
+
+  // If file does not exist yet (fresh unzip), check local backup file in the same folder or initialize default profiles
+  if (!parsed) {
+    if (fs.existsSync(PROFILES_BACKUP_FILE)) {
+      try {
+        const backup = JSON.parse(fs.readFileSync(PROFILES_BACKUP_FILE, "utf8"));
+        if (Array.isArray(backup) && backup.length > 0) {
+          lastValidProfilesCache = backup.map(p => ({ ...p }));
+          try { writeJsonAtomic(PROFILES_FILE, backup); } catch (_) {}
+          return backup;
+        }
+      } catch (_) {}
+    }
+    const defaultProfiles = getDefaultMockProfiles();
+    writeJsonAtomic(PROFILES_FILE, defaultProfiles);
+    return defaultProfiles;
+  }
+
+  lastValidProfilesCache = parsed.map(p => ({ ...p }));
+  if (!fs.existsSync(PROFILES_BACKUP_FILE)) {
+    try { writeJsonAtomic(PROFILES_BACKUP_FILE, parsed); } catch (_) {}
+  }
+  return parsed;
+}
+
+function saveProfiles(profiles, options = {}) {
+  if (!Array.isArray(profiles)) return;
+  const allowEmpty = Boolean(options && options.allowEmpty);
+  if (profiles.length === 0 && !allowEmpty && lastValidProfilesCache && lastValidProfilesCache.length > 0) {
+    console.warn("[PmheeAether Manager] ⚠️ ป้องกันการเขียนทับ profiles.json ด้วยรายการว่างเปล่า (Preserved existing profiles)");
+    return;
+  }
+  try { writeJsonAtomic(PROFILES_FILE, profiles); } catch (_) {}
+  if (!isUntouchedDefaultMockProfiles(profiles)) {
+    lastValidProfilesCache = profiles.map(p => ({ ...p }));
+    try { writeJsonAtomic(PROFILES_BACKUP_FILE, profiles); } catch (_) {}
+    if (typeof scheduleCentralProfileBackupSync === "function") {
+      scheduleCentralProfileBackupSync();
+    }
+  } else if (allowEmpty && profiles.length === 0) {
+    lastValidProfilesCache = [];
+  }
+}
+
+function isProcessAlive(pid) {
+  if (!pid) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+// Extra HUD details read straight from the game DOM (portrait, EXP, levels, unspent points)
+// plus pre-game screen phase detection (Login / Character Select / HTTP 502 / Loading) and safe delayed auto-refresh.
+// Evaluated alongside __getClientLiveState so it works without reinstalling bot.js.
+const LIVE_STATE_EVAL = `(() => {
+  let s = (typeof window.__getClientLiveState === 'function') ? window.__getClientLiveState() : null;
+  if (!s) {
+    s = {
+      isBotRunning: false,
+      autoLoop: false,
+      botStatus: '⏳ กำลังโหลดเข้าเกม...',
+      map: 'ไม่ทราบแมพ',
+      charName: '',
+      charClass: 'Novice',
+      coords: '--',
+      weight: '--',
+      zeny: null
+    };
+  }
+  try {
+    if (!window.__pmCaptchaPolicyInstalled) {
+      let savedPol = null;
+      try {
+        const rawPol = localStorage.getItem('pelican_captcha_policy_v1');
+        if (rawPol) savedPol = JSON.parse(rawPol);
+      } catch (_) {}
+      if (savedPol && typeof savedPol === 'object') {
+        window.__pmCaptchaPolicy = savedPol;
+        window.__pmEvaluateCaptchaPolicy = window.__pmEvaluateCaptchaPolicy || function () {
+          const p = window.__pmCaptchaPolicy || {};
+          if (p.autoAnswer === false) { window.__pmHumanCheckPauseReason = 'ปิด Auto ตอบคำถามไว้'; return false; }
+          const isAuto = Boolean(window.__isBotRunning || document.querySelector('.btn-auto.active, .hud-auto.active, button.active[title*="Auto"]'));
+          let curMap = '';
+          try { if (typeof window.__getClientLiveState === 'function') curMap = String(window.__getClientLiveState()?.map || '').trim(); } catch (_) {}
+          if (!curMap) {
+            try { curMap = String(document.querySelector('.minimap-name, .minimap-title, [class*="map-name"]')?.textContent || '').trim(); } catch (_) {}
+          }
+          const hasHud = Boolean(document.querySelector('.hud, .hud-status, .hud-name'));
+          const isUnknownMap = !curMap || curMap === '--' || /ไม่ทราบแมพ|unknown|loading|กำลังโหลด/i.test(curMap);
+          const isTown = /เมืองหลวง|โซลเฮเวน|ตลาดคาราวาน|\\bsolhaven\\b|\\btown\\b/i.test(curMap);
+          const isJail = !/คุกใต้ดิน/i.test(curMap) && /คุก|เรือนจำ|\\bprison\\b|\\bjail\\b/i.test(curMap);
+          const isTower = /หอคอย|endless\\s*tower/i.test(curMap);
+          const isFarmMap = hasHud && !isUnknownMap && !isTown && !isJail && !isTower;
+          if (p.skipWhenAutoInFarmMap && isAuto && isFarmMap) { window.__pmHumanCheckPauseReason = 'งดตอบอัตโนมัติ (บอท Auto อยู่ในแมพฟาร์ม)'; return false; }
+          if (p.skipWhenBotStopped && !isAuto) { window.__pmHumanCheckPauseReason = 'งดตอบอัตโนมัติ (บอทไม่ได้กด START)'; return false; }
+          if (p.skipWhenInTown && isTown) { window.__pmHumanCheckPauseReason = 'งดตอบอัตโนมัติ (อยู่ในเมือง)'; return false; }
+          window.__pmHumanCheckPauseReason = null;
+          return true;
+        };
+        try {
+          Object.defineProperty(window, '__autoHumanCheckEnabled', {
+            configurable: true,
+            enumerable: true,
+            get() { return window.__pmEvaluateCaptchaPolicy(); },
+            set(v) { if (!window.__pmCaptchaPolicy) window.__pmCaptchaPolicy = {}; window.__pmCaptchaPolicy.autoAnswer = Boolean(v); }
+          });
+          window.__pmCaptchaPolicyInstalled = true;
+        } catch (_) {}
+      }
+    }
+  } catch (_) {}
+  try {
+    const isBadMap = (t) => !t || t === 'ไม่ทราบแมพ' || /^(?:\\d+|[-—–]+)\\s*ms$/i.test(t) || /\\b\\d+\\s*ms\\b/i.test(t) || /^CH\\b/i.test(t) || /▾/.test(t);
+    if (isBadMap(String(s.map || '').trim())) {
+      const mapEl = document.querySelector('.minimap-name, .minimap-title, [class*="map-name"], [class*="map-title"]');
+      const directMap = mapEl ? String(mapEl.textContent || mapEl.innerText || '').replace(/\\s+/g, ' ').trim() : '';
+      if (directMap && !isBadMap(directMap)) {
+        s.map = directMap;
+      } else {
+        const roomState = window.__gameRoom?.state || (typeof window.getColyseusRoom === 'function' ? window.getColyseusRoom()?.state : null);
+        const roomMap = String(roomState?.displayName || roomState?.mapName || '').replace(/\\s+/g, ' ').trim();
+        if (roomMap && !isBadMap(roomMap)) s.map = roomMap;
+      }
+    }
+    const hud = document.querySelector('.hud-status');
+    if (hud) {
+      const img = hud.querySelector('img.portrait');
+      if (img && img.src) s.portrait = img.src;
+      const lv = Array.from(hud.querySelectorAll('.hud-levels span')).map(e => (e.textContent || e.innerText || '').trim());
+      const num = t => { const m = String(t || '').match(/(\\d+)/); return m ? Number(m[1]) : null; };
+      const bLv = num(lv[0]);
+      const jLv = num(lv[1]);
+      if (bLv != null) s.baseLv = bLv;
+      if (jLv != null) s.jobLv = jLv;
+      if (!s.levels && lv.filter(Boolean).length) s.levels = lv.filter(Boolean).join('\\n');
+      const exp = Array.from(hud.querySelectorAll('.bar-exp .bar-num')).map(e => (e.textContent || e.innerText || '').trim());
+      s.baseExp = exp[0] || null;
+      s.jobExp = exp[1] || null;
+      Array.from(hud.querySelectorAll('.hud-alerts button')).forEach(b => {
+        const t = (b.textContent || b.innerText || '').trim();
+        if (t.includes('สถานะ')) s.statPoints = num(t);
+        else if (t.includes('สกิล')) s.skillPoints = num(t);
+      });
+    }
+  } catch (e) {}
+  try {
+    const hasHud = Boolean(document.querySelector('.hud, .hud-status, .hud-name'));
+    const charPanel = document.querySelector('.panel.char-select, .char-select');
+    const loginQueue = document.querySelector('.login-queue, .panel.reconnecting');
+    const loginForm = document.querySelector('form.login-form, .login-card, .login-panel');
+    const charCards = Array.from(document.querySelectorAll('.char-card:not(.empty):not(.pending-delete)')).filter(el => el.offsetWidth > 0 && el.offsetHeight > 0);
+    const emptyCards = Array.from(document.querySelectorAll('.char-card.empty')).filter(el => el.offsetWidth > 0 && el.offsetHeight > 0);
+    const createForm = document.querySelector('form.char-create');
+    const errEl = (charPanel && charPanel.querySelector('p.error, .error, [class*="error"]')) ||
+                  (loginForm && loginForm.querySelector('p.error, .error, [class*="error"]')) ||
+                  document.querySelector('.panel p.error, .login-card p.error, p.error');
+    const errText = errEl ? String(errEl.innerText || errEl.textContent || '').replace(/\\s+/g, ' ').trim() : '';
+    const hasSessionToken = Boolean((() => { try { return sessionStorage.getItem('aetheria.session'); } catch (_) { return null; } })());
+    const authCfg = window.__authConfig || (() => { try { return JSON.parse(localStorage.getItem('pelican_auth_cfg') || '{}'); } catch (_) { return {}; } })() || {};
+
+    let screenPhase = 'in_game';
+    let baseLabel = '';
+    let detail = '';
+    let autoReloadAfterMs = 0;
+
+    if (hasHud && !charPanel && !loginForm && !loginQueue) {
+      screenPhase = 'in_game';
+      window.__pmScreenPhaseTracker = null;
+    } else if (loginQueue) {
+      const isQueue = loginQueue.classList.contains('login-queue') || /กำลังรอคิวเข้าเกม/.test(loginQueue.innerText || '');
+      if (isQueue) {
+        const qPlace = String(loginQueue.querySelector('.login-queue-place')?.innerText || '').replace(/\\s+/g, ' ').trim();
+        const qEtaMatch = String(loginQueue.querySelector('.login-tagline')?.innerText || '').match(/ประมาณ\\s*\\d+\\s*วินาที/);
+        screenPhase = 'login_queue';
+        baseLabel = '⏳ รอคิวเข้าเกม' + (qPlace ? ' (' + qPlace + ')' : '') + (qEtaMatch ? ' · ' + qEtaMatch[0] : '');
+        detail = '⏳ กำลังรอคิวเข้าเกม: ' + [qPlace, qEtaMatch ? qEtaMatch[0] : 'ระบบจะพาเข้าเกมเองเมื่อถึงคิว'].filter(Boolean).join(' · ');
+        autoReloadAfterMs = 0;
+      } else {
+        screenPhase = 'reconnecting';
+        baseLabel = '🔄 กำลังเชื่อมต่อเซิร์ฟเวอร์ใหม่...';
+        detail = '🔄 กำลังเชื่อมต่อใหม่: เกมจะพากลับเข้าไปเองเมื่อพร้อม';
+        autoReloadAfterMs = (Date.now() - (window.__lastWorldEnter409At || 0) < 25000) ? 10000 : 18000;
+      }
+    } else if (charPanel) {
+      try {
+        const selCard = charPanel.querySelector('.char-card.selected:not(.empty)') || charCards[0] || null;
+        if (selCard) {
+          const cName = String(selCard.querySelector('.char-name')?.innerText || '').trim();
+          const cSub = String(selCard.querySelector('.char-sub')?.innerText || '').trim();
+          const cMap = String(selCard.querySelector('.char-map')?.innerText || '').trim();
+          if (cName && !s.charName) s.charName = cName;
+          if (cSub && (!s.charClass || s.charClass === 'Novice')) {
+            const clsM = cSub.split('·')[0]?.trim();
+            if (clsM) s.charClass = clsM;
+          }
+          if (cSub && s.baseLv == null) {
+            const lvM = cSub.match(/(?:Lv\\.?|เลเวล)\\s*(\\d+)/i);
+            if (lvM) s.baseLv = Number(lvM[1]);
+          }
+          if (cMap && /คุก|เรือนจำ|prison|jail/i.test(cMap) && !/คุกใต้ดิน/i.test(cMap)) {
+            s.charSelectInJail = true;
+            s.map = 'คุก';
+          }
+        }
+      } catch (_) {}
+      if (errText) {
+        if (/บัญชีถูกระงับ|ถูกระงับถึง|ระงับการใช้งาน|account\s*(?:is\s*)?(?:banned|suspended)/i.test(errText)) {
+          screenPhase = 'account_banned';
+          s.accountBanned = true;
+          s.banReason = errText;
+          baseLabel = '🚫 บัญชีถูกระงับ (' + errText.slice(0, 42) + ')';
+          detail = '🚫 หน้าเลือกตัวละคร: ' + errText;
+          autoReloadAfterMs = 0;
+          window.__isBotRunning = false;
+          window.__autoLoopEnabled = false;
+          if (typeof window.stopMasterBot === 'function') { try { window.stopMasterBot(); } catch (_) {} }
+        } else if (/ตัวละครนี้ออนไลน์อยู่แล้ว|ตัวนี้ออนไลน์อยู่|already online/i.test(errText)) {
+          screenPhase = 'char_select_online';
+          baseLabel = '⚠️ ตัวละครค้างออนไลน์ (กำลังเคลียร์...)';
+          detail = '⚠️ หน้าเลือกตัวละคร: ' + errText;
+          autoReloadAfterMs = 16000;
+        } else if (/เครื่องนี้เล่นพร้อมกันได้สูงสุด|ออกจากตัวละครอื่นก่อน/i.test(errText)) {
+          screenPhase = 'char_select_limit';
+          baseLabel = '🔑 จำกัด 3 จอ (กำลังสลับ Device ID...)';
+          detail = '🔑 หน้าเลือกตัวละคร: ' + errText;
+          autoReloadAfterMs = 16000;
+        } else {
+          screenPhase = 'char_select_error';
+          const httpMatch = errText.match(/HTTP\\s*\\d+/i);
+          const httpTag = httpMatch ? ' (' + httpMatch[0].toUpperCase() + ')' : '';
+          baseLabel = '⚠️ โหลดตัวละครพลาด' + httpTag;
+          detail = '⚠️ หน้าเลือกตัวละคร: ' + errText;
+          autoReloadAfterMs = 15000;
+        }
+      } else if (createForm || (authCfg.autoCreateChar && emptyCards.length > 0 && charCards.length === 0)) {
+        screenPhase = 'char_create';
+        baseLabel = '🧝 กำลังสร้างตัวละครใหม่...';
+        detail = '🧝 หน้าเลือกตัวละคร: กำลังสร้างตัวละครใหม่';
+        autoReloadAfterMs = 0;
+      } else if (charCards.length > 0) {
+        screenPhase = 'char_select';
+        baseLabel = '👤 หน้าเลือกตัวละคร (กำลังเข้าเกม...)';
+        detail = '👤 หน้าเลือกตัวละคร (' + charCards.length + ' ตัวละคร) — กำลังกดเข้าสู่โลก';
+        autoReloadAfterMs = (authCfg.enabled || hasSessionToken || window.__isBotRunning || window.__autoLoopEnabled) ? 18000 : 0;
+      } else {
+        screenPhase = 'char_select_loading';
+        baseLabel = '⏳ กำลังโหลดตัวละคร...';
+        detail = '⏳ หน้าเลือกตัวละคร: กำลังดึงรายชื่อตัวละครจากเซิร์ฟเวอร์...';
+        autoReloadAfterMs = 18000;
+      }
+    } else if (loginForm) {
+      const regQ = window.__pmRegisterQueueState;
+      const inputs = Array.from(loginForm.querySelectorAll('input'));
+      const isRegisterForm = inputs.length >= 3 || Boolean(authCfg && authCfg.register);
+      const submitBtn = loginForm.querySelector('button.login-go, button[type="submit"]');
+      const isSubmitting = Boolean(submitBtn && submitBtn.disabled);
+      if (regQ && regQ.waiting) {
+        screenPhase = 'register_queue';
+        const targetMs = regQ.startingSoon ? (Number(regQ.readyAt) || 0) : (Number(regQ.nextWaveAt) || 0);
+        const remSec = Math.max(0, Math.ceil((targetMs - Date.now()) / 1000));
+        const remTxt = String(Math.floor(remSec / 60)).padStart(2, '0') + ':' + String(remSec % 60).padStart(2, '0');
+        if (regQ.startingSoon) {
+          baseLabel = '⚡ ถึงคิวสมัครรอบนี้ (' + (regQ.waveSlot || 1) + '/' + (regQ.waveTargetSize || 1) + ' · อีก ' + remTxt + ')';
+          detail = '⚡ กำลังเตรียมสมัครไอดีในกลุ่ม 1–3 จอ (เริ่มในอีก ' + remTxt + ')';
+        } else {
+          baseLabel = '⏳ กำลังรอคิวสมัคร (คิว #' + (regQ.position || 1) + ' · อีก ' + remTxt + ')';
+          detail = '⏳ รอคิวสมัครไอดีอัตโนมัติ ลำดับ #' + (regQ.position || 1) + (regQ.totalWaiting ? '/' + regQ.totalWaiting : '') + ' (ชุดถัดไปในอีก ' + remTxt + ')';
+        }
+        autoReloadAfterMs = 0;
+      } else if (isRegisterForm) {
+        screenPhase = 'register';
+        baseLabel = errText ? ('⚠️ สมัครไอดี: ' + errText.slice(0, 28)) : '📝 กำลังสมัครบัญชีใหม่...';
+        detail = errText ? ('⚠️ หน้าสมัครสมาชิก: ' + errText) : '📝 หน้าสมัครสมาชิก: กำลังกรอกข้อมูลสมัครบัญชีใหม่';
+        autoReloadAfterMs = 0;
+      } else if (errText) {
+        if (/บัญชีถูกระงับ|ถูกระงับถึง|ระงับการใช้งาน|account\s*(?:is\s*)?(?:banned|suspended)/i.test(errText)) {
+          screenPhase = 'account_banned';
+          s.accountBanned = true;
+          s.banReason = errText;
+          baseLabel = '🚫 บัญชีถูกระงับ (' + errText.slice(0, 42) + ')';
+          detail = '🚫 หน้า Login: ' + errText;
+          autoReloadAfterMs = 0;
+          window.__isBotRunning = false;
+          window.__autoLoopEnabled = false;
+        } else {
+          const isServerLoginErr = /เชื่อมต่อเซิร์ฟเวอร์ไม่ได้|เซิร์ฟเวอร์ไม่ตอบ|เซิร์ฟเวอร์เกมไม่ตอบ|HTTP\\s*5\\d\\d|network|failed to fetch|timeout|ลองเข้าเกมใหม่อีกครั้ง|เชื่อมต่อไม่ได้/i.test(errText);
+          if (isServerLoginErr) {
+            screenPhase = 'login_error';
+            baseLabel = '⚠️ เซิร์ฟเกมไม่ตอบ (Login Error)';
+            detail = '⚠️ หน้า Login: ' + errText;
+            autoReloadAfterMs = 15000;
+          } else {
+            screenPhase = 'login_auth_error';
+            baseLabel = '❌ ล็อกอินไม่ผ่าน: ' + errText.slice(0, 26);
+            detail = '❌ หน้า Login: ' + errText;
+            autoReloadAfterMs = 0;
+          }
+        }
+      } else if (isSubmitting) {
+        screenPhase = 'login_loading';
+        baseLabel = '🔄 กำลังเข้าสู่ระบบ (Login)...';
+        detail = '🔄 หน้า Login: กำลังส่งข้อมูลเข้าสู่ระบบ...';
+        autoReloadAfterMs = 20000;
+      } else {
+        screenPhase = 'login';
+        const hasAutoLogin = Boolean(authCfg && authCfg.enabled && authCfg.username && authCfg.password);
+        baseLabel = hasAutoLogin ? '🔑 หน้า Login (กำลัง Auto-Login...)' : (hasSessionToken ? '🔑 หน้า Login (มี Session ค้าง)' : '🔑 หน้า Login (รอเข้าสู่ระบบ)');
+        detail = hasAutoLogin
+          ? ('🔑 หน้า Login: กำลังเข้าสู่ระบบด้วย ID ' + authCfg.username)
+          : (hasSessionToken ? '🔑 หน้า Login: พบ Session เดิมในระบบ กำลังเตรียมรีเฟรชเข้าเกม...' : '🔑 หน้า Login: รอเข้าสู่ระบบ หรือตั้งค่า Auto-Login');
+        autoReloadAfterMs = (hasSessionToken || hasAutoLogin) ? 18000 : 0;
+      }
+    } else {
+      screenPhase = 'loading';
+      baseLabel = errText ? ('⚠️ โหลดเกมค้าง: ' + errText.slice(0, 26)) : '⏳ กำลังโหลดเข้าเกม...';
+      detail = errText ? ('⚠️ หน้าโหลดเกม: ' + errText) : '⏳ กำลังโหลดข้อมูลแผนที่และเชื่อมต่อเซิร์ฟเวอร์เกม...';
+      autoReloadAfterMs = 20000;
+    }
+
+    s.screenPhase = screenPhase;
+    s.screenError = errText || null;
+
+    if (screenPhase === 'char_create' || screenPhase === 'register' || screenPhase === 'register_queue' || createForm || (authCfg && (authCfg.autoCreateChar || authCfg.register))) {
+      window.__pmLastCharCreateAt = Date.now();
+      try { sessionStorage.setItem('__pm_last_char_create_at', String(window.__pmLastCharCreateAt)); } catch (_) {}
+    }
+    let lastCharCreateAt = Number(window.__pmLastCharCreateAt || 0);
+    if (!lastCharCreateAt) {
+      try { lastCharCreateAt = Number(sessionStorage.getItem('__pm_last_char_create_at') || 0); } catch (_) {}
+    }
+    s.lastCharCreateAt = lastCharCreateAt > 0 ? lastCharCreateAt : null;
+
+    if (screenPhase !== 'in_game') {
+      const now = Date.now();
+      window.__pmScreenPhaseTracker = { phase: screenPhase, since: now, reloaded: true };
+      s.autoRefreshInSec = null;
+      s.screenPhaseLabel = baseLabel;
+      s.screenDetail = detail;
+      s.botStatus = baseLabel;
+      s.map = s.charSelectInJail ? 'คุก' : 'ไม่ทราบแมพ';
+    } else {
+      s.screenPhaseLabel = null;
+      s.screenDetail = null;
+      s.autoRefreshInSec = null;
+    }
+    if (!window.__pmAutoReloadDisabledV1 && typeof window.__evaluateGameScreenPhase === 'function') {
+      const __origEvalPhase = window.__evaluateGameScreenPhase;
+      window.__evaluateGameScreenPhase = function () {
+        const __now = Date.now();
+        if (window.__pmScreenPhaseTracker) {
+          window.__pmScreenPhaseTracker.since = __now;
+          window.__pmScreenPhaseTracker.reloaded = true;
+        }
+        const __r = __origEvalPhase.apply(this, arguments);
+        if (window.__pmScreenPhaseTracker) {
+          window.__pmScreenPhaseTracker.since = __now;
+          window.__pmScreenPhaseTracker.reloaded = true;
+        }
+        if (__r && typeof __r === 'object') {
+          __r.autoRefreshInSec = null;
+          if (typeof __r.screenPhaseLabel === 'string') {
+            __r.screenPhaseLabel = __r.screenPhaseLabel.replace(/\\s*·\\s*รีเฟรชใน\\s*\\d+\\s*วิ/g, '');
+          }
+        }
+        try {
+          const __mEl = document.getElementById('p-cur-map-display');
+          if (__mEl && __mEl.innerText) __mEl.innerText = __mEl.innerText.replace(/\\s*·\\s*รีเฟรชใน\\s*\\d+\\s*วิ/g, '');
+          const __sEl = document.getElementById('p-char-state');
+          if (__sEl && __sEl.innerText) __sEl.innerText = __sEl.innerText.replace(/\\s*·\\s*รีเฟรชใน\\s*\\d+\\s*วิ/g, '');
+        } catch (_) {}
+        return __r;
+      };
+      window.__pmAutoReloadDisabledV1 = true;
+    }
+    if (window.__pmScreenPhaseTracker) {
+      window.__pmScreenPhaseTracker.since = Date.now();
+      window.__pmScreenPhaseTracker.reloaded = true;
+    }
+  } catch (e) {}
+  try {
+    const hc = document.querySelector('.human-check');
+    if (hc) {
+      if (typeof window.triggerHumanCheckTickNow === 'function') {
+        try { window.triggerHumanCheckTickNow(); } catch (_) {}
+      }
+      const promptEl = hc.querySelector('.human-check-prompt');
+      const metaEl = hc.querySelector('.human-check-meta');
+      const promptStr = (promptEl ? (promptEl.innerText || '').trim() : '') || (window.__latestHumanCheck?.prompt || '');
+      const isCountChallenge = /กี่อัน|กี่ชิ้น|มีของแบบในกรอบ/i.test(promptStr);
+      const isRotateChallenge = Boolean(hc.querySelector('.human-check-dial') || /หมุนรูป|หมุนภาพ|ตั้งตรง/i.test(promptStr));
+      const btns = Array.from(hc.querySelectorAll('.human-check-pick'));
+      const numBtns = isCountChallenge
+        ? Array.from(hc.querySelectorAll('button')).filter(b => /^[1-6]$/.test((b.textContent || b.innerText || '').trim()))
+        : [];
+      const countValues = isCountChallenge
+        ? (numBtns.length > 0 ? numBtns.map((b, idx) => Number((b.textContent || b.innerText || '').trim()) || (idx + 1)) : [1, 2, 3, 4, 5, 6])
+        : null;
+      const boardEl = hc.querySelector('.human-check-board') || hc.querySelector('.human-check-dial');
+      const boardImg = boardEl ? boardEl.querySelector('img') : null;
+      const isBoard = Boolean(boardEl || boardImg || (window.__latestHumanCheck && window.__latestHumanCheck.image));
+      const isUpdatedFormat = Boolean(window.__humanCheckFormatUpdated || (!isBoard && (!Array.isArray(window.__latestHumanCheck?.items) || !window.__latestHumanCheck.items.length)));
+
+      const options = isCountChallenge
+        ? countValues.map((cnt, i) => ({
+            index: i,
+            count: cnt,
+            label: 'คำตอบ ' + (i + 1) + ' (' + cnt + ' อัน)',
+            itemName: 'คำตอบ ' + (i + 1) + ' (' + cnt + ' อัน)',
+            icon: '',
+            itemId: null
+          }))
+        : (btns.length > 0
+          ? btns.map((b, i) => {
+              const img = b.querySelector('img');
+              let icon = img ? (img.getAttribute('src') || img.src || '') : '';
+              let itemId = (window.__latestHumanCheck && window.__latestHumanCheck.items) ? window.__latestHumanCheck.items[i] : null;
+              if (itemId == null) {
+                try {
+                  const fk = Object.keys(b).find(k => k.startsWith('__reactFiber'));
+                  if (fk && b[fk]) {
+                    const cp = b[fk].child?.memoizedProps;
+                    if (cp && cp.itemId != null) itemId = Number(cp.itemId);
+                  }
+                } catch (e) {}
+              }
+              return {
+                index: i,
+                label: b.getAttribute('aria-label') || ('ตัวเลือกที่ ' + (i + 1)),
+                icon,
+                itemId: itemId != null ? itemId : null
+              };
+            })
+          : (isBoard
+            ? [0, 1, 2, 3].map(i => ({
+                index: i,
+                label: 'ตัวเลือกที่ ' + (i + 1),
+                icon: '',
+                itemId: null
+              }))
+            : []));
+
+      let imageDataUrl = null;
+      try {
+        const canvas = document.createElement('canvas');
+        const w = 580;
+        const h = 210;
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.fillStyle = '#0f172a';
+          ctx.beginPath();
+          if (ctx.roundRect) ctx.roundRect(0, 0, w, h, 12); else ctx.rect(0, 0, w, h);
+          ctx.fill();
+          ctx.strokeStyle = '#334155';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+
+          ctx.fillStyle = '#ef4444';
+          ctx.font = 'bold 14px "Segoe UI", Tahoma, sans-serif';
+          ctx.textAlign = 'left';
+          ctx.fillText('🚨 ตรวจพบเช็คผู้เล่น (Human Check) - Aetheria Online', 20, 28);
+
+          ctx.fillStyle = '#f8fafc';
+          ctx.font = 'bold 16px "Segoe UI", Tahoma, sans-serif';
+          const pText = (promptEl ? (promptEl.innerText || '').trim() : '') || 'กดเลือกรูปภาพที่ถูกต้อง';
+          ctx.fillText('❓ โจทย์คำถาม: ' + pText, 20, 54);
+
+          ctx.fillStyle = '#94a3b8';
+          ctx.font = '12px "Segoe UI", Tahoma, sans-serif';
+          const mText = (metaEl ? (metaEl.innerText || '').trim() : '') || 'กรุณาตอบภายในเวลา';
+          ctx.fillText('⏱️ ' + mText, 20, 74);
+
+          const cardW = 125;
+          const cardH = 110;
+          const startX = 20;
+          const startY = 86;
+          const gap = 12;
+
+          btns.forEach((b, i) => {
+            if (i >= 4) return;
+            const x = startX + i * (cardW + gap);
+            const y = startY;
+
+            ctx.fillStyle = '#1e293b';
+            ctx.beginPath();
+            if (ctx.roundRect) ctx.roundRect(x, y, cardW, cardH, 8); else ctx.rect(x, y, cardW, cardH);
+            ctx.fill();
+
+            ctx.strokeStyle = '#334155';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+
+            ctx.fillStyle = '#94a3b8';
+            ctx.font = 'bold 12px "Segoe UI", Tahoma, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('ข้อ ' + (i + 1), x + cardW / 2, y + 18);
+
+            const bImg = b.querySelector('img');
+            if (bImg && bImg.complete && bImg.naturalWidth > 0) {
+              ctx.drawImage(bImg, x + (cardW - 44) / 2, y + 26, 44, 44);
+            } else {
+              ctx.fillStyle = '#334155';
+              ctx.fillRect(x + (cardW - 44) / 2, y + 26, 44, 44);
+            }
+          });
+
+          imageDataUrl = canvas.toDataURL('image/png');
+        }
+      } catch (err) {}
+
+      if (boardImg && boardImg.src && boardImg.src.startsWith('data:image/')) {
+        imageDataUrl = boardImg.src;
+        try {
+          if (boardImg.complete && boardImg.naturalWidth > 0) {
+            if (isRotateChallenge) {
+              const rCanvas = document.createElement('canvas');
+              rCanvas.width = 256;
+              rCanvas.height = 256;
+              const rCtx = rCanvas.getContext('2d');
+              if (rCtx) {
+                rCtx.fillStyle = '#0f172a';
+                rCtx.fillRect(0, 0, 256, 256);
+                rCtx.drawImage(boardImg, 18, 10, 220, 220);
+                rCtx.fillStyle = '#38bdf8';
+                rCtx.font = 'bold 12px "Segoe UI", Tahoma, sans-serif';
+                rCtx.textAlign = 'center';
+                rCtx.fillText('หมุนรูปให้ตั้งตรง แล้วกดยืนยัน', 128, 245);
+                imageDataUrl = rCanvas.toDataURL('image/png');
+              }
+            } else {
+              const bw = boardImg.naturalWidth || 480;
+              const bh = isCountChallenge ? (boardImg.naturalHeight || 360) : (boardImg.naturalHeight || 330);
+              const stripH = 38;
+              const bCanvas = document.createElement('canvas');
+              bCanvas.width = bw;
+              bCanvas.height = bh + stripH;
+              const bCtx = bCanvas.getContext('2d');
+              if (bCtx) {
+                bCtx.fillStyle = '#0f172a';
+                bCtx.fillRect(0, 0, bw, bh + stripH);
+                bCtx.drawImage(boardImg, 0, 0, bw, bh);
+                if (isCountChallenge && Array.isArray(countValues)) {
+                  const nOpts = countValues.length >= 6 ? 6 : 4;
+                  const boxW = nOpts === 6 ? 74 : 110;
+                  const gap = (bw - nOpts * boxW) / (nOpts + 1);
+                  for (let i = 0; i < nOpts; i++) {
+                    const cntVal = countValues[i] || (i + 1);
+                    const bx = Math.round(gap + i * (boxW + gap));
+                    const by = bh + 5;
+                    const cx = Math.round(bx + boxW / 2);
+                    bCtx.fillStyle = '#1e293b';
+                    bCtx.strokeStyle = '#38bdf8';
+                    bCtx.lineWidth = 1.5;
+                    bCtx.beginPath();
+                    if (bCtx.roundRect) bCtx.roundRect(bx, by, boxW, 28, 6); else bCtx.rect(bx, by, boxW, 28);
+                    bCtx.fill();
+                    bCtx.stroke();
+                    bCtx.fillStyle = '#f8fafc';
+                    bCtx.font = nOpts === 6 ? 'bold 10.5px "Segoe UI", Tahoma, sans-serif' : 'bold 12px "Segoe UI", Tahoma, sans-serif';
+                    bCtx.textAlign = 'center';
+                    bCtx.fillText('คำตอบ ' + (i + 1) + ' (' + cntVal + ' อัน)', cx, by + 19, boxW - 4);
+                  }
+                } else {
+                  const colCenters = [68, 181, 300, 416];
+                  for (let i = 0; i < 4; i++) {
+                    const cx = colCenters[i];
+                    const bx = cx - 44;
+                    const by = bh + 5;
+                    bCtx.fillStyle = '#1e293b';
+                    bCtx.strokeStyle = '#38bdf8';
+                    bCtx.lineWidth = 1.5;
+                    bCtx.beginPath();
+                    if (bCtx.roundRect) bCtx.roundRect(bx, by, 88, 28, 6); else bCtx.rect(bx, by, 88, 28);
+                    bCtx.fill();
+                    bCtx.stroke();
+                    bCtx.fillStyle = '#f8fafc';
+                    bCtx.font = 'bold 13px "Segoe UI", Tahoma, sans-serif';
+                    bCtx.textAlign = 'center';
+                    bCtx.fillText('ตัวเลือก ' + (i + 1), cx, by + 19);
+                  }
+                }
+                imageDataUrl = bCanvas.toDataURL('image/png');
+              }
+            }
+          }
+        } catch (err) {}
+      }
+
+      const rawMetaStr = (metaEl ? (metaEl.innerText || '').trim() : '');
+      const fallbackHcStr = (typeof hc.innerText === 'string' ? hc.innerText : (typeof hc.textContent === 'string' ? hc.textContent : '')) || '';
+      const resolvedMetaStr = /ตอบผิดได้อีก\\s*\\d+/.test(rawMetaStr)
+        ? rawMetaStr
+        : ((fallbackHcStr.match(/[^\\n]*ตอบผิดได้อีก\\s*\\d+[^\\n]*/)?.[0] || '').trim() || rawMetaStr);
+
+      const pausedByPolicyNow = (window.__autoHumanCheckEnabled === false);
+      const pauseReasonNow = (pausedByPolicyNow && typeof window.__pmHumanCheckPauseReason === 'string' && window.__pmHumanCheckPauseReason)
+        ? window.__pmHumanCheckPauseReason
+        : (pausedByPolicyNow ? 'งดตอบอัตโนมัติตามตั้งค่า' : null);
+
+      s.humanCheck = {
+        active: true,
+        id: window.__latestHumanCheck?.id ?? null,
+        prompt: promptStr,
+        meta: resolvedMetaStr,
+        autoSolved: !!window.__lastHumanCheckSolved && window.__lastHumanCheckSolved.verified !== 'wrong' && (Date.now() - window.__lastHumanCheckSolved.timestamp < 15000),
+        pausedByPolicy: pausedByPolicyNow,
+        pauseReason: pauseReasonNow,
+        lastSolved: window.__lastHumanCheckSolved || null,
+        items: (window.__latestHumanCheck && Array.isArray(window.__latestHumanCheck.items)) ? window.__latestHumanCheck.items : null,
+        image: (boardImg && (boardImg.getAttribute('src') || boardImg.src)) || window.__latestHumanCheck?.image || null,
+        isBoard,
+        isUpdatedFormat,
+        options,
+        imageDataUrl
+      };
+    } else {
+      s.humanCheck = null;
+      const inJailNow = /คุก|jail|prison/i.test(String(s.map || ''));
+      if (window.__lastHumanCheckSolved && window.__lastHumanCheckSolved.verified !== 'wrong' && Date.now() - (window.__lastHumanCheckSolved.timestamp || 0) < 30000) {
+        if (inJailNow) {
+          const lastS = window.__lastHumanCheckSolved;
+          lastS.verified = 'wrong';
+          lastS.isCorrect = false;
+          if (!lastS._jailWrongQueued) {
+            lastS._jailWrongQueued = true;
+            if (!Array.isArray(window.__pmWrongHumanCheckQueue)) window.__pmWrongHumanCheckQueue = [];
+            window.__pmWrongHumanCheckQueue.push({
+              timestamp: lastS.timestamp,
+              checkId: lastS.checkId || null,
+              prompt: lastS.prompt || '',
+              type: lastS.type || null,
+              count: lastS.count ?? null,
+              turn: lastS.turn ?? null,
+              clicks: lastS.clicks ?? null,
+              direction: lastS.direction || null,
+              optionCounts: lastS.optionCounts || null,
+              pickIndex: lastS.pickIndex ?? 0,
+              slot: lastS.slot || (Number.isInteger(lastS.pickIndex) && lastS.pickIndex >= 0 ? lastS.pickIndex + 1 : 1),
+              x: lastS.x ?? null,
+              y: lastS.y ?? null,
+              confidence: lastS.confidence ?? null,
+              matchedName: lastS.matchedName || '',
+              source: lastS.source || 'embedded-local-catalog',
+              manual: Boolean(lastS.manual),
+              answeredBy: lastS.answeredBy || null,
+              triesLeftBefore: lastS.triesLeftBefore ?? 1,
+              triesLeftAfter: 0,
+              metaText: 'ตอบผิดครบ 3 ครั้ง (ถูกส่งเข้าคุก)',
+              imageDataUrl: lastS.annotatedImageDataUrl || lastS.rawSrc || null
+            });
+          }
+        } else if (window.__lastHumanCheckSolved.triesLeftBefore !== 1 || Date.now() - (window.__lastHumanCheckSolved.timestamp || 0) >= 1350) {
+          window.__lastHumanCheckSolved.verified = 'correct';
+          window.__lastHumanCheckSolved.isCorrect = true;
+        }
+      }
+    }
+    if (hc && window.__lastHumanCheckSolved) {
+      const sLast = window.__lastHumanCheckSolved;
+      const elapsedS = Date.now() - (sLast.timestamp || 0);
+      const rawMetaS = (hc.querySelector('.human-check-meta')?.innerText || '').trim();
+      const fallbackS = (typeof hc.innerText === 'string' ? hc.innerText : '') || '';
+      const curMetaS = /ตอบผิดได้อีก\\s*\\d+/.test(rawMetaS) ? rawMetaS : ((fallbackS.match(/[^\\n]*ตอบผิดได้อีก\\s*\\d+[^\\n]*/)?.[0] || '').trim() || rawMetaS);
+      const curTriesMatchS = curMetaS.match(/ตอบผิดได้อีก\\s*(\\d+)/);
+      const curTriesS = curTriesMatchS ? Number(curTriesMatchS[1]) : null;
+      const triesBeforeS = sLast.triesLeftBefore != null ? sLast.triesLeftBefore : ((curTriesS != null && curTriesS <= 2) ? 3 : 1);
+      if (curTriesS != null && curTriesS >= triesBeforeS && elapsedS < 5800) {
+        if (sLast.verified === 'wrong') {
+          sLast.verified = null;
+          delete sLast.isCorrect;
+        }
+        if (!sLast.retriedLagSend && elapsedS >= 1800) {
+          sLast.retriedLagSend = true;
+          try {
+            if (typeof window.submitHumanCheckBoardAnswer === 'function' && typeof sLast.x === 'number' && typeof sLast.y === 'number') {
+              window.submitHumanCheckBoardAnswer(hc, hc.querySelector('.human-check-board'), window.__latestHumanCheck, sLast.x, sLast.y);
+            } else {
+              const pkt = window.__latestHumanCheck;
+              const room = (typeof window.getColyseusRoom === 'function' ? window.getColyseusRoom() : null)
+                || (typeof window.getGameRoom === 'function' ? window.getGameRoom() : null)
+                || window.__colyseusRoom || window.__gameRoom || null;
+              if (room && typeof room.send === 'function' && pkt && pkt.id != null) {
+                if (typeof sLast.x === 'number' && typeof sLast.y === 'number') {
+                  room.send('human_check_answer', { id: pkt.id, x: sLast.x, y: sLast.y });
+                } else if (sLast.type === 'rotate' && typeof sLast.turn === 'number') {
+                  room.send('human_check_answer', { id: pkt.id, turn: sLast.turn });
+                } else if (sLast.type === 'count' && typeof sLast.count === 'number') {
+                  room.send('human_check_answer', { id: pkt.id, value: sLast.count, count: sLast.count });
+                }
+              }
+            }
+          } catch (e) {}
+        }
+      }
+    }
+    if (Array.isArray(window.__pmWrongHumanCheckQueue) && window.__pmWrongHumanCheckQueue.length) {
+      const confirmedWrong = [];
+      const stillPending = [];
+      const rawMetaQ = hc ? ((hc.querySelector('.human-check-meta')?.innerText || '').trim()) : '';
+      const fallbackQ = hc ? ((typeof hc.innerText === 'string' ? hc.innerText : '') || '') : '';
+      const curMeta = /ตอบผิดได้อีก\\s*\\d+/.test(rawMetaQ) ? rawMetaQ : ((fallbackQ.match(/[^\\n]*ตอบผิดได้อีก\\s*\\d+[^\\n]*/)?.[0] || '').trim() || rawMetaQ);
+      const curTriesMatch = curMeta.match(/ตอบผิดได้อีก\\s*(\\d+)/);
+      const curTriesLeft = curTriesMatch ? Number(curTriesMatch[1]) : null;
+      const inJailNowQ = /คุก|jail|prison/i.test(String(s.map || ''));
+      for (const att of window.__pmWrongHumanCheckQueue) {
+        if (!att) continue;
+        const triesBefore = att.triesLeftBefore != null
+          ? att.triesLeftBefore
+          : (((att.triesLeftAfter ?? curTriesLeft) != null && (att.triesLeftAfter ?? curTriesLeft) <= 2) ? 3 : 1);
+        const alreadyDroppedAtQueueTime = Boolean(att.confirmedWrong) || (att.triesLeftAfter != null && triesBefore != null && att.triesLeftAfter < triesBefore);
+        if (!hc) {
+          if (alreadyDroppedAtQueueTime || inJailNowQ) {
+            if (inJailNowQ) {
+              att.triesLeftAfter = 0;
+              if (!att.metaText) att.metaText = 'ตอบผิดครบ 3 ครั้ง (ถูกส่งเข้าคุก)';
+            }
+            confirmedWrong.push(att);
+          } else if (window.__lastHumanCheckSolved && window.__lastHumanCheckSolved.timestamp === att.timestamp && window.__lastHumanCheckSolved.verified !== 'wrong') {
+            window.__lastHumanCheckSolved.verified = 'correct';
+            window.__lastHumanCheckSolved.isCorrect = true;
+          }
+          continue;
+        }
+        const elapsed = Date.now() - (att.timestamp || 0);
+        const triesNow = curTriesLeft ?? att.triesLeftAfter ?? null;
+        const triesDropped = (triesNow != null && triesBefore != null && triesNow < triesBefore);
+        if (triesDropped && (elapsed >= 850 || alreadyDroppedAtQueueTime)) {
+          att.triesLeftAfter = triesNow;
+          if (curMeta && !att.metaText) att.metaText = curMeta;
+          confirmedWrong.push(att);
+        } else if (elapsed < 5800) {
+          stillPending.push(att);
+        }
+      }
+      window.__pmWrongHumanCheckQueue = stillPending;
+      s.humanCheckWrongAttempts = confirmedWrong.length ? confirmedWrong : null;
+    } else {
+      s.humanCheckWrongAttempts = null;
+    }
+  } catch (e) {}
+  try {
+    if (window.__unexpectedTownWaiting) {
+      s.unexpectedTown = {
+        active: true,
+        waitUntil: window.__unexpectedTownWaitUntil || 0,
+        reason: window.__unexpectedTownReason || ''
+      };
+    } else {
+      s.unexpectedTown = null;
+    }
+  } catch (e) {}
+  try {
+    s.bandwidth = (typeof window.__pmGetBandwidth === 'function') ? window.__pmGetBandwidth() : null;
+  } catch (e) {}
+  try {
+    let pUntil = 0;
+    let pActive = false;
+    const exUntil = Number(window.__pmExchange && window.__pmExchange.premiumUntil) || 0;
+    if (exUntil > Date.now()) {
+      pUntil = exUntil;
+      pActive = true;
+    }
+    let rStore = (typeof getReactStore === 'function') ? getReactStore() : null;
+    const buffs = rStore && rStore.character && Array.isArray(rStore.character.buffs) ? rStore.character.buffs : [];
+    const pBuff = buffs.find(b => b && (b.skillId === 'ui:token' || /premium/i.test(String(b.name || ''))));
+    if (pBuff) {
+      const ends = Number(pBuff.endsAt) || (Number(pBuff.remainingMs) > 0 ? (Date.now() + Number(pBuff.remainingMs)) : 0);
+      if (ends > Date.now() || Number(pBuff.remainingMs) > 0) {
+        pActive = true;
+        if (ends > pUntil) pUntil = ends;
+      }
+    }
+    if (!pActive) {
+      const domBuff = document.querySelector('.hud-buffs img[src*="token"], .hud-buffs [title*="Premium" i]');
+      if (domBuff) pActive = true;
+    }
+    s.hasPremium = pActive;
+    s.premiumUntil = pUntil > 0 ? pUntil : null;
+  } catch (e) {}
+  try {
+    s.zeroRender = Boolean(window.__pmZeroRender);
+  } catch (e) {}
+  try {
+    if (typeof window.recordGrossZeny !== 'function') {
+      window.recordGrossZeny = function(newZeny) {
+        if (typeof newZeny !== 'number' || !Number.isFinite(newZeny) || newZeny < 0) return;
+        const charKey = String((window.__latestCharacterData && window.__latestCharacterData.name) || window.__charName || '').trim();
+        if (charKey && window.__grossZenyCharName && window.__grossZenyCharName !== charKey) {
+          window.__lastGrossBaseZeny = newZeny;
+          window.__grossZenyGained = 0;
+          window.__grossZenyInitAt = Date.now();
+        }
+        if (charKey) window.__grossZenyCharName = charKey;
+        if (typeof window.__grossZenyGained !== 'number' || !Number.isFinite(window.__grossZenyGained)) {
+          window.__grossZenyGained = 0;
+        }
+        if (typeof window.__lastGrossBaseZeny !== 'number' || !Number.isFinite(window.__lastGrossBaseZeny)) {
+          window.__lastGrossBaseZeny = newZeny;
+          window.__grossZenyInitAt = Date.now();
+          return;
+        }
+        if (window.__lastGrossBaseZeny === 0 && newZeny > 0 && (Date.now() - (window.__grossZenyInitAt || 0) < 8000)) {
+          window.__lastGrossBaseZeny = newZeny;
+          return;
+        }
+        const delta = newZeny - window.__lastGrossBaseZeny;
+        if (delta > 0 && !window.__consolidationReceiverMode && !window.__isConsolidating) {
+          window.__grossZenyGained += delta;
+        }
+        window.__lastGrossBaseZeny = newZeny;
+      };
+    }
+    if (typeof window.__pmForceSyncCharZeny !== 'function') {
+      window.__pmForceSyncCharZeny = function() {
+        try {
+          const root = document.querySelector('#root');
+          const key = root ? Object.keys(root).find(k => k.startsWith('__reactContainer') || k.startsWith('__reactFiber')) : null;
+          let fiber = (root && key) ? root[key] : null;
+          let charData = null, visited = 0;
+          function walk(n, depth) {
+            if (!n || depth > 40 || charData || ++visited > 350) return;
+            if (n.memoizedProps) {
+              if (n.memoizedProps.character && n.memoizedProps.character.stats) charData = n.memoizedProps.character;
+              else if (n.memoizedProps.stats && n.memoizedProps.skills) charData = n.memoizedProps;
+            }
+            if (!charData && n.memoizedState) {
+              let st = n.memoizedState, steps = 0;
+              while (st && ++steps < 25) {
+                const ms = st.memoizedState;
+                if (ms && typeof ms === 'object') {
+                  if (ms.character && ms.character.stats) { charData = ms.character; break; }
+                  if (ms.stats && ms.skills) { charData = ms; break; }
+                }
+                st = st.next;
+              }
+            }
+            if (n.child) walk(n.child, depth + 1);
+            if (n.sibling) walk(n.sibling, depth + 1);
+          }
+          if (fiber) walk(fiber, 0);
+          if (charData && typeof charData.zeny === 'number') {
+            window.__latestCharacterData = charData;
+            window.__currentZeny = charData.zeny;
+            if (typeof window.recordGrossZeny === 'function') window.recordGrossZeny(charData.zeny);
+          }
+        } catch (_) {}
+      };
+    }
+    if (!window.__grossZenyNative && !window.__pmGrossZenyHooked && typeof window.applyLiveCharacterPacket === 'function') {
+      window.__pmGrossZenyHooked = true;
+      const origApplyChar = window.applyLiveCharacterPacket;
+      window.applyLiveCharacterPacket = function(charDec) {
+        try {
+          if (charDec && typeof charDec.zeny === 'number' && typeof window.recordGrossZeny === 'function') {
+            window.recordGrossZeny(charDec.zeny);
+          }
+        } catch (_) {}
+        return origApplyChar.apply(this, arguments);
+      };
+    }
+    if (!window.__pmGrossClickHooked && typeof document !== 'undefined') {
+      window.__pmGrossClickHooked = true;
+      document.addEventListener('click', (ev) => {
+        try {
+          const el = ev.target && ev.target.closest ? ev.target.closest('button, div, span') : null;
+          if (!el || (el.closest && el.closest('#pelican-hud'))) return;
+          const txt = (el.innerText || '').trim();
+          if (txt.includes('ยืนยันขาย') || txt === 'ซื้อ' || txt === 'ขาย' || txt.includes('รับเงิน') || txt.includes('รับทั้งหมด')) {
+            if (typeof window.__pmForceSyncCharZeny === 'function') window.__pmForceSyncCharZeny();
+            setTimeout(() => { try { if (typeof window.__pmForceSyncCharZeny === 'function') window.__pmForceSyncCharZeny(); } catch (_) {} }, 220);
+            setTimeout(() => { try { if (typeof window.__pmForceSyncCharZeny === 'function') window.__pmForceSyncCharZeny(); } catch (_) {} }, 480);
+            setTimeout(() => { try { if (typeof window.__pmForceSyncCharZeny === 'function') window.__pmForceSyncCharZeny(); } catch (_) {} }, 680);
+          }
+        } catch (_) {}
+      }, true);
+    }
+    const room = (typeof window.getColyseusRoom === 'function' ? window.getColyseusRoom() : null) || window.__gameRoom || null;
+    if (room && typeof room.send === 'function' && !room.__pmGrossSendHooked) {
+      room.__pmGrossSendHooked = true;
+      const origRoomSend = room.send;
+      room.send = function(type) {
+        try {
+          const cmd = String(type || '');
+          if (/shop_buy|shop_sell|market_buy|market_claim|market_collect|exchange|refine|warp|npc_option|trade/i.test(cmd)) {
+            if (typeof window.__pmForceSyncCharZeny === 'function') window.__pmForceSyncCharZeny();
+            setTimeout(() => { try { if (typeof window.__pmForceSyncCharZeny === 'function') window.__pmForceSyncCharZeny(); } catch (_) {} }, 250);
+            setTimeout(() => { try { if (typeof window.__pmForceSyncCharZeny === 'function') window.__pmForceSyncCharZeny(); } catch (_) {} }, 600);
+          }
+        } catch (_) {}
+        return origRoomSend.apply(this, arguments);
+      };
+    }
+    if (window.__isShopping && typeof window.__pmForceSyncCharZeny === 'function') {
+      window.__pmForceSyncCharZeny();
+      if (typeof window.__currentZeny === 'number') s.zeny = window.__currentZeny;
+    } else if (typeof s.zeny === 'number' && typeof window.recordGrossZeny === 'function') {
+      window.recordGrossZeny(s.zeny);
+    }
+    s.grossZenyGained = (typeof window.__grossZenyGained === 'number' && Number.isFinite(window.__grossZenyGained)) ? window.__grossZenyGained : null;
+    s.consolidationReceiverMode = Boolean(window.__consolidationReceiverMode || window.__isConsolidating);
+  } catch (e) {}
+  return s;
+})()`;
+
+const clientStateCacheByPort = new Map();
+const clientStateInFlightByPort = new Map();
+const clientStateLastFailureByPort = new Map();
+const pendingWrongAttemptsByPort = new Map();
+
+async function mapWithConcurrency(items, limit, fn) {
+  const arr = Array.isArray(items) ? items : [];
+  if (arr.length === 0) return [];
+  const maxWorkers = Math.max(1, Math.min(Number(limit) || 8, arr.length));
+  const results = new Array(arr.length);
+  let nextIdx = 0;
+  async function worker() {
+    while (true) {
+      const idx = nextIdx++;
+      if (idx >= arr.length) break;
+      results[idx] = await fn(arr[idx], idx);
+    }
+  }
+  await Promise.all(Array.from({ length: maxWorkers }, () => worker()));
+  return results;
+}
+
+function queryClientState(port) {
+  if (!port) return Promise.resolve(null);
+  const now = Date.now();
+  const cached = clientStateCacheByPort.get(port);
+  if (cached && now - cached.ts < 1750) {
+    return Promise.resolve(cached.state);
+  }
+  const lastFail = clientStateLastFailureByPort.get(port);
+  if (lastFail && now - lastFail.ts < (lastFail.reason === 'ECONNREFUSED' ? 2500 : 3500)) {
+    return Promise.resolve(null);
+  }
+  if (clientStateInFlightByPort.has(port)) {
+    return clientStateInFlightByPort.get(port);
+  }
+  const promise = new Promise((resolve) => {
+    // 1. Try rich state via POST /api/eval (avoids HTTP URL/header overflow on large LIVE_STATE_EVAL)
+    const payload = JSON.stringify({ code: LIVE_STATE_EVAL });
+    const req = http.request({
+      hostname: '127.0.0.1',
+      port: port,
+      path: '/api/eval',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(payload)
+      },
+      timeout: 4500
+    }, (res) => {
+      let data = "";
+      res.setEncoding('utf8');
+      res.on("data", chunk => data += chunk);
+      res.on("end", () => {
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed && parsed.success && parsed.result) {
+            clientStateLastFailureByPort.delete(port);
+            return resolve(parsed.result);
+          }
+        } catch (e) {}
+        // Only fall back to GET /api/state if /api/eval returned 404/405 (legacy loader).
+        // If /api/eval returned 500 (e.g. renderer evaluation timeout), do not double-hit the busy renderer.
+        if (res.statusCode === 404 || res.statusCode === 405) {
+          queryStandardState(port).then(resolve);
+        } else {
+          clientStateLastFailureByPort.set(port, { ts: Date.now(), reason: 'eval_error' });
+          resolve(null);
+        }
+      });
+    });
+    req.on("error", (err) => {
+      const code = String((err && err.code) || '');
+      if (code === 'ECONNREFUSED' || code === 'ECONNRESET' || code === 'EPIPE') {
+        clientStateLastFailureByPort.set(port, { ts: Date.now(), reason: code });
+        return resolve(null);
+      }
+      queryStandardState(port).then(resolve);
+    });
+    req.on("timeout", () => {
+      req.destroy();
+      clientStateLastFailureByPort.set(port, { ts: Date.now(), reason: 'timeout' });
+      resolve(null);
+    });
+    req.write(payload);
+    req.end();
+  }).then((state) => {
+    clientStateInFlightByPort.delete(port);
+    if (state) {
+      clientStateLastFailureByPort.delete(port);
+      const m = String(state.map || '').trim();
+      if (/^(?:\d+|[-—–]+)\s*ms$/i.test(m) || /\b\d+\s*ms\b/i.test(m) || /^CH\b/i.test(m) || /▾/.test(m)) {
+        state.map = state.targetMap || 'ไม่ทราบแมพ';
+      }
+      if (Array.isArray(state.humanCheckWrongAttempts) && state.humanCheckWrongAttempts.length > 0) {
+        const list = pendingWrongAttemptsByPort.get(port) || [];
+        for (const att of state.humanCheckWrongAttempts) {
+          if (!att) continue;
+          const sig = `${att.timestamp || 0}:${att.pickIndex ?? ''}:${att.turn ?? ''}:${att.count ?? ''}:${att.triesLeftAfter ?? ''}`;
+          if (!list.some(x => x._sig === sig)) {
+            list.push({ ...att, _sig: sig });
+          }
+        }
+        pendingWrongAttemptsByPort.set(port, list.slice(-20));
+      }
+      clientStateCacheByPort.set(port, { ts: Date.now(), state });
+    }
+    return state;
+  }).catch(() => {
+    clientStateInFlightByPort.delete(port);
+    return null;
+  });
+  clientStateInFlightByPort.set(port, promise);
+  return promise;
+}
+
+function queryStandardState(port) {
+  return new Promise((resolve) => {
+    const req = http.get(`http://127.0.0.1:${port}/api/state`, { timeout: 3500 }, (res) => {
+      let data = "";
+      res.setEncoding('utf8');
+      res.on("data", chunk => data += chunk);
+      res.on("end", () => {
+        try { resolve(JSON.parse(data)); } catch (e) { resolve(null); }
+      });
+    });
+    req.on("error", () => resolve(null));
+    req.on("timeout", () => {
+      req.destroy();
+      resolve(null);
+    });
+  });
+}
+
+// Windows can reserve blocks of ports for Hyper-V / WSL / Docker (`netsh int ipv4 show excludedportrange
+// protocol=tcp`) or give a port in the dynamic range (49152+) to another program. The game loader then cannot
+// listen on the profile's debugPort and the Manager gets ECONNREFUSED (card stuck on "connecting"). Before
+// launching, move such a profile to a free port below the dynamic range.
+const reservedDebugPorts = new Set();
+function canListenOn(port) {
+  return new Promise((resolve) => {
+    const srv = require("net").createServer();
+    srv.once("error", () => resolve(false));
+    srv.listen(port, "127.0.0.1", () => srv.close(() => resolve(true)));
+  });
+}
+function portAnswers(port) {
+  return new Promise((resolve) => {
+    const req = http.get(`http://127.0.0.1:${port}/`, { timeout: 1500 }, (res) => { res.resume(); resolve(true); });
+    req.on("error", () => resolve(false));
+    req.on("timeout", () => { req.destroy(); resolve(false); });
+  });
+}
+// Is this profile's game window already open? runningProcesses is lost when the Manager restarts (updates)
+// while the detached game windows keep running, so also ask the profile's port (loader or browser proxy).
+async function clientAlreadyOpen(p) {
+  if (browserMode.isOpen(p.id)) return true;
+  if (runningProcesses[p.id] && isProcessAlive(runningProcesses[p.id].pid)) return true;
+  return Boolean(p.debugPort) && await portAnswers(p.debugPort);
+}
+
+async function ensureUsableDebugPort(profileId) {
+  const profiles = loadProfiles();
+  const p = profiles.find(x => x.id === profileId);
+  if (!p) return null;
+  const port = Number(p.debugPort) || 48876;
+  if (await canListenOn(port) || await portAnswers(port)) return p;   // free, or one of our clients already answers there
+  const used = new Set([...profiles.map(x => Number(x.debugPort)).filter(Boolean), ...reservedDebugPorts]);
+  for (let cand = 38760; cand < 39760; cand++) {
+    if (used.has(cand) || !(await canListenOn(cand))) continue;
+    reservedDebugPorts.add(cand);
+    const fresh = loadProfiles();
+    const target = fresh.find(x => x.id === profileId);
+    if (!target) return p;
+    target.debugPort = cand;
+    saveProfiles(fresh);
+    console.log(`[PmheeAether Manager] 🔌 Port ${port} of "${target.name}" cannot be used on this PC (reserved by Windows or taken) -> moved to ${cand}`);
+    return { ...target, movedFromPort: port };
+  }
+  return p;
+}
+
+// ---------- game item data for the gear set editor (GET /api/game-items) ----------
+const GAME_SITE = "https://play.nightcamp.app";
+const GAME_ITEMS_CACHE = path.join(__dirname, "data", "game_items_cache.json");
+let gameItemsMem = null, gameItemsLoading = null;
+function getUrlJson(url) {
+  return new Promise((resolve, reject) => {
+    https.get(url, { headers: { "User-Agent": "PmheeNightcamp-Manager" }, timeout: 20000 }, res => {
+      if (res.statusCode !== 200) { res.resume(); return reject(new Error(`HTTP ${res.statusCode}`)); }
+      let d = "";
+      res.setEncoding("utf8");
+      res.on("data", c => d += c);
+      res.on("end", () => { try { resolve(JSON.parse(d)); } catch (e) { reject(e); } });
+    }).on("error", reject).on("timeout", function () { this.destroy(new Error("timeout")); });
+  });
+}
+async function getGameItems() {
+  const fresh = x => x && Array.isArray(x.cards) && x.cards[0] && Array.isArray(x.cards[0].maps) && Date.now() - (x.retryAt || x.fetchedAt + 6 * 3600 * 1000) < 0;
+  if (fresh(gameItemsMem)) return gameItemsMem;
+  if (!gameItemsLoading) gameItemsLoading = fetchGameItems().finally(() => { gameItemsLoading = null; });
+  return gameItemsLoading;
+}
+async function fetchGameItems() {
+  try {
+    const [wiki, icons] = await Promise.all([getUrlJson(`${GAME_SITE}/wiki-data`), getUrlJson(`${GAME_SITE}/art/icons/manifest.json`).catch(() => ({}))]);
+    const iconOf = id => { const p = icons && icons.items && icons.items[id]; return p ? `${GAME_SITE}/art/icons/${p}` : null; };
+    const monsterById = new Map((wiki.monsters || []).map(m => [Number(m.id), m]));
+    const items = (wiki.items || []).filter(i => i.type === "Equipment" && i.equipmentType && i.equipmentType !== "Ammo" && !/^Costume/.test(i.equipmentType))
+      .map(i => ({
+        id: i.id, name: i.name, slotType: i.equipmentType, weaponType: i.weaponType, level: i.equipLevelMin || 0,
+        rarity: i.rarity, refineable: !!i.refineable, slots: i.slots || 0, weaponLevel: i.weaponLevel || 0, accSlot: i.accSlot || null,
+        jobs: i.jobs || [], attributes: (i.attributes || []).slice(0, 4).map(a => ({ type: a.type, value: a.value, perRefine: a.perRefine || 0 })),
+        specials: (i.specials || []).slice(0, 2), soldBy: (i.soldBy || []).map(x => x.shop).slice(0, 1), icon: iconOf(i.id)
+      }));
+    const classes = (wiki.classes || []).map(c => ({ id: c.id, name: c.name, tier: c.tier }));
+    const cards = (wiki.items || []).filter(i => i.type === "Card").map(i => {
+      const monsters = [];
+      const mapAcc = new Map();
+      for (const db of (i.droppedBy || [])) {
+        const m = monsterById.get(Number(db.monsterId));
+        if (!m) continue;
+        const mMaps = new Map();
+        for (const sp of (m.spawns || [])) {
+          if (!sp || !sp.map) continue;
+          const key = String(sp.map).trim();
+          const prev = mMaps.get(key) || { map: key, mapId: sp.mapId || '', count: 0 };
+          prev.count += (Number(sp.count) || 0);
+          mMaps.set(key, prev);
+          const gPrev = mapAcc.get(key) || {
+            map: key,
+            mapId: sp.mapId || '',
+            count: 0,
+            monsterName: m.name,
+            monsterLevel: m.level || 1,
+            boss: !!m.boss
+          };
+          gPrev.count += (Number(sp.count) || 0);
+          mapAcc.set(key, gPrev);
+        }
+        monsters.push({
+          id: m.id,
+          name: m.name,
+          level: m.level || 1,
+          boss: !!m.boss,
+          element: m.element || null,
+          race: m.race || null,
+          chance: db.chance || 0.0001,
+          maps: Array.from(mMaps.values()).sort((a, b) => b.count - a.count)
+        });
+      }
+      return {
+        id: i.id,
+        name: i.name,
+        rarity: i.rarity,
+        cardSlotTypes: i.cardSlotTypes || [],
+        attributes: (i.attributes || []).slice(0, 6).map(a => ({ type: a.type, value: a.value, perRefine: a.perRefine || 0, mode: a.mode || null })),
+        specials: (i.specials || []).slice(0, 4),
+        album: (i.album || []).slice(0, 4),
+        monsters,
+        maps: Array.from(mapAcc.values()).sort((a, b) => b.count - a.count),
+        icon: iconOf(i.id)
+      };
+    });
+    gameItemsMem = { fetchedAt: Date.now(), items, classes, cards };
+    try { fs.mkdirSync(path.dirname(GAME_ITEMS_CACHE), { recursive: true }); fs.writeFileSync(GAME_ITEMS_CACHE, JSON.stringify(gameItemsMem)); } catch (e) {}
+    return gameItemsMem;
+  } catch (e) {
+    if (!gameItemsMem) { try { gameItemsMem = JSON.parse(fs.readFileSync(GAME_ITEMS_CACHE, "utf8")); } catch (e2) {} }
+    if (gameItemsMem) { gameItemsMem.retryAt = Date.now() + 30 * 60 * 1000; return gameItemsMem; }
+    throw new Error("โหลดรายการไอเทมจากเว็บเกมไม่สำเร็จ: " + e.message);
+  }
+}
+
+function evalProfilePortOnce(port, code, timeoutMs = 8000) {
+  return new Promise((resolve) => {
+    if (!port) return resolve({ success: false, error: 'No debug port' });
+    const payload = JSON.stringify({ code, timeoutMs });
+    const req = http.request({
+      hostname: '127.0.0.1',
+      port: port,
+      path: '/api/eval',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(payload)
+      },
+      timeout: timeoutMs
+    }, (res) => {
+      let d = '';
+      res.setEncoding('utf8');
+      res.on('data', chunk => d += chunk);
+      res.on('end', () => {
+        try { resolve(JSON.parse(d)); } catch(e) { resolve({ success: true, result: d }); }
+      });
+    });
+    req.on('error', err => resolve({ success: false, error: err.message }));
+    req.on('timeout', () => {
+      req.destroy();
+      resolve({ success: false, error: 'Timeout' });
+    });
+    req.write(payload);
+    req.end();
+  });
+}
+
+async function evalProfilePort(port, code, timeoutMs = 8000) {
+  const first = await evalProfilePortOnce(port, code, timeoutMs);
+  if (first && first.success !== false) return first;
+  const errMsg = String((first && first.error) || '');
+  const isProbe = typeof code === 'string' && code.includes('__getClientLiveState') && code.includes('grossZenyGained');
+  if (!isProbe && /timeout cooldown|queue timeout|queue busy|ECONNRESET|socket hang up/i.test(errMsg)) {
+    await new Promise(r => setTimeout(r, 1200));
+    return evalProfilePortOnce(port, code, timeoutMs);
+  }
+  return first;
+}
+
+const profileClientActionQueues = new Map();
+function enqueueProfileClientAction(profileId, taskFn) {
+  const key = String(profileId || '');
+  const prev = profileClientActionQueues.get(key) || Promise.resolve();
+  const next = prev.catch(() => {}).then(() => taskFn());
+  profileClientActionQueues.set(key, next.finally(() => {
+    if (profileClientActionQueues.get(key) === next) {
+      profileClientActionQueues.delete(key);
+    }
+  }));
+  return next;
+}
+
+function buildClientActionEvalCode(payload) {
+  if (!payload || typeof payload !== 'object') return '';
+  if (payload.type === 'set-farm-map') {
+    return `(() => {
+      const map = ${JSON.stringify(payload.map)};
+      if (typeof window.clearSafeMap === 'function') window.clearSafeMap('เลือกแมพจาก Manager');
+      window.__overrideFarmMap = '';
+      try {
+        localStorage.removeItem('pelican_override_farm_map');
+        localStorage.removeItem('pelican_job_return_map');
+        localStorage.removeItem('pelican_gohome_keep_farm');
+      } catch(e){}
+      window.__targetFarmMap = map;
+      try { localStorage.setItem('pelican_farm_map', map); } catch(e){}
+      const mapSelect = document.getElementById('p-target-map-select');
+      if (mapSelect) mapSelect.value = map;
+      if (typeof window.rememberFarmMap === 'function') window.rememberFarmMap(map);
+      if (typeof window.setPlanManualMap === 'function') window.setPlanManualMap(map);
+      if (typeof window.setTargetFarmMap === 'function') window.setTargetFarmMap(map);
+      if (typeof window.syncAllHudInputsFromConfig === 'function') window.syncAllHudInputsFromConfig();
+      return { success: true };
+    })()`;
+  } else if (payload.type === 'toggle-auto-loop') {
+    return `(() => {
+      const en = ${Boolean(payload.enabled)};
+      window.__autoLoopEnabled = en;
+      try { localStorage.setItem('pelican_auto_loop', String(en)); } catch(e){}
+      const loopCb = document.getElementById('p-auto-loop');
+      if (loopCb) loopCb.checked = en;
+      if (typeof updateMasterBotUI === 'function') updateMasterBotUI();
+      if (typeof window.syncAllHudInputsFromConfig === 'function') window.syncAllHudInputsFromConfig();
+      return { success: true, autoLoopEnabled: en };
+    })()`;
+  } else if (payload.type === 'toggle-plan-script') {
+    return `(() => {
+      const en = ${Boolean(payload.enabled)};
+      window.__planScriptEnabled = en;
+      try {
+        localStorage.setItem('pelican_plan_script_enabled', String(en));
+        localStorage.setItem('pelican_plan_user_disabled', String(!en));
+      } catch(e){}
+      const planCb = document.getElementById('p-plan-script-enabled');
+      if (planCb) planCb.checked = en;
+      if (en) {
+        if (typeof window.applyPelicanSettings === 'function') window.applyPelicanSettings();
+        if (typeof window.autoConfigureCombat === 'function') window.autoConfigureCombat();
+      } else {
+        try {
+          localStorage.removeItem('pelican_gear_trip');
+          if (window.__targetFarmMap && !/เมืองหลวง|โซลเฮเวน|ตลาดคาราวาน/.test(window.__targetFarmMap)) {
+            localStorage.removeItem('pelican_job_return_map');
+          }
+        } catch(e){}
+        if (typeof window.cleanupPlanTransientState === 'function') window.cleanupPlanTransientState('ปิด Plan Script จาก Manager');
+      }
+      if (typeof window.syncAllHudInputsFromConfig === 'function') window.syncAllHudInputsFromConfig();
+      return { success: true, planScriptEnabled: en };
+    })()`;
+  } else if (payload.type === 'update-travel') {
+    return `(() => {
+      if (!window.__travelConfig) {
+        try { window.__travelConfig = JSON.parse(localStorage.getItem('pelican_travel_cfg') || '{}') || {}; } catch (_) { window.__travelConfig = {}; }
+      }
+      const minZ = Math.max(0, parseInt(${JSON.stringify(payload.minZenyForWarp)}, 10) || 0);
+      window.__travelConfig.minZenyForWarp = minZ;
+      try { localStorage.setItem('pelican_travel_cfg', JSON.stringify(window.__travelConfig)); } catch(e){}
+      if (typeof window.saveTravelConfig === 'function') window.saveTravelConfig();
+      const inp = document.getElementById('p-warp-min-zeny');
+      if (inp) inp.value = String(minZ);
+      if (typeof window.syncAllHudInputsFromConfig === 'function') window.syncAllHudInputsFromConfig();
+      return { success: true, minZenyForWarp: minZ };
+    })()`;
+  } else if (payload.type === 'toggle-unexpected-town-guard') {
+    return `(() => {
+      const en = ${Boolean(payload.enabled)};
+      window.__unexpectedTownGuardEnabled = en;
+      try { localStorage.setItem('pelican_unexpected_town_guard', String(en)); } catch(e){}
+      const cb = document.getElementById('p-unexpected-town-guard');
+      if (cb) cb.checked = en;
+      if (typeof window.syncAllHudInputsFromConfig === 'function') window.syncAllHudInputsFromConfig();
+      return { success: true, enabled: en };
+    })()`;
+  } else if (payload.type === 'skip-unexpected-wait') {
+    return `(() => {
+      if (typeof window.skipUnexpectedTownWait === 'function') window.skipUnexpectedTownWait();
+      return { success: true };
+    })()`;
+  } else if (payload.type === 'update-humanize') {
+    return `(() => {
+      if (!window.__humanizeConfig) {
+        try { window.__humanizeConfig = JSON.parse(localStorage.getItem('pelican_humanize_cfg') || localStorage.getItem('pelican_humanize_config') || '{}') || {}; } catch (_) { window.__humanizeConfig = {}; }
+      }
+      const patch = ${JSON.stringify(payload.config || {})};
+      Object.assign(window.__humanizeConfig, patch);
+      if (patch.chance !== undefined) window.__humanizeConfig.chancePercent = Number(patch.chance);
+      if (patch.chancePercent !== undefined) window.__humanizeConfig.chance = Number(patch.chancePercent);
+      if (patch.buyBlacksmith !== undefined) window.__humanizeConfig.visitBlacksmith = !!patch.buyBlacksmith;
+      if (patch.visitBlacksmith !== undefined) window.__humanizeConfig.buyBlacksmith = !!patch.visitBlacksmith;
+      if (patch.buySundries !== undefined) window.__humanizeConfig.visitSundries = !!patch.buySundries;
+      if (patch.visitSundries !== undefined) window.__humanizeConfig.buySundries = !!patch.visitSundries;
+      if (patch.storeDeposit !== undefined) window.__humanizeConfig.openStorage = !!patch.storeDeposit;
+      if (patch.openStorage !== undefined) window.__humanizeConfig.storeDeposit = !!patch.openStorage;
+      try {
+        localStorage.setItem('pelican_humanize_cfg', JSON.stringify(window.__humanizeConfig));
+        localStorage.setItem('pelican_humanize_config', JSON.stringify(window.__humanizeConfig));
+      } catch(e){}
+      const c = window.__humanizeConfig;
+      const setCb = (id, v) => { const el = document.getElementById(id); if (el && v !== undefined) el.checked = !!v; };
+      if (patch.enabled !== undefined) setCb('p-humanize-enabled', c.enabled);
+      if (patch.buyBlacksmith !== undefined || patch.visitBlacksmith !== undefined) setCb('p-humanize-blacksmith', c.buyBlacksmith ?? c.visitBlacksmith);
+      if (patch.buySundries !== undefined || patch.visitSundries !== undefined) setCb('p-humanize-sundries', c.buySundries ?? c.visitSundries);
+      if (patch.randomWalk !== undefined) setCb('p-humanize-walk', c.randomWalk);
+      if (patch.storeDeposit !== undefined || patch.openStorage !== undefined) setCb('p-humanize-storage', c.storeDeposit ?? c.openStorage);
+      const chEl = document.getElementById('p-humanize-chance');
+      if (chEl && (patch.chance !== undefined || patch.chancePercent !== undefined)) chEl.value = String(c.chance ?? c.chancePercent);
+      if (typeof window.syncAllHudInputsFromConfig === 'function') window.syncAllHudInputsFromConfig();
+      return { success: true };
+    })()`;
+  } else if (payload.type === 'test-humanize') {
+    return `(() => {
+      window.__isManualTestingHumanize = true;
+      if (typeof window.runHumanizeRoutine === 'function') window.runHumanizeRoutine(() => {});
+      return { success: true };
+    })()`;
+  } else if (payload.type === 'toggle-ultra-low-spec') {
+    return `(() => {
+      const en = ${Boolean(payload.enabled)};
+      window.__ultraLowSpecEnabled = en;
+      try { localStorage.setItem('pelican_ultra_low_spec', en ? 'true' : 'false'); } catch(e){}
+      if (typeof window.setUltraLowSpecMode === 'function') window.setUltraLowSpecMode(en);
+      const cb = document.getElementById('p-ultra-low-spec');
+      if (cb) cb.checked = en;
+      if (typeof window.syncAllHudInputsFromConfig === 'function') window.syncAllHudInputsFromConfig();
+      return { success: true, ultraLowSpecEnabled: en };
+    })()`;
+  } else if (payload.type === 'update-auto-config') {
+    return `(() => {
+      const cfg = ${JSON.stringify(payload.config || {})};
+      if (cfg.autoConfigCharEnabled !== undefined) {
+        window.__autoConfigCharEnabled = !!cfg.autoConfigCharEnabled;
+        try { localStorage.setItem('pelican_auto_config_char_enabled', String(!!cfg.autoConfigCharEnabled)); } catch(e){}
+        const el = document.getElementById('p-auto-config-char');
+        if (el) el.checked = !!cfg.autoConfigCharEnabled;
+        if (cfg.autoConfigCharEnabled && typeof window.autoConfigureCombat === 'function') window.autoConfigureCombat(true);
+      }
+      if (cfg.autoMuteDisplayEnabled !== undefined) {
+        window.__autoMuteDisplayEnabled = !!cfg.autoMuteDisplayEnabled;
+        try { localStorage.setItem('pelican_auto_mute_display_enabled', String(!!cfg.autoMuteDisplayEnabled)); } catch(e){}
+        const el = document.getElementById('p-auto-mute-display');
+        if (el) el.checked = !!cfg.autoMuteDisplayEnabled;
+        if (cfg.autoMuteDisplayEnabled && typeof window.applyPelicanSettings === 'function') window.applyPelicanSettings(true);
+      }
+      if (typeof window.syncAllHudInputsFromConfig === 'function') window.syncAllHudInputsFromConfig();
+      return { success: true };
+    })()`;
+  } else if (payload.type === 'apply-autoconfig-now') {
+    return `(async () => {
+      if (typeof window.applyPelicanSettings === 'function') window.applyPelicanSettings(true);
+      let ok = false;
+      if (typeof window.autoConfigureCombat === 'function') ok = await window.autoConfigureCombat(true);
+      return { success: true, applied: ok };
+    })()`;
+  } else if (payload.type === 'update-ingame-auto-config') {
+    const patch = payload.config || {};
+    return `(() => {
+      const patch = ${JSON.stringify(patch)};
+      if (!window.__inGameAutoCombatConfig || typeof window.__inGameAutoCombatConfig !== 'object') {
+        try {
+          window.__inGameAutoCombatConfig = JSON.parse(localStorage.getItem('pelican_ingame_auto_cfg') || '{}') || {};
+        } catch (e) {
+          window.__inGameAutoCombatConfig = {};
+        }
+      }
+      const defaultOrder = ['self', 'party', 'players', 'free', 'others'];
+      const normOrder = (arr) => {
+        const valid = new Set(defaultOrder);
+        const out = [];
+        if (Array.isArray(arr)) {
+          for (const k of arr) {
+            const key = String(k || '').trim();
+            if (valid.has(key) && !out.includes(key)) out.push(key);
+          }
+        }
+        for (const k of defaultOrder) {
+          if (!out.includes(k)) out.push(k);
+        }
+        return out;
+      };
+      if (patch && typeof patch === 'object') {
+        if (patch.basicAttack !== undefined) window.__inGameAutoCombatConfig.basicAttack = !!patch.basicAttack;
+        if (patch.targetOrder !== undefined) window.__inGameAutoCombatConfig.targetOrder = normOrder(patch.targetOrder);
+        if (patch.buffParty !== undefined) window.__inGameAutoCombatConfig.buffParty = !!patch.buffParty;
+        if (patch.acceptParty !== undefined) window.__inGameAutoCombatConfig.acceptParty = !!patch.acceptParty;
+        if (patch.joinOthers !== undefined) window.__inGameAutoCombatConfig.joinOthers = !!patch.joinOthers;
+        if (patch.autoQuiver !== undefined) window.__inGameAutoCombatConfig.autoQuiver = !!patch.autoQuiver;
+        if (patch.autoRevive !== undefined) window.__inGameAutoCombatConfig.autoRevive = !!patch.autoRevive;
+        if (patch.autoReviveMax !== undefined) window.__inGameAutoCombatConfig.autoReviveMax = Math.max(1, Math.min(99, Math.round(Number(patch.autoReviveMax) || 10)));
+        if (patch.pickupLoot !== undefined) window.__inGameAutoCombatConfig.pickupLoot = !!patch.pickupLoot;
+        if (patch.lootWhen === 'clear' || patch.lootWhen === 'first') {
+          const hasPet = (typeof window.hasCharacterPet === 'function') ? window.hasCharacterPet() : false;
+          window.__inGameAutoCombatConfig.lootWhen = (patch.lootWhen === 'clear' && hasPet) ? 'clear' : 'first';
+        }
+        if (patch.flyWing !== undefined) window.__inGameAutoCombatConfig.flyWing = !!patch.flyWing;
+      }
+      try { localStorage.setItem('pelican_ingame_auto_cfg', JSON.stringify(window.__inGameAutoCombatConfig)); } catch (e) {}
+      if (typeof window.applyInGameAutoCombatSettings === 'function') {
+        return window.applyInGameAutoCombatSettings(patch, true);
+      }
+      const room = (typeof window.getColyseusRoom === 'function') ? window.getColyseusRoom() : (window.__colyseusRoom || window.__gameRoom || null);
+      const charData = (typeof window.getLiveCharacterData === 'function') ? window.getLiveCharacterData() : (window.__latestCharacterData || null);
+      const currentConfig = (charData && charData.auto && charData.auto.config) ? charData.auto.config : {};
+      const nextConfig = Object.assign({}, currentConfig, window.__inGameAutoCombatConfig);
+      let sent = false;
+      if (room && typeof room.send === 'function') {
+        try {
+          room.send('auto_set', { config: nextConfig });
+          sent = true;
+        } catch (e) {}
+      }
+      if (charData && charData.auto) {
+        charData.auto.config = Object.assign({}, charData.auto.config || {}, nextConfig);
+      }
+      if (typeof window.syncAllHudInputsFromConfig === 'function') window.syncAllHudInputsFromConfig();
+      return { success: true, sent, config: window.__inGameAutoCombatConfig };
+    })()`;
+  } else if (payload.type === 'walk-to-map') {
+    return `(() => {
+      const select = document.getElementById('p-target-map-select');
+      const targetMap = (select ? select.value : '') || window.__targetFarmMap;
+      if (typeof window.walkToTargetMap === 'function') window.walkToTargetMap(targetMap, true);
+      else if (typeof window.startWalkToTargetMap === 'function') window.startWalkToTargetMap();
+      return { success: true };
+    })()`;
+  } else if (payload.type === 'open-world-map') {
+    return `(() => {
+      if (typeof window.openWorldMap === 'function') window.openWorldMap();
+      else if (typeof window.toggleWorldMapModal === 'function') window.toggleWorldMapModal();
+      return { success: true };
+    })()`;
+  } else if (payload.type === 'update-archer') {
+    const cfg = payload.config || {};
+    return `(() => {
+      if (!window.__archerConfig) {
+        try { window.__archerConfig = JSON.parse(localStorage.getItem('pelican_archer_cfg') || '{}') || {}; } catch (_) { window.__archerConfig = {}; }
+      }
+      const patch = ${JSON.stringify(cfg)};
+      Object.assign(window.__archerConfig, patch);
+      try { localStorage.setItem('pelican_archer_cfg', JSON.stringify(window.__archerConfig)); } catch(e){}
+      const reqEl = document.getElementById('p-archer-req');
+      if (reqEl && patch.requireArrow !== undefined) reqEl.checked = !!window.__archerConfig.requireArrow;
+      const smartEl = document.getElementById('p-archer-smart');
+      if (smartEl && patch.smartArrow !== undefined) smartEl.checked = !!window.__archerConfig.smartArrow;
+      const autoEqEl = document.getElementById('p-archer-auto-equip');
+      if (autoEqEl && patch.autoEquipArrow !== undefined) autoEqEl.checked = !!window.__archerConfig.autoEquipArrow;
+      const typeEl = document.getElementById('p-archer-type');
+      if (typeEl && patch.arrowType !== undefined) typeEl.value = String(window.__archerConfig.arrowType);
+      const qtyEl = document.getElementById('p-archer-qty');
+      if (qtyEl && patch.arrowBuyQty !== undefined) qtyEl.value = String(window.__archerConfig.arrowBuyQty);
+      const threshEl = document.getElementById('p-archer-threshold');
+      if (threshEl && patch.ammoThreshold !== undefined) threshEl.value = String(window.__archerConfig.ammoThreshold);
+      const bwingEl = document.getElementById('p-archer-bwing');
+      if (bwingEl && patch.useBwing !== undefined) bwingEl.checked = !!window.__archerConfig.useBwing;
+      const bwingQtyEl = document.getElementById('p-archer-bwing-qty');
+      if (bwingQtyEl && patch.bwingBuyQty !== undefined) bwingQtyEl.value = String(window.__archerConfig.bwingBuyQty);
+      if (window.__archerConfig.smartArrow && typeof window.syncSmartArrowForTargetMap === 'function') {
+        try { window.syncSmartArrowForTargetMap(); } catch (e) {}
+      }
+      if (typeof updateMasterBotUI === 'function') updateMasterBotUI();
+      if (typeof updateAmmoHUD === 'function') updateAmmoHUD();
+      if (typeof window.syncAllHudInputsFromConfig === 'function') window.syncAllHudInputsFromConfig();
+      return { success: true };
+    })()`;
+  } else if (payload.type === 'sync-ammo') {
+    return `(() => {
+      if (typeof window.syncAmmoFromDOM === 'function') window.syncAmmoFromDOM();
+      if (typeof window.updateAmmoHUD === 'function') window.updateAmmoHUD();
+      return { ammo: window.__currentAmmo };
+    })()`;
+  } else if (payload.type === 'zero-ammo') {
+    return `(() => {
+      window.__currentAmmo = 0;
+      try { localStorage.setItem('pelican_current_ammo', '0'); } catch(e){}
+      if (typeof window.updateAmmoHUD === 'function') window.updateAmmoHUD();
+      return { ammo: 0 };
+    })()`;
+  } else if (payload.type === 'update-buff-potions') {
+    const cfg = payload.config || {};
+    return `(() => {
+      if (!window.__buffPotionConfig) {
+        try { window.__buffPotionConfig = JSON.parse(localStorage.getItem('pelican_buff_potions_cfg') || '{}') || {}; } catch (_) { window.__buffPotionConfig = {}; }
+      }
+      const patch = ${JSON.stringify(cfg)};
+      for (const k of Object.keys(patch)) {
+        if (patch[k] && typeof patch[k] === 'object') {
+          window.__buffPotionConfig[k] = Object.assign({}, window.__buffPotionConfig[k] || {}, patch[k]);
+          const pCfg = window.__buffPotionConfig[k];
+          const enEl = document.getElementById('p-potion-enable-' + k);
+          if (enEl && pCfg.enabled !== undefined) enEl.checked = !!pCfg.enabled;
+          const qtyEl = document.getElementById('p-potion-qty-' + k);
+          if (qtyEl && pCfg.targetQty !== undefined) qtyEl.value = String(pCfg.targetQty);
+        }
+      }
+      try { localStorage.setItem('pelican_buff_potions_cfg', JSON.stringify(window.__buffPotionConfig)); } catch(e){}
+      if (typeof window.saveBuffPotionConfig === 'function') window.saveBuffPotionConfig();
+      if (typeof window.syncBuffPotionsToGame === 'function') window.syncBuffPotionsToGame();
+      if (typeof window.updatePotionHUD === 'function') window.updatePotionHUD();
+      if (typeof window.syncAllHudInputsFromConfig === 'function') window.syncAllHudInputsFromConfig();
+      return { success: true };
+    })()`;
+  } else if (payload.type === 'sync-buff-potions') {
+    return `(() => {
+      if (typeof window.syncBuffPotionsToGame === 'function') window.syncBuffPotionsToGame(true);
+      return { success: true };
+    })()`;
+  } else if (payload.type === 'buy-buff-potions') {
+    return `(() => {
+      if (typeof window.manualRestockBuffPotions === 'function') window.manualRestockBuffPotions();
+      return { success: true };
+    })()`;
+  } else if (payload.type === 'update-sell') {
+    const cfg = payload.config || {};
+    return `(() => {
+      if (!window.__sellConfig || typeof window.__sellConfig.weaponRarity !== 'string') {
+        try {
+          const s = JSON.parse(localStorage.getItem('pelican_sell_cfg') || localStorage.getItem('pelican_sell_cfg_backup') || '{}') || {};
+          window.__sellConfig = Object.assign({}, s, window.__sellConfig || {});
+        } catch (_) {
+          if (!window.__sellConfig) window.__sellConfig = {};
+        }
+      }
+      const patch = ${JSON.stringify(cfg)};
+      const sfPatch = (patch.statsFilterPatch && typeof patch.statsFilterPatch === 'object') ? patch.statsFilterPatch : null;
+      if (sfPatch) {
+        if (!window.__sellConfig.statsFilter || typeof window.__sellConfig.statsFilter !== 'object') {
+          window.__sellConfig.statsFilter = {};
+        }
+        Object.assign(window.__sellConfig.statsFilter, sfPatch);
+        delete patch.statsFilterPatch;
+      }
+      Object.assign(window.__sellConfig, patch);
+      if (patch.weaponRarity !== undefined) {
+        window.__sellConfig.sellWeapons = window.__sellConfig.weaponRarity !== 'none';
+      }
+      if (patch.armorRarity !== undefined) {
+        window.__sellConfig.sellArmors = window.__sellConfig.armorRarity !== 'none';
+      }
+      window.__sellConfig.__userSavedAt = Date.now();
+      try {
+        const raw = JSON.stringify(window.__sellConfig);
+        localStorage.setItem('pelican_sell_cfg', raw);
+        if (typeof window.__sellConfig.weaponRarity === 'string') {
+          localStorage.setItem('pelican_sell_cfg_backup', raw);
+        }
+      } catch(e){}
+      if (typeof window.refreshStoreHud === 'function') window.refreshStoreHud();
+      const trashEl = document.getElementById('p-sell-enabled') || document.getElementById('p-sell-trash');
+      if (trashEl && patch.enabled !== undefined) trashEl.checked = !!window.__sellConfig.enabled;
+      const wChkEl = document.getElementById('p-weight-check-enabled');
+      if (wChkEl && patch.weightCheckEnabled !== undefined) wChkEl.checked = !!window.__sellConfig.weightCheckEnabled;
+      const weightEl = document.getElementById('p-weight-threshold') || document.getElementById('p-sell-weight');
+      if (weightEl && patch.weightThreshold !== undefined) weightEl.value = String(window.__sellConfig.weightThreshold);
+      const weapEl = document.getElementById('p-sell-rarity-weap') || document.getElementById('p-sell-weap');
+      if (weapEl && patch.weaponRarity !== undefined) weapEl.value = String(window.__sellConfig.weaponRarity);
+      const armorEl = document.getElementById('p-sell-rarity-armor') || document.getElementById('p-sell-armor');
+      if (armorEl && patch.armorRarity !== undefined) armorEl.value = String(window.__sellConfig.armorRarity);
+      const accEl = document.getElementById('p-sell-rarity-acc');
+      if (accEl && patch.accRarity !== undefined) accEl.value = String(window.__sellConfig.accRarity);
+      const matEl = document.getElementById('p-sell-rarity-mat');
+      if (matEl && (patch.sellMaterials !== undefined || patch.materialMode !== undefined)) {
+        matEl.value = !window.__sellConfig.sellMaterials ? 'none' : (window.__sellConfig.materialMode === 'common' ? 'common' : 'all');
+      }
+      const oreEl = document.getElementById('p-sell-refine-ores');
+      if (oreEl && patch.sellRefineOres !== undefined) {
+        oreEl.value = window.__sellConfig.sellRefineOres ? 'unlisted' : 'keep';
+      }
+      const consEl = document.getElementById('p-sell-consumables');
+      if (consEl && patch.sellConsumables !== undefined) {
+        consEl.value = window.__sellConfig.sellConsumables ? 'unlisted' : 'keep';
+      }
+      const refEl = document.getElementById('p-sell-keep-refined');
+      if (refEl && patch.keepRefined !== undefined) refEl.checked = !!window.__sellConfig.keepRefined;
+      const specEl = document.getElementById('p-sell-keep-special');
+      if (specEl && patch.keepSpecial !== undefined) specEl.checked = !!window.__sellConfig.keepSpecial;
+      const sockEl = document.getElementById('p-sell-keep-sockets');
+      if (sockEl && patch.keepSockets !== undefined) sockEl.checked = !!window.__sellConfig.keepSockets;
+      [
+        ['p-store-enabled', 'storeEnabled'],
+        ['p-store-weapon', 'storeWeapon'],
+        ['p-store-armor', 'storeArmor'],
+        ['p-store-acc', 'storeAcc'],
+        ['p-store-refine', 'storeRefine'],
+        ['p-store-skip-locked', 'storeSkipLocked'],
+        ['p-store-refined', 'storeRefined'],
+        ['p-store-special', 'storeSpecial'],
+        ['p-store-sockets', 'storeSockets'],
+        ['p-store-cards', 'storeCards'],
+        ['p-store-whitelist', 'storeWhitelist']
+      ].forEach(([elId, key]) => {
+        if (patch[key] !== undefined) {
+          const el = document.getElementById(elId);
+          if (el) el.checked = !!window.__sellConfig[key];
+        }
+      });
+      const wlEl = document.getElementById('p-sell-whitelist');
+      if (wlEl && patch.whitelist !== undefined) wlEl.value = String(window.__sellConfig.whitelist);
+      const fsEl = document.getElementById('p-sell-force-list');
+      if (fsEl && patch.forceSellList !== undefined) fsEl.value = String(window.__sellConfig.forceSellList || '');
+      if (sfPatch) {
+        const sf = window.__sellConfig.statsFilter || {};
+        const setSfCb = (id, v) => { const el = document.getElementById(id); if (el && v !== undefined) el.checked = !!v; };
+        if (sfPatch.enabled !== undefined) setSfCb('p-statfilter-toggle', sf.enabled);
+        if (sfPatch.filterWeapons !== undefined) setSfCb('p-statfilter-weap', sf.filterWeapons);
+        if (sfPatch.filterArmors !== undefined) setSfCb('p-statfilter-armor', sf.filterArmors);
+        if (sfPatch.filterAccessories !== undefined) setSfCb('p-statfilter-acc', sf.filterAccessories);
+        if (sfPatch.protectGems !== undefined) setSfCb('p-statfilter-protect-gems', sf.protectGems);
+        if (sfPatch.minOptions !== undefined) {
+          const minEl = document.getElementById('p-statfilter-min-opts');
+          if (minEl) minEl.value = String(sf.minOptions || 2);
+        }
+      }
+      if (typeof window.renderSellStatsFilterUI === 'function') window.renderSellStatsFilterUI();
+      if (typeof window.syncAllHudInputsFromConfig === 'function') window.syncAllHudInputsFromConfig();
+      return { success: true };
+    })()`;
+  } else if (payload.type === 'sort-inventory') {
+    return `if (typeof window.refreshInventoryAndWeight === 'function') window.refreshInventoryAndWeight(null, true);`;
+  } else if (payload.type === 'test-sell') {
+    return `if (typeof window.testSellTrash === 'function') window.testSellTrash(); else if (typeof window.executeSellTrashAtNpc === 'function') window.executeSellTrashAtNpc(true);`;
+  } else if (payload.type === 'update-auth') {
+    const cfg = payload.config || {};
+    return `(() => {
+      if (!window.__authConfig) {
+        try { window.__authConfig = JSON.parse(localStorage.getItem('pelican_auth_cfg') || '{}') || {}; } catch (_) { window.__authConfig = {}; }
+      }
+      const patch = ${JSON.stringify(cfg)};
+      Object.assign(window.__authConfig, patch);
+      if (patch.username !== undefined || patch.password !== undefined) {
+        window.__authConfig.userEditedAt = Date.now();
+        window.__authConfig.generatedUser = false;
+        window.__authConfig.register = false;
+        delete window.__authConfig.registerError;
+      }
+      if (patch.enabled !== undefined) {
+        window.__authConfig.userToggledAt = Date.now();
+      }
+      try { localStorage.setItem('pelican_auth_cfg', JSON.stringify(window.__authConfig)); } catch(e){}
+      const authEn = document.getElementById('p-auth-enabled');
+      if (authEn && patch.enabled !== undefined) authEn.checked = !!window.__authConfig.enabled;
+      const authUs = document.getElementById('p-auth-user');
+      if (authUs && patch.username !== undefined) authUs.value = String(window.__authConfig.username);
+      const authPs = document.getElementById('p-auth-pass');
+      if (authPs && patch.password !== undefined) authPs.value = String(window.__authConfig.password);
+      const authCh = document.getElementById('p-auth-char');
+      if (authCh && patch.charName !== undefined) authCh.value = String(window.__authConfig.charName || '');
+      const authRes = document.getElementById('p-auth-resume');
+      if (authRes && patch.autoResumeBot !== undefined) authRes.checked = !!window.__authConfig.autoResumeBot;
+      if (typeof window.syncAllHudInputsFromConfig === 'function') window.syncAllHudInputsFromConfig();
+      if (patch.charName !== undefined && typeof window.ensureConfiguredCharacterActive === 'function') {
+        window.ensureConfiguredCharacterActive(true);
+      }
+      return { success: true };
+    })()`;
+  } else if (payload.type === 'update-autosell') {
+    return `(() => {
+      let storedCfg = null;
+      try {
+        const pid = window.__pmProfileId;
+        const raw = (pid && localStorage.getItem('pelican_' + pid + '__auto_market_sell_cfg')) || localStorage.getItem('pelican_auto_market_sell_cfg');
+        if (raw) storedCfg = JSON.parse(raw);
+      } catch (_) {}
+      if (!window.__autoMarketSellConfig || typeof window.__autoMarketSellConfig !== 'object') {
+        window.__autoMarketSellConfig = Object.assign({ enabled: false, rules: [] }, storedCfg || {});
+      } else if ((!Array.isArray(window.__autoMarketSellConfig.rules) || window.__autoMarketSellConfig.rules.length === 0) && storedCfg && Array.isArray(storedCfg.rules) && storedCfg.rules.length > 0 && !window.__autoMarketSellConfig.__userClearedAt) {
+        window.__autoMarketSellConfig.rules = storedCfg.rules;
+      }
+      const patch = ${JSON.stringify(payload.config || {})};
+      if (Array.isArray(patch.rules) && patch.rules.length === 0 && Array.isArray(window.__autoMarketSellConfig.rules) && window.__autoMarketSellConfig.rules.length > 0 && !patch.__userClearedAt) {
+        delete patch.rules;
+      }
+      Object.assign(window.__autoMarketSellConfig, patch);
+      try { localStorage.setItem('pelican_auto_market_sell_cfg', JSON.stringify(window.__autoMarketSellConfig)); } catch(e){}
+      const en = !!window.__autoMarketSellConfig.enabled;
+      const t1 = document.getElementById('p-autosell-toggle');
+      if (t1) t1.checked = en;
+      const t2 = document.getElementById('p-autosell-toggle-hud');
+      if (t2) t2.checked = en;
+      const badge = document.getElementById('p-subtab-autosell-count');
+      if (badge && Array.isArray(window.__autoMarketSellConfig.rules)) badge.innerText = String(window.__autoMarketSellConfig.rules.length);
+      if (typeof window.renderAutoSellHudRulesHtml === 'function') {
+        const hudContainer = document.getElementById('p-autosell-hud-rules-container');
+        if (hudContainer) hudContainer.innerHTML = window.renderAutoSellHudRulesHtml();
+      }
+      if (typeof window.renderAutoSellRulesRows === 'function') {
+        const tbody = document.getElementById('p-autosell-rules-tbody');
+        if (tbody) tbody.innerHTML = window.renderAutoSellRulesRows();
+      }
+      if (typeof updateMasterBotUI === 'function') updateMasterBotUI();
+      if (typeof window.syncAllHudInputsFromConfig === 'function') window.syncAllHudInputsFromConfig();
+      return { success: true };
+    })()`;
+  } else if (payload.type === 'add-autosell-rule') {
+    return `if (typeof window.addAutoMarketSellRule === 'function') window.addAutoMarketSellRule(${JSON.stringify(payload.itemName || '')});`;
+  } else if (payload.type === 'remove-autosell-rule') {
+    return `if (typeof window.removeAutoMarketSellRule === 'function') window.removeAutoMarketSellRule(${JSON.stringify(payload.ruleId)});`;
+  } else if (payload.type === 'trigger-autosell-now') {
+    return `if (typeof window.runAutoMarketSellCycle === 'function') window.runAutoMarketSellCycle(true);`;
+  } else if (payload.type === 'market-search') {
+    return `(() => {
+      const kw = ${JSON.stringify(payload.keyword || '')};
+      const input = document.getElementById('p-mk-keyword');
+      if (input) input.value = kw;
+      if (kw && typeof window.searchMarketByKeyword === 'function') {
+        window.searchMarketByKeyword(kw);
+      } else if (typeof window.startMarketSearch === 'function') {
+        window.startMarketSearch();
+      }
+      return { success: true };
+    })()`;
+  } else if (payload.type === 'export-config') {
+    return `(typeof window.exportAllBotSettings === 'function' ? window.exportAllBotSettings() : null)`;
+  } else if (payload.type === 'import-config') {
+    return `(() => {
+      try {
+        if (typeof window.freeBotLocalStorageSpace === 'function') window.freeBotLocalStorageSpace(true);
+        const s = Object.getPrototypeOf(window.localStorage);
+        const len = window.localStorage.length;
+        const drop = [];
+        for (let i = 0; i < len; i++) {
+          const k = s.key.call(window.localStorage, i);
+          if (k && (k.startsWith('webgame.chat.') || k === 'pelican_item_catalog' || k === 'pelican_latest_inventory' || k === 'pelican_icon_manifest' || /__(?:icon_manifest|item_catalog|latest_inventory|packet_logs|last_weight)$/.test(k))) drop.push(k);
+        }
+        drop.forEach(k => s.removeItem.call(window.localStorage, k));
+      } catch (e) {}
+      return typeof window.importAllBotSettings === 'function' ? window.importAllBotSettings(${JSON.stringify(payload.configJson)}) : { success: false, error: 'import function not available' };
+    })()`;
+  } else if (payload.type === 'eval' && payload.code) {
+    return payload.code;
+  }
+  return '';
+}
+
+// ==========================================
+// STASH-ONLY & CONSOLIDATION ITEM SETTINGS
+// ==========================================
+const CONSOLIDATION_ITEMS_FILE = path.join(__dirname, "data", "consolidation_items.json");
+const DEFAULT_CONSOLIDATION_ITEMS_CFG = {
+  storeOnlyEnabled: false,
+  tradeOnConsolidate: false,
+  items: ["Enchant Rune"]
+};
+
+function sanitizeConsolidationItemsList(items) {
+  const raw = Array.isArray(items)
+    ? items
+    : (typeof items === "string" ? items.split(",") : DEFAULT_CONSOLIDATION_ITEMS_CFG.items);
+  const seen = new Set();
+  const out = [];
+  for (const x of raw) {
+    const s = String(x || "").trim();
+    if (!s) continue;
+    const key = s.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(s);
+  }
+  return out.length > 0 ? out : ["Enchant Rune"];
+}
+
+function loadConsolidationItemSettings() {
+  try {
+    if (fs.existsSync(CONSOLIDATION_ITEMS_FILE)) {
+      const parsed = JSON.parse(fs.readFileSync(CONSOLIDATION_ITEMS_FILE, "utf8") || "{}");
+      return {
+        storeOnlyEnabled: Boolean(parsed.storeOnlyEnabled),
+        tradeOnConsolidate: Boolean(parsed.tradeOnConsolidate),
+        items: sanitizeConsolidationItemsList(parsed.items)
+      };
+    }
+  } catch (e) {}
+  return { ...DEFAULT_CONSOLIDATION_ITEMS_CFG, items: [...DEFAULT_CONSOLIDATION_ITEMS_CFG.items] };
+}
+
+function saveConsolidationItemSettings(cfg = {}) {
+  const cur = loadConsolidationItemSettings();
+  const next = {
+    storeOnlyEnabled: typeof cfg.storeOnlyEnabled === "boolean" ? cfg.storeOnlyEnabled : cur.storeOnlyEnabled,
+    tradeOnConsolidate: typeof cfg.tradeOnConsolidate === "boolean" ? cfg.tradeOnConsolidate : cur.tradeOnConsolidate,
+    items: cfg.items !== undefined ? sanitizeConsolidationItemsList(cfg.items) : cur.items
+  };
+  try {
+    fs.mkdirSync(path.dirname(CONSOLIDATION_ITEMS_FILE), { recursive: true });
+    fs.writeFileSync(CONSOLIDATION_ITEMS_FILE, JSON.stringify(next, null, 2), "utf8");
+  } catch (e) {}
+  return next;
+}
+
+// Build eval code to sync stashTradeConfig AND ensure standalone helpers exist on clients that haven't reloaded yet
+function buildStashTradeSyncEvalCode(cfg) {
+  const safeCfg = {
+    storeOnlyEnabled: Boolean(cfg && cfg.storeOnlyEnabled),
+    tradeOnConsolidate: Boolean(cfg && cfg.tradeOnConsolidate),
+    items: sanitizeConsolidationItemsList(cfg && cfg.items)
+  };
+  return `(() => {
+    const cfg = ${JSON.stringify(safeCfg)};
+    window.__stashTradeConfig = cfg;
+    try { localStorage.setItem('pelican_stash_trade_cfg', JSON.stringify(cfg)); } catch (e) {}
+
+    const isRealBagInv = (o) => Boolean(
+      o && typeof o === 'object' && Array.isArray(o.items) &&
+      o.feeZeny === undefined &&
+      (typeof o.weight === 'number' || typeof o.weightLimit === 'number')
+    );
+
+    if (typeof window.applyLiveInventoryPacket === 'function' && !window.applyLiveInventoryPacket.__storageGuarded) {
+      const origApply = window.applyLiveInventoryPacket;
+      const guarded = function(dec, silent) {
+        if (!isRealBagInv(dec)) {
+          if (dec && typeof dec === 'object' && Array.isArray(dec.items) && dec.feeZeny !== undefined) {
+            window.__latestStorage = dec;
+          }
+          return;
+        }
+        return origApply.apply(this, arguments);
+      };
+      guarded.__storageGuarded = true;
+      window.applyLiveInventoryPacket = guarded;
+    }
+
+    const readAuthoritativeBagInventory = () => {
+      try {
+        const root = document.querySelector('#root');
+        const key = root ? Object.keys(root).find(k => k.startsWith('__reactContainer') || k.startsWith('__reactFiber')) : null;
+        const fiber = (root && key) ? root[key] : null;
+        let invData = null;
+        let visited = 0;
+        function walk(n, depth = 0) {
+          if (!n || depth > 45 || invData || ++visited > 900) return;
+          if (n.memoizedProps) {
+            if (isRealBagInv(n.memoizedProps.inventory)) { invData = n.memoizedProps.inventory; return; }
+            if (isRealBagInv(n.memoizedProps)) { invData = n.memoizedProps; return; }
+          }
+          if (!invData && n.memoizedState) {
+            let s = n.memoizedState, steps = 0;
+            while (s && ++steps < 30) {
+              const ms = s.memoizedState;
+              if (ms && typeof ms === 'object') {
+                if (isRealBagInv(ms.inventory)) { invData = ms.inventory; break; }
+                if (isRealBagInv(ms)) { invData = ms; break; }
+              }
+              s = s.next;
+            }
+          }
+          if (n.child) walk(n.child, depth + 1);
+          if (n.sibling) walk(n.sibling, depth + 1);
+        }
+        if (fiber) walk(fiber);
+        if (isRealBagInv(invData)) {
+          window.__latestInventory = invData;
+          return invData;
+        }
+      } catch (e) {}
+      if (isRealBagInv(window.__latestInventory)) return window.__latestInventory;
+      return null;
+    };
+    window.__readAuthoritativeBagInventory = readAuthoritativeBagInventory;
+    readAuthoritativeBagInventory();
+
+    const KNOWN_IDS = { 'enchant rune': 90340, 'accessory enchant rune': 90341, 'rough elunium': 90204, 'elunium': 90205, 'enriched elunium': 90206, 'oridecon': 90203, 'phracon': 90201, 'emveretarcon': 90202 };
+    window.matchesStashItemList = function(itemOrName, listOverride) {
+      const list = Array.isArray(listOverride) ? listOverride : (window.__stashTradeConfig && Array.isArray(window.__stashTradeConfig.items) ? window.__stashTradeConfig.items : []);
+      if (!list.length) return false;
+      const raw = (itemOrName && typeof itemOrName === 'object') ? (itemOrName.raw || itemOrName) : null;
+      const itemId = raw ? Number(raw.itemId ?? raw.id ?? itemOrName.itemId ?? itemOrName.id) : NaN;
+      const rawName = typeof itemOrName === 'string'
+        ? itemOrName
+        : String((raw && (raw.refinedName || raw.name)) || (itemOrName && itemOrName.name) || '');
+      const cleanName = rawName.replace(/\\+\\d+\\s*/g, '').replace(/\\[\\d+\\]/g, '').replace(/\\s*x\\d+$/i, '').trim().toLowerCase();
+      for (const entry of list) {
+        const w = String(entry || '').trim().toLowerCase();
+        if (!w) continue;
+        if (cleanName && (cleanName === w || rawName.trim().toLowerCase() === w)) return true;
+        if (Number.isFinite(itemId) && KNOWN_IDS[w] && itemId === KNOWN_IDS[w]) return true;
+      }
+      return false;
+    };
+
+    window.isStashOnlyItem = function(itemOrName) {
+      if (!window.__stashTradeConfig || !window.__stashTradeConfig.storeOnlyEnabled) return false;
+      return window.matchesStashItemList(itemOrName);
+    };
+
+    window.hasStashOnlyItemsInBag = function() {
+      if (!window.__stashTradeConfig || !window.__stashTradeConfig.storeOnlyEnabled) return false;
+      const authInv = readAuthoritativeBagInventory();
+      const bag = (authInv && Array.isArray(authInv.items)) ? authInv.items : ((typeof window.getBagItems === 'function') ? window.getBagItems() : []);
+      return bag.some(it => it && !it.locked && !it.equipped && window.isStashOnlyItem(it.raw || it));
+    };
+
+    if (typeof window.setStashTradeConfig === 'function') {
+      window.setStashTradeConfig(cfg);
+    }
+    // Wrap isItemOnMarketSellList & sellSingleRuleNow on older clients so stash-only items are never market-sold
+    if (typeof window.isItemOnMarketSellList === 'function' && !window.isItemOnMarketSellList.__stashWrapped) {
+      const origMarketCheck = window.isItemOnMarketSellList;
+      const wrapped = function(itemName) {
+        if (typeof window.isStashOnlyItem === 'function' && window.isStashOnlyItem(itemName)) return false;
+        return origMarketCheck.apply(this, arguments);
+      };
+      wrapped.__stashWrapped = true;
+      window.isItemOnMarketSellList = wrapped;
+    }
+    if (typeof window.sellSingleRuleNow === 'function' && !window.sellSingleRuleNow.__stashWrapped) {
+      const origSellSingle = window.sellSingleRuleNow;
+      const wrappedSingle = async function(rule) {
+        if (rule && rule.itemName && typeof window.isStashOnlyItem === 'function' && window.isStashOnlyItem(rule.itemName)) {
+          return { success: false, message: 'ไอเทมนี้ถูกตั้งค่าเป็น "เก็บเข้าคลังอย่างเดียว" (ห้ามขายตลาดกลาง)' };
+        }
+        return origSellSingle.apply(this, arguments);
+      };
+      wrappedSingle.__stashWrapped = true;
+      window.sellSingleRuleNow = wrappedSingle;
+    }
+    window.getConsolidationMatchingBagItems = function(itemList) {
+      const list = Array.isArray(itemList) ? itemList : (window.__stashTradeConfig && window.__stashTradeConfig.items) || [];
+      const authInv = (typeof window.__readAuthoritativeBagInventory === 'function') ? window.__readAuthoritativeBagInventory() : null;
+      const bag = (authInv && Array.isArray(authInv.items)) ? authInv.items : ((typeof window.getBagItems === 'function') ? window.getBagItems() : []);
+      const matched = [];
+      let totalQty = 0, totalWeight = 0;
+      for (const it of bag) {
+        if (!it || it.locked || it.equipped) continue;
+        const raw = it.raw || it;
+        if (raw.locked || raw.equipped) continue;
+        if (!window.matchesStashItemList(raw, list)) continue;
+        const qty = Math.max(1, Number(it.qty ?? raw.qty ?? 1) || 1);
+        const unitW = Math.max(0, Number(raw.weight ?? it.weight ?? 1) || 1);
+        matched.push({ slot: Number(it.slot ?? raw.slot), id: raw.itemId ?? raw.id ?? it.id, name: it.name || raw.name || 'Item', qty, unitWeight: unitW, totalWeight: qty * unitW });
+        totalQty += qty;
+        totalWeight += qty * unitW;
+      }
+      matched.sort((a, b) => (b.qty || 0) - (a.qty || 0));
+      return { items: matched, totalQty, totalWeight };
+    };
+    return { success: true, config: window.__stashTradeConfig };
+  })()`;
+}
+
+async function syncStashTradeConfigToPort(port, cfg = null) {
+  if (!port) return { success: false, error: "No port" };
+  const effectiveCfg = cfg || loadConsolidationItemSettings();
+  return evalProfilePort(port, buildStashTradeSyncEvalCode(effectiveCfg), 5000);
+}
+
+async function syncStashTradeConfigToAllClients(cfg = null) {
+  const effectiveCfg = cfg || loadConsolidationItemSettings();
+  const profiles = loadProfiles();
+  const online = profiles.filter(p => p.debugPort);
+  const results = await Promise.allSettled(online.map(p => syncStashTradeConfigToPort(p.debugPort, effectiveCfg)));
+  const syncedCount = results.filter(r => r.status === "fulfilled" && r.value && r.value.success && r.value.result && r.value.result.success).length;
+  return { syncedCount, totalChecked: online.length };
+}
+
+// Install consolidation storage/trade helpers onto a client port (always ensures latest fixed storage/trade helpers)
+async function ensureClientConsolidationItemHelpers(port, cfg = null) {
+  await syncStashTradeConfigToPort(port, cfg);
+  const helperCode = `(() => {
+    const tradeRoom = () => (typeof window.getGameRoom === 'function') ? window.getGameRoom() : (typeof window.getColyseusRoom === 'function' ? window.getColyseusRoom() : null);
+    const tradeZeny = () => Number(((typeof window.getLiveCharacterData === 'function' && window.getLiveCharacterData()) || {}).zeny);
+    const sameName = (x, y) => String(x || '').trim().toLowerCase() === String(y || '').trim().toLowerCase();
+    const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+    const readBagInv = () => (typeof window.__readAuthoritativeBagInventory === 'function') ? window.__readAuthoritativeBagInventory() : window.__latestInventory;
+
+    const getPlayerPixelPos = (room) => {
+      const r = room || tradeRoom();
+      const me = r && r.state && r.state.players && r.state.players.get(r.sessionId);
+      if (me && Number.isFinite(me.x) && Number.isFinite(me.y)) {
+        return { x: Number(me.x), y: Number(me.y) };
+      }
+      return null;
+    };
+
+    const getRealWeightInfo = () => {
+      const inv = readBagInv() || {};
+      const live = (typeof window.getLiveCharacterData === 'function' && window.getLiveCharacterData()) || {};
+      const weight = Number(inv.weight ?? live.weight) || 0;
+      const weightLimit = Number(inv.weightLimit ?? live.weightLimit) || 2000;
+      return { weight, weightLimit };
+    };
+
+    const findStorageNpc = (room) => {
+      const r = room || tradeRoom();
+      const alice = (typeof window.getAliceNpc === 'function') ? window.getAliceNpc() : null;
+      if (alice && alice.key) return alice;
+      if (r && r.state && r.state.npcs && typeof r.state.npcs.forEach === 'function') {
+        let found = null;
+        r.state.npcs.forEach((n, k) => {
+          if (!found && n && /Alice|อลิซ|Kafra|Storage|Banker|คลัง/i.test(n.name || '')) {
+            found = { key: k, name: n.name, x: Number(n.x), y: Number(n.y) };
+          }
+        });
+        if (found) return found;
+      }
+      return null;
+    };
+
+    const closeStorageAndDialogs = () => {
+      try {
+        document.querySelectorAll('.storage-window .win-close, .npc-dialog .win-close').forEach(b => { try { b.click(); } catch (e) {} });
+      } catch (e) {}
+      if (typeof window.closeShopUI === 'function') { try { window.closeShopUI(); } catch (e) {} }
+      if (typeof window.sendNpcClose === 'function') { try { window.sendNpcClose(); } catch (e) {} }
+    };
+
+    // Clear any poisoned refused entries for refine ores in pelican_storage_state
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.includes('storage_state')) {
+          const obj = JSON.parse(localStorage.getItem(k) || '{}');
+          if (obj && obj.refused && typeof obj.refused === 'object') {
+            for (const id of ['90201', '90202', '90203', '90204', '90205', '90206', '90340', '90341']) {
+              delete obj.refused[id];
+            }
+            localStorage.setItem(k, JSON.stringify(obj));
+          }
+        }
+      }
+    } catch (e) {}
+
+    window.openStorageWindow = async function(roomOrTimeout, stopped) {
+      const room = (roomOrTimeout && typeof roomOrTimeout === 'object' && typeof roomOrTimeout.send === 'function')
+        ? roomOrTimeout
+        : tradeRoom();
+      const isStopped = (typeof stopped === 'function') ? stopped : () => false;
+      if (!room) return null;
+
+      closeStorageAndDialogs();
+      await sleep(250);
+
+      let npc = null;
+      for (let i = 0; i < 15 && !isStopped(); i++) {
+        npc = findStorageNpc(room);
+        if (npc) break;
+        await sleep(300);
+      }
+      if (!npc || isStopped()) return null;
+
+      if (Number.isFinite(npc.x) && Number.isFinite(npc.y)) {
+        const walkStart = Date.now();
+        let lastSend = 0;
+        while (Date.now() - walkStart < 18000 && !isStopped()) {
+          const p = getPlayerPixelPos(room);
+          const dist = p ? Math.hypot(p.x - npc.x, p.y - npc.y) : Infinity;
+          if (dist <= 115) break;
+          if (Date.now() - lastSend > 1800) {
+            lastSend = Date.now();
+            try { room.send('move_to', { x: npc.x, y: npc.y }); } catch (e) {}
+          }
+          await sleep(250);
+        }
+        await sleep(200);
+      }
+      if (isStopped()) return null;
+
+      for (let attempt = 0; attempt < 3 && !isStopped(); attempt++) {
+        let latestStorage = null;
+        let unsub = null;
+        const waitStorage = new Promise(resolve => {
+          const timer = setTimeout(() => { if (typeof unsub === 'function') unsub(); resolve(null); }, 5500);
+          unsub = (typeof room.onMessage === 'function')
+            ? room.onMessage('storage', (msg) => {
+                if (msg && Array.isArray(msg.items)) {
+                  clearTimeout(timer);
+                  if (typeof unsub === 'function') unsub();
+                  latestStorage = msg;
+                  window.__latestStorage = msg;
+                  resolve(msg);
+                }
+              })
+            : null;
+        });
+        try {
+          document.querySelectorAll('.npc-dialog .win-close').forEach(b => { try { b.click(); } catch (e) {} });
+          await sleep(150);
+          try { room.send('npc_talk', { npcKey: npc.key }); } catch (e) {}
+          let dlg = null;
+          for (let i = 0; i < 25 && !dlg && !latestStorage && !isStopped(); i++) {
+            await sleep(180);
+            const d = document.querySelector('.npc-dialog, .npc-dialog-window');
+            if (d && d.querySelector('.npc-options button, .npc-dialog-choices button, button')) {
+              dlg = d;
+              break;
+            }
+          }
+          if (!latestStorage && dlg) {
+            const optBtns = Array.from(dlg.querySelectorAll('.npc-options button, .npc-dialog-choices button'));
+            const idx = optBtns.findIndex(b => {
+              const t = (b.innerText || b.textContent || '').replace(/^\\s*\\d+\\s*/, '').trim();
+              return /คลัง|ฝากของ|storage/i.test(t) && !/กิลด์|guild/i.test(t);
+            });
+            if (idx >= 0) {
+              room.send('npc_option', { index: idx });
+            } else {
+              document.querySelectorAll('.npc-dialog .win-close').forEach(b => { try { b.click(); } catch (e) {} });
+              if (typeof unsub === 'function') unsub();
+              await sleep(300);
+              continue;
+            }
+          } else if (!latestStorage) {
+            if (typeof unsub === 'function') unsub();
+            if (Number.isFinite(npc.x) && Number.isFinite(npc.y)) {
+              try { room.send('move_to', { x: npc.x, y: npc.y }); } catch (e) {}
+            }
+            await sleep(500);
+            continue;
+          }
+          const msg = await waitStorage;
+          if (msg && Array.isArray(msg.items)) {
+            readBagInv();
+            return msg;
+          }
+        } finally {
+          if (typeof unsub === 'function') { try { unsub(); } catch (e) {} }
+        }
+        await sleep(350);
+      }
+      return null;
+    };
+
+    window.getConsolidationMatchingBagItems = function(itemList) {
+      const list = Array.isArray(itemList) ? itemList : (window.__stashTradeConfig && window.__stashTradeConfig.items) || [];
+      const authInv = readBagInv();
+      const bag = (authInv && Array.isArray(authInv.items))
+        ? authInv.items
+        : ((typeof window.getBagItems === 'function') ? window.getBagItems() : []);
+      const matched = [];
+      let totalQty = 0;
+      let totalWeight = 0;
+      for (const it of bag) {
+        if (!it || it.locked || it.equipped) continue;
+        const raw = it.raw || it;
+        if (raw.locked || raw.equipped) continue;
+        if (!window.matchesStashItemList(raw, list)) continue;
+        const qty = Math.max(1, Number(it.qty ?? raw.qty ?? 1) || 1);
+        const unitW = Math.max(0, Number(raw.weight ?? it.weight ?? 1) || 1);
+        matched.push({
+          slot: Number(it.slot ?? raw.slot),
+          id: raw.itemId ?? raw.id ?? it.id,
+          name: it.name || raw.name || 'Item',
+          qty,
+          unitWeight: unitW,
+          totalWeight: qty * unitW
+        });
+        totalQty += qty;
+        totalWeight += qty * unitW;
+      }
+      matched.sort((a, b) => (b.qty || 0) - (a.qty || 0));
+      return { items: matched, totalQty, totalWeight };
+    };
+
+    window.runConsolidationQuickSellTrash = async function(timeoutMs = 28000, force = false) {
+      try {
+        const authInv = readBagInv();
+        const wInfo = getRealWeightInfo();
+        const live = (typeof window.getLiveCharacterData === 'function' && window.getLiveCharacterData()) || {};
+        const zeny = Number(live.zeny) || 0;
+        const freeWeight = Math.max(0, wInfo.weightLimit - wInfo.weight);
+        const heavyRatio = wInfo.weightLimit > 0 ? (wInfo.weight / wInfo.weightLimit) : 0;
+        const maxSlots = Number(authInv?.slots ?? authInv?.maxSlots) || 100;
+        const usedSlots = Array.isArray(authInv?.items) ? authInv.items.filter(Boolean).length : 0;
+        const freeSlots = Math.max(0, maxSlots - usedSlots);
+
+        // Skip walking to Shopkeeper Bor if character already has plenty of free bag weight/slots and >= 40 zeny for storage fee
+        if (!force && freeWeight >= 800 && heavyRatio < 0.80 && freeSlots > 4 && zeny >= 40) {
+          return { success: true, skipped: true, sold: false, weight: wInfo.weight, weightLimit: wInfo.weightLimit, zeny };
+        }
+
+        if (typeof window.triggerAutoSellTrash !== 'function') return { success: false, error: 'No triggerAutoSellTrash' };
+        const room = tradeRoom();
+        if (room && !document.querySelector('.shop-window')) {
+          let shopNpc = null;
+          if (room.state && room.state.npcs && typeof room.state.npcs.forEach === 'function') {
+            room.state.npcs.forEach((n, k) => {
+              if (!shopNpc && n && (k === 'n2' || /Shopkeeper|Bor|ร้านค้า/i.test(n.name || ''))) {
+                shopNpc = { key: k, x: Number(n.x), y: Number(n.y) };
+              }
+            });
+          }
+          if (shopNpc && Number.isFinite(shopNpc.x) && Number.isFinite(shopNpc.y)) {
+            const walkStart = Date.now();
+            let lastSend = 0;
+            while (Date.now() - walkStart < 15000) {
+              const p = getPlayerPixelPos(room);
+              if (p && Math.hypot(p.x - shopNpc.x, p.y - shopNpc.y) <= 115) break;
+              if (Date.now() - lastSend > 1800) {
+                lastSend = Date.now();
+                try { room.send('move_to', { x: shopNpc.x, y: shopNpc.y }); } catch (e) {}
+              }
+              await sleep(250);
+            }
+            await sleep(200);
+            try { room.send('npc_talk', { npcKey: shopNpc.key }); } catch (e) {}
+            await sleep(550);
+            try { room.send('npc_option', { index: 0 }); } catch (e) {}
+            for (let i = 0; i < 15 && !document.querySelector('.shop-window'); i++) {
+              await sleep(200);
+            }
+          }
+        }
+
+        window.__isManualSelling = true;
+        await new Promise((resolve) => {
+          let done = false;
+          const t = setTimeout(() => { if (!done) { done = true; resolve(); } }, Math.min(timeoutMs, 20000));
+          try {
+            window.triggerAutoSellTrash(() => {
+              if (!done) { done = true; clearTimeout(t); resolve(); }
+            });
+          } catch (e) {
+            if (!done) { done = true; clearTimeout(t); resolve(); }
+          }
+        });
+        try {
+          const cfg = window.__archerConfig || {};
+          if (cfg.useBwing !== false && typeof window.sendShopBuy === 'function') {
+            const bwingId = parseInt(cfg.bwingItemId) || 90311;
+            const targetBwing = Math.max(1, parseInt(cfg.bwingBuyQty) || 5);
+            const curBwing = typeof window.getBagItemCount === 'function' ? window.getBagItemCount(bwingId) : 0;
+            const liveMid = (typeof window.getLiveCharacterData === 'function' && window.getLiveCharacterData()) || {};
+            const zenyMid = Number(liveMid.zeny) || 0;
+            if (curBwing < targetBwing && zenyMid >= 1500) {
+              window.sendShopBuy(bwingId, targetBwing - curBwing);
+              await sleep(450);
+            }
+          }
+        } catch (e) {}
+        window.__isManualSelling = false;
+        closeStorageAndDialogs();
+        await sleep(250);
+        readBagInv();
+        const liveAfter = (typeof window.getLiveCharacterData === 'function' && window.getLiveCharacterData()) || {};
+        const wAfter = getRealWeightInfo();
+        return { success: true, sold: true, weight: wAfter.weight, weightLimit: wAfter.weightLimit, zeny: Number(liveAfter.zeny) || 0 };
+      } catch (err) {
+        window.__isManualSelling = false;
+        return { success: false, error: err.message };
+      }
+    };
+
+    window.withdrawConsolidationItemsFromStorage = async function(itemList) {
+      const list = Array.isArray(itemList) && itemList.length > 0 ? itemList : ((window.__stashTradeConfig && window.__stashTradeConfig.items) || ['Enchant Rune']);
+      const room = tradeRoom();
+      if (!room) return { success: false, error: 'No room connection', withdrawnQty: 0 };
+      try {
+        let st = await window.openStorageWindow(room, () => false);
+        if (!st || !Array.isArray(st.items)) {
+          const z = tradeZeny();
+          const errReason = (Number.isFinite(z) && z < 40) ? 'เงินไม่พอค่าเปิดคลัง (ต้องมีอย่างน้อย 40 z)' : 'เปิดคลังไม่สำเร็จ';
+          return { success: false, error: errReason, withdrawnQty: 0 };
+        }
+        let withdrawnQty = 0;
+        const withdrawnDetails = [];
+        for (let pass = 0; pass < 60; pass++) {
+          const authInv = readBagInv();
+          const wInfo = getRealWeightInfo();
+          const safeAvailWeight = Math.max(0, wInfo.weightLimit - wInfo.weight - 20);
+          if (safeAvailWeight <= 0) break;
+          if (authInv && Array.isArray(authInv.items)) {
+            const maxSlots = Number(authInv.slots ?? authInv.maxSlots) || 100;
+            const usedSlots = authInv.items.filter(Boolean).length;
+            if (maxSlots > 0 && usedSlots >= maxSlots - 1) break;
+          }
+          const stItems = Array.isArray(st.items) ? st.items : [];
+          const candidates = stItems
+            .filter(it => it && window.matchesStashItemList(it, list) && (Number(it.qty) || 0) > 0)
+            .sort((a, b) => (Number(b.qty) || 0) - (Number(a.qty) || 0));
+          const target = candidates[0];
+          if (!target) break;
+          const unitW = Math.max(0.1, Number(target.weight) || 1);
+          const maxByWeight = unitW > 0 ? Math.floor(safeAvailWeight / unitW) : target.qty;
+          const takeQty = Math.min(Number(target.qty) || 1, maxByWeight);
+          if (takeQty <= 0) break;
+          const nextPromise = new Promise(resolve => {
+            let done = false;
+            const unsub = room.onMessage('storage', msg => { if (done) return; done = true; if (typeof unsub === 'function') unsub(); resolve(msg); });
+            setTimeout(() => { if (done) return; done = true; if (typeof unsub === 'function') unsub(); resolve(null); }, 3000);
+          });
+          room.send('storage_take', { slot: Number(target.slot), qty: Number(takeQty) });
+          const updated = await nextPromise;
+          withdrawnQty += takeQty;
+          withdrawnDetails.push((target.name || 'Item') + ' x' + takeQty);
+          await sleep(220);
+          readBagInv();
+          if (updated && Array.isArray(updated.items)) st = updated;
+          else { await sleep(350); break; }
+        }
+        closeStorageAndDialogs();
+        await sleep(300);
+        readBagInv();
+        const bagMatch = window.getConsolidationMatchingBagItems(list);
+        const wAfter = getRealWeightInfo();
+        return { success: true, withdrawnQty, withdrawnDetails, bagMatchingQty: bagMatch.totalQty, bagMatchingWeight: bagMatch.totalWeight, weight: wAfter.weight, weightLimit: wAfter.weightLimit };
+      } catch (err) {
+        closeStorageAndDialogs();
+        return { success: false, error: err.message, withdrawnQty: 0 };
+      }
+    };
+
+    window.depositConsolidationItemsToStorage = async function(itemList, returnTileCoords = null) {
+      const list = Array.isArray(itemList) && itemList.length > 0 ? itemList : ((window.__stashTradeConfig && window.__stashTradeConfig.items) || ['Enchant Rune']);
+      const room = tradeRoom();
+      if (!room) return { success: false, error: 'No room connection', depositedQty: 0 };
+      const beforePos = getPlayerPixelPos(room);
+      try {
+        let st = await window.openStorageWindow(room, () => false);
+        if (!st || !Array.isArray(st.items)) return { success: false, error: 'เปิดคลังไม่สำเร็จ', depositedQty: 0 };
+        readBagInv();
+        const bagMatch = window.getConsolidationMatchingBagItems(list);
+        let depositedQty = 0;
+        for (const it of bagMatch.items) {
+          if (!Number.isFinite(it.slot) || it.qty <= 0) continue;
+          room.send('storage_put', { slot: Number(it.slot), qty: Number(it.qty) });
+          depositedQty += it.qty;
+          await sleep(260);
+        }
+        closeStorageAndDialogs();
+        await sleep(250);
+        readBagInv();
+        const backTarget = returnTileCoords || beforePos;
+        if (backTarget && Number.isFinite(backTarget.x) && Number.isFinite(backTarget.y)) {
+          const tx = backTarget.x > 250 ? backTarget.x : (backTarget.x * 32 + 16);
+          const ty = backTarget.y > 250 ? backTarget.y : (backTarget.y * 32 + 16);
+          room.send('move_to', { x: tx, y: ty });
+          const backStart = Date.now();
+          while (Date.now() - backStart < 12000) {
+            await sleep(350);
+            const p = getPlayerPixelPos(room);
+            if (p && Math.hypot(p.x - tx, p.y - ty) <= 96) break;
+          }
+        }
+        const wAfter = getRealWeightInfo();
+        return { success: true, depositedQty, weight: wAfter.weight, weightLimit: wAfter.weightLimit };
+      } catch (err) {
+        closeStorageAndDialogs();
+        return { success: false, error: err.message, depositedQty: 0 };
+      }
+    };
+
+    const hasButterflyWingInBag = () => {
+      try {
+        if (typeof window.getBagItemCount === 'function' && window.getBagItemCount(90311) > 0) return true;
+        const inv = (typeof window.__readAuthoritativeBagInventory === 'function' ? window.__readAuthoritativeBagInventory() : window.__latestInventory) || {};
+        const items = Array.isArray(inv.items) ? inv.items : [];
+        return items.some(it => it && Number(it.qty ?? 1) > 0 && (
+          Number(it.itemId || it.id || it.item_id) === 90311 ||
+          it.id === 'butterfly_wing' ||
+          String(it.name || it.itemName || '').toLowerCase().includes('butterfly wing')
+        ));
+      } catch (e) {
+        return false;
+      }
+    };
+
+    const isScreenReconnectingNow = () => {
+      try {
+        const el = document.querySelector('.login-reconnecting, .panel.reconnecting');
+        if (el && (el.offsetWidth > 0 || el.offsetHeight > 0)) return true;
+        const bodyTxt = document.body ? (document.body.innerText || '') : '';
+        if (bodyTxt.includes('กำลังเชื่อมต่อใหม่')) return true;
+      } catch (e) {}
+      return false;
+    };
+
+    window.executeBwingHome = async function(timeoutMs = 12000) {
+      window.__consolidationAborted = false;
+      window.__isConsolidating = true;
+      window.__isBotRunning = false;
+      window.__autoLoopEnabled = false;
+      const room = tradeRoom();
+      if (room) {
+        try {
+          if (typeof window.sendAutoSetPacket === 'function') window.sendAutoSetPacket(false);
+          else room.send('auto_set', { enabled: false });
+          room.send('target', { targetId: null });
+          const me0 = room.state && room.state.players && room.state.players.get ? room.state.players.get(room.sessionId) : null;
+          if (me0 && Number.isFinite(me0.x) && Number.isFinite(me0.y)) {
+            room.send('move_to', { x: Math.round(me0.x), y: Math.round(me0.y) });
+          }
+        } catch (e) {}
+      }
+      closeStorageAndDialogs();
+      if (typeof window.keepFarmMapForTrip === 'function') window.keepFarmMapForTrip();
+      if (typeof window.isInCapital === 'function' && window.isInCapital()) {
+        return { success: true, alreadyHome: true };
+      }
+      if (window.__bwingConsolidationRetryTimer) {
+        clearInterval(window.__bwingConsolidationRetryTimer);
+        window.__bwingConsolidationRetryTimer = null;
+      }
+      if (hasButterflyWingInBag() && typeof window.useButterflyWing === 'function') {
+        window.__goHomeWingAt = Date.now();
+        window.useButterflyWing();
+        let retryCount = 0;
+        window.__bwingConsolidationRetryTimer = setInterval(() => {
+          retryCount++;
+          if (
+            retryCount > 3 ||
+            window.__consolidationAborted ||
+            !window.__isConsolidating ||
+            (typeof window.isInCapital === 'function' && window.isInCapital())
+          ) {
+            clearInterval(window.__bwingConsolidationRetryTimer);
+            window.__bwingConsolidationRetryTimer = null;
+            return;
+          }
+          if (isScreenReconnectingNow()) return;
+          if (hasButterflyWingInBag() && typeof window.useButterflyWing === 'function') {
+            closeStorageAndDialogs();
+            window.useButterflyWing();
+          } else {
+            clearInterval(window.__bwingConsolidationRetryTimer);
+            window.__bwingConsolidationRetryTimer = null;
+            if (!window.__isNavigating && typeof window.goToCapital === 'function') {
+              window.goToCapital('รวมเงิน', { allowDuringConsolidation: true, noWing: true });
+            }
+          }
+        }, 4500);
+        return { success: true, usedWing: true };
+      }
+      if (typeof window.goToCapital === 'function') {
+        window.goToCapital('รวมเงิน', { allowDuringConsolidation: true, noWing: true });
+      }
+      return { success: false, walking: true };
+    };
+
+    window.ensureInCapital = async function(timeoutMs = 180000) {
+      if (typeof window.isInCapital === 'function' && window.isInCapital()) return { success: true, already: true };
+      if (isScreenReconnectingNow()) {
+        let initReconnTicks = 0;
+        while (initReconnTicks < 6 && isScreenReconnectingNow()) {
+          await sleep(1000);
+          initReconnTicks++;
+        }
+        if (isScreenReconnectingNow()) {
+          return { success: false, reconnecting: true, error: 'จอค้างหน้า "กำลังเชื่อมต่อใหม่..."' };
+        }
+      }
+      window.__consolidationAborted = false;
+      window.__isConsolidating = true;
+      window.__isBotRunning = false;
+      window.__autoLoopEnabled = false;
+      if (typeof window.keepFarmMapForTrip === 'function') window.keepFarmMapForTrip();
+      const room = tradeRoom();
+      if (room) {
+        try {
+          if (typeof window.sendAutoSetPacket === 'function') window.sendAutoSetPacket(false);
+          else room.send('auto_set', { enabled: false });
+          room.send('target', { targetId: null });
+          const me0 = room.state && room.state.players && room.state.players.get ? room.state.players.get(room.sessionId) : null;
+          if (me0 && Number.isFinite(me0.x) && Number.isFinite(me0.y)) {
+            room.send('move_to', { x: Math.round(me0.x), y: Math.round(me0.y) });
+          }
+        } catch (e) {}
+      }
+      closeStorageAndDialogs();
+      const start = Date.now();
+      let wingRetries = 0;
+      let kickAt = Date.now();
+      let lastPosKey = '';
+      let lastMovedAt = Date.now();
+      let reconnTicks = 0;
+      if (hasButterflyWingInBag() && typeof window.useButterflyWing === 'function') {
+        window.__goHomeWingAt = Date.now();
+        window.useButterflyWing();
+      } else if (typeof window.goToCapital === 'function') {
+        window.goToCapital('รวมเงิน', { allowDuringConsolidation: true, noWing: true });
+      }
+      while (Date.now() - start < timeoutMs) {
+        await sleep(1000);
+        if (typeof window.isInCapital === 'function' && window.isInCapital()) return { success: true };
+        if (window.__consolidationAborted || !window.__isConsolidating) {
+          return { success: false, aborted: true, error: 'ยกเลิกการรวมเงินแล้ว' };
+        }
+        if (isScreenReconnectingNow()) {
+          reconnTicks++;
+          if (reconnTicks >= 8) {
+            return { success: false, reconnecting: true, error: 'จอค้างหน้า "กำลังเชื่อมต่อใหม่..."' };
+          }
+          continue;
+        }
+        reconnTicks = 0;
+        const r = tradeRoom();
+        const me = r && r.state && r.state.players && r.state.players.get ? r.state.players.get(r.sessionId) : null;
+        const curMap = typeof window.getCurrentMapName === 'function' ? window.getCurrentMapName() : '';
+        const posKey = curMap + ':' + (me ? Math.round(me.x || 0) : 0) + ',' + (me ? Math.round(me.y || 0) : 0);
+        if (posKey !== lastPosKey) {
+          lastPosKey = posKey;
+          lastMovedAt = Date.now();
+        }
+        const hasBwing = hasButterflyWingInBag();
+        if (hasBwing && Date.now() - kickAt >= 4500 && wingRetries < 3 && typeof window.useButterflyWing === 'function') {
+          wingRetries++;
+          try {
+            if (typeof window.sendAutoSetPacket === 'function') window.sendAutoSetPacket(false);
+            else if (r && typeof r.send === 'function') r.send('auto_set', { enabled: false });
+            if (r && typeof r.send === 'function') {
+              r.send('target', { targetId: null });
+              if (me && Number.isFinite(me.x) && Number.isFinite(me.y)) {
+                r.send('move_to', { x: Math.round(me.x), y: Math.round(me.y) });
+              }
+            }
+          } catch (e) {}
+          closeStorageAndDialogs();
+          window.__goHomeWingAt = Date.now();
+          window.useButterflyWing();
+          kickAt = Date.now();
+          continue;
+        }
+        const navStalled = window.__isNavigating && (Date.now() - lastMovedAt > 12000);
+        if ((!hasBwing || wingRetries >= 3) && ((!window.__isNavigating && Date.now() - kickAt >= 6000) || navStalled) && typeof window.goToCapital === 'function') {
+          if (navStalled) {
+            window.__isNavigating = false;
+            window.__isWalkingToMap = false;
+            if (typeof window.stopArrivalWatcher === 'function') window.stopArrivalWatcher();
+          }
+          kickAt = Date.now();
+          lastMovedAt = Date.now();
+          window.goToCapital('รวมเงิน', { allowDuringConsolidation: true, noWing: true });
+        }
+      }
+      return { success: typeof window.isInCapital === 'function' ? window.isInCapital() : false, error: 'กลับเมืองหลวงไม่สำเร็จภายในเวลาที่กำหนด' };
+    };
+
+    window.setupReceiverTradeWatcher = function(allowedSenderName, timeoutMs = 60000) {
+      if (typeof window.stopReceiverTradeWatcher === 'function') window.stopReceiverTradeWatcher();
+      return new Promise((resolve) => {
+        const room = tradeRoom();
+        if (!room) return resolve({ success: false, error: 'No room connection' });
+        const expected = allowedSenderName ? String(allowedSenderName).trim() : '';
+        if (!expected) return resolve({ success: false, error: 'Missing sender name' });
+        closeStorageAndDialogs();
+        window.__consolidationReceiverMode = true;
+        window.__consolidationExpectedSender = expected.toLowerCase();
+        const zenyBefore = tradeZeny();
+        let windowOpened = false, lastAcceptAt = 0, lockSent = false, confirmSent = false, finished = false, receivedOffer = 0, receivedItemsCount = 0;
+        let lastTrState = null;
+        let unsubInvite = null, unsubTrade = null, watchdogTimer = null;
+        const finish = (result) => {
+          if (finished) return;
+          finished = true;
+          clearTimeout(timer);
+          if (watchdogTimer) clearInterval(watchdogTimer);
+          if (typeof unsubInvite === 'function') unsubInvite();
+          if (typeof unsubTrade === 'function') unsubTrade();
+          if (window.__receiverWatcherStop === stop) {
+            window.__receiverWatcherStop = null;
+            window.__consolidationReceiverMode = false;
+            window.__consolidationExpectedSender = null;
+          }
+          resolve(result);
+        };
+        const stop = reason => finish({ success: false, error: 'Receiver watcher ' + reason });
+        window.__receiverWatcherStop = stop;
+        const timer = setTimeout(() => finish({ success: false, error: 'Receiver timeout waiting for trade' }), timeoutMs);
+        unsubInvite = room.onMessage('invite', (inv) => {
+          if (finished || !inv || inv.kind !== 'trade' || windowOpened) return;
+          if (!sameName(inv.from, expected)) return;
+          const nowTs = Date.now();
+          if (nowTs - lastAcceptAt < 800) return;
+          lastAcceptAt = nowTs;
+          closeStorageAndDialogs();
+          room.send('trade', { action: 'accept' });
+        });
+        const evaluateReceiverState = (tr) => {
+          if (finished || !tr) return;
+          if (!sameName(tr.partner, expected)) {
+            try { room.send('trade', { action: 'cancel' }); } catch (e) {}
+            return;
+          }
+          windowOpened = true;
+          lastTrState = tr;
+          if (tr.theirs && typeof tr.theirs.zeny === 'number') receivedOffer = tr.theirs.zeny;
+          if (tr.theirs && Array.isArray(tr.theirs.items)) {
+            receivedItemsCount = tr.theirs.items.reduce((sum, x) => sum + (Number(x && x.qty) || 0), 0);
+          }
+          if (tr.theirs && tr.theirs.locked && tr.mine && !tr.mine.locked && !lockSent) {
+            lockSent = true;
+            setTimeout(() => { if (!finished) room.send('trade', { action: 'lock' }); }, 250);
+          }
+          if (tr.theirs && tr.theirs.locked && tr.mine && tr.mine.locked && !tr.mine.confirmed && !confirmSent) {
+            confirmSent = true;
+            setTimeout(() => { if (!finished) room.send('trade', { action: 'confirm' }); }, 350);
+          }
+        };
+        watchdogTimer = setInterval(() => {
+          if (finished || !lastTrState) return;
+          if (lastTrState.theirs && lastTrState.theirs.locked && lastTrState.mine && !lastTrState.mine.locked) {
+            room.send('trade', { action: 'lock' });
+          } else if (lastTrState.theirs && lastTrState.theirs.locked && lastTrState.mine && lastTrState.mine.locked && !lastTrState.mine.confirmed) {
+            confirmSent = true;
+            room.send('trade', { action: 'confirm' });
+          }
+        }, 1200);
+        unsubTrade = room.onMessage('trade', (tr) => {
+          if (finished) return;
+          if (!tr) {
+            if (!confirmSent) {
+              windowOpened = false;
+              lockSent = false;
+              lastTrState = null;
+              return;
+            }
+            setTimeout(() => {
+              const now = tradeZeny();
+              const got = (isFinite(now) && isFinite(zenyBefore)) ? now - zenyBefore : receivedOffer;
+              finish((got > 0 || receivedItemsCount > 0)
+                ? { success: true, receivedZeny: Math.max(0, got), receivedItemsCount }
+                : { success: false, error: 'หน้าต่างเทรดปิดแต่เงิน/ไอเทมไม่เข้า' });
+            }, 1000);
+            return;
+          }
+          evaluateReceiverState(tr);
+        });
+      });
+    };
+
+    window.executeSenderTrade = function(receiverCharName, zenyAmount, timeoutMs = 45000, itemNamesToOffer = null, maxReceiverExtraWeight = null) {
+      if (window.__senderTradeBusy) return Promise.resolve({ success: false, error: 'กำลังเทรดอยู่แล้ว (ไม่ส่งซ้ำ)' });
+      return new Promise((resolve) => {
+        const room = tradeRoom();
+        if (!room) return resolve({ success: false, error: 'No room connection' });
+        if (!receiverCharName) return resolve({ success: false, error: 'Missing receiver name' });
+        closeStorageAndDialogs();
+        const amount = Math.max(0, parseInt(zenyAmount) || 0);
+        const zenyBefore = tradeZeny();
+        if (isFinite(zenyBefore) && amount > zenyBefore) return resolve({ success: false, error: 'เงินไม่พอ' });
+        const offerItems = [];
+        let offerItemsTotalQty = 0;
+        if (Array.isArray(itemNamesToOffer) && itemNamesToOffer.length > 0 && typeof window.getConsolidationMatchingBagItems === 'function') {
+          const bagMatch = window.getConsolidationMatchingBagItems(itemNamesToOffer);
+          let remWeight = (typeof maxReceiverExtraWeight === 'number' && Number.isFinite(maxReceiverExtraWeight)) ? Math.max(0, maxReceiverExtraWeight) : Infinity;
+          for (const it of bagMatch.items) {
+            if (offerItems.length >= 10) break;
+            if (!Number.isFinite(it.slot) || it.qty <= 0) continue;
+            const unitW = Math.max(0, Number(it.unitWeight) || 1);
+            const allowedQty = (unitW > 0 && Number.isFinite(remWeight)) ? Math.min(it.qty, Math.floor(remWeight / unitW)) : it.qty;
+            if (allowedQty <= 0) continue;
+            offerItems.push({ slot: Number(it.slot), qty: Number(allowedQty) });
+            offerItemsTotalQty += allowedQty;
+            if (Number.isFinite(remWeight)) remWeight = Math.max(0, remWeight - allowedQty * unitW);
+          }
+        }
+        if (amount <= 0 && offerItems.length === 0) return resolve({ success: false, error: 'ไม่มีเงินหรือไอเทมที่จะเทรด' });
+        const bagMatchBefore = (offerItems.length > 0 && typeof window.getConsolidationMatchingBagItems === 'function')
+          ? window.getConsolidationMatchingBagItems(itemNamesToOffer).totalQty : 0;
+        window.__senderTradeBusy = true;
+        let opened = false, offerSent = false, lockSent = false, confirmSent = false, finished = false;
+        let lastTrState = null;
+        let unsubTrade = null, requestRetryTimer = null, stateWatchdogTimer = null;
+        const finish = (result) => {
+          if (finished) return;
+          finished = true;
+          clearTimeout(timer);
+          clearTimeout(noAnswer);
+          if (requestRetryTimer) clearInterval(requestRetryTimer);
+          if (stateWatchdogTimer) clearInterval(stateWatchdogTimer);
+          if (typeof unsubTrade === 'function') unsubTrade();
+          window.__senderTradeBusy = false;
+          resolve(result);
+        };
+        const nudgeAndRequestTrade = () => {
+          if (finished || opened) return;
+          try {
+            closeStorageAndDialogs();
+            const players = room && room.state && room.state.players;
+            const me = players && players.get ? players.get(room.sessionId) : null;
+            let target = null;
+            if (players && players.forEach) {
+              players.forEach(p => { if (!target && p && sameName(p.name, receiverCharName)) target = p; });
+            }
+            if (me && target) {
+              const dist = Math.hypot((me.x || 0) - (target.x || 0), (me.y || 0) - (target.y || 0));
+              if (dist > 88) {
+                room.send('move_to', { x: target.x, y: target.y });
+              }
+            }
+            room.send('trade', { action: 'request', name: receiverCharName });
+          } catch (e) {}
+        };
+        const timer = setTimeout(() => { try { room.send('trade', { action: 'cancel' }); } catch (e) {} finish({ success: false, error: 'Sender timeout in trade process' }); }, timeoutMs);
+        const noAnswer = setTimeout(() => { if (!opened) finish({ success: false, error: 'ตัวรับไม่ตอบรับคำขอเทรด (ส่งคำขอซ้ำแล้ว)' }); }, 16500);
+        const evaluateSenderState = (tr) => {
+          if (finished || !tr) return;
+          if (!sameName(tr.partner, receiverCharName)) {
+            try { room.send('trade', { action: 'cancel' }); } catch (e) {}
+            return;
+          }
+          opened = true;
+          lastTrState = tr;
+          if (requestRetryTimer) { clearInterval(requestRetryTimer); requestRetryTimer = null; }
+          if (!offerSent) {
+            offerSent = true;
+            setTimeout(() => { if (!finished) room.send('trade', { action: 'offer', items: offerItems, zeny: amount }); }, 300);
+            return;
+          }
+          const zenyMatched = tr.mine && tr.mine.zeny === amount;
+          const itemsMatched = offerItems.length === 0 || (tr.mine && Array.isArray(tr.mine.items) && tr.mine.items.length === offerItems.length);
+          if (!lockSent && zenyMatched && itemsMatched && !tr.mine.locked) {
+            lockSent = true;
+            setTimeout(() => { if (!finished) room.send('trade', { action: 'lock' }); }, 350);
+            return;
+          }
+          if (lockSent && !confirmSent && tr.mine && tr.mine.locked && tr.theirs && tr.theirs.locked && !tr.mine.confirmed) {
+            confirmSent = true;
+            setTimeout(() => { if (!finished) room.send('trade', { action: 'confirm' }); }, 350);
+          }
+        };
+        stateWatchdogTimer = setInterval(() => {
+          if (finished || !opened || !lastTrState) return;
+          const tr = lastTrState;
+          const zenyMatched = tr.mine && tr.mine.zeny === amount;
+          const itemsMatched = offerItems.length === 0 || (tr.mine && Array.isArray(tr.mine.items) && tr.mine.items.length === offerItems.length);
+          if (!zenyMatched || !itemsMatched) {
+            room.send('trade', { action: 'offer', items: offerItems, zeny: amount });
+          } else if (tr.mine && !tr.mine.locked) {
+            lockSent = true;
+            room.send('trade', { action: 'lock' });
+          } else if (tr.mine && tr.mine.locked && tr.theirs && tr.theirs.locked && !tr.mine.confirmed) {
+            confirmSent = true;
+            room.send('trade', { action: 'confirm' });
+          }
+        }, 1200);
+        unsubTrade = room.onMessage('trade', (tr) => {
+          if (finished) return;
+          if (!tr) {
+            if (!opened) return;
+            if (!confirmSent) return finish({ success: false, error: 'อีกฝ่ายยกเลิก/ปิดหน้าต่างเทรด' });
+            setTimeout(() => {
+              const now = tradeZeny();
+              const sent = (isFinite(now) && isFinite(zenyBefore)) ? zenyBefore - now : null;
+              const bagMatchAfter = (offerItems.length > 0 && typeof window.getConsolidationMatchingBagItems === 'function')
+                ? window.getConsolidationMatchingBagItems(itemNamesToOffer).totalQty : 0;
+              const sentItems = Math.max(0, bagMatchBefore - bagMatchAfter);
+              if (sent === null && offerItems.length === 0) finish({ success: true, transferredZeny: amount, transferredItemsQty: offerItemsTotalQty, unverified: true });
+              else if ((sent !== null && sent > 0) || sentItems > 0) finish({ success: true, transferredZeny: Math.max(0, sent || 0), transferredItemsQty: sentItems });
+              else finish({ success: false, error: 'หน้าต่างเทรดปิดแต่เงิน/ไอเทมไม่ลด (เทรดไม่สำเร็จ)' });
+            }, 1000);
+            return;
+          }
+          evaluateSenderState(tr);
+        });
+        setTimeout(() => nudgeAndRequestTrade(), 400);
+        requestRetryTimer = setInterval(() => nudgeAndRequestTrade(), 3400);
+      });
+    };
+    return { success: true };
+  })()`;
+  return evalProfilePort(port, helperCode, 6000);
+}
+
+// ==========================================
+// CENTRALIZED ZENY CONSOLIDATION WORKFLOW
+// ==========================================
+function getProfileIpGroupKey(profileId) {
+  try {
+    const snap = screenProxy.getProfileLeaseSnapshot(profileId);
+    if (snap && snap.active && (snap.ip || snap.proxyHost)) {
+      return String(snap.ip || snap.proxyHost).trim();
+    }
+  } catch (_) {}
+  return 'LOCAL';
+}
+
+let consolidationState = {
+  running: false,
+  isPremiumConsolidation: false,
+  premiumGoal: null,
+  sameIpOnly: false,
+  ipGroupMode: false,
+  currentIpGroup: null,
+  ipGroupIndex: 0,
+  totalIpGroups: 0,
+  ipGroupSummaries: [],
+  activeTasks: [],
+  runningIps: [],
+  busyProfileIds: [],
+  activeProfileIds: [],
+  activeSenders: [],
+  status: 'idle', // 'idle' | 'running' | 'completed' | 'stopped' | 'error'
+  step: 'พร้อมทำงาน',
+  stepIndex: 0,
+  totalSteps: 5,
+  receiver: null,
+  currentSender: null,
+  completedSenders: [],
+  totalTransferredZeny: 0,
+  totalTransferredItems: 0,
+  tradeItemsEnabled: false,
+  tradeItemsList: [],
+  logs: [],
+  startTime: 0,
+  endTime: 0
+};
+let consolidationAborted = false;
+let consolidationTaskSeq = 0;
+const activeConsolidationTasks = new Map(); // taskId -> taskObj
+const activeConsolidationProfiles = new Map(); // profileId -> taskId
+const activeConsolidationChannels = new Map(); // channelNum -> taskId
+
+function syncConsolidationGlobalState() {
+  const tasks = Array.from(activeConsolidationTasks.values());
+  const isRunning = tasks.length > 0;
+  consolidationState.running = isRunning;
+  consolidationState.activeTasks = tasks.map(t => ({
+    taskId: t.taskId,
+    ip: t.ip,
+    sameIpOnly: t.sameIpOnly,
+    isPremiumConsolidation: t.isPremiumConsolidation,
+    status: t.status,
+    stepIndex: t.stepIndex,
+    totalSteps: t.totalSteps || 5,
+    step: t.step,
+    receiver: t.receiver,
+    currentSender: t.currentSender,
+    completedSenders: Array.isArray(t.completedSenders) ? [...t.completedSenders] : [],
+    completedSendersCount: Array.isArray(t.completedSenders) ? t.completedSenders.length : 0,
+    totalSenders: t.totalSenders || 0,
+    transferredZeny: t.transferredZeny || 0,
+    transferredItems: t.transferredItems || 0,
+    targetChannel: t.targetChannel || null,
+    startTime: t.startTime
+  }));
+  consolidationState.runningIps = Array.from(new Set(tasks.map(t => t.ip).filter(Boolean)));
+  consolidationState.busyProfileIds = Array.from(activeConsolidationProfiles.keys());
+  consolidationState.activeProfileIds = consolidationState.busyProfileIds;
+  consolidationState.activeSenders = tasks.map(t => t.currentSender).filter(Boolean);
+
+  if (isRunning) {
+    consolidationState.status = 'running';
+    const primary = tasks[tasks.length - 1];
+    consolidationState.receiver = primary.receiver;
+    consolidationState.currentSender = primary.currentSender;
+    consolidationState.currentIpGroup = primary.ip;
+    if (tasks.length === 1) {
+      consolidationState.stepIndex = primary.stepIndex;
+      consolidationState.step = primary.step;
+    } else {
+      const avgStep = Math.max(1, Math.min(5, Math.round(tasks.reduce((s, t) => s + (t.stepIndex || 1), 0) / tasks.length)));
+      consolidationState.stepIndex = avgStep;
+      const ipBriefs = tasks.map(t => `[${t.ip}: ขั้น ${t.stepIndex}/5${t.targetChannel ? ' CH' + t.targetChannel : ''}]`).join(' · ');
+      consolidationState.step = `⚡ กำลังเทรดพร้อมกัน ${tasks.length} วง IP: ${ipBriefs}`;
+    }
+  } else {
+    consolidationState.currentSender = null;
+    consolidationState.currentIpGroup = null;
+  }
+}
+
+function addConsolidationLog(text, level = 'info') {
+  const time = new Date().toLocaleTimeString('th-TH');
+  consolidationState.logs.push({ time, text, level });
+  if (consolidationState.logs.length > 400) consolidationState.logs.shift();
+  console.log(`[Consolidation] [${level.toUpperCase()}] ${text}`);
+}
+
+async function runConsolidationWorkflow(receiverProfileId, senderProfileIds, keepZeny = 0, tradeItemsOpts = null) {
+  const batchCtx = (tradeItemsOpts && tradeItemsOpts.batchContext) ? tradeItemsOpts.batchContext : null;
+  const premiumGoal = (tradeItemsOpts && tradeItemsOpts.premiumGoal) ? tradeItemsOpts.premiumGoal : null;
+  const sameIpOnly = Boolean((tradeItemsOpts && tradeItemsOpts.sameIpOnly) || (batchCtx && batchCtx.sameIpOnly));
+  const roundHundredK = Boolean(tradeItemsOpts && tradeItemsOpts.roundHundredK);
+  const calcSenderTransferZeny = (z) => {
+    const cur = Math.max(0, Number(z) || 0);
+    const keep = Math.max(0, Number(keepZeny) || 0);
+    if (!roundHundredK) return Math.max(0, cur - keep);
+    if (keep <= 100000) {
+      let rounded = Math.floor(cur / 100000) * 100000;
+      if (keep > 0 && (cur - rounded) < 10000 && rounded >= 100000) {
+        rounded -= 100000;
+      }
+      return Math.max(0, rounded);
+    }
+    return Math.floor(Math.max(0, cur - keep) / 100000) * 100000;
+  };
+  const savedItemCfg = loadConsolidationItemSettings();
+  const tradeItemsEnabled = premiumGoal
+    ? false
+    : ((tradeItemsOpts && typeof tradeItemsOpts.enabled === 'boolean')
+      ? tradeItemsOpts.enabled
+      : Boolean(savedItemCfg.tradeOnConsolidate));
+  const tradeItemsList = premiumGoal
+    ? []
+    : ((tradeItemsOpts && Array.isArray(tradeItemsOpts.items) && tradeItemsOpts.items.length > 0)
+      ? sanitizeConsolidationItemsList(tradeItemsOpts.items)
+      : sanitizeConsolidationItemsList(savedItemCfg.items));
+
+  const allProfiles = loadProfiles();
+  const receiverProfile = allProfiles.find(p => p.id === receiverProfileId);
+  if (!receiverProfile || !receiverProfile.debugPort) {
+    addConsolidationLog('❌ ไม่พบโปรไฟล์ตัวรับเงิน (Receiver) หรือไม่ได้เปิดจอเกม', 'error');
+    return { ok: false, error: 'receiver_not_online', groupTransferredZeny: 0, groupTransferredItems: 0 };
+  }
+
+  if (activeConsolidationProfiles.has(receiverProfile.id)) {
+    return { ok: false, error: `ตัวรับเงิน (${receiverProfile.name}) กำลังอยู่ในกระบวนการเทรดรวมเงินอยู่แล้ว`, groupTransferredZeny: 0, groupTransferredItems: 0 };
+  }
+
+  const receiverIpKey = getProfileIpGroupKey(receiverProfile.id);
+  let senderProfiles = allProfiles.filter(p =>
+    senderProfileIds.includes(p.id) &&
+    p.id !== receiverProfileId &&
+    p.debugPort &&
+    !activeConsolidationProfiles.has(p.id)
+  );
+
+  if (sameIpOnly) {
+    const beforeCount = senderProfiles.length;
+    senderProfiles = senderProfiles.filter(s => getProfileIpGroupKey(s.id) === receiverIpKey);
+    const filteredOut = beforeCount - senderProfiles.length;
+    if (filteredOut > 0) {
+      addConsolidationLog(`🛡️ โหมดจำกัดเฉพาะในวง IP [${receiverIpKey}]: กรองจอที่อยู่คนละวง IP ออก ${filteredOut} จอ`, 'info');
+    }
+  }
+
+  const wasIdle = activeConsolidationTasks.size === 0;
+  if (wasIdle && !(batchCtx && batchCtx.isSubBatch)) {
+    consolidationAborted = false;
+    consolidationState.isPremiumConsolidation = Boolean(premiumGoal);
+    consolidationState.sameIpOnly = sameIpOnly;
+    consolidationState.ipGroupMode = Boolean(batchCtx && batchCtx.isSubBatch);
+    consolidationState.ipGroupSummaries = [];
+    consolidationState.premiumGoal = premiumGoal ? {
+      receiverId: receiverProfileId,
+      needTokens: premiumGoal.needTokens || 0,
+      planDays: premiumGoal.planDays || 7,
+      planTokens: premiumGoal.planTokens || 1000,
+      underHours: premiumGoal.underHours || 10,
+      keepZeny: Number(keepZeny) || 0
+    } : null;
+    consolidationState.completedSenders = [];
+    consolidationState.totalTransferredZeny = 0;
+    consolidationState.totalTransferredItems = 0;
+    consolidationState.tradeItemsEnabled = tradeItemsEnabled;
+    consolidationState.tradeItemsList = tradeItemsList;
+    consolidationState.logs = [];
+    consolidationState.startTime = Date.now();
+    consolidationState.endTime = 0;
+  }
+
+  const taskId = `task_${++consolidationTaskSeq}_${Date.now()}`;
+  const task = {
+    taskId,
+    ip: receiverIpKey,
+    sameIpOnly,
+    isPremiumConsolidation: Boolean(premiumGoal),
+    status: 'running',
+    aborted: false,
+    stepIndex: 1,
+    totalSteps: 5,
+    step: `[${receiverIpKey}] เตรียมพร้อมและหยุดบอทในกลุ่ม...`,
+    receiver: {
+      id: receiverProfile.id,
+      name: receiverProfile.name,
+      port: receiverProfile.debugPort,
+      ip: receiverIpKey
+    },
+    currentSender: null,
+    completedSenders: [],
+    totalSenders: senderProfiles.length,
+    transferredZeny: 0,
+    transferredItems: 0,
+    targetChannel: null,
+    startTime: Date.now(),
+    endTime: 0
+  };
+  const isTaskAborted = () => Boolean(consolidationAborted || task.aborted);
+  const setTaskStep = (stepIndex, stepText) => {
+    if (typeof stepIndex === 'number') task.stepIndex = stepIndex;
+    task.step = stepText;
+    syncConsolidationGlobalState();
+  };
+  const markSenderCompleted = (senderId) => {
+    if (!task.completedSenders.includes(senderId)) task.completedSenders.push(senderId);
+    if (!consolidationState.completedSenders.includes(senderId)) consolidationState.completedSenders.push(senderId);
+    syncConsolidationGlobalState();
+  };
+
+  let groupTransferredZeny = 0;
+  let groupTransferredItems = 0;
+
+  const ipGroupBadgeText = ` [วง IP: ${receiverIpKey}${batchCtx && batchCtx.totalGroups > 1 ? ` (${batchCtx.groupIndex}/${batchCtx.totalGroups})` : ''}]`;
+  const logTask = (msg, level = 'info') => addConsolidationLog(`[${receiverIpKey} · ${receiverProfile.name}] ${msg}`, level);
+
+  const itemModeMsg = tradeItemsEnabled ? ` + เบิกคลังและเทรดไอเทม [${tradeItemsList.join(', ')}]` : '';
+  if (premiumGoal) {
+    logTask(`💎 เริ่มต้นระบบรวมเงินซื้อ Premium ก่อนหมดเวลา (< ${premiumGoal.underHours || 10} ชม.) ให้ตัวละคร ${receiverProfile.name} · เหลือเงินติดตัวคนโอน ${Number(keepZeny || 0).toLocaleString()} z`, 'info');
+  } else {
+    logTask(`🚀 เริ่มต้นระบบรวมเงินเข้าตัวรับ ${receiverProfile.name} (${senderProfiles.length} จอโอน)${itemModeMsg}`, 'info');
+  }
+
+  if (senderProfiles.length === 0) {
+    logTask(`⚠️ ไม่มีจอผู้โอนที่ว่างและอยู่ในเงื่อนไขสำหรับตัวรับ ${receiverProfile.name}`, 'warning');
+    syncConsolidationGlobalState();
+    if (activeConsolidationTasks.size === 0) {
+      consolidationState.status = 'completed';
+      consolidationState.endTime = Date.now();
+    }
+    return { ok: true, taskId, groupTransferredZeny: 0, groupTransferredItems: 0 };
+  }
+
+  activeConsolidationTasks.set(taskId, task);
+  activeConsolidationProfiles.set(receiverProfile.id, taskId);
+  for (const s of senderProfiles) activeConsolidationProfiles.set(s.id, taskId);
+  syncConsolidationGlobalState();
+
+  try {
+    // Ensure all involved clients have up-to-date stash/consolidation item & trade helpers
+    await Promise.all([receiverProfile, ...senderProfiles].map(p =>
+      ensureClientConsolidationItemHelpers(p.debugPort, {
+        ...savedItemCfg,
+        tradeOnConsolidate: tradeItemsEnabled,
+        items: tradeItemsList
+      }).catch(() => {})
+    ));
+
+    // -------------------------------------------------------------
+    // STEP 0: ตรวจสอบและเคลียร์สถานะค้าง (เช่น __isShopping ค้างตอนหยุดบอท) และรองานสำคัญสั้นๆ
+    // -------------------------------------------------------------
+    setTaskStep(1, `${ipGroupBadgeText ? ipGroupBadgeText + ' · ' : ''}เตรียมความพร้อมและเคลียร์หน้าต่างค้างของแต่ละจอ...`);
+    const BUSY_JS = `(() => {
+      window.__consolidationPending = true;
+      if (window.__townQueueTimer) {
+        clearTimeout(window.__townQueueTimer);
+        window.__townQueueTimer = null;
+      }
+      const curMap = (typeof window.getCurrentMapName === 'function' ? window.getCurrentMapName() : '') || '';
+      const inTown = /เมืองหลวง|โซลเฮเวน|คาราวาน/.test(curMap);
+      if (!inTown || !window.__isBotRunning) {
+        window.__isShopping = false;
+        window.__isStoring = false;
+      }
+      const hard = [];
+      const soft = [];
+      const reconnEl = document.querySelector('.login-reconnecting, .panel.reconnecting');
+      const bodyTxt = document.body ? (document.body.innerText || '') : '';
+      const reconnecting = Boolean(
+        (reconnEl && (reconnEl.offsetWidth > 0 || reconnEl.offsetHeight > 0)) ||
+        bodyTxt.includes('กำลังเชื่อมต่อใหม่')
+      );
+      if (reconnecting) hard.push('ค้างหน้ากำลังเชื่อมต่อใหม่ (Reconnecting)');
+      const hc = document.querySelector('.human-check');
+      if (hc && hc.offsetParent !== null) hard.push('เช็คผู้เล่น (Human Check)');
+      if (inTown && window.__isGearRefining) hard.push('ตีบวก (เซ็ตอุปกรณ์)');
+      if (window.__planMarketBuyInFlight) hard.push('ซื้อของในตลาดตามแผน');
+      if (inTown && window.__isChangingJob) hard.push('เปลี่ยนอาชีพ');
+      if (inTown && window.__isShopping) soft.push('ขาย/ซื้อของกับ NPC');
+      if (inTown && window.__isStoring) soft.push('ฝากของเข้าคลัง');
+      if (window.__isWeightScrollBusy) soft.push('ซื้อ/ใช้ Weight Limit Scroll');
+      if (window.__isManualSelling) soft.push('ลงขายของ');
+      return { hard, soft, reconnecting };
+    })()`;
+    const busyOf = async p => {
+      const r = await evalProfilePort(p.debugPort, BUSY_JS, 4500);
+      return (r && r.success && r.result && typeof r.result === 'object')
+        ? {
+            hard: Array.isArray(r.result.hard) ? r.result.hard : [],
+            soft: Array.isArray(r.result.soft) ? r.result.soft : [],
+            reconnecting: Boolean(r.result.reconnecting)
+          }
+        : { hard: ['จอไม่ตอบสนอง / ออฟไลน์'], soft: [], reconnecting: true };
+    };
+    const stillBusy = new Map();
+    await Promise.all([receiverProfile, ...senderProfiles].map(async p => {
+      let b = await busyOf(p);
+      const allBusy = [...b.hard, ...b.soft];
+      if (allBusy.length) {
+        logTask(`⏳ ${p.name}: รอ "${allBusy.join(', ')}" ให้เสร็จก่อน...`, 'info');
+      }
+      for (let i = 0; i < 20 && (b.hard.length || b.soft.length) && !isTaskAborted(); i++) {
+        await new Promise(r => setTimeout(r, 1500));
+        b = await busyOf(p);
+        // Fast-skip screens stuck at "กำลังเชื่อมต่อใหม่..." after ~6s (4 polls) instead of holding up consolidation
+        if (i >= 3 && b.reconnecting) {
+          break;
+        }
+        // After ~15s (i >= 9), if only soft tasks (NPC shop / storage / manual sell) remain, force-close & clear them so the character is never skipped!
+        if (i >= 9 && b.soft.length > 0 && b.hard.length === 0) {
+          await evalProfilePort(p.debugPort, `(() => {
+            window.__isShopping = false;
+            window.__isStoring = false;
+            window.__isManualSelling = false;
+            window.__isWeightScrollBusy = false;
+            if (typeof window.closeShopUI === 'function') window.closeShopUI();
+            if (typeof window.sendNpcClose === 'function') window.sendNpcClose();
+            return true;
+          })()`, 3500);
+          b.soft = [];
+          break;
+        }
+        const curList = [...b.hard, ...b.soft];
+        if (curList.length && (i + 1) % 4 === 0) {
+          setTaskStep(1, `${ipGroupBadgeText ? ipGroupBadgeText + ' · ' : ''}รอ ${p.name} ทำ "${curList.join(', ')}" (${Math.round((i + 1) * 1.5)} วิ)...`);
+        }
+      }
+      if (b.hard.length) stillBusy.set(p.id, b.hard);
+    }));
+    const clearPending = p => evalProfilePort(p.debugPort, `(() => { window.__consolidationPending = false; return true; })()`, 4000);
+    if (isTaskAborted()) {
+      await Promise.all([receiverProfile, ...senderProfiles].map(clearPending));
+      throw new Error('ผู้ใช้ยกเลิกการรวมเงิน');
+    }
+    if (stillBusy.has(receiverProfile.id)) {
+      await Promise.all([receiverProfile, ...senderProfiles].map(clearPending));
+      throw new Error(`ตัวรับเงิน (${receiverProfile.name}) ติดสถานะ "${stillBusy.get(receiverProfile.id).join(', ')}" — ลองรวมเงินใหม่อีกครั้งภายหลัง`);
+    }
+    for (const s of senderProfiles.filter(x => stillBusy.has(x.id))) {
+      logTask(`⏭️ ${s.name}: ติดสถานะสำคัญ "${stillBusy.get(s.id).join(', ')}" -> ข้ามจอนี้ในรอบนี้`, 'warning');
+      activeConsolidationProfiles.delete(s.id);
+      markSenderCompleted(s.id);
+      await clearPending(s);
+    }
+    for (let i = senderProfiles.length - 1; i >= 0; i--) if (stillBusy.has(senderProfiles[i].id)) senderProfiles.splice(i, 1);
+    if (senderProfiles.length === 0) {
+      await clearPending(receiverProfile);
+      logTask(`⚠️ ไม่มีจอผู้โอนที่พร้อมทำงานในรอบนี้สำหรับตัวรับ ${receiverProfile.name}`, 'warning');
+      return { ok: true, taskId, ip: receiverIpKey, receiverId: receiverProfile.id, receiverName: receiverProfile.name, groupTransferredZeny: 0, groupTransferredItems: 0 };
+    }
+
+    // -------------------------------------------------------------
+    // STEP 1: สั่ง Stop Bot และหยุดโจมตีทุกจอที่เกี่ยวข้องพร้อมกัน
+    // -------------------------------------------------------------
+    setTaskStep(1, `${ipGroupBadgeText ? ipGroupBadgeText + ' · ' : ''}หยุดการทำงานของบอททุกจอในรอบนี้ (Stop Bot)...`);
+    logTask(`⏹️ ขั้นตอนที่ 1/5: กำลังสั่งหยุดบอทและหยุดโจมตีทุกจอในกลุ่ม (${senderProfiles.length + 1} จอ)...`, 'info');
+
+    const involvedProfiles = [receiverProfile, ...senderProfiles];
+    await Promise.all(involvedProfiles.map(async (p) => {
+      if (isTaskAborted()) return;
+      await evalProfilePort(p.debugPort, `(() => {
+        window.__consolidationAborted = false;
+        window.__isConsolidating = true;
+        window.__consolidationPending = true;
+        window.__isBotRunning = false;
+        window.__autoLoopEnabled = false;
+        window.__isWalkingToMap = false;
+        window.__isNavigating = false;
+        window.__isShopping = false;
+        window.__isStoring = false;
+        window.__isRecovering = false;
+        if (window.__townQueueTimer) { clearTimeout(window.__townQueueTimer); window.__townQueueTimer = null; }
+        if (typeof window.stopMasterBot === 'function') window.stopMasterBot();
+        if (typeof window.stopPelicanBot === 'function') window.stopPelicanBot();
+        if (typeof window.stopArrivalWatcher === 'function') window.stopArrivalWatcher();
+        if (typeof window.clearAllBotTimers === 'function') window.clearAllBotTimers();
+        if (typeof window.deactivateInGameAuto === 'function') window.deactivateInGameAuto();
+        try {
+          const room = typeof window.getGameRoom === 'function' ? window.getGameRoom() : null;
+          if (typeof window.sendAutoSetPacket === 'function') window.sendAutoSetPacket(false);
+          else if (room && typeof room.send === 'function') room.send('auto_set', { enabled: false });
+          if (room && typeof room.send === 'function') {
+            room.send('target', { targetId: null });
+            const me = room.state && room.state.players && room.state.players.get ? room.state.players.get(room.sessionId) : null;
+            if (me && Number.isFinite(me.x) && Number.isFinite(me.y)) {
+              room.send('move_to', { x: Math.round(me.x), y: Math.round(me.y) });
+            }
+          }
+        } catch (e) {}
+        if (typeof window.closeShopUI === 'function') window.closeShopUI();
+        if (typeof window.sendNpcClose === 'function') window.sendNpcClose();
+        try { localStorage.setItem('pelican_bot_running', 'false'); } catch(e){}
+        try { localStorage.setItem('pelican_auto_loop', 'false'); } catch(e){}
+        const loopCheckbox = document.getElementById('p-auto-loop');
+        if (loopCheckbox) loopCheckbox.checked = false;
+        if (typeof updateMasterBotUI === 'function') updateMasterBotUI();
+        return { success: true };
+      })()`, 6000);
+    }));
+    logTask(`🛑 สั่งหยุดบอทครบ ${involvedProfiles.length} จอเรียบร้อย`, 'info');
+    await new Promise(r => setTimeout(r, 450));
+
+    // -------------------------------------------------------------
+    // STEP 2: ทยอยกด Butterfly Wing กลับบ้าน (โซลเฮเวน)
+    // -------------------------------------------------------------
+    if (isTaskAborted()) throw new Error('ผู้ใช้ยกเลิกการรวมเงิน');
+    setTaskStep(2, `${ipGroupBadgeText ? ipGroupBadgeText + ' · ' : ''}วาร์ปกลับเมืองหลวง (โซลเฮเวน) ด้วย Butterfly Wing...`);
+    logTask('🦋 ขั้นตอนที่ 2/5: สั่งกด Butterfly Wing / เดินทางกลับเมืองหลวงโซลเฮเวน...', 'info');
+
+    const triggerBwingOnProfile = (p) => evalProfilePort(p.debugPort, `(() => {
+      window.__consolidationAborted = false;
+      window.__isConsolidating = true;
+      window.__isBotRunning = false;
+      window.__autoLoopEnabled = false;
+      window.__isWalkingToMap = false;
+      window.__isNavigating = false;
+      window.__goHomeWingAt = 0;
+      window.__goHomeWingFails = 0;
+      try {
+        const room = typeof window.getGameRoom === 'function' ? window.getGameRoom() : null;
+        if (typeof window.sendAutoSetPacket === 'function') window.sendAutoSetPacket(false);
+        else if (room && typeof room.send === 'function') room.send('auto_set', { enabled: false });
+        if (room && typeof room.send === 'function') {
+          room.send('target', { targetId: null });
+          const me = room.state && room.state.players && room.state.players.get ? room.state.players.get(room.sessionId) : null;
+          if (me && Number.isFinite(me.x) && Number.isFinite(me.y)) {
+            room.send('move_to', { x: Math.round(me.x), y: Math.round(me.y) });
+          }
+        }
+      } catch (e) {}
+      if (typeof window.keepFarmMapForTrip === 'function') window.keepFarmMapForTrip();
+      if (typeof window.isInCapital === 'function' && window.isInCapital()) {
+        return { success: true, alreadyInCapital: true };
+      }
+      if (typeof window.executeBwingHome === 'function') {
+        Promise.resolve(window.executeBwingHome(12000)).catch(() => {});
+      } else if (typeof window.useButterflyWing === 'function') {
+        window.useButterflyWing();
+      } else if (typeof window.goToCapital === 'function') {
+        window.goToCapital('รวมเงิน', { allowDuringConsolidation: true });
+      }
+      return { success: true };
+    })()`, 6000);
+
+    await Promise.all(involvedProfiles.map(async (p, idx) => {
+      if (isTaskAborted()) return;
+      if (idx > 0) await new Promise(r => setTimeout(r, idx * 120));
+      await triggerBwingOnProfile(p);
+    }));
+
+    logTask('⏳ รอตัวละครโหลดเข้าสู่เมืองหลวง (2.5 วินาที)...', 'info');
+    await new Promise(r => setTimeout(r, 2500));
+
+    // Second Butterfly Wing pulse for any character that was interrupted by monster attack / animation on first pulse
+    await Promise.all(involvedProfiles.map(async (p) => {
+      if (isTaskAborted()) return;
+      await evalProfilePort(p.debugPort, `(() => {
+        if (typeof window.isInCapital === 'function' && window.isInCapital()) return { inCap: true };
+        const wings = typeof window.getBagItemCount === 'function' ? window.getBagItemCount(90311) : 0;
+        if (wings > 0 && typeof window.useButterflyWing === 'function') {
+          window.useButterflyWing();
+          return { retriedWing: true };
+        }
+        return { inCap: false };
+      })()`, 5000).catch(() => {});
+    }));
+    await new Promise(r => setTimeout(r, 1500));
+
+    // Kick off ensureInCapital in the background for all senders right at Step 2 so senders with 0 Butterfly Wings start walking via World Map immediately in parallel!
+    const senderHomePromises = new Map();
+    for (const s of senderProfiles) {
+      senderHomePromises.set(s.id, evalProfilePort(s.debugPort, `(() => {
+        window.__consolidationAborted = false;
+        window.__isConsolidating = true;
+        window.__isBotRunning = false;
+        window.__autoLoopEnabled = false;
+        return window.ensureInCapital ? window.ensureInCapital(180000) : { success: true };
+      })()`, 190000).catch(() => null));
+    }
+
+    // The receiver must be in the capital before it changes channel (no Butterfly Wing: it walks home first)
+    const recvInCapCheck = await evalProfilePort(receiverProfile.debugPort, `window.isInCapital ? window.isInCapital() : true`, 5000);
+    if (recvInCapCheck && recvInCapCheck.result === false) {
+      logTask(`🗺️ ตัวรับเงิน (${receiverProfile.name}) ยังไม่ถึงเมืองหลวง — กำลังรอให้เดินถึงเมืองหลวง...`, 'info');
+      setTaskStep(2, `${ipGroupBadgeText ? ipGroupBadgeText + ' · ' : ''}รอตัวรับเงิน (${receiverProfile.name}) เดินทางถึงเมืองหลวง...`);
+    }
+    let recvHome = await evalProfilePort(receiverProfile.debugPort, `(() => {
+      window.__consolidationAborted = false;
+      window.__isConsolidating = true;
+      return window.ensureInCapital ? window.ensureInCapital(240000) : { success: true };
+    })()`, 250000);
+    if (!(recvHome && recvHome.result && recvHome.result.success) && !(recvHome && recvHome.result && recvHome.result.reconnecting) && !isTaskAborted()) {
+      await triggerBwingOnProfile(receiverProfile);
+      await new Promise(r => setTimeout(r, 1500));
+      recvHome = await evalProfilePort(receiverProfile.debugPort, `window.ensureInCapital ? window.ensureInCapital(180000) : { success: true }`, 190000);
+    }
+    if (!(recvHome && recvHome.result && recvHome.result.success)) {
+      const recvErr = (recvHome && recvHome.result && recvHome.result.error) || (recvHome && recvHome.error) || 'ไม่ทราบสาเหตุ';
+      throw new Error(`ตัวรับเงิน (${receiverProfile.name}) ไปไม่ถึงเมืองหลวง: ${recvErr}`);
+    }
+
+    // If tradeItemsEnabled, have the Receiver also sell trash & deposit any current matching items to free bag space before receiving trades
+    if (tradeItemsEnabled) {
+      logTask(`🧹 ตัวรับเงิน (${receiverProfile.name}): แวะขายขยะและเคลียร์น้ำหนักกระเป๋าเตรียมรับไอเทม...`, 'info');
+      await evalProfilePort(receiverProfile.debugPort, `window.runConsolidationQuickSellTrash ? window.runConsolidationQuickSellTrash(25000) : null`, 30000);
+      const recvInitDeposit = await evalProfilePort(receiverProfile.debugPort, `(async () => {
+        const list = ${JSON.stringify(tradeItemsList)};
+        const m = typeof window.getConsolidationMatchingBagItems === 'function' ? window.getConsolidationMatchingBagItems(list) : { totalQty: 0 };
+        if (m.totalQty > 0 && typeof window.depositConsolidationItemsToStorage === 'function') {
+          return await window.depositConsolidationItemsToStorage(list);
+        }
+        return { success: true, depositedQty: 0 };
+      })()`, 30000);
+      if (recvInitDeposit?.result?.depositedQty > 0) {
+        logTask(`📥 ตัวรับเงิน (${receiverProfile.name}) เก็บไอเทมเดิมในกระเป๋าเข้าคลังแล้ว ${recvInitDeposit.result.depositedQty} ชิ้น`, 'info');
+      }
+    }
+
+    // -------------------------------------------------------------
+    // STEP 3: ตัวรับเงินหา Channel ที่คนน้อยสุด (และไม่ชนกับวง IP อื่นที่กำลังเทรดอยู่) และย้ายไป Channel นั้น
+    // -------------------------------------------------------------
+    if (isTaskAborted()) throw new Error('ผู้ใช้ยกเลิกการรวมเงิน');
+    setTaskStep(3, `${ipGroupBadgeText ? ipGroupBadgeText + ' · ' : ''}ตัวรับเงินกำลังค้นหา Channel คนน้อยสุด (แยกแชนเนลไม่ให้ชนวงอื่น)...`);
+    logTask(`🔍 ขั้นตอนที่ 3/5: ตัวรับเงิน (${receiverProfile.name}) กำลังสแกนหา Channel ที่คนน้อยสุดและไม่ชนกับวงอื่น...`, 'info');
+
+    let targetChannel = 1;
+    const otherReservedChannels = [];
+    for (const [ch, tid] of activeConsolidationChannels.entries()) {
+      if (tid !== taskId) otherReservedChannels.push(ch);
+    }
+
+    const chFindRes = await evalProfilePort(receiverProfile.debugPort, `
+      (async () => {
+        const reserved = ${JSON.stringify(otherReservedChannels)};
+        if (typeof window.getChannelsList === 'function') {
+          const list = await window.getChannelsList(4000);
+          if (Array.isArray(list) && list.length > 0) {
+            const safe = list
+              .filter(c => c && typeof c.channel === 'number' && c.channel > 0 && !c.locked && (c.players || 0) < ((c.maxPlayers || 80) - 5))
+              .sort((a, b) => (a.players || 0) - (b.players || 0));
+            const unreserved = safe.find(c => !reserved.includes(c.channel));
+            if (unreserved) return unreserved.channel;
+            if (safe[0]) return safe[0].channel;
+          }
+        }
+        if (typeof window.findLeastPopulatedChannel === 'function') {
+          return await window.findLeastPopulatedChannel();
+        }
+        return null;
+      })()
+    `, 6500);
+
+    if (chFindRes && typeof chFindRes.result === 'number' && chFindRes.result > 0) {
+      targetChannel = chFindRes.result;
+      activeConsolidationChannels.set(targetChannel, taskId);
+      task.targetChannel = targetChannel;
+      syncConsolidationGlobalState();
+      logTask(`📊 สแกน Channel สำเร็จ: เลือก CH ${targetChannel} (คนน้อยและไม่ชนกับวง IP อื่น)!`, 'success');
+    } else {
+      const curChRes = await evalProfilePort(receiverProfile.debugPort, `
+        window.getCurrentChannel ? window.getCurrentChannel() : 1
+      `);
+      targetChannel = (curChRes && typeof curChRes.result === 'number') ? curChRes.result : 1;
+      activeConsolidationChannels.set(targetChannel, taskId);
+      task.targetChannel = targetChannel;
+      syncConsolidationGlobalState();
+      logTask(`ℹ️ ใช้ Channel ปัจจุบันของตัวรับเงิน: CH ${targetChannel}`, 'info');
+    }
+
+    logTask(`👑 ตัวรับเงิน (${receiverProfile.name}) กำลังเปลี่ยนไป Channel ${targetChannel}...`, 'info');
+    await evalProfilePort(receiverProfile.debugPort, `
+      window.moveToChannel ? window.moveToChannel(${targetChannel}, 35000) : (window.switchChannel ? window.switchChannel(${targetChannel}) : null)
+    `, 40000);
+    await new Promise(r => setTimeout(r, 1500));
+    const recvCh = await evalProfilePort(receiverProfile.debugPort, `window.getCurrentChannel ? window.getCurrentChannel() : null`, 5000);
+    if (recvCh && typeof recvCh.result === 'number' && recvCh.result > 0) {
+      if (recvCh.result !== targetChannel) {
+        logTask(`ℹ️ ตัวรับเงินย้ายไป CH ${targetChannel} ไม่ได้ ยังอยู่ CH ${recvCh.result} -> ให้จอรองมาที่ CH ${recvCh.result}`, 'warning');
+        if (activeConsolidationChannels.get(targetChannel) === taskId) activeConsolidationChannels.delete(targetChannel);
+      }
+      targetChannel = recvCh.result;
+      activeConsolidationChannels.set(targetChannel, taskId);
+      task.targetChannel = targetChannel;
+      syncConsolidationGlobalState();
+    }
+    logTask(`📍 ตัวรับเงินประจำอยู่ที่ CH ${targetChannel}`, 'info');
+
+    // -------------------------------------------------------------
+    // STEP 4: จอรองทยอยย้าย Channel ตามมาทีละจอ และเรียงคิวเทรดเงิน/ไอเทมให้ตัวหลัก
+    // -------------------------------------------------------------
+    if (isTaskAborted()) throw new Error('ผู้ใช้ยกเลิกการรวมเงิน');
+    setTaskStep(4, `${ipGroupBadgeText ? ipGroupBadgeText + ' · ' : ''}จอรองทยอยวาร์ปมา CH ${targetChannel} และเรียงคิวเทรด${tradeItemsEnabled ? 'เงิน + ไอเทม' : 'เงิน'}...`);
+    logTask(`🤝 ขั้นตอนที่ 4/5: เริ่มเรียงคิวจอรอง (${senderProfiles.length} จอ) เทรด${tradeItemsEnabled ? 'เงินและไอเทม (' + tradeItemsList.join(', ') + ')' : 'เงิน'}ให้ตัวหลักที่ CH ${targetChannel}...`, 'info');
+
+    const receiverLive = await queryClientState(receiverProfile.debugPort);
+    const receiverCharName = receiverLive?.charName || receiverProfile.name;
+    task.receiverName = receiverCharName;
+
+    const SENDER_SLOTS = 2;
+    const restarted = new Set();
+    const queue = [];
+    for (const s of senderProfiles) {
+      const live = await queryClientState(s.debugPort);
+      const charName = live?.charName || s.name;
+      const zeny = (live && typeof live.zeny === 'number') ? live.zeny : 0;
+      if (!tradeItemsEnabled && calcSenderTransferZeny(zeny) <= 0) {
+        logTask(`⏭️ จอ ${s.name} (${charName}) มีเงิน ${zeny.toLocaleString()} z (ไม่พอโอนหรือติดเก็บสำรอง) -> ข้ามและปล่อยกลับไปฟาร์ม`, 'warning');
+        activeConsolidationProfiles.delete(s.id);
+        markSenderCompleted(s.id);
+        await evalProfilePort(s.debugPort, `(() => {
+          window.__consolidationAborted = true; window.__isConsolidating = false; window.__consolidationPending = false; window.__isWalkingToMap = false; window.__isNavigating = false;
+          if (typeof window.restoreKeptFarmMap === 'function') window.restoreKeptFarmMap();
+          window.__autoLoopEnabled = true; window.__isBotRunning = true;
+          try { localStorage.setItem('pelican_auto_loop', 'true'); localStorage.setItem('pelican_bot_running', 'true'); } catch(e){}
+          const cb = document.getElementById('p-auto-loop'); if (cb) cb.checked = true;
+          if (typeof window.startMasterBot === 'function') window.startMasterBot(); else if (typeof window.startBot === 'function') window.startBot();
+          return { success: true };
+        })()`, 4000).catch(() => {});
+        restarted.add(s.id);
+        continue;
+      }
+      queue.push(s);
+    }
+    const startBotJs = `(() => {
+      window.__consolidationAborted = true; window.__isConsolidating = false; window.__consolidationPending = false; window.__isWalkingToMap = false; window.__isNavigating = false;
+      if (typeof window.restoreKeptFarmMap === 'function') window.restoreKeptFarmMap();
+      window.__autoLoopEnabled = true; window.__isBotRunning = true;
+      try { localStorage.setItem('pelican_auto_loop', 'true'); localStorage.setItem('pelican_bot_running', 'true'); } catch(e){}
+      const cb = document.getElementById('p-auto-loop'); if (cb) cb.checked = true;
+      if (typeof window.startMasterBot === 'function') window.startMasterBot(); else if (typeof window.startBot === 'function') window.startBot();
+      if (typeof updateMasterBotUI === 'function') updateMasterBotUI();
+      return { success: true };
+    })()`;
+    let consolidationEarlyStop = false;
+    let premiumActivated = false;
+
+    const prepareSender = async (s) => {
+      if (isTaskAborted() || consolidationEarlyStop) return { ok: false, homeChannel: null, earlyStop: true };
+      const sStatus = await evalProfilePort(s.debugPort, `(() => {
+        const reconnEl = document.querySelector('.login-reconnecting, .panel.reconnecting');
+        const bodyTxt = document.body ? (document.body.innerText || '') : '';
+        const reconnecting = Boolean(
+          (reconnEl && (reconnEl.offsetWidth > 0 || reconnEl.offsetHeight > 0)) ||
+          bodyTxt.includes('กำลังเชื่อมต่อใหม่')
+        );
+        const inCap = typeof window.isInCapital === 'function' ? window.isInCapital() : true;
+        return { reconnecting, inCap };
+      })()`, 5000);
+      if (!sStatus || !sStatus.success || (sStatus.result && sStatus.result.reconnecting)) {
+        return { ok: false, homeChannel: null, error: 'จอค้างหน้า "กำลังเชื่อมต่อใหม่..." หรือไม่ตอบสนอง' };
+      }
+      if (sStatus.result && sStatus.result.inCap === false) {
+        logTask(`🗺️ จอ ${s.name} ยังไม่ถึงเมืองหลวง (กำลังเดินทางกลับเมืองหลวง)...`, 'info');
+      }
+      let home = senderHomePromises.has(s.id) ? await senderHomePromises.get(s.id) : null;
+      if (!(home && home.result && home.result.success) && !(home && home.result && home.result.reconnecting) && !isTaskAborted() && !consolidationEarlyStop) {
+        home = await evalProfilePort(s.debugPort, `(() => {
+          window.__consolidationAborted = false;
+          window.__isConsolidating = true;
+          window.__isBotRunning = false;
+          window.__autoLoopEnabled = false;
+          return window.ensureInCapital ? window.ensureInCapital(180000) : { success: true };
+        })()`, 190000);
+      }
+      if (!(home && home.result && home.result.success) && !(home && home.result && home.result.reconnecting) && !isTaskAborted() && !consolidationEarlyStop) {
+        await triggerBwingOnProfile(s);
+        await new Promise(r => setTimeout(r, 1500));
+        home = await evalProfilePort(s.debugPort, `window.ensureInCapital ? window.ensureInCapital(120000) : { success: true }`, 130000);
+      }
+      if (!(home && home.result && home.result.success)) {
+        const errDetail = (home && home.result && home.result.error) || (home && home.error) || 'ไม่ทราบสาเหตุ';
+        return { ok: false, homeChannel: null, error: `ยังไม่ถึงเมืองหลวง: ${errDetail}` };
+      }
+      const fromCh = await evalProfilePort(s.debugPort, `window.getCurrentChannel ? window.getCurrentChannel() : null`, 5000);
+      const homeChannel = (fromCh && typeof fromCh.result === 'number') ? fromCh.result : null;
+      if (isTaskAborted() || consolidationEarlyStop) return { ok: false, homeChannel, earlyStop: true };
+
+      let bagMatchingQty = 0;
+      let bagMatchingWeight = 0;
+      if (tradeItemsEnabled) {
+        const sellRes = await evalProfilePort(s.debugPort, `window.runConsolidationQuickSellTrash ? window.runConsolidationQuickSellTrash(28000) : { success: false }`, 32000);
+        if (sellRes?.result?.sold) {
+          logTask(`🧹 จอ ${s.name}: แวะขายขยะเคลียร์กระเป๋าแล้ว (น้ำหนัก ${sellRes.result.weight}/${sellRes.result.weightLimit})`, 'info');
+        }
+        logTask(`📦 จอ ${s.name}: เปิดคลังเบิกไอเทม (${tradeItemsList.join(', ')})...`, 'info');
+        const wdRes = await evalProfilePort(
+          s.debugPort,
+          `window.withdrawConsolidationItemsFromStorage ? window.withdrawConsolidationItemsFromStorage(${JSON.stringify(tradeItemsList)}) : { success: false, error: 'No withdraw helper' }`,
+          40000
+        );
+        const wd = wdRes?.result || {};
+        if (wd.success === false) {
+          logTask(`⚠️ จอ ${s.name}: เบิกไอเทมจากคลังไม่สำเร็จ (${wd.error || 'ไม่ทราบสาเหตุ'})`, 'warning');
+          const fallbackBag = await evalProfilePort(
+            s.debugPort,
+            `window.getConsolidationMatchingBagItems ? window.getConsolidationMatchingBagItems(${JSON.stringify(tradeItemsList)}) : { totalQty: 0, totalWeight: 0 }`,
+            4000
+          );
+          bagMatchingQty = Number(fallbackBag?.result?.totalQty) || 0;
+          bagMatchingWeight = Number(fallbackBag?.result?.totalWeight) || 0;
+        } else {
+          bagMatchingQty = Number(wd.bagMatchingQty) || 0;
+          bagMatchingWeight = Number(wd.bagMatchingWeight) || 0;
+        }
+        if (wd.withdrawnQty > 0) {
+          logTask(`📦 จอ ${s.name}: เบิกไอเทมจากคลังสำเร็จ +${wd.withdrawnQty} ชิ้น (รวมในกระเป๋า ${bagMatchingQty} ชิ้น, น้ำหนัก ${wd.weight}/${wd.weightLimit})`, 'success');
+        } else if (bagMatchingQty > 0) {
+          logTask(`🎒 จอ ${s.name}: มีไอเทมในกระเป๋าพร้อมเทรด ${bagMatchingQty} ชิ้น (ไม่มีเพิ่มในคลัง)`, 'info');
+        } else if (wd.success !== false) {
+          logTask(`ℹ️ จอ ${s.name}: ไม่มีไอเทม (${tradeItemsList.join(', ')}) ในคลังหรือในกระเป๋า`, 'info');
+        }
+
+        const sLiveNow = await queryClientState(s.debugPort);
+        const zenyNow = (sLiveNow && typeof sLiveNow.zeny === 'number') ? sLiveNow.zeny : 0;
+        if (calcSenderTransferZeny(zenyNow) <= 0 && bagMatchingQty <= 0) {
+          return { ok: true, nothingToTrade: true, homeChannel, bagMatchingQty: 0, bagMatchingWeight: 0 };
+        }
+      }
+
+      if (isTaskAborted() || consolidationEarlyStop) return { ok: false, homeChannel, earlyStop: true };
+      logTask(`🔄 จอ ${s.name} เตรียมย้ายไป CH ${targetChannel}...`, 'info');
+      const mv = await evalProfilePort(s.debugPort, `window.moveToChannel ? window.moveToChannel(${targetChannel}, 38000) : (window.switchChannel ? window.switchChannel(${targetChannel}) : null)`, 42000);
+      const there = mv && mv.result && mv.result.success;
+      if (!there) {
+        // Do NOT fail/skip here: defer channel alignment to live sync when it's this sender's actual turn!
+        logTask(`ℹ️ จอ ${s.name} ยังย้ายไป CH ${targetChannel} ล่วงหน้าไม่ได้ (${(mv && mv.result && mv.result.error) || 'ติดคูลดาวน์/เต็ม'}) — จะซิงค์แชนเนลให้อีกครั้งเมื่อถึงคิวเทรดจริง`, 'info');
+        return { ok: true, channelSwitchDeferred: true, homeChannel, bagMatchingQty, bagMatchingWeight };
+      }
+      if (isTaskAborted() || consolidationEarlyStop) return { ok: false, homeChannel, earlyStop: true };
+      await new Promise(r => setTimeout(r, 1200));
+      if (isTaskAborted() || consolidationEarlyStop) return { ok: false, homeChannel, earlyStop: true };
+      const rPosRes = await evalProfilePort(receiverProfile.debugPort, `(() => {
+        const r = typeof window.getGameRoom === 'function' ? window.getGameRoom() : null;
+        const me = r && r.state && r.state.players && r.state.players.get ? r.state.players.get(r.sessionId) : null;
+        return me && Number.isFinite(me.x) && Number.isFinite(me.y) ? { x: Math.round(me.x), y: Math.round(me.y) } : { x: 1664, y: 1968 };
+      })()`, 4000);
+      const recvPos = (rPosRes && rPosRes.result && Number.isFinite(rPosRes.result.x)) ? rPosRes.result : { x: 1664, y: 1968 };
+      // Quick prefetch walk (max 9s) so we never hang 45s on stale coordinates before our turn
+      await evalProfilePort(s.debugPort, `(async () => {
+        if (typeof window.closeShopUI === 'function') window.closeShopUI();
+        if (typeof window.sendNpcClose === 'function') window.sendNpcClose();
+        const want = ${JSON.stringify(receiverCharName)}.trim().toLowerCase();
+        const hintX = ${recvPos.x}, hintY = ${recvPos.y}, nearPx = 92, maxMs = 9000;
+        const start = Date.now();
+        let lastSend = 0;
+        while (Date.now() - start < maxMs) {
+          const room = typeof window.getGameRoom === 'function' ? window.getGameRoom() : null;
+          const players = room && room.state && room.state.players;
+          const me = players && players.get ? players.get(room.sessionId) : null;
+          let target = null;
+          if (players && players.forEach) players.forEach(p => { if (!target && p && String(p.name || '').trim().toLowerCase() === want) target = p; });
+          if (me && target) {
+            const dist = Math.hypot((me.x || 0) - (target.x || 0), (me.y || 0) - (target.y || 0));
+            if (dist <= nearPx) return { success: true, distance: Math.round(dist) };
+            if (Date.now() - lastSend > 1800) {
+              lastSend = Date.now();
+              room.send('move_to', { x: target.x, y: target.y });
+            }
+          } else if (me && Number.isFinite(hintX) && Number.isFinite(hintY)) {
+            const distHint = Math.hypot((me.x || 0) - hintX, (me.y || 0) - hintY);
+            if (distHint <= nearPx) return { success: true, reachedHint: true };
+            if (Date.now() - lastSend > 1800) {
+              lastSend = Date.now();
+              room.send('move_to', { x: hintX, y: hintY });
+            }
+          }
+          await new Promise(r => setTimeout(r, 400));
+        }
+        return { success: true };
+      })()`, 12000).catch(() => {});
+      return { ok: true, homeChannel, bagMatchingQty, bagMatchingWeight };
+    };
+
+    // Live Channel & Proximity Sync right before trade (and before retry attempt 2)
+    const syncSenderAndReceiverForTrade = async (s, sCharName) => {
+      // 1. Ensure both are in Capital and all dialogs closed
+      await Promise.all([
+        evalProfilePort(receiverProfile.debugPort, `window.ensureInCapital ? window.ensureInCapital(40000) : { success: true }`, 45000),
+        evalProfilePort(s.debugPort, `window.ensureInCapital ? window.ensureInCapital(40000) : { success: true }`, 45000)
+      ]);
+      // 2. Check live channels of Receiver and Sender
+      const [rChRes, sChRes] = await Promise.all([
+        evalProfilePort(receiverProfile.debugPort, `window.getCurrentChannel ? window.getCurrentChannel() : null`, 4000),
+        evalProfilePort(s.debugPort, `window.getCurrentChannel ? window.getCurrentChannel() : null`, 4000)
+      ]);
+      let rCh = (rChRes && typeof rChRes.result === 'number' && rChRes.result > 0) ? rChRes.result : targetChannel;
+      let sCh = (sChRes && typeof sChRes.result === 'number' && sChRes.result > 0) ? sChRes.result : null;
+      targetChannel = rCh;
+      task.targetChannel = rCh;
+
+      if (sCh !== rCh) {
+        logTask(`🔄 ซิงค์แชนเนล: ย้ายจอ ${s.name} (CH ${sCh || '?'}) มาหาตัวรับที่ CH ${rCh}...`, 'info');
+        const mvSender = await evalProfilePort(s.debugPort, `window.moveToChannel ? window.moveToChannel(${rCh}, 35000) : null`, 40000);
+        const sChAfterRes = await evalProfilePort(s.debugPort, `window.getCurrentChannel ? window.getCurrentChannel() : null`, 4000);
+        sCh = (sChAfterRes && typeof sChAfterRes.result === 'number' && sChAfterRes.result > 0) ? sChAfterRes.result : sCh;
+        if (sCh !== rCh && sCh && sCh > 0) {
+          logTask(`🔄 CH ${rCh} เข้าไม่ได้ (${mvSender?.result?.error || 'เต็ม/คูลดาวน์'}) -> ย้ายตัวรับเงิน (${receiverCharName}) ไปหาที่ CH ${sCh} แทน!`, 'warning');
+          await evalProfilePort(receiverProfile.debugPort, `window.moveToChannel ? window.moveToChannel(${sCh}, 35000) : null`, 40000);
+          await new Promise(r => setTimeout(r, 1500));
+          const rChAfterRes = await evalProfilePort(receiverProfile.debugPort, `window.getCurrentChannel ? window.getCurrentChannel() : null`, 4000);
+          if (rChAfterRes && typeof rChAfterRes.result === 'number' && rChAfterRes.result > 0) {
+            if (activeConsolidationChannels.get(targetChannel) === taskId) activeConsolidationChannels.delete(targetChannel);
+            rCh = rChAfterRes.result;
+            targetChannel = rCh;
+            task.targetChannel = rCh;
+            activeConsolidationChannels.set(targetChannel, taskId);
+            syncConsolidationGlobalState();
+          }
+        }
+      }
+
+      // 3. Walk Sender and Receiver within trade range (<= 88px / < 3 tiles)
+      const rPosRes = await evalProfilePort(receiverProfile.debugPort, `(() => {
+        if (typeof window.closeShopUI === 'function') window.closeShopUI();
+        if (typeof window.sendNpcClose === 'function') window.sendNpcClose();
+        const r = typeof window.getGameRoom === 'function' ? window.getGameRoom() : null;
+        const me = r && r.state && r.state.players && r.state.players.get ? r.state.players.get(r.sessionId) : null;
+        return me && Number.isFinite(me.x) && Number.isFinite(me.y) ? { x: Math.round(me.x), y: Math.round(me.y) } : { x: 1664, y: 1968 };
+      })()`, 4000);
+      const recvPos = (rPosRes && rPosRes.result && Number.isFinite(rPosRes.result.x)) ? rPosRes.result : { x: 1664, y: 1968 };
+
+      const walkRes = await evalProfilePort(s.debugPort, `(async () => {
+        if (typeof window.closeShopUI === 'function') window.closeShopUI();
+        if (typeof window.sendNpcClose === 'function') window.sendNpcClose();
+        const want = ${JSON.stringify(receiverCharName)}.trim().toLowerCase();
+        const hintX = ${recvPos.x}, hintY = ${recvPos.y}, nearPx = 88, maxMs = 14000;
+        const start = Date.now();
+        let lastSend = 0, seen = false, lastDist = 9999;
+        while (Date.now() - start < maxMs) {
+          const room = typeof window.getGameRoom === 'function' ? window.getGameRoom() : null;
+          const players = room && room.state && room.state.players;
+          const me = players && players.get ? players.get(room.sessionId) : null;
+          let target = null;
+          if (players && players.forEach) players.forEach(p => { if (!target && p && String(p.name || '').trim().toLowerCase() === want) target = p; });
+          if (me && target) {
+            seen = true;
+            const dist = Math.hypot((me.x || 0) - (target.x || 0), (me.y || 0) - (target.y || 0));
+            lastDist = Math.round(dist);
+            if (dist <= nearPx) return { success: true, distance: lastDist, seen: true };
+            if (Date.now() - lastSend > 1500) {
+              lastSend = Date.now();
+              room.send('move_to', { x: target.x, y: target.y });
+            }
+          } else if (me && Number.isFinite(hintX) && Number.isFinite(hintY)) {
+            const distHint = Math.hypot((me.x || 0) - hintX, (me.y || 0) - hintY);
+            lastDist = Math.round(distHint);
+            if (Date.now() - lastSend > 1500) {
+              lastSend = Date.now();
+              room.send('move_to', { x: hintX, y: hintY });
+            }
+          }
+          await new Promise(r => setTimeout(r, 350));
+        }
+        return { success: false, seen, distance: lastDist };
+      })()`, 17000);
+
+      // If still not within 88px, have Receiver also step toward Sender so they meet!
+      if (!(walkRes && walkRes.result && walkRes.result.success)) {
+        await evalProfilePort(receiverProfile.debugPort, `(async () => {
+          const want = ${JSON.stringify(sCharName)}.trim().toLowerCase();
+          const room = typeof window.getGameRoom === 'function' ? window.getGameRoom() : null;
+          const players = room && room.state && room.state.players;
+          const me = players && players.get ? players.get(room.sessionId) : null;
+          let target = null;
+          if (players && players.forEach) players.forEach(p => { if (!target && p && String(p.name || '').trim().toLowerCase() === want) target = p; });
+          if (me && target) {
+            const dist = Math.hypot((me.x || 0) - (target.x || 0), (me.y || 0) - (target.y || 0));
+            if (dist > 80) {
+              room.send('move_to', { x: target.x, y: target.y });
+              await new Promise(r => setTimeout(r, 1800));
+            }
+          }
+          return true;
+        })()`, 4000).catch(() => {});
+      }
+    };
+
+    // Release sender immediately to start its bot and walk/warp out of Capital back to its farm map without blocking the queue for 60s
+    const releaseSender = async (s, homeChannel) => {
+      activeConsolidationProfiles.delete(s.id);
+      syncConsolidationGlobalState();
+      await evalProfilePort(s.debugPort, startBotJs, 5000).catch(() => {});
+      restarted.add(s.id);
+      logTask(`▶️ จอ ${s.name} เริ่มบอทเดินทางกลับไปฟาร์มทันที`, 'success');
+      if (homeChannel && homeChannel !== targetChannel) {
+        // Non-blocking background channel restore if character stays in same map
+        setTimeout(() => {
+          evalProfilePort(s.debugPort, `(() => {
+            if (!window.__isConsolidating && typeof window.isInCapital === 'function' && !window.isInCapital() && typeof window.moveToChannel === 'function') {
+              window.moveToChannel(${homeChannel}, 25000);
+            }
+          })()`, 4000).catch(() => {});
+        }, 12000);
+      }
+    };
+
+    // Helper: check Receiver bag weight and deposit matching items to Receiver's storage if needed
+    const ensureReceiverWeightReady = async (incomingWeight = 0) => {
+      if (!tradeItemsEnabled) return Infinity;
+      const rStat = await evalProfilePort(receiverProfile.debugPort, `(() => {
+        const inv = (typeof window.__readAuthoritativeBagInventory === 'function' ? window.__readAuthoritativeBagInventory() : window.__latestInventory) || {};
+        const live = (typeof window.getLiveCharacterData === 'function' && window.getLiveCharacterData()) || {};
+        const room = (typeof window.getGameRoom === 'function') ? window.getGameRoom() : null;
+        const me = room && room.state && room.state.players && room.state.players.get ? room.state.players.get(room.sessionId) : null;
+        const pos = (me && Number.isFinite(me.x) && Number.isFinite(me.y)) ? { x: Number(me.x), y: Number(me.y) } : null;
+        const m = (typeof window.getConsolidationMatchingBagItems === 'function')
+          ? window.getConsolidationMatchingBagItems(${JSON.stringify(tradeItemsList)})
+          : { totalQty: 0, totalWeight: 0 };
+        return {
+          weight: Number(inv.weight ?? live.weight) || 0,
+          weightLimit: Number(inv.weightLimit ?? live.weightLimit) || 2000,
+          matchingQty: m.totalQty,
+          pos
+        };
+      })()`, 5000);
+      const st = rStat?.result || { weight: 0, weightLimit: 2000, matchingQty: 0, pos: null };
+      const avail = Math.max(0, st.weightLimit - st.weight - 25);
+      const heavyRatio = st.weightLimit > 0 ? (st.weight / st.weightLimit) : 0;
+      if (st.matchingQty > 0 && (heavyRatio >= 0.65 || incomingWeight > avail)) {
+        logTask(`📥 กระเป๋าตัวรับเงิน (${receiverCharName}) เริ่มหนัก (${st.weight}/${st.weightLimit}) -> เดินไปฝากไอเทมเข้าคลังก่อนรับเทรด...`, 'info');
+        const dep = await evalProfilePort(
+          receiverProfile.debugPort,
+          `window.depositConsolidationItemsToStorage ? window.depositConsolidationItemsToStorage(${JSON.stringify(tradeItemsList)}, ${JSON.stringify(st.pos)}) : { success: false }`,
+          35000
+        );
+        if (dep?.result?.success) {
+          logTask(`✅ ตัวรับเงินฝากไอเทมเข้าคลังแล้ว ${dep.result.depositedQty} ชิ้น (น้ำหนักเหลือ ${dep.result.weight}/${dep.result.weightLimit})`, 'success');
+          return Math.max(0, (Number(dep.result.weightLimit) || 2000) - (Number(dep.result.weight) || 0) - 25);
+        }
+      }
+      return avail;
+    };
+
+    const prep = new Map();
+    const startPrep = (s) => { if (s && !prep.has(s.id) && !consolidationEarlyStop) prep.set(s.id, prepareSender(s).catch(e => ({ ok: false, error: e.message }))); };
+    queue.slice(0, SENDER_SLOTS).forEach(startPrep);
+
+    for (let i = 0; i < queue.length; i++) {
+      if (isTaskAborted()) throw new Error('ผู้ใช้ยกเลิกการรวมเงิน');
+      if (consolidationEarlyStop) break;
+      const sender = queue[i];
+      task.currentSender = sender.name;
+      setTaskStep(4, `${ipGroupBadgeText ? ipGroupBadgeText + ' · ' : ''}กำลังเทรดลำดับที่ ${i + 1}/${queue.length}: ${sender.name} -> ${receiverProfile.name} (CH ${targetChannel})...`);
+      logTask(`----------------------------------------`, 'info');
+      logTask(`▶️ ลำดับที่ ${i + 1}/${queue.length}: จอ ${sender.name}...`, 'info');
+      startPrep(sender);
+      const ready = await prep.get(sender.id);
+      if (consolidationEarlyStop || (ready && ready.earlyStop)) {
+        await releaseSender(sender, ready && ready.homeChannel);
+        break;
+      }
+
+      const senderLive = await queryClientState(sender.debugPort);
+      const senderCharName = senderLive?.charName || sender.name;
+      const curZeny = (senderLive && typeof senderLive.zeny === 'number') ? senderLive.zeny : 0;
+      const zenyToTransfer = calcSenderTransferZeny(curZeny);
+
+      if (ready && ready.nothingToTrade) {
+        logTask(`⏭️ จอ ${sender.name} (${senderCharName}): ไม่มีเงินเกินสำรองและไม่มีไอเทมในคลัง/กระเป๋า -> ข้ามและกลับไปฟาร์ม`, 'warning');
+        markSenderCompleted(sender.id);
+        await releaseSender(sender, ready.homeChannel);
+        startPrep(queue[i + SENDER_SLOTS]);
+        continue;
+      }
+
+      let senderItemsQty = Number(ready && ready.bagMatchingQty) || 0;
+      let senderItemsWeight = Number(ready && ready.bagMatchingWeight) || 0;
+      if (tradeItemsEnabled) {
+        const bagCheck = await evalProfilePort(
+          sender.debugPort,
+          `window.getConsolidationMatchingBagItems ? window.getConsolidationMatchingBagItems(${JSON.stringify(tradeItemsList)}) : { totalQty: 0, totalWeight: 0 }`,
+          4000
+        );
+        if (bagCheck?.result) {
+          senderItemsQty = Number(bagCheck.result.totalQty) || 0;
+          senderItemsWeight = Number(bagCheck.result.totalWeight) || 0;
+        }
+      }
+
+      if (!ready || !ready.ok || (zenyToTransfer <= 0 && senderItemsQty <= 0)) {
+        logTask(`⚠️ จอ ${sender.name}: ${(ready && ready.error) || 'ไม่มีเงินหรือไอเทมให้โอน'} — ข้าม`, 'error');
+        await releaseSender(sender, ready && ready.homeChannel);
+        startPrep(queue[i + SENDER_SLOTS]);
+        continue;
+      }
+
+      // Ensure Receiver has enough free weight BEFORE syncing positions and initiating trade
+      const receiverAvailWeight = tradeItemsEnabled && senderItemsQty > 0
+        ? await ensureReceiverWeightReady(senderItemsWeight)
+        : null;
+
+      let attempt = 0, movedZeny = 0, movedItems = 0, lastErr = '';
+      while (attempt < 2 && movedZeny <= 0 && movedItems <= 0) {
+        attempt++;
+        if (isTaskAborted()) throw new Error('ผู้ใช้ยกเลิกการรวมเงิน');
+        // Always verify same channel + close proximity right before sending trade request!
+        await syncSenderAndReceiverForTrade(sender, senderCharName);
+
+        logTask(`👑 ตัวรับเงิน (${receiverCharName}) รอรับคำขอเทรดจาก '${senderCharName}'${attempt > 1 ? ' (ลองใหม่ครั้งที่ 2)' : ''}...`, 'info');
+        await evalProfilePort(receiverProfile.debugPort, `(() => {
+          if (typeof window.setupReceiverTradeWatcher === 'function') {
+            Promise.resolve(window.setupReceiverTradeWatcher(${JSON.stringify(senderCharName)}, 45000)).catch(() => {});
+          }
+          return { success: true };
+        })()`, 5000);
+        await new Promise(r => setTimeout(r, 350));
+
+        const itemOfferNote = (tradeItemsEnabled && senderItemsQty > 0) ? ` + ไอเทม ${senderItemsQty} ชิ้น` : '';
+        logTask(`📤 จอ ${sender.name} (${senderCharName}) ส่งคำขอเทรดเงิน ${zenyToTransfer.toLocaleString()} z${itemOfferNote}...`, 'info');
+        const tradeRes = await evalProfilePort(sender.debugPort, `
+          (async () => {
+            if (typeof window.executeSenderTrade === 'function') {
+              return await window.executeSenderTrade(
+                ${JSON.stringify(receiverCharName)},
+                ${zenyToTransfer},
+                38000,
+                ${tradeItemsEnabled ? JSON.stringify(tradeItemsList) : 'null'},
+                ${typeof receiverAvailWeight === 'number' && Number.isFinite(receiverAvailWeight) ? receiverAvailWeight : 'null'}
+              );
+            }
+            return { success: false, error: 'No executeSenderTrade function' };
+          })()
+        `, 44000);
+        await new Promise(r => setTimeout(r, 1200));
+        const after = await queryClientState(sender.debugPort);
+        const afterZeny = (after && typeof after.zeny === 'number') ? after.zeny : null;
+        movedZeny = afterZeny === null ? 0 : Math.max(0, curZeny - afterZeny);
+        movedItems = Number(tradeRes?.result?.transferredItemsQty) || 0;
+        if (tradeItemsEnabled && senderItemsQty > 0 && movedItems === 0) {
+          const afterBag = await evalProfilePort(
+            sender.debugPort,
+            `window.getConsolidationMatchingBagItems ? window.getConsolidationMatchingBagItems(${JSON.stringify(tradeItemsList)}) : { totalQty: 0 }`,
+            4000
+          );
+          if (afterBag?.result && typeof afterBag.result.totalQty === 'number') {
+            movedItems = Math.max(0, senderItemsQty - afterBag.result.totalQty);
+          }
+        }
+        lastErr = tradeRes?.result?.error || tradeRes?.error || '';
+        if (movedZeny > 0 || movedItems > 0) break;
+        if (tradeRes?.result?.success && afterZeny === null) { movedZeny = zenyToTransfer; break; }
+        if (afterZeny === null || /No executeSenderTrade/.test(lastErr)) break;
+        if (attempt < 2) {
+          logTask(`⚠️ จอ ${sender.name} เทรดไม่สำเร็จ (${lastErr || 'เงิน/ไอเทมไม่ลด'}) — กำลังจัดตำแหน่งและลองใหม่อีก 1 ครั้ง`, 'warning');
+          await new Promise(r => setTimeout(r, 2200));
+        }
+      }
+
+      if (movedZeny > 0 || movedItems > 0) {
+        groupTransferredZeny += movedZeny;
+        groupTransferredItems += movedItems;
+        task.transferredZeny = groupTransferredZeny;
+        task.transferredItems = groupTransferredItems;
+        consolidationState.totalTransferredZeny += movedZeny;
+        consolidationState.totalTransferredItems += movedItems;
+        markSenderCompleted(sender.id);
+        const parts = [];
+        if (movedZeny > 0) parts.push(`เงิน ${movedZeny.toLocaleString()} z`);
+        if (movedItems > 0) parts.push(`ไอเทม ${movedItems.toLocaleString()} ชิ้น`);
+        logTask(`✅ โอนจาก [${senderCharName}] ให้ [${receiverCharName}] สำเร็จ: ${parts.join(' + ')}`, 'success');
+      } else {
+        logTask(`⚠️ จอ ${sender.name} (${senderCharName}) เทรดไม่สำเร็จ: ${lastErr || 'เงิน/ไอเทมไม่ลด'} — ข้ามไปจอถัดไป`, 'error');
+      }
+      evalProfilePort(receiverProfile.debugPort, `window.stopReceiverTradeWatcher ? window.stopReceiverTradeWatcher() : null`, 3000);
+      await releaseSender(sender, ready.homeChannel);
+
+      if (premiumGoal && typeof premiumGoal.onAfterSenderTrade === 'function') {
+        if (movedZeny > 0 || i === queue.length - 1) {
+          logTask(`💎 ตัวรับเงิน (${receiverCharName}) กำลังนำเงินที่รวมได้ไปซื้อ Token / ต่ออายุ VIP...`, 'info');
+          setTaskStep(4, `ตัวรับเงิน (${receiverCharName}) กำลังซื้อ Token / ต่ออายุ VIP...`);
+        }
+        try {
+          const pgRes = await premiumGoal.onAfterSenderTrade(receiverProfile, {
+            movedZeny,
+            totalTransferredZeny: groupTransferredZeny,
+            isLastSender: i === queue.length - 1,
+            senderIndex: i,
+            totalSenders: queue.length
+          });
+          if (pgRes && pgRes.bought > 0) {
+            logTask(`🛒 ตัวรับเงิน (${receiverCharName}) ซื้อ Token ได้ +${pgRes.bought.toLocaleString()} เหรียญ (รวมมี ${Number(pgRes.tokens || 0).toLocaleString()} Token)`, 'success');
+          }
+          if (pgRes && pgRes.stopConsolidation) {
+            premiumActivated = Boolean(pgRes.activated);
+            consolidationEarlyStop = true;
+            logTask(`🎉 ตัวรับเงิน (${receiverCharName}) ได้รับ VIP เรียบร้อยแล้ว! หยุดการรวมเงินของวงนี้และปล่อยจอที่เหลือกลับไปฟาร์มทันที`, 'success');
+            break;
+          }
+        } catch (pgErr) {
+          logTask(`⚠️ ตรวจสอบการซื้อ VIP หลังเทรด: ${pgErr.message}`, 'warning');
+        }
+      }
+
+      startPrep(queue[i + SENDER_SLOTS]);
+      await new Promise(r => setTimeout(r, 600));
+    }
+
+    if (consolidationEarlyStop && prep.size > 0) {
+      for (const s of queue) {
+        if (!restarted.has(s.id) && prep.has(s.id)) {
+          try {
+            const r = await prep.get(s.id);
+            await releaseSender(s, r && r.homeChannel);
+          } catch (e) {}
+        }
+      }
+    }
+
+    // If tradeItemsEnabled, have the Receiver deposit all collected items into its storage at the end of Step 4
+    if (tradeItemsEnabled) {
+      const endCheck = await evalProfilePort(
+        receiverProfile.debugPort,
+        `window.getConsolidationMatchingBagItems ? window.getConsolidationMatchingBagItems(${JSON.stringify(tradeItemsList)}) : { totalQty: 0 }`,
+        5000
+      );
+      const endQty = Number(endCheck?.result?.totalQty) || 0;
+      if (endQty > 0) {
+        setTaskStep(4, `${ipGroupBadgeText ? ipGroupBadgeText + ' · ' : ''}ตัวรับเงิน (${receiverCharName}) กำลังนำไอเทมที่รับมา (${endQty} ชิ้น) ไปฝากเข้าคลัง...`);
+        logTask(`📦 ตัวรับเงิน (${receiverCharName}) กำลังนำไอเทมที่รับมาทั้งหมด (${endQty} ชิ้น) ไปฝากเข้าคลัง...`, 'info');
+        const endDep = await evalProfilePort(
+          receiverProfile.debugPort,
+          `window.depositConsolidationItemsToStorage ? window.depositConsolidationItemsToStorage(${JSON.stringify(tradeItemsList)}) : { success: false }`,
+          35000
+        );
+        if (endDep?.result?.success) {
+          logTask(`✅ ตัวรับเงิน (${receiverCharName}) ฝากไอเทมเข้าคลังเรียบร้อย (${endDep.result.depositedQty} ชิ้น)`, 'success');
+        }
+      }
+    }
+
+    // -------------------------------------------------------------
+    // STEP 5: เสร็จสิ้นการโอนเงิน และสั่งเริ่มบอท (START BOT) ทุกจอกลับไปฟาร์ม
+    // -------------------------------------------------------------
+    setTaskStep(5, `${ipGroupBadgeText ? ipGroupBadgeText + ' · ' : ''}เสร็จสิ้นการรวมเงิน! กำลังเปิดบอทให้ทุกจอเดินทางกลับไปฟาร์ม...`);
+    const summaryItemsText = groupTransferredItems > 0
+      ? ` | ไอเทมรวม: ${groupTransferredItems.toLocaleString()} ชิ้น`
+      : '';
+    logTask(`🎉 รวมเงินเสร็จสมบูรณ์! ยอดโอนให้ ${receiverCharName}: ${groupTransferredZeny.toLocaleString()} z${summaryItemsText}`, 'success');
+    logTask(`🚀 ขั้นตอนที่ 5/5: เริ่มสั่งเปิดบอท (START BOT) จอที่เหลือเพื่อเดินทางกลับไปฟาร์ม...`, 'info');
+
+    for (const p of involvedProfiles.filter(x => !restarted.has(x.id))) {
+      try {
+        const startRes = await evalProfilePort(p.debugPort, startBotJs, 5000);
+        if (startRes && startRes.result && startRes.result.success) {
+          logTask(`▶️ สั่งเริ่มบอทหน้าจอ ${p.name} เดินทางกลับไปฟาร์มเรียบร้อย`, 'success');
+        } else {
+          logTask(`▶️ ส่งคำสั่งเริ่มบอทหน้าจอ ${p.name} สำเร็จ`, 'info');
+        }
+        await new Promise(r => setTimeout(r, 400));
+      } catch(e) {
+        logTask(`⚠️ ไม่สามารถเริ่มบอทจอ ${p.name}: ${e.message}`, 'warning');
+      }
+    }
+
+    if (premiumGoal && typeof premiumGoal.onConsolidationFinished === 'function') {
+      try {
+        await premiumGoal.onConsolidationFinished({
+          ok: true,
+          activated: premiumActivated,
+          totalTransferredZeny: groupTransferredZeny
+        });
+      } catch (e) {}
+    }
+
+    // Record summary for this IP group
+    const summaryIdx = consolidationState.ipGroupSummaries.findIndex(x => x.ip === receiverIpKey);
+    const summaryEntry = {
+      ip: receiverIpKey,
+      receiverId: receiverProfile.id,
+      receiverName: receiverCharName,
+      transferredZeny: groupTransferredZeny,
+      transferredItems: groupTransferredItems,
+      ok: true
+    };
+    if (summaryIdx >= 0) consolidationState.ipGroupSummaries[summaryIdx] = summaryEntry;
+    else consolidationState.ipGroupSummaries.push(summaryEntry);
+
+    return {
+      ok: true,
+      taskId,
+      ip: receiverIpKey,
+      receiverId: receiverProfile.id,
+      receiverName: receiverCharName,
+      groupTransferredZeny,
+      groupTransferredItems
+    };
+
+  } catch (err) {
+    logTask(`⛔ การรวมเงินหยุดทำงาน: ${err.message}`, 'error');
+    if (premiumGoal && typeof premiumGoal.onConsolidationFinished === 'function') {
+      try {
+        await premiumGoal.onConsolidationFinished({
+          ok: false,
+          aborted: isTaskAborted(),
+          activated: false,
+          totalTransferredZeny: groupTransferredZeny,
+          error: err.message
+        });
+      } catch (e) {}
+    }
+    const involvedProfiles = [receiverProfile, ...senderProfiles];
+    for (const p of involvedProfiles) {
+      try {
+        evalProfilePort(p.debugPort, `(() => { window.__isConsolidating = false; window.__consolidationPending = false; if (typeof window.restoreKeptFarmMap === 'function') window.restoreKeptFarmMap(); })()`);
+      } catch(e) {}
+    }
+    const summaryIdx = consolidationState.ipGroupSummaries.findIndex(x => x.ip === receiverIpKey);
+    const summaryEntry = {
+      ip: receiverIpKey,
+      receiverId: receiverProfile.id,
+      receiverName: task.receiverName || receiverProfile.name,
+      transferredZeny: groupTransferredZeny,
+      transferredItems: groupTransferredItems,
+      ok: false
+    };
+    if (summaryIdx >= 0) consolidationState.ipGroupSummaries[summaryIdx] = summaryEntry;
+    else consolidationState.ipGroupSummaries.push(summaryEntry);
+
+    return { ok: false, taskId, ip: receiverIpKey, error: err.message, groupTransferredZeny, groupTransferredItems };
+  } finally {
+    activeConsolidationTasks.delete(taskId);
+    if (activeConsolidationProfiles.get(receiverProfile.id) === taskId) {
+      activeConsolidationProfiles.delete(receiverProfile.id);
+    }
+    for (const s of senderProfiles) {
+      if (activeConsolidationProfiles.get(s.id) === taskId) {
+        activeConsolidationProfiles.delete(s.id);
+      }
+    }
+    for (const [ch, tid] of activeConsolidationChannels.entries()) {
+      if (tid === taskId) activeConsolidationChannels.delete(ch);
+    }
+    syncConsolidationGlobalState();
+    if (activeConsolidationTasks.size === 0) {
+      consolidationState.running = false;
+      consolidationState.endTime = Date.now();
+      if (isTaskAborted()) {
+        consolidationState.status = 'stopped';
+        consolidationState.step = 'ยกเลิกการรวมเงินเรียบร้อยแล้ว';
+      } else {
+        consolidationState.status = 'completed';
+        consolidationState.stepIndex = 5;
+        consolidationState.step = `เสร็จสิ้นการรวมเงินและเริ่มบอทกลับฟาร์มเรียบร้อย! (รวม ${consolidationState.totalTransferredZeny.toLocaleString()} z)`;
+      }
+    }
+  }
+}
+
+async function runIpGroupsConsolidationWorkflow(groups, keepZeny = 0, tradeItemsOpts = null) {
+  const validGroups = Array.isArray(groups)
+    ? groups
+        .filter(g => g && g.receiverProfileId && !activeConsolidationProfiles.has(g.receiverProfileId) && Array.isArray(g.senderProfileIds))
+        .map(g => ({
+          ...g,
+          senderProfileIds: g.senderProfileIds.filter(sid => sid && !activeConsolidationProfiles.has(sid))
+        }))
+        .filter(g => g.senderProfileIds.length > 0)
+    : [];
+  if (validGroups.length === 0) return;
+
+  const savedItemCfg = loadConsolidationItemSettings();
+  const tradeItemsEnabled = (tradeItemsOpts && typeof tradeItemsOpts.enabled === 'boolean')
+    ? tradeItemsOpts.enabled
+    : Boolean(savedItemCfg.tradeOnConsolidate);
+  const tradeItemsList = (tradeItemsOpts && Array.isArray(tradeItemsOpts.items) && tradeItemsOpts.items.length > 0)
+    ? sanitizeConsolidationItemsList(tradeItemsOpts.items)
+    : sanitizeConsolidationItemsList(savedItemCfg.items);
+
+  consolidationAborted = false;
+  if (activeConsolidationTasks.size === 0) {
+    consolidationState.completedSenders = [];
+    consolidationState.totalTransferredZeny = 0;
+    consolidationState.totalTransferredItems = 0;
+    consolidationState.ipGroupSummaries = [];
+    consolidationState.logs = [];
+    consolidationState.startTime = Date.now();
+  }
+  consolidationState.running = true;
+  consolidationState.sameIpOnly = true;
+  consolidationState.ipGroupMode = true;
+  consolidationState.totalIpGroups = validGroups.length + activeConsolidationTasks.size;
+  consolidationState.status = 'running';
+  consolidationState.tradeItemsEnabled = tradeItemsEnabled;
+  consolidationState.tradeItemsList = tradeItemsList;
+  consolidationState.endTime = 0;
+
+  addConsolidationLog(`🌐 เริ่มต้นระบบรวมเงินแบบ Multi-Task แยกตามวง IP พร้อมกัน (${validGroups.length} วง IP — แยก Channel อัตโนมัติไม่ให้ชนกัน)`, 'info');
+
+  await Promise.all(validGroups.map(async (g, idx) => {
+    if (idx > 0) await new Promise(r => setTimeout(r, idx * 450));
+    if (consolidationAborted) return;
+    const ipLabel = g.ip || getProfileIpGroupKey(g.receiverProfileId);
+    addConsolidationLog(`🛡️ เริ่มวง IP ที่ ${idx + 1}/${validGroups.length}: [${ipLabel}] (ผู้โอน ${g.senderProfileIds.length} จอ)`, 'info');
+    await runConsolidationWorkflow(g.receiverProfileId, g.senderProfileIds, keepZeny, {
+      enabled: tradeItemsEnabled,
+      items: tradeItemsList,
+      sameIpOnly: true,
+      roundHundredK: Boolean(tradeItemsOpts && tradeItemsOpts.roundHundredK),
+      batchContext: {
+        isSubBatch: true,
+        sameIpOnly: true,
+        groupIndex: idx + 1,
+        totalGroups: validGroups.length,
+        ip: ipLabel
+      }
+    });
+  }));
+}
+
+const mimeTypes = {
+  ".html": "text/html; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".js": "application/javascript; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".png": "image/png",
+  ".webp": "image/webp",
+  ".ico": "image/x-icon",
+  ".svg": "image/svg+xml"
+};
+
+// ==========================================
+// CHARACTER PORTRAIT CACHE (game art proxied & stored on disk)
+// ==========================================
+const PORTRAIT_HOST = "play.nightcamp.app";
+const PORTRAIT_DIR = path.join(__dirname, "data", "portraits");
+
+// Only allow game class art: /art/classes/<name>.webp
+function portraitPathFromSrc(src) {
+  try {
+    const u = new URL(src, `https://${PORTRAIT_HOST}`);
+    if (u.hostname !== PORTRAIT_HOST) return null;
+    if (!/^\/art\/classes\/[a-z0-9_-]+\.(webp|png)$/i.test(u.pathname)) return null;
+    return u.pathname;
+  } catch (e) {
+    return null;
+  }
+}
+
+function fetchPortrait(artPath) {
+  const file = path.join(PORTRAIT_DIR, path.basename(artPath));
+  if (fs.existsSync(file)) return Promise.resolve(file);
+  return new Promise((resolve) => {
+    https.get(`https://${PORTRAIT_HOST}${artPath}`, { timeout: 5000 }, (r) => {
+      if (r.statusCode !== 200) { r.resume(); return resolve(null); }
+      const chunks = [];
+      r.on("data", c => chunks.push(c));
+      r.on("end", () => {
+        try {
+          fs.mkdirSync(PORTRAIT_DIR, { recursive: true });
+          fs.writeFileSync(file, Buffer.concat(chunks));
+          resolve(file);
+        } catch (e) { resolve(null); }
+      });
+    }).on("error", () => resolve(null)).on("timeout", function () { this.destroy(); resolve(null); });
+  });
+}
+
+
+function runPowerShell(script) {
+  return new Promise((resolve) => {
+    const b64 = Buffer.from(script, 'utf16le').toString('base64');
+    exec(`powershell -NoProfile -EncodedCommand ${b64}`, (err, stdout, stderr) => {
+      resolve({ err, stdout, stderr, success: !err });
+    });
+  });
+}
+
+// Per-profile Zeny farming rate tracker (GP/M & GP/H — Gross income only, never deducting purchases/Tokens)
+const ZENY_RATE_STATE_FILE = path.join(__dirname, "data", "zeny_rate_state.json");
+const zenyRateTrackers = {};
+let zenyRateStateDirty = false;
+let lastProfilesZenyPollAt = 0;
+
+function loadZenyRateState() {
+  try {
+    if (fs.existsSync(ZENY_RATE_STATE_FILE)) {
+      const parsed = JSON.parse(fs.readFileSync(ZENY_RATE_STATE_FILE, "utf8"));
+      if (parsed && parsed.trackers && typeof parsed.trackers === "object") {
+        const now = Date.now();
+        const cutoff = now - 60 * 60 * 1000;
+        for (const [pid, tr] of Object.entries(parsed.trackers)) {
+          if (!tr || typeof tr !== "object") continue;
+          if (now - (Number(tr.lastTime) || 0) > 6 * 60 * 60 * 1000) continue;
+          const samples = Array.isArray(tr.samples)
+            ? tr.samples.filter(s => s && typeof s.t === "number" && typeof s.gain === "number" && s.gain > 0 && s.t >= cutoff)
+            : [];
+          zenyRateTrackers[pid] = {
+            charName: String(tr.charName || ""),
+            startTime: Number(tr.startTime) || now,
+            lastTime: Number(tr.lastTime) || now,
+            lastZeny: typeof tr.lastZeny === "number" ? tr.lastZeny : null,
+            lastGrossGained: typeof tr.lastGrossGained === "number" ? tr.lastGrossGained : null,
+            totalGained: Math.max(0, Number(tr.totalGained) || 0),
+            samples
+          };
+        }
+      }
+    }
+  } catch (e) {}
+}
+
+function saveZenyRateStateNow() {
+  try {
+    fs.mkdirSync(path.dirname(ZENY_RATE_STATE_FILE), { recursive: true });
+    const tmpFile = ZENY_RATE_STATE_FILE + ".tmp";
+    fs.writeFileSync(tmpFile, JSON.stringify({ updatedAt: Date.now(), trackers: zenyRateTrackers }, null, 2), "utf8");
+    fs.renameSync(tmpFile, ZENY_RATE_STATE_FILE);
+    zenyRateStateDirty = false;
+  } catch (e) {}
+}
+
+loadZenyRateState();
+setInterval(() => {
+  if (zenyRateStateDirty) saveZenyRateStateNow();
+}, 10000);
+process.on("exit", () => {
+  if (zenyRateStateDirty) saveZenyRateStateNow();
+});
+
+function updateZenyRateTracker(profileId, liveState) {
+  const now = Date.now();
+  const windowMs = 60 * 60 * 1000; // 60-minute rolling window
+  const cutoff = now - windowMs;
+  if (!liveState || liveState.error || typeof liveState.zeny !== 'number') {
+    const existing = zenyRateTrackers[profileId];
+    if (!existing) return { gpm: 0, gph: 0, totalGained: 0, elapsedSec: 0 };
+    if (Array.isArray(existing.samples) && existing.samples.length > 0 && existing.samples[0].t < cutoff) {
+      existing.samples = existing.samples.filter(s => s.t >= cutoff);
+    }
+    const windowStart = Math.max(existing.startTime || now, cutoff);
+    const elapsedMs = Math.max(0, (existing.lastTime || now) - windowStart);
+    const effectiveMin = Math.max(elapsedMs / 60000, 0.25);
+    const windowGain = Array.isArray(existing.samples) ? existing.samples.reduce((sum, s) => sum + s.gain, 0) : 0;
+    const gpm = (elapsedMs >= 3000 && windowGain > 0) ? Math.round(windowGain / effectiveMin) : 0;
+    return { gpm, gph: gpm * 60, totalGained: existing.totalGained || 0, elapsedSec: Math.round(Math.max(0, (existing.lastTime || now) - existing.startTime) / 1000) };
+  }
+  const z = liveState.zeny;
+  const gross = (typeof liveState.grossZenyGained === 'number' && Number.isFinite(liveState.grossZenyGained)) ? liveState.grossZenyGained : null;
+  const isConsolReceiver = Boolean(liveState.consolidationReceiverMode);
+  const charName = liveState.charName || '';
+  let tr = zenyRateTrackers[profileId];
+  if (!tr || (charName && tr.charName && tr.charName !== charName)) {
+    tr = zenyRateTrackers[profileId] = {
+      charName,
+      startTime: now,
+      lastTime: now,
+      lastZeny: z,
+      lastGrossGained: gross,
+      totalGained: 0,
+      samples: []
+    };
+    zenyRateStateDirty = true;
+  } else {
+    if (charName && !tr.charName) {
+      tr.charName = charName;
+      zenyRateStateDirty = true;
+    }
+    let gainDelta = 0;
+    if (gross !== null) {
+      if (typeof tr.lastGrossGained === 'number' && gross >= tr.lastGrossGained) {
+        gainDelta = gross - tr.lastGrossGained;
+      } else if (typeof tr.lastGrossGained === 'number' && gross > 0 && gross < tr.lastGrossGained) {
+        // Client page reloaded and already accumulated new gross Zeny since reload
+        gainDelta = gross;
+      } else if (tr.lastGrossGained == null && typeof tr.lastZeny === 'number') {
+        // First time attaching gross tracker to an already-tracked profile
+        const rawDelta = z - tr.lastZeny;
+        if (rawDelta > 0 && !isConsolReceiver) gainDelta = rawDelta;
+      }
+      if (tr.lastGrossGained !== gross) {
+        tr.lastGrossGained = gross;
+        zenyRateStateDirty = true;
+      }
+    } else if (typeof tr.lastZeny === 'number') {
+      const rawDelta = z - tr.lastZeny;
+      if (rawDelta > 0 && !isConsolReceiver) {
+        gainDelta = rawDelta;
+      }
+    }
+    if (tr.lastZeny !== z) {
+      tr.lastZeny = z;
+      zenyRateStateDirty = true;
+    }
+    tr.lastTime = now;
+    if (gainDelta > 0 && !isConsolReceiver) {
+      tr.totalGained += gainDelta;
+      tr.samples.push({ t: now, gain: gainDelta });
+      zenyRateStateDirty = true;
+    }
+  }
+  if (tr.samples.length > 0 && tr.samples[0].t < cutoff) {
+    tr.samples = tr.samples.filter(s => s.t >= cutoff);
+  }
+  const windowStart = Math.max(tr.startTime, cutoff);
+  const elapsedMs = Math.max(0, now - windowStart);
+  const windowGain = tr.samples.reduce((sum, s) => sum + s.gain, 0);
+  let gpm = 0;
+  if (elapsedMs >= 3000 && windowGain > 0) {
+    const effectiveMin = Math.max(elapsedMs / 60000, 0.25);
+    gpm = Math.round(windowGain / effectiveMin);
+  }
+  return {
+    gpm,
+    gph: gpm * 60,
+    totalGained: tr.totalGained,
+    elapsedSec: Math.round((now - tr.startTime) / 1000)
+  };
+}
+
+let zenyBgPollInFlight = false;
+setInterval(async () => {
+  if (zenyBgPollInFlight) return;
+  if (Date.now() - lastProfilesZenyPollAt < 4500) return;
+  zenyBgPollInFlight = true;
+  try {
+    const profiles = loadProfiles();
+    await Promise.all(profiles.map(async (p) => {
+      if (!p || !p.debugPort) return;
+      const proc = runningProcesses[p.id];
+      const hasKnownProc = proc && isProcessAlive(proc.pid);
+      const hasTracker = Boolean(zenyRateTrackers[p.id]);
+      if (!hasKnownProc && !hasTracker && !browserMode.isOpen(p.id)) return;
+      const liveState = await queryClientState(p.debugPort);
+      if (liveState && !liveState.error && typeof liveState.zeny === "number") {
+        updateZenyRateTracker(p.id, liveState);
+      }
+    }));
+  } catch (e) {} finally {
+    zenyBgPollInFlight = false;
+  }
+}, 4000);
+
+// ==========================================
+// PER-PROFILE & DAILY BANDWIDTH MONITOR (WebSocket + HTTP)
+// ==========================================
+const BANDWIDTH_STATS_FILE = path.join(__dirname, "data", "bandwidth_stats.json");
+const bandwidthRateTrackers = {};
+const bwProbeInstallCooldown = {};
+let bandwidthStatsDirty = false;
+let bandwidthStatsCache = null;
+
+const BANDWIDTH_PROBE_INSTALL_JS = `(() => {
+  if (typeof window.__pmGetBandwidth === 'function' && window.__pmBwState && window.__pmBwProbeVersion === 2) {
+    return window.__pmGetBandwidth();
+  }
+  window.__pmBwProbeVersion = 2;
+  const sessionId = Math.round((typeof performance !== 'undefined' && performance.timeOrigin) ? performance.timeOrigin : Date.now());
+  const st = window.__pmBwState = window.__pmBwState || {
+    sessionId,
+    startedAt: Date.now(),
+    wsRxBytes: 0,
+    wsTxBytes: 0,
+    wsRxPackets: 0,
+    wsTxPackets: 0,
+    httpRxBytes: 0,
+    httpTxBytes: 0,
+    httpRequests: 0,
+    cachedRxBytes: 0,
+    cachedRequests: 0,
+    navCounted: false
+  };
+  if (typeof st.cachedRxBytes !== 'number') st.cachedRxBytes = 0;
+  if (typeof st.cachedRequests !== 'number') st.cachedRequests = 0;
+
+  function byteLen(data) {
+    if (!data) return 0;
+    if (typeof data.byteLength === 'number') return data.byteLength;
+    if (data.buffer && typeof data.buffer.byteLength === 'number') return data.buffer.byteLength;
+    if (typeof Blob !== 'undefined' && data instanceof Blob) return data.size || 0;
+    if (typeof data === 'string') return data.length;
+    return 0;
+  }
+
+  const STATIC_ASSET_RE = /\\.(?:png|webp|jpg|jpeg|gif|svg|avif|ico|mp3|ogg|wav|m4a|aac|flac|woff2|woff|ttf|otf|eot)(?:$|\\?)/i;
+
+  function consumeResourceEntries(entries) {
+    if (!entries || !entries.length) return;
+    const localCacheOn = window.__pmLocalAssetCacheEnabled !== false;
+    for (let i = 0; i < entries.length; i++) {
+      const r = entries[i];
+      if (!r) continue;
+      const name = String(r.name || '');
+      if (name.includes('127.0.0.1') || name.includes('localhost')) continue;
+      const transfer = Number(r.transferSize) || 0;
+      const encoded = Number(r.encodedBodySize) || 0;
+      if (localCacheOn && STATIC_ASSET_RE.test(name)) {
+        const saved = transfer > 0 ? transfer : encoded;
+        if (saved > 0) {
+          st.cachedRxBytes += saved;
+          st.cachedRequests += 1;
+        }
+        continue;
+      }
+      if (transfer > 0) {
+        st.httpRxBytes += transfer;
+        st.httpTxBytes += 160;
+        st.httpRequests += 1;
+      } else if (encoded > 0 && (r.initiatorType === 'fetch' || r.initiatorType === 'xmlhttprequest')) {
+        st.httpRxBytes += encoded + 120;
+        st.httpTxBytes += 160;
+        st.httpRequests += 1;
+      }
+    }
+  }
+
+  try {
+    if (!st.navCounted && typeof performance !== 'undefined' && typeof performance.getEntriesByType === 'function') {
+      st.navCounted = true;
+      consumeResourceEntries(performance.getEntriesByType('navigation'));
+      consumeResourceEntries(performance.getEntriesByType('resource'));
+      if (typeof performance.clearResourceTimings === 'function') {
+        performance.clearResourceTimings();
+      }
+    }
+  } catch (e) {}
+
+  try {
+    if (st.observer && typeof st.observer.disconnect === 'function') {
+      st.observer.disconnect();
+      st.observer = null;
+    }
+    if (typeof PerformanceObserver === 'function' && !st.observer) {
+      const obs = new PerformanceObserver((list) => {
+        try {
+          consumeResourceEntries(list.getEntries());
+          if (typeof performance.clearResourceTimings === 'function') {
+            performance.clearResourceTimings();
+          }
+        } catch (e) {}
+      });
+      obs.observe({ type: 'resource', buffered: false });
+      st.observer = obs;
+    }
+  } catch (e) {}
+
+  function hookSocket(ws) {
+    if (!ws || ws.__pmBwHooked) return;
+    const url = String(ws.url || '');
+    if (url.includes('127.0.0.1') || url.includes('localhost')) return;
+    ws.__pmBwHooked = true;
+    try {
+      ws.addEventListener('message', (ev) => {
+        const len = byteLen(ev && ev.data);
+        if (len > 0) {
+          st.wsRxBytes += len + 28;
+          st.wsRxPackets += 1;
+        }
+      });
+    } catch (e) {}
+    try {
+      const prevSend = ws.send;
+      if (typeof prevSend === 'function') {
+        ws.send = function(data) {
+          try {
+            const len = byteLen(data);
+            if (len > 0) {
+              st.wsTxBytes += len + 32;
+              st.wsTxPackets += 1;
+            }
+          } catch (e) {}
+          return prevSend.apply(this, arguments);
+        };
+      }
+    } catch (e) {}
+  }
+
+  window.__pmHookSocketBandwidth = hookSocket;
+  if (window.__gameSocket) hookSocket(window.__gameSocket);
+
+  try {
+    const wsProto = window.WebSocket && window.WebSocket.prototype;
+    if (wsProto && !wsProto.__pmBwProtoHooked) {
+      wsProto.__pmBwProtoHooked = true;
+      const prevAdd = wsProto.addEventListener;
+      if (typeof prevAdd === 'function') {
+        wsProto.addEventListener = function(type, listener, options) {
+          if (type === 'message' && !this.__pmBwHooked) {
+            hookSocket(this);
+          }
+          return prevAdd.apply(this, arguments);
+        };
+      }
+    }
+  } catch (e) {}
+
+  if (!st.watchTimer) {
+    st.watchTimer = setInterval(() => {
+      if (window.__gameSocket && !window.__gameSocket.__pmBwHooked) {
+        hookSocket(window.__gameSocket);
+      }
+    }, 1000);
+  }
+
+  window.__pmGetBandwidth = function() {
+    if (window.__gameSocket && !window.__gameSocket.__pmBwHooked) {
+      hookSocket(window.__gameSocket);
+    }
+    const rxBytes = st.wsRxBytes + st.httpRxBytes;
+    const txBytes = st.wsTxBytes + st.httpTxBytes;
+    return {
+      probeVersion: 2,
+      sessionId: st.sessionId,
+      rxBytes,
+      txBytes,
+      totalBytes: rxBytes + txBytes,
+      wsRxBytes: st.wsRxBytes,
+      wsTxBytes: st.wsTxBytes,
+      httpRxBytes: st.httpRxBytes,
+      httpTxBytes: st.httpTxBytes,
+      cachedRxBytes: st.cachedRxBytes || 0,
+      cachedRequests: st.cachedRequests || 0,
+      wsRxPackets: st.wsRxPackets,
+      wsTxPackets: st.wsTxPackets,
+      httpRequests: st.httpRequests
+    };
+  };
+
+  return window.__pmGetBandwidth();
+})()`;
+
+function loadBandwidthStats() {
+  if (bandwidthStatsCache) return bandwidthStatsCache;
+  const curHwid = typeof humanCheckSolver?.getMachineFingerprint === "function"
+    ? humanCheckSolver.getMachineFingerprint()
+    : "";
+  try {
+    if (fs.existsSync(BANDWIDTH_STATS_FILE)) {
+      const parsed = JSON.parse(fs.readFileSync(BANDWIDTH_STATS_FILE, "utf8"));
+      if (parsed && typeof parsed === "object") {
+        // Anti-Clone HWID Guard: if bandwidth_stats.json came from another cloned PC, reset for this PC
+        if (parsed.machineHwid && curHwid && parsed.machineHwid !== curHwid) {
+          console.warn("[Anti-Clone Guard] 🛡️ ตรวจพบไฟล์สถิติแบนด์วิดท์ (bandwidth_stats.json) จากเครื่องอื่น -> รีเซ็ตตัวนับแบนด์วิดท์ใหม่สำหรับเครื่องนี้!");
+          bandwidthStatsCache = { machineHwid: curHwid, updatedAt: Date.now(), lastSession: {}, daily: {} };
+          bandwidthStatsDirty = true;
+          saveBandwidthStatsNow();
+          return bandwidthStatsCache;
+        }
+        bandwidthStatsCache = {
+          machineHwid: curHwid || parsed.machineHwid || "",
+          updatedAt: parsed.updatedAt || Date.now(),
+          lastSession: (parsed.lastSession && typeof parsed.lastSession === "object") ? parsed.lastSession : {},
+          daily: (parsed.daily && typeof parsed.daily === "object") ? parsed.daily : {}
+        };
+        if (!parsed.machineHwid && curHwid) {
+          bandwidthStatsDirty = true;
+        }
+        return bandwidthStatsCache;
+      }
+    }
+  } catch (e) {}
+  bandwidthStatsCache = { machineHwid: curHwid, updatedAt: Date.now(), lastSession: {}, daily: {} };
+  return bandwidthStatsCache;
+}
+
+function saveBandwidthStatsNow() {
+  if (!bandwidthStatsCache) return;
+  try {
+    fs.mkdirSync(path.dirname(BANDWIDTH_STATS_FILE), { recursive: true });
+    const keys = Object.keys(bandwidthStatsCache.daily || {}).sort();
+    while (keys.length > 30) {
+      const oldKey = keys.shift();
+      delete bandwidthStatsCache.daily[oldKey];
+    }
+    if (!bandwidthStatsCache.machineHwid && typeof humanCheckSolver?.getMachineFingerprint === "function") {
+      bandwidthStatsCache.machineHwid = humanCheckSolver.getMachineFingerprint();
+    }
+    bandwidthStatsCache.updatedAt = Date.now();
+    const tmpFile = BANDWIDTH_STATS_FILE + ".tmp";
+    fs.writeFileSync(tmpFile, JSON.stringify(bandwidthStatsCache, null, 2), "utf8");
+    fs.renameSync(tmpFile, BANDWIDTH_STATS_FILE);
+    bandwidthStatsDirty = false;
+  } catch (e) {}
+}
+
+setInterval(() => {
+  if (bandwidthStatsDirty) saveBandwidthStatsNow();
+}, 10000);
+process.on("exit", () => {
+  if (bandwidthStatsDirty) saveBandwidthStatsNow();
+});
+
+async function updateBandwidthTracker(profileId, liveState, debugPort) {
+  const store = loadBandwidthStats();
+  const now = Date.now();
+  const todayKey = getThaiDateKey(now);
+  if (!store.daily[todayKey]) {
+    store.daily[todayKey] = {
+      date: todayKey,
+      rxBytes: 0,
+      txBytes: 0,
+      totalBytes: 0,
+      wsRxBytes: 0,
+      wsTxBytes: 0,
+      httpRxBytes: 0,
+      httpTxBytes: 0,
+      byProfile: {}
+    };
+  }
+  const dayBucket = store.daily[todayKey];
+  if (!dayBucket.byProfile[profileId]) {
+    dayBucket.byProfile[profileId] = {
+      rxBytes: 0,
+      txBytes: 0,
+      totalBytes: 0,
+      wsRxBytes: 0,
+      wsTxBytes: 0,
+      httpRxBytes: 0,
+      httpTxBytes: 0,
+      activeSec: 0,
+      updatedAt: now
+    };
+  }
+  const profDaily = dayBucket.byProfile[profileId];
+
+  if (liveState && !liveState.error && !liveState._cachedFallback && !liveState._syntheticLoading && (!liveState.bandwidth || liveState.bandwidth.probeVersion !== 2) && debugPort) {
+    const lastTry = bwProbeInstallCooldown[debugPort] || 0;
+    if (now - lastTry > 5000) {
+      bwProbeInstallCooldown[debugPort] = now;
+      try {
+        const res = await evalProfilePort(debugPort, BANDWIDTH_PROBE_INSTALL_JS, 1500);
+        if (res && res.success && res.result && typeof res.result.totalBytes === "number") {
+          liveState.bandwidth = res.result;
+        }
+      } catch (e) {}
+    }
+  }
+
+  const isOnline = Boolean(liveState && !liveState.error);
+  const bw = (isOnline && liveState.bandwidth && typeof liveState.bandwidth.totalBytes === "number") ? liveState.bandwidth : null;
+
+  if (bw) {
+    const prevSess = store.lastSession[profileId];
+    const sameSession = Boolean(
+      prevSess &&
+      prevSess.sessionId === bw.sessionId &&
+      bw.rxBytes >= (prevSess.rxBytes || 0) &&
+      bw.txBytes >= (prevSess.txBytes || 0)
+    );
+
+    const deltaRx = sameSession ? Math.max(0, bw.rxBytes - (prevSess.rxBytes || 0)) : Math.max(0, bw.rxBytes || 0);
+    const deltaTx = sameSession ? Math.max(0, bw.txBytes - (prevSess.txBytes || 0)) : Math.max(0, bw.txBytes || 0);
+    const deltaWsRx = sameSession ? Math.max(0, (bw.wsRxBytes || 0) - (prevSess.wsRxBytes || 0)) : Math.max(0, bw.wsRxBytes || 0);
+    const deltaWsTx = sameSession ? Math.max(0, (bw.wsTxBytes || 0) - (prevSess.wsTxBytes || 0)) : Math.max(0, bw.wsTxBytes || 0);
+    const deltaHttpRx = sameSession ? Math.max(0, (bw.httpRxBytes || 0) - (prevSess.httpRxBytes || 0)) : Math.max(0, bw.httpRxBytes || 0);
+    const deltaHttpTx = sameSession ? Math.max(0, (bw.httpTxBytes || 0) - (prevSess.httpTxBytes || 0)) : Math.max(0, bw.httpTxBytes || 0);
+    const deltaTotal = deltaRx + deltaTx;
+
+    store.lastSession[profileId] = {
+      sessionId: bw.sessionId,
+      rxBytes: bw.rxBytes || 0,
+      txBytes: bw.txBytes || 0,
+      wsRxBytes: bw.wsRxBytes || 0,
+      wsTxBytes: bw.wsTxBytes || 0,
+      httpRxBytes: bw.httpRxBytes || 0,
+      httpTxBytes: bw.httpTxBytes || 0,
+      updatedAt: now
+    };
+
+    if (deltaTotal > 0) {
+      profDaily.rxBytes = (profDaily.rxBytes || 0) + deltaRx;
+      profDaily.txBytes = (profDaily.txBytes || 0) + deltaTx;
+      profDaily.totalBytes = (profDaily.rxBytes || 0) + (profDaily.txBytes || 0);
+      profDaily.wsRxBytes = (profDaily.wsRxBytes || 0) + deltaWsRx;
+      profDaily.wsTxBytes = (profDaily.wsTxBytes || 0) + deltaWsTx;
+      profDaily.httpRxBytes = (profDaily.httpRxBytes || 0) + deltaHttpRx;
+      profDaily.httpTxBytes = (profDaily.httpTxBytes || 0) + deltaHttpTx;
+      profDaily.updatedAt = now;
+
+      dayBucket.rxBytes = (dayBucket.rxBytes || 0) + deltaRx;
+      dayBucket.txBytes = (dayBucket.txBytes || 0) + deltaTx;
+      dayBucket.totalBytes = (dayBucket.rxBytes || 0) + (dayBucket.txBytes || 0);
+      dayBucket.wsRxBytes = (dayBucket.wsRxBytes || 0) + deltaWsRx;
+      dayBucket.wsTxBytes = (dayBucket.wsTxBytes || 0) + deltaWsTx;
+      dayBucket.httpRxBytes = (dayBucket.httpRxBytes || 0) + deltaHttpRx;
+      dayBucket.httpTxBytes = (dayBucket.httpTxBytes || 0) + deltaHttpTx;
+      bandwidthStatsDirty = true;
+    }
+
+    let rt = bandwidthRateTrackers[profileId];
+    if (!rt || rt.sessionId !== bw.sessionId) {
+      rt = bandwidthRateTrackers[profileId] = {
+        sessionId: bw.sessionId,
+        startTime: now,
+        lastTime: now,
+        samples: []
+      };
+    } else {
+      const dtMs = now - rt.lastTime;
+      rt.lastTime = now;
+      if (dtMs > 0 && dtMs <= 30000) {
+        profDaily.activeSec = (profDaily.activeSec || 0) + (dtMs / 1000);
+        bandwidthStatsDirty = true;
+      }
+      if (deltaTotal > 0) {
+        rt.samples.push({ t: now, bytes: deltaTotal, rx: deltaRx, tx: deltaTx });
+      }
+    }
+  }
+
+  let bps = 0;
+  let rxBps = 0;
+  let txBps = 0;
+  const rt = bandwidthRateTrackers[profileId];
+  if (isOnline && rt && Array.isArray(rt.samples)) {
+    const windowMs = 10 * 60 * 1000;
+    const cutoff = now - windowMs;
+    if (rt.samples.length > 0 && rt.samples[0].t < cutoff) {
+      rt.samples = rt.samples.filter(s => s.t >= cutoff);
+    }
+    const windowStart = Math.max(rt.startTime, cutoff);
+    const elapsedSec = Math.max(0, (now - windowStart) / 1000);
+    if (elapsedSec >= 1.5 && rt.samples.length > 0) {
+      const sumBytes = rt.samples.reduce((acc, s) => acc + s.bytes, 0);
+      const sumRx = rt.samples.reduce((acc, s) => acc + s.rx, 0);
+      const sumTx = rt.samples.reduce((acc, s) => acc + s.tx, 0);
+      bps = Math.round(sumBytes / elapsedSec);
+      rxBps = Math.round(sumRx / elapsedSec);
+      txBps = Math.round(sumTx / elapsedSec);
+    }
+  }
+
+  const bytesPerHour = bps > 0
+    ? bps * 3600
+    : ((profDaily.activeSec >= 30 && profDaily.totalBytes > 0)
+        ? Math.round((profDaily.totalBytes / profDaily.activeSec) * 3600)
+        : 0);
+  const estDayBytes = bytesPerHour * 24;
+
+  return {
+    date: todayKey,
+    todayBytes: profDaily.totalBytes || 0,
+    todayRxBytes: profDaily.rxBytes || 0,
+    todayTxBytes: profDaily.txBytes || 0,
+    todayWsBytes: (profDaily.wsRxBytes || 0) + (profDaily.wsTxBytes || 0),
+    todayHttpBytes: (profDaily.httpRxBytes || 0) + (profDaily.httpTxBytes || 0),
+    cachedRxBytes: (bw && typeof bw.cachedRxBytes === "number") ? bw.cachedRxBytes : 0,
+    activeSec: Math.round(profDaily.activeSec || 0),
+    bps,
+    rxBps,
+    txBps,
+    bytesPerHour,
+    estDayBytes
+  };
+}
+
+function resetBandwidthTracker(profileId) {
+  const store = loadBandwidthStats();
+  const now = Date.now();
+  const todayKey = getThaiDateKey(now);
+  const dayBucket = store.daily[todayKey];
+  if (profileId === "all") {
+    store.daily[todayKey] = {
+      date: todayKey,
+      rxBytes: 0,
+      txBytes: 0,
+      totalBytes: 0,
+      wsRxBytes: 0,
+      wsTxBytes: 0,
+      httpRxBytes: 0,
+      httpTxBytes: 0,
+      byProfile: {}
+    };
+    for (const k of Object.keys(bandwidthRateTrackers)) {
+      bandwidthRateTrackers[k].startTime = now;
+      bandwidthRateTrackers[k].lastTime = now;
+      bandwidthRateTrackers[k].samples = [];
+    }
+    try {
+      if (typeof screenProxy !== "undefined" && screenProxy && typeof screenProxy.resetTrafficStats === "function") {
+        screenProxy.resetTrafficStats();
+      }
+    } catch (_) {}
+  } else {
+    if (dayBucket && dayBucket.byProfile && dayBucket.byProfile[profileId]) {
+      const p = dayBucket.byProfile[profileId];
+      dayBucket.rxBytes = Math.max(0, (dayBucket.rxBytes || 0) - (p.rxBytes || 0));
+      dayBucket.txBytes = Math.max(0, (dayBucket.txBytes || 0) - (p.txBytes || 0));
+      dayBucket.totalBytes = dayBucket.rxBytes + dayBucket.txBytes;
+      dayBucket.wsRxBytes = Math.max(0, (dayBucket.wsRxBytes || 0) - (p.wsRxBytes || 0));
+      dayBucket.wsTxBytes = Math.max(0, (dayBucket.wsTxBytes || 0) - (p.wsTxBytes || 0));
+      dayBucket.httpRxBytes = Math.max(0, (dayBucket.httpRxBytes || 0) - (p.httpRxBytes || 0));
+      dayBucket.httpTxBytes = Math.max(0, (dayBucket.httpTxBytes || 0) - (p.httpTxBytes || 0));
+      dayBucket.byProfile[profileId] = {
+        rxBytes: 0,
+        txBytes: 0,
+        totalBytes: 0,
+        wsRxBytes: 0,
+        wsTxBytes: 0,
+        httpRxBytes: 0,
+        httpTxBytes: 0,
+        activeSec: 0,
+        updatedAt: now
+      };
+    }
+    if (bandwidthRateTrackers[profileId]) {
+      bandwidthRateTrackers[profileId].startTime = now;
+      bandwidthRateTrackers[profileId].lastTime = now;
+      bandwidthRateTrackers[profileId].samples = [];
+    }
+  }
+  bandwidthStatsDirty = true;
+  saveBandwidthStatsNow();
+}
+
+const planSync = createPlanSync({ loadPlans, savePlans, loadProfiles, evalProfilePort });
+// Observation only by default. Pilot keys/profile IDs require a separately reviewed activation.
+const scriptRollout = loadScriptRollout({dataDir:path.join(__dirname,'data'),serviceOrigin:humanCheckSolver.serviceOrigin});
+const legacyScriptCoordinator = createScriptCoordinator({ dataDir: path.join(__dirname, 'data'), loadProfiles, evalProfilePort, service: humanCheckSolver, ...scriptRollout, reloadRollout:()=>loadScriptRollout({dataDir:path.join(__dirname,'data'),serviceOrigin:humanCheckSolver.serviceOrigin}) });
+const {createOfflineCoordinator}=require('./offline_coordinator');
+function getProfileIpIsolationInfo(profileId) {
+  try {
+    if (typeof screenProxy === 'undefined' || !screenProxy || typeof browserMode === 'undefined' || !browserMode) return null;
+    const spSettings = screenProxy.loadSettings();
+    const meta = typeof browserMode.getProfileIpIsolationMeta === 'function'
+      ? browserMode.getProfileIpIsolationMeta(profileId, spSettings.maxScreensPerIp)
+      : null;
+    if (!meta) return null;
+    const sc = typeof screenProxy.getSurchargeConfig === 'function' ? screenProxy.getSurchargeConfig() : null;
+    let surchargePct = 0;
+    if (sc && sc.enabled !== false && (spSettings.enabled || meta.isCustom)) {
+      const n = Math.max(1, Math.min(20, Number(meta.shareCount) || 6));
+      const base = Math.max(1, Math.min(20, Number(sc.baseline) || 6));
+      if (n < base && sc.tiers && Number.isFinite(Number(sc.tiers[String(n)]))) {
+        surchargePct += Math.max(0, Number(sc.tiers[String(n)]));
+      }
+      if (meta.isCustom && Number(sc.customExtraPct) > 0) {
+        surchargePct += Number(sc.customExtraPct);
+      }
+    }
+    return {
+      ...meta,
+      proxyEnabled: Boolean(spSettings.enabled),
+      surchargePct: Math.round(surchargePct * 100) / 100
+    };
+  } catch (_) {
+    return null;
+  }
+}
+const offlineCoordinator = createOfflineCoordinator({dataDir:path.join(__dirname,'data'),loadProfiles,evalProfilePort,service:humanCheckSolver,trustedKeys:require('./script_release_keys'),legacyCoordinator:legacyScriptCoordinator,getProfileIpIsolationMeta:(pid)=>getProfileIpIsolationInfo(pid),autoBindWallet:false});
+humanCheckSolver.setDeviceNameProvider?.(() => getEffectiveDeviceNickname());
+humanCheckSolver.setOnAccountChanged?.(() => { offlineCoordinator.cycle?.().catch(() => {}); });
+
+const { createCoordinatedScriptCoordinator } = require('./coordinated_coordinator');
+
+const scriptCoordinator = createCoordinatedScriptCoordinator({
+  legacyCoordinator: legacyScriptCoordinator,
+  offlineCoordinator,
+  service: humanCheckSolver,
+  getSettings: () => ({ ...installer.loadSettings(), accountId: humanCheckSolver.loadSettings()?.accountId || null }),
+  dataDir: path.join(__dirname, 'data')
+});
+
+const botAutoUpdater = createBotAutoUpdater({
+  loadProfiles,
+  evalProfilePort,
+  getGameDir: () => installer.getEffectiveGamePath(),
+  getManagedRelease: undefined,
+  getCachedManagedRelease: undefined,
+  isConsolidating: () => Boolean((typeof consolidationState !== 'undefined' && consolidationState && consolidationState.running) || (typeof fleetZenyService !== 'undefined' && fleetZenyService && fleetZenyService.getState()?.running)),
+  dataDir: path.join(__dirname, "data")
+});
+// Auto-login / auto-register: game clients get their profile's ID + password (manager/auth_sync.js)
+const authSync = createAuthSync({ loadProfiles, saveProfiles, evalProfilePort, credentials, proxyRegister, requireOnlineWindowForQueue: true });
+// Per-screen IP queue & split-tunnel forwarder (1 IP : 6 screens default)
+const screenProxy = createScreenProxyManager({
+  dataDir: path.join(__dirname, "data"),
+  solver: humanCheckSolver,
+  loadProfiles
+});
+// Browser mode: game windows in one real Chrome / Edge instead of one Electron app each (manager/browser_mode.js)
+const browserMode = createBrowserMode({ rootDir: path.resolve(__dirname, ".."), sessionsDir: SESSIONS_DIR, getSettings: () => installer.loadSettings(), loadProfiles, preferLocalBot: fs.existsSync(path.join(BASE_DIR, ".git")), ...(TEST_INSTANCE?{cdpPort:testCdpPort,browserUserDataDir:path.join(SESSIONS_DIR,'_isolated_test_browser')}:{ }), screenProxy });
+if (typeof screenProxy.setCustomIpGroupsProvider === "function") {
+  screenProxy.setCustomIpGroupsProvider(() => browserMode.getCustomIpDeviceConfig());
+}
+setTimeout(() => {
+  try {
+    const cfg = browserMode.getCustomIpDeviceConfig();
+    if (cfg && Array.isArray(cfg.ipGroups) && cfg.ipGroups.length > 0) {
+      screenProxy.reserveCustomIpGroupsNow?.().catch(() => {});
+    }
+  } catch (_) {}
+}, 1500).unref?.();
+const isBrowserMode = () => {
+  const st = installer.loadSettings() || {};
+  return (st.launchMode || "browser") === "browser";
+};
+
+// Register unban detection callback — plays notification sound via SSE, clears jail status, and emits event
+if (typeof browserMode.setUnbanCallback === "function") {
+  browserMode.setUnbanCallback((profileId, session) => {
+    try { clearProfileJailStatus(profileId, false); } catch (_) {}
+    const profiles = loadProfiles() || [];
+    const profile = profiles.find(p => p && p.id === profileId);
+    const name = profile ? (profile.name || profileId) : profileId;
+    const charName = profile?.lastCharName ? ` (${profile.lastCharName})` : '';
+    const mapStr = session?.currentMap ? ` แมพ: ${session.currentMap}` : '';
+    console.log(`[UnbanMode] 🔔 Character "${name}"${charName} has been unbanned!${mapStr}`);
+    // Broadcast to all connected SSE clients
+    broadcastUnbanEvent({
+      type: 'unban-success',
+      profileId,
+      profileName: name,
+      charName: profile?.lastCharName || '',
+      currentMap: session?.currentMap || '',
+      deviceModel: session?.deviceSpec?.model || '',
+      message: `🔔 ปลดสำเร็จ! "${name}"${charName} ออกจากคุกแล้ว (${session?.currentMap || 'แมพปกติ'}) — ปิดจอและถอดออกจากวง DataImpulse เรียบร้อย`
+    });
+  });
+}
+
+// SSE for unban events
+const unbanSSEClients = new Set();
+function broadcastUnbanEvent(data) {
+  const msg = `data: ${JSON.stringify(data)}\n\n`;
+  for (const res of unbanSSEClients) {
+    try { res.write(msg); } catch (_) { unbanSSEClients.delete(res); }
+  }
+}
+
+async function syncScreenProxyForOpenProfiles() {
+  const profiles = loadProfiles() || [];
+  let knownBrowserTargetIds = {};
+  try {
+    const ktFile = path.join(SESSIONS_DIR, "_browser_targets.json");
+    if (fs.existsSync(ktFile)) {
+      knownBrowserTargetIds = JSON.parse(fs.readFileSync(ktFile, "utf8")) || {};
+    }
+  } catch (_) {}
+  const openProfiles = [];
+  for (const p of profiles) {
+    const isOpen = browserMode.isOpen(p.id) || Boolean(knownBrowserTargetIds[p.id]) || (runningProcesses[p.id] && isProcessAlive(runningProcesses[p.id].pid)) || (p.debugPort && await portAnswers(p.debugPort));
+    if (isOpen) openProfiles.push(p);
+  }
+  if (openProfiles.length === 0) return [];
+  if (!screenProxy.isEnabled()) {
+    for (const p of openProfiles) {
+      try { await screenProxy.ensureProfileTunnel(p.id, p.debugPort); } catch (_) {}
+    }
+    return [];
+  }
+  try {
+    await screenProxy.acquireLeasesForProfiles(openProfiles.map(p => p.id));
+  } catch (_) {}
+  const results = [];
+  for (const p of openProfiles) {
+    try {
+      const tunnel = await screenProxy.ensureProfileTunnel(p.id, p.debugPort);
+      const lease = screenProxy.getProfileLeaseSnapshot(p.id);
+      results.push({ profileId: p.id, name: p.name, lease, proxyServerUrl: tunnel?.proxyUrl || null });
+    } catch (e) {
+      results.push({ profileId: p.id, name: p.name, error: e.message });
+    }
+  }
+  return results;
+}
+
+const managerUpdater = createManagerSelfUpdater({
+  managerDir: __dirname,
+  dataDir: path.join(__dirname, "data"),
+  // Never restart in the middle of reloading game clients or a zeny consolidation run
+  isBusy: () => botAutoUpdater.isBusy() || consolidationState.running || Boolean(typeof fleetZenyService !== 'undefined' && fleetZenyService && fleetZenyService.getState()?.running)
+});
+
+const VALID_CHANNEL_CHECK_MODES = ["no_overlap", "always", "all", "party_only", "solo_only", "off"];
+
+function getEffectiveChannelCheckMode() {
+  const st = installer.loadSettings() || {};
+  const raw = typeof st.channelCheckMode === "string" ? st.channelCheckMode.trim() : "";
+  return VALID_CHANNEL_CHECK_MODES.includes(raw) ? raw : "all";
+}
+
+function saveChannelCheckMode(mode) {
+  const valid = VALID_CHANNEL_CHECK_MODES.includes(mode) ? mode : "all";
+  const st = installer.loadSettings() || {};
+  st.channelCheckMode = valid;
+  installer.saveSettings(st);
+  return valid;
+}
+
+async function syncChannelCheckModeToAllClients(mode) {
+  const valid = VALID_CHANNEL_CHECK_MODES.includes(mode) ? mode : getEffectiveChannelCheckMode();
+  const profiles = loadProfiles();
+  let syncedCount = 0;
+  let totalChecked = 0;
+  const evalCode = `(() => {
+    if (typeof window.setChannelCheckMode === 'function') return window.setChannelCheckMode(${JSON.stringify(valid)});
+    window.__channelCheckMode = ${JSON.stringify(valid)};
+    try { localStorage.setItem('pelican_channel_check_mode', ${JSON.stringify(valid)}); } catch (_) {}
+    return { success: true, mode: ${JSON.stringify(valid)} };
+  })()`;
+  await Promise.all(profiles.map(async (p) => {
+    if (!p || !p.debugPort) return;
+    totalChecked++;
+    try {
+      const r = await evalProfilePort(p.debugPort, evalCode, 3500);
+      if (r && r.success !== false) syncedCount++;
+    } catch (_) {}
+  }));
+  return { mode: valid, syncedCount, totalChecked };
+}
+
+// Party system: auto-form in-game parties from Manager clients (manager/party_api.js)
+const partyService = createPartyService({
+  loadProfiles,
+  evalProfilePort,
+  dataFile: path.join(__dirname, "data", "parties.json"),
+  isBusy: () => consolidationState.running,
+  getChannelCheckMode: getEffectiveChannelCheckMode
+});
+partyService.start();
+
+// Auto Premium (VIP): buy Token with zeny and keep Premium going (manager/premium_api.js)
+const premiumService = createPremiumService({
+  loadProfiles,
+  evalProfilePort,
+  queryProfileState: async (p) => (p && p.debugPort) ? await queryClientState(p.debugPort) : null,
+  startPremiumConsolidation: async (opts) => {
+    const recvId = opts && opts.receiverProfile && opts.receiverProfile.id;
+    const senderIds = ((opts && opts.senderProfiles) || []).map(s => s.id).filter(sid => !activeConsolidationProfiles.has(sid));
+    if (!recvId || !senderIds.length) {
+      return { started: false, error: 'ไม่พบตัวรับหรือตัวโอนเงินที่ว่างอยู่' };
+    }
+    if (activeConsolidationProfiles.has(recvId)) {
+      return { started: false, error: 'ตัวรับกำลังดำเนินการรวมเงินอยู่ในขณะนี้' };
+    }
+    runConsolidationWorkflow(recvId, senderIds, opts.keepZeny || 0, {
+      enabled: false,
+      items: [],
+      premiumGoal: opts
+    });
+    return { started: true };
+  },
+  stopPremiumConsolidation: async () => {
+    let stoppedAny = false;
+    for (const t of activeConsolidationTasks.values()) {
+      if (t.isPremiumConsolidation) {
+        t.aborted = true;
+        stoppedAny = true;
+      }
+    }
+    if (stoppedAny || consolidationState.isPremiumConsolidation) {
+      if (activeConsolidationTasks.size <= 1) consolidationAborted = true;
+      addConsolidationLog('🛑 ผู้ใช้สั่งหยุดการรวมเงินซื้อ Premium...', 'warning');
+    }
+    return { stopped: true };
+  },
+  getConsolidationStatus: () => ({
+    running: consolidationState.running,
+    isPremiumConsolidation: Boolean(consolidationState.isPremiumConsolidation),
+    status: consolidationState.status,
+    step: consolidationState.step,
+    stepIndex: consolidationState.stepIndex,
+    totalSteps: consolidationState.totalSteps,
+    receiver: consolidationState.receiver,
+    currentSender: consolidationState.currentSender,
+    completedSenders: consolidationState.completedSenders,
+    totalTransferredZeny: consolidationState.totalTransferredZeny,
+    premiumGoal: consolidationState.premiumGoal || null
+  }),
+  dataFile: path.join(__dirname, "data", "premium.json"),
+  isBusy: () => botAutoUpdater.isBusy() || consolidationState.running || Boolean(typeof fleetZenyService !== 'undefined' && fleetZenyService && fleetZenyService.getState()?.running)
+});
+premiumService.start();
+
+// Auto Guild & Daily Material Donation (manager/guild_api.js)
+const guildService = createGuildService({
+  loadProfiles,
+  evalProfilePort,
+  dataFile: path.join(__dirname, "data", "guilds.json"),
+  isBusy: () => botAutoUpdater.isBusy() || consolidationState.running || Boolean(typeof fleetZenyService !== 'undefined' && fleetZenyService && fleetZenyService.getState()?.running)
+});
+guildService.start();
+
+// Card Market Price & Velocity Tracker + Farm Map Switcher (manager/card_market_api.js)
+const cardMarketService = createCardMarketService({
+  loadProfiles,
+  saveProfiles,
+  evalProfilePort,
+  queryProfileState: async (p) => (p && p.debugPort) ? await queryClientState(p.debugPort) : null,
+  getGameItems,
+  humanCheckSolver
+});
+cardMarketService.start();
+
+// Centralized Market Misprice Sniper & Auto-Flip Engine (manager/market_sniper_api.js)
+const marketSniperService = createMarketSniperService({
+  loadProfiles,
+  evalProfilePort,
+  isBusy: () => botAutoUpdater.isBusy() || consolidationState.running || Boolean(typeof fleetZenyService !== 'undefined' && fleetZenyService && fleetZenyService.getState()?.running)
+});
+marketSniperService.start();
+
+// Endless Tower 100-Floor Carry System (manager/tower_carry.js)
+const towerCarryService = createTowerCarryService({
+  loadProfiles,
+  evalProfilePort,
+  dataFile: path.join(__dirname, "data", "tower_carry.json")
+});
+towerCarryService.start();
+
+function getDefaultDeviceNickname() {
+  const user = String(process.env.USERNAME || (typeof os.userInfo === 'function' ? os.userInfo()?.username : '') || '').trim();
+  const host = String(os.hostname() || '').trim();
+  if (user && !/^administrator$/i.test(user)) return user;
+  if (host && !/^administrator$/i.test(host)) return host;
+  return user || host || 'PmheeUser';
+}
+
+function getEffectiveDeviceNickname() {
+  const st = installer.loadSettings() || {};
+  if (st.deviceNickname && typeof st.deviceNickname === 'string' && st.deviceNickname.trim()) {
+    return st.deviceNickname.trim();
+  }
+  return getDefaultDeviceNickname();
+}
+
+const CAPTCHA_STATS_FILE = path.join(__dirname, "data", "captcha_stats.json");
+
+function getThaiDateKey(timestamp = Date.now()) {
+  try {
+    return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok' }).format(new Date(Number(timestamp)));
+  } catch (e) {
+    const d = new Date(Number(timestamp) + 7 * 3600 * 1000);
+    return d.toISOString().slice(0, 10);
+  }
+}
+
+function bootstrapDailyFromRequests() {
+  const daily = {};
+  try {
+    const reqStateFile = path.join(__dirname, "data", "aetheria_request_state.json");
+    if (fs.existsSync(reqStateFile)) {
+      const reqs = JSON.parse(fs.readFileSync(reqStateFile, "utf8")) || {};
+      for (const [pid, entry] of Object.entries(reqs)) {
+        if (!entry) continue;
+        const ts = entry.seenAt || Date.now();
+        const dateKey = getThaiDateKey(ts);
+        if (!daily[dateKey]) {
+          daily[dateKey] = { date: dateKey, total: 0, byProfile: {} };
+        }
+        daily[dateKey].total += 1;
+        daily[dateKey].byProfile[pid] = (daily[dateKey].byProfile[pid] || 0) + 1;
+      }
+    }
+  } catch (e) {}
+  return daily;
+}
+
+// Real implementation lives in captcha_stats.js (tested directly by tests/captcha_stats_delayed.test.js).
+const captchaStats = require('./captcha_stats').createCaptchaStats({ file: CAPTCHA_STATS_FILE, bootstrapDaily: bootstrapDailyFromRequests });
+function getCaptchaStats() { return captchaStats.get(); }
+function recordCaptchaSolved(profileId, details = {}) { return captchaStats.record(profileId, details); }
+const ADMIN_PEERS_FILE = path.join(__dirname, "data", "admin_peers.json");
+function loadAdminPeers() {
+  try {
+    if (fs.existsSync(ADMIN_PEERS_FILE)) {
+      const data = JSON.parse(fs.readFileSync(ADMIN_PEERS_FILE, 'utf8'));
+      if (Array.isArray(data)) return data;
+    }
+  } catch (_) {}
+  return [];
+}
+function saveAdminPeers(peers) {
+  try {
+    fs.writeFileSync(ADMIN_PEERS_FILE, JSON.stringify(peers, null, 2), 'utf8');
+    return true;
+  } catch (_) { return false; }
+}
+
+async function stopSingleProfile(id) {
+  await screenProxy.releaseProfile(id, 'stopped').catch(() => {});
+  const wasBrowserOpen = browserMode.isOpen(id);
+  const stoppedBrowser = await browserMode.stop(id).catch(() => false);
+  const profile = loadProfiles().find(p => p.id === id);
+  if (profile && profile.debugPort) {
+    await evalProfilePort(profile.debugPort, 'try { window.close(); } catch (_) {}', 1200).catch(() => {});
+  }
+  if (wasBrowserOpen || stoppedBrowser) {
+    return { success: true };
+  }
+  const proc = runningProcesses[id];
+  if (proc && proc.pid) {
+    try { exec(`taskkill /pid ${proc.pid} /f /t`); } catch (_) {}
+  }
+  delete runningProcesses[id];
+  return { success: true };
+}
+
+async function stopAllProfiles() {
+  await screenProxy.releaseAll().catch(() => {});
+  if (typeof browserMode.stopAll === 'function') {
+    await browserMode.stopAll().catch(() => {});
+  } else {
+    for (const p of loadProfiles()) {
+      await browserMode.stop(p.id).catch(() => {});
+    }
+  }
+  const allProfiles = loadProfiles();
+  await Promise.allSettled(
+    allProfiles
+      .filter(p => p && p.debugPort)
+      .map(p => evalProfilePort(p.debugPort, 'try { window.close(); } catch (_) {}', 1200))
+  );
+  for (const id in runningProcesses) {
+    const proc = runningProcesses[id];
+    if (proc && proc.pid) {
+      try { exec(`taskkill /pid ${proc.pid} /f /t`); } catch (_) {}
+    }
+    delete runningProcesses[id];
+  }
+  try { exec('taskkill /im "Aetheria Online.exe" /f /t'); } catch (_) {}
+  return { success: true };
+}
+
+
+const discordService = createDiscordBotService({
+  dataDir: path.join(__dirname, "data"),
+  loadProfiles,
+  evalProfilePort,
+  focusProfileWindow: (profileId) => {
+    const profile = loadProfiles().find(p => p.id === profileId);
+    if (profile && profile.debugPort) {
+      http.get(`http://127.0.0.1:${profile.debugPort}/api/window?action=top`, () => {}).on('error', () => {});
+    }
+  },
+  humanCheckSolver,
+  getDeviceNickname: getEffectiveDeviceNickname,
+  onCaptchaSolved: recordCaptchaSolved,
+  stopProfile: stopSingleProfile,
+  stopAll: stopAllProfiles
+});
+
+const embeddedHumanCheckBridge = createEmbeddedHumanCheckBridge({
+  evalProfilePort,
+  recordCaptchaSolved,
+  getConfig: () => {
+    const hc = humanCheckSolver.loadSettings();
+    const dc = discordService.loadSettings();
+    return {
+      autoAnswer: hc.autoAnswer !== false && dc.autoAnswer !== false,
+      answerDelayMs: hc.answerDelayMs,
+      skipWhenAutoInFarmMap: Boolean(hc.skipWhenAutoInFarmMap),
+      skipWhenBotStopped: Boolean(hc.skipWhenBotStopped),
+      skipWhenInTown: Boolean(hc.skipWhenInTown)
+    };
+  }
+});
+
+// ปิดเสียงแจ้งเตือน Captcha ระดับ OS จากตัว Manager เพื่อไม่ให้รบกวนผู้ใช้งาน
+function triggerWindowsAlertBeep() {
+  // No-op: disabled per user request
+}
+
+const humanCheckFirstSeenByProfile = new Map();
+const prisonAlertedByProfile = new Map();
+const lastEmbeddedBridgePollAt = new Map();
+let humanCheckMonitorInFlight = false;
+
+function isJailMapName(mapStr) {
+  if (typeof mapStr !== 'string') return false;
+  const s = mapStr.trim();
+  if (!s || s === '--') return false;
+  if (/คุกใต้ดิน/i.test(s)) return false;
+  return /คุก|เรือนจำ|\bprison\b|\bjail\b/i.test(s);
+}
+
+function isConfirmedOutOfJailMap(state) {
+  if (!state || typeof state.map !== 'string') return false;
+  const s = state.map.trim();
+  if (!s || s === '--' || s === '-' || /ไม่ทราบแมพ|unknown|loading|กำลังโหลด/i.test(s)) return false;
+  if (isJailMapName(s)) return false;
+  if (!state.charName) return false;
+  return true;
+}
+
+const jailStoppingInFlight = new Set();
+const banStoppingInFlight = new Set();
+const recentCharCreationByProfile = new Map();
+const NEW_CHAR_JAIL_WINDOW_MS = 20 * 60 * 1000;
+
+function noteProfileCharCreationActivity(profileId, state) {
+  if (!profileId || !state) return;
+  const pid = String(profileId);
+  const now = Date.now();
+  if (
+    state.screenPhase === 'char_create' ||
+    state.screenPhase === 'register' ||
+    state.screenPhase === 'register_queue'
+  ) {
+    recentCharCreationByProfile.set(pid, now);
+  } else if (Number(state.lastCharCreateAt) > 0 && (now - Number(state.lastCharCreateAt) <= NEW_CHAR_JAIL_WINDOW_MS)) {
+    const prev = recentCharCreationByProfile.get(pid) || 0;
+    if (Number(state.lastCharCreateAt) > prev) {
+      recentCharCreationByProfile.set(pid, Number(state.lastCharCreateAt));
+    }
+  }
+}
+
+function isNewCharacterSpawnJailed(profile, target, state, now = Date.now(), priorCharName = '') {
+  const pid = String((profile && profile.id) || (target && target.id) || '');
+  const lastCreateTs = Math.max(
+    Number(state && state.lastCharCreateAt) || 0,
+    Number(recentCharCreationByProfile.get(pid)) || 0,
+    Number(target && target.lastCharCreateAt) || 0,
+    Number(profile && profile.lastCharCreateAt) || 0,
+    Number(target && target.registeredAt) || 0,
+    Number(profile && profile.registeredAt) || 0,
+    Number(target && target.identityChangedAt) || 0,
+    Number(profile && profile.identityChangedAt) || 0,
+    Number(target && target.createdAt) || 0,
+    Number(profile && profile.createdAt) || 0
+  );
+  if (lastCreateTs > 0 && (now - lastCreateTs) <= NEW_CHAR_JAIL_WINDOW_MS) {
+    return true;
+  }
+  const cls = String((state && state.charClass) || (target && target.lastCharClass) || (profile && profile.lastCharClass) || '').trim().toLowerCase();
+  if (cls === 'novice') return true;
+  const baseLv = Number(state && state.baseLv);
+  if (Number.isFinite(baseLv) && baseLv >= 1 && baseLv <= 15) return true;
+  const curChar = String((state && state.charName) || '').trim();
+  const prevChar = String(priorCharName || '').trim();
+  const firstSeenAt = Number((target && target.charFirstSeenAt) || (profile && profile.charFirstSeenAt) || 0);
+  const charJustAppeared = (!prevChar && Boolean(curChar)) || (Boolean(prevChar) && Boolean(curChar) && prevChar !== curChar) || (firstSeenAt > 0 && (now - firstSeenAt) <= 15 * 60 * 1000);
+  if (charJustAppeared && (!Number.isFinite(baseLv) || baseLv <= 25)) {
+    return true;
+  }
+  return false;
+}
+
+let lastJailAutoCloseEvent = null;
+const jailAutoCloseRecentByScope = new Map();
+
+function getActiveUnbanProfileIds() {
+  const out = new Set();
+  try {
+    const st = typeof browserMode !== 'undefined' && browserMode && typeof browserMode.getUnbanStatus === 'function'
+      ? browserMode.getUnbanStatus()
+      : null;
+    for (const s of (st?.activeSessions || [])) {
+      const pid = String(s?.profileId || '').trim();
+      if (pid) out.add(pid);
+    }
+  } catch (_) {}
+  return out;
+}
+
+function isProfileOpenForAutoClose(p) {
+  if (!p || !p.id) return false;
+  const proc = runningProcesses[p.id];
+  if (proc && isProcessAlive(proc.pid)) return true;
+  if (typeof browserMode !== 'undefined' && browserMode && typeof browserMode.isOpen === 'function' && browserMode.isOpen(p.id)) {
+    return true;
+  }
+  if (p.debugPort) {
+    const cached = clientStateCacheByPort.get(p.debugPort);
+    if (cached && (Date.now() - cached.ts < 60000)) return true;
+  }
+  return false;
+}
+
+function resolveSameIpGroupTargets(triggerPid, {
+  allProfiles = [],
+  customCfg = null,
+  deviceGroups = [],
+  getLeaseSnapshot = null,
+  maxScreensPerIp = 6
+} = {}) {
+  const pid = String(triggerPid || '').trim();
+  const safeProfiles = Array.isArray(allProfiles) ? allProfiles : [];
+  const targetSet = new Set(pid ? [pid] : []);
+  const readLease = (id) => {
+    try {
+      return typeof getLeaseSnapshot === 'function' ? getLeaseSnapshot(id) : null;
+    } catch (_) {
+      return null;
+    }
+  };
+  const triggerLease = pid ? readLease(pid) : null;
+  const isRealProxyLease = (l) => Boolean(
+    l && l.active && l.scheme !== 'direct' && (l.proxyHost || l.ip)
+  );
+  const sameRealProxyLease = (a, b) => {
+    if (!isRealProxyLease(a) || !isRealProxyLease(b)) return false;
+    if (a.proxyHost && b.proxyHost && a.proxyHost === b.proxyHost && Number(a.proxyPort || 0) === Number(b.proxyPort || 0)) {
+      return true;
+    }
+    if (a.ip && (b.ip === a.ip || b.proxyHost === a.ip)) {
+      return true;
+    }
+    return false;
+  };
+
+  // Case 1: Trigger profile belongs to a Custom IP Group
+  const customIpGroups = Array.isArray(customCfg?.ipGroups) ? customCfg.ipGroups : [];
+  let matchedCustomIg = null;
+  const customMemberSet = new Set();
+  for (const ig of customIpGroups) {
+    const igPids = new Set(Array.isArray(ig?.profileIds) ? ig.profileIds.map(String) : []);
+    for (const dg of (Array.isArray(ig?.deviceGroups) ? ig.deviceGroups : [])) {
+      for (const id of (Array.isArray(dg?.profileIds) ? dg.profileIds : [])) {
+        igPids.add(String(id));
+      }
+    }
+    for (const id of igPids) customMemberSet.add(id);
+    if (pid && igPids.has(pid)) {
+      matchedCustomIg = { ig, igPids };
+    }
+  }
+
+  if (matchedCustomIg) {
+    const { ig, igPids } = matchedCustomIg;
+    for (const id of igPids) targetSet.add(id);
+    if (isRealProxyLease(triggerLease)) {
+      for (const p of safeProfiles) {
+        if (!p || !p.id) continue;
+        const l = readLease(p.id);
+        if (sameRealProxyLease(triggerLease, l)) {
+          targetSet.add(String(p.id));
+        }
+      }
+    }
+    const suffix = isRealProxyLease(triggerLease)
+      ? ` (${triggerLease.ip || triggerLease.proxyHost})`
+      : (ig.useHomeIp ? ' (IP บ้าน)' : '');
+    return {
+      profileIds: Array.from(targetSet),
+      groupLabel: `${ig.name || 'วง IP พิเศษ'}${suffix}`,
+      scopeKey: `custom:${ig.id}`
+    };
+  }
+
+  // Match Auto Device/IP Group snapshot if available
+  const safeDeviceGroups = Array.isArray(deviceGroups) ? deviceGroups : [];
+  const autoGrp = safeDeviceGroups.find(g => {
+    const ipPids = Array.isArray(g?.ipProfileIds) && g.ipProfileIds.length > 0 ? g.ipProfileIds : g?.profileIds;
+    return Array.isArray(ipPids) && ipPids.map(String).includes(pid);
+  }) || null;
+
+  // Case 2: Auto Group with Active Real Proxy Lease
+  if (isRealProxyLease(triggerLease)) {
+    for (const p of safeProfiles) {
+      if (!p || !p.id) continue;
+      const l = readLease(p.id);
+      if (sameRealProxyLease(triggerLease, l)) {
+        targetSet.add(String(p.id));
+      }
+    }
+    if (autoGrp) {
+      const sameBlockIds = safeDeviceGroups
+        .filter(g => Number(g?.ipIndex) === Number(autoGrp.ipIndex))
+        .flatMap(g => Array.isArray(g?.ipProfileIds) && g.ipProfileIds.length > 0 ? g.ipProfileIds : (g?.profileIds || []));
+      for (const rawSib of sameBlockIds) {
+        const sibPid = String(rawSib || '').trim();
+        if (!sibPid || customMemberSet.has(sibPid)) continue;
+        const sibLease = readLease(sibPid);
+        if (!sibLease || !sibLease.active) {
+          targetSet.add(sibPid);
+        }
+      }
+    }
+    const ipLabel = triggerLease.ip || triggerLease.proxyHost;
+    return {
+      profileIds: Array.from(targetSet),
+      groupLabel: `${autoGrp ? `IP #${autoGrp.ipIndex} · ` : ''}${ipLabel}`,
+      scopeKey: `proxy:${triggerLease.proxyHost || triggerLease.ip}:${Number(triggerLease.proxyPort) || 0}`
+    };
+  }
+
+  // Case 3: Fallback when Proxy is OFF or no real proxy lease
+  if (autoGrp) {
+    const ipIdx = Number(autoGrp.ipIndex) || 1;
+    for (const g of safeDeviceGroups) {
+      if (Number(g?.ipIndex) !== ipIdx) continue;
+      const list = Array.isArray(g?.ipProfileIds) && g.ipProfileIds.length > 0 ? g.ipProfileIds : (g?.profileIds || []);
+      for (const rawId of list) {
+        const id = String(rawId || '').trim();
+        if (id && !customMemberSet.has(id)) targetSet.add(id);
+      }
+    }
+    return {
+      profileIds: Array.from(targetSet),
+      groupLabel: `IP #${ipIdx}${autoGrp.proxyIp ? ` (${autoGrp.proxyIp})` : ''}`,
+      scopeKey: `auto-ip:${ipIdx}`
+    };
+  }
+
+  const perIp = Math.max(1, Number(maxScreensPerIp) || 6);
+  const unisolated = safeProfiles.filter(p => p && p.id && !customMemberSet.has(String(p.id)));
+  const idx = unisolated.findIndex(p => String(p.id) === pid);
+  const chunkIdx = idx >= 0 ? Math.floor(idx / perIp) : 0;
+  if (idx >= 0) {
+    for (const p of unisolated.slice(chunkIdx * perIp, (chunkIdx + 1) * perIp)) {
+      if (p && p.id) targetSet.add(String(p.id));
+    }
+  }
+  return {
+    profileIds: Array.from(targetSet),
+    groupLabel: `IP #${chunkIdx + 1}`,
+    scopeKey: `auto-ip:${chunkIdx + 1}`
+  };
+}
+
+async function executeJailAutoClose({ mode, triggerProfile, state, mapName, sameIpTargets }) {
+  const normalizedMode = mode === 'all_ips' ? 'all_ips' : (mode === 'same_ip' ? 'same_ip' : 'off');
+  if (normalizedMode === 'off' || !triggerProfile || !triggerProfile.id) return null;
+
+  const triggerPid = String(triggerProfile.id);
+  const scopeKey = normalizedMode === 'all_ips'
+    ? 'all_ips'
+    : (sameIpTargets?.scopeKey || `same_ip:${triggerPid}`);
+  const now = Date.now();
+  const prevAt = jailAutoCloseRecentByScope.get(scopeKey) || 0;
+  if (now - prevAt < 5000) return null;
+  jailAutoCloseRecentByScope.set(scopeKey, now);
+
+  const allProfiles = loadProfiles() || [];
+  const activeUnbanIds = getActiveUnbanProfileIds();
+
+  let targetsToClose = [];
+  if (normalizedMode === 'all_ips') {
+    targetsToClose = allProfiles.filter(p =>
+      p &&
+      !activeUnbanIds.has(String(p.id)) &&
+      (String(p.id) === triggerPid || isProfileOpenForAutoClose(p))
+    );
+  } else {
+    const idSet = new Set(Array.isArray(sameIpTargets?.profileIds) ? sameIpTargets.profileIds.map(String) : [triggerPid]);
+    targetsToClose = allProfiles.filter(p =>
+      p &&
+      idSet.has(String(p.id)) &&
+      !activeUnbanIds.has(String(p.id)) &&
+      (String(p.id) === triggerPid || isProfileOpenForAutoClose(p))
+    );
+  }
+
+  if (normalizedMode === 'all_ips' && activeUnbanIds.size === 0) {
+    await stopAllProfiles().catch(() => {});
+  } else {
+    await Promise.allSettled(targetsToClose.map(p => stopSingleProfile(p.id)));
+  }
+
+  for (const p of targetsToClose) {
+    if (p && p.debugPort) {
+      clientStateCacheByPort.delete(p.debugPort);
+      clientStateLastFailureByPort.delete(p.debugPort);
+    }
+  }
+
+  const groupLabel = normalizedMode === 'all_ips'
+    ? 'ทุกวง IP ทั้งหมด'
+    : (sameIpTargets?.groupLabel || 'วง IP เดียวกัน');
+  const closedNames = targetsToClose.map(p => p.name || p.id);
+  const ev = {
+    id: `jac_${now}_${triggerPid}`,
+    ts: now,
+    mode: normalizedMode,
+    triggerProfileId: triggerPid,
+    triggerProfileName: triggerProfile.name || triggerPid,
+    triggerCharName: (state && state.charName) || triggerProfile.lastCharName || '',
+    mapName,
+    groupLabel,
+    closedCount: targetsToClose.length,
+    closedProfileNames: closedNames
+  };
+  lastJailAutoCloseEvent = ev;
+
+  console.warn(
+    `[JAIL AUTO-CLOSE] 🚨 จอ "${ev.triggerProfileName}"${ev.triggerCharName ? ` (${ev.triggerCharName})` : ''} เข้าแมพคุก (${mapName}) — ` +
+    `โหมด ${normalizedMode === 'all_ips' ? 'ปิดทุกวง IP' : `ปิดเฉพาะวง ${groupLabel}`} ` +
+    `สั่งปิดแล้ว ${ev.closedCount} จอ (${closedNames.join(', ') || 'ไม่มีจอเปิดอยู่'})`
+  );
+  return ev;
+}
+
+async function recordProfileJailedAndStop(profile, state) {
+  if (!profile || !profile.id) return false;
+  const pid = String(profile.id);
+  const now = Date.now();
+  const mapName = (state && typeof state.map === 'string' && state.map.trim()) ? state.map.trim() : 'คุก';
+  let newlyJailed = false;
+  let priorCharName = String(profile.lastCharName || '').trim();
+  let newCharJailed = false;
+  let shouldBlockIpNow = false;
+  const proxyActive = Boolean(
+    typeof screenProxy !== 'undefined' &&
+    screenProxy &&
+    (
+      (typeof screenProxy.isEnabled === 'function' && screenProxy.isEnabled()) ||
+      (typeof screenProxy.getProfileLeaseSnapshot === 'function' && screenProxy.getProfileLeaseSnapshot(pid)?.active)
+    )
+  );
+  try {
+    const fresh = loadProfiles();
+    const target = fresh.find(f => String(f.id) === pid);
+    if (target) {
+      if (target.jailDismissedAt) return false;
+      priorCharName = String(target.lastCharName || priorCharName || '').trim();
+      newCharJailed = isNewCharacterSpawnJailed(profile, target, state, now, priorCharName);
+      newlyJailed = !target.isJailed;
+      shouldBlockIpNow = Boolean(newCharJailed && proxyActive && !target.jailIpBlocked);
+      let changed = !target.isJailed || target.jailedMap !== mapName || !target.jailedAt || Boolean(target.jailAutoStopped);
+      target.isJailed = true;
+      target.jailedAt = target.jailedAt || now;
+      target.jailedMap = mapName;
+      delete target.jailAutoStopped;
+      if (shouldBlockIpNow) {
+        target.jailIpBlocked = true;
+        changed = true;
+      }
+      if (state && state.charName) {
+        if (!target.charFirstSeenAt || (priorCharName && priorCharName !== String(state.charName).trim())) {
+          target.charFirstSeenAt = now;
+        }
+        target.lastCharName = state.charName;
+      }
+      if (state && state.charClass) target.lastCharClass = state.charClass;
+      if (changed) saveProfiles(fresh);
+    } else {
+      newCharJailed = isNewCharacterSpawnJailed(profile, null, state, now, priorCharName);
+      shouldBlockIpNow = Boolean(newCharJailed && proxyActive && !profile.jailIpBlocked);
+    }
+  } catch (_) {}
+
+  if ((newlyJailed || shouldBlockIpNow) && !jailStoppingInFlight.has(pid)) {
+    jailStoppingInFlight.add(pid);
+    try {
+      const customCfg = typeof browserMode !== 'undefined' && browserMode && typeof browserMode.getCustomIpDeviceConfig === 'function'
+        ? browserMode.getCustomIpDeviceConfig()
+        : { ipGroups: [], jailAutoCloseMode: 'off' };
+      const rawCloseMode = String(customCfg?.jailAutoCloseMode || 'off').trim().toLowerCase();
+      const jailCloseMode = (rawCloseMode === 'same_ip' || rawCloseMode === 'all_ips') ? rawCloseMode : 'off';
+      const activeUnbanIds = getActiveUnbanProfileIds();
+      const shouldAutoClose = Boolean(newlyJailed && (jailCloseMode === 'same_ip' || jailCloseMode === 'all_ips') && !activeUnbanIds.has(pid));
+      const sameIpTargets = (shouldAutoClose && jailCloseMode === 'same_ip')
+        ? resolveSameIpGroupTargets(pid, {
+            allProfiles: loadProfiles() || [],
+            customCfg,
+            deviceGroups: typeof browserMode !== 'undefined' && browserMode && typeof browserMode.getDeviceGroupsSnapshot === 'function'
+              ? browserMode.getDeviceGroupsSnapshot()
+              : [],
+            getLeaseSnapshot: (id) => (typeof screenProxy !== 'undefined' && screenProxy && typeof screenProxy.getProfileLeaseSnapshot === 'function')
+              ? screenProxy.getProfileLeaseSnapshot(id)
+              : null,
+            maxScreensPerIp: (typeof screenProxy !== 'undefined' && screenProxy && typeof screenProxy.loadSettings === 'function')
+              ? (screenProxy.loadSettings().maxScreensPerIp || 6)
+              : 6
+          })
+        : null;
+
+      if (shouldBlockIpNow && typeof screenProxy !== 'undefined' && screenProxy && typeof screenProxy.blockProxyForProfile === 'function') {
+        console.warn(`[JAIL IP BLOCK] 🚫 ตรวจพบจอ "${profile.name || pid}" สร้างตัวใหม่แล้วเข้าคุกทันที (${mapName}) ขณะเปิด Proxy — บล็อค Proxy IP ถาวร, ย้ายจออื่นออกจาก IP นี้ และสุ่ม Device/Machine ID ใหม่!`);
+        screenProxy.blockProxyForProfile(pid, {
+          reason: `สร้างตัวใหม่แล้วเข้าคุกทันที (${mapName}) — บล็อค IP ถาวร`,
+          trigger: 'new_char_jailed',
+          blockIpOnJail: true,
+          stopBannedProfile: true,
+          profileName: profile.name || pid,
+          charName: (state && state.charName) || profile.lastCharName || '',
+          account: profile.account || ''
+        }).then(blockRes => {
+          if (blockRes && blockRes.blocked && blockRes.entry) {
+            console.warn(`[Proxy Blacklist] 🚫 บล็อค IP ${blockRes.entry.ip}:${blockRes.entry.port || ''} ถาวร (สร้างตัวใหม่เข้าคุกทันที)`);
+          }
+        }).catch(() => {});
+      } else {
+        console.warn(`[JAIL ALERT] 🚨 ตรวจพบจอ "${profile.name || pid}" อยู่ในแมพคุก (${mapName}) — หยุดบอทในเกม, พักคิวเปิดจอใหม่บน IP นี้ชั่วคราว 30 นาที (ไม่บล็อค IP ถาวร และไม่ตัดจอเดิม) และสุ่ม Device/Machine ID ใหม่`);
+        if (typeof screenProxy !== 'undefined' && screenProxy && typeof screenProxy.markProxyJailCooldownForProfile === 'function') {
+          screenProxy.markProxyJailCooldownForProfile(pid, {
+            reason: `ตัวละครถูกดึงเข้าคุก (${mapName})`,
+            profileName: profile.name || pid,
+            charName: (state && state.charName) || profile.lastCharName || '',
+            account: profile.account || ''
+          }).catch(() => {});
+        }
+      }
+      if (typeof browserMode !== 'undefined' && browserMode && typeof browserMode.rotateDeviceGroup === 'function') {
+        browserMode.rotateDeviceGroup(pid).then(grp => {
+          if (grp && Array.isArray(grp.profileIds)) {
+            for (const gpid of grp.profileIds) {
+              if (windowStates[gpid]) {
+                delete windowStates[gpid].syncedDeviceId;
+                delete windowStates[gpid].syncedMachineId;
+              }
+            }
+          }
+        }).catch(() => {});
+      }
+      if (profile.debugPort) {
+        const stopPromise = evalProfilePort(profile.debugPort, 'if (typeof window.stopMasterBot === "function" && window.__isBotRunning) window.stopMasterBot();', 1200).catch(() => {});
+        if (shouldAutoClose) await stopPromise;
+      }
+      if (shouldAutoClose) {
+        await executeJailAutoClose({
+          mode: jailCloseMode,
+          triggerProfile: profile,
+          state,
+          mapName,
+          sameIpTargets
+        });
+      }
+    } catch (_) {} finally {
+      setTimeout(() => jailStoppingInFlight.delete(pid), 4000);
+    }
+  }
+  return newlyJailed;
+}
+
+function isAccountBannedState(state) {
+  if (!state || typeof state !== 'object') return false;
+  if (state.accountBanned || state.screenPhase === 'account_banned') return true;
+  const errStr = String(state.banReason || state.screenError || state.screenDetail || '').trim();
+  return /บัญชีถูกระงับ|ถูกระงับถึง|ระงับการใช้งาน|account\s*(?:is\s*)?(?:banned|suspended)/i.test(errStr);
+}
+
+async function recordProfileBannedAndBlockIp(profile, state) {
+  if (!profile || !profile.id || !isAccountBannedState(state)) return false;
+  const pid = String(profile.id);
+  const now = Date.now();
+  const rawReason = String(state.banReason || state.screenError || state.screenDetail || 'บัญชีถูกระงับการใช้งาน').replace(/^🚫\s*หน้าเลือกตัวละคร:\s*/i, '').trim();
+  const banReason = rawReason || 'บัญชีถูกระงับการใช้งาน';
+  const alsoInJail = Boolean(state.charSelectInJail || isJailMapName(state.map));
+  let newlyBanned = false;
+  try {
+    const fresh = loadProfiles();
+    const target = fresh.find(f => String(f.id) === pid);
+    if (target) {
+      if (target.banDismissedAt) return false;
+      newlyBanned = !target.isBanned;
+      let changed = !target.isBanned || target.banReason !== banReason || !target.bannedAt;
+      target.isBanned = true;
+      target.bannedAt = target.bannedAt || now;
+      target.banReason = banReason;
+      if (alsoInJail && !target.jailDismissedAt) {
+        if (!target.isJailed) changed = true;
+        target.isJailed = true;
+        target.jailedAt = target.jailedAt || now;
+        target.jailedMap = 'คุก';
+      }
+      if (state && state.charName) {
+        if (target.lastCharName !== state.charName) changed = true;
+        target.lastCharName = state.charName;
+      }
+      if (state && state.charClass) {
+        if (target.lastCharClass !== state.charClass) changed = true;
+        target.lastCharClass = state.charClass;
+      }
+      if (changed) saveProfiles(fresh);
+    }
+  } catch (_) {}
+
+  if (newlyBanned && !banStoppingInFlight.has(pid)) {
+    banStoppingInFlight.add(pid);
+    try {
+      console.warn(`[BAN ALERT] 🚫 ตรวจพบจอ "${profile.name || pid}" ถูกแบน (${banReason}) — บล็อค Proxy IP อัตโนมัติ, สุ่ม Device/Machine ID ใหม่ และหยุดบอททันที!`);
+      if (typeof screenProxy !== 'undefined' && screenProxy && typeof screenProxy.blockProxyForProfile === 'function') {
+        screenProxy.blockProxyForProfile(pid, {
+          reason: banReason,
+          trigger: 'account_banned',
+          stopBannedProfile: true,
+          profileName: profile.name || pid,
+          charName: (state && state.charName) || profile.lastCharName || '',
+          account: profile.account || ''
+        }).then(blockRes => {
+          if (blockRes && blockRes.blocked && blockRes.entry) {
+            console.warn(`[Proxy Blacklist] 🚫 บล็อค IP ${blockRes.entry.ip}:${blockRes.entry.port || ''} ถาวร (สาเหตุ: ${banReason})`);
+          }
+        }).catch(() => {});
+      }
+      if (typeof browserMode !== 'undefined' && browserMode && typeof browserMode.rotateDeviceGroup === 'function') {
+        browserMode.rotateDeviceGroup(pid).then(grp => {
+          if (grp && Array.isArray(grp.profileIds)) {
+            for (const gpid of grp.profileIds) {
+              if (windowStates[gpid]) {
+                delete windowStates[gpid].syncedDeviceId;
+                delete windowStates[gpid].syncedMachineId;
+              }
+            }
+          }
+        }).catch(() => {});
+      }
+      if (profile.debugPort) {
+        evalProfilePort(profile.debugPort, 'window.__isBotRunning = false; window.__autoLoopEnabled = false; if (typeof window.stopMasterBot === "function") window.stopMasterBot();', 2500).catch(() => {});
+      }
+    } catch (_) {} finally {
+      setTimeout(() => banStoppingInFlight.delete(pid), 4000);
+    }
+  }
+  return newlyBanned;
+}
+
+function clearProfileBanStatus(profileId, resetDismissed = false) {
+  const pid = String(profileId || '');
+  const fresh = loadProfiles();
+  let changed = false;
+  for (const p of fresh) {
+    if (!profileId || String(p.id) === pid) {
+      if (p.isBanned || p.bannedAt || p.banReason || (resetDismissed && p.banDismissedAt) || (!resetDismissed && !p.banDismissedAt)) {
+        delete p.isBanned;
+        delete p.bannedAt;
+        delete p.banReason;
+        if (resetDismissed) {
+          delete p.banDismissedAt;
+        } else {
+          p.banDismissedAt = Date.now();
+        }
+        changed = true;
+      }
+    }
+  }
+  if (changed) saveProfiles(fresh);
+  return changed;
+}
+
+function clearProfileJailStatus(profileId, resetDismissed = false) {
+  const pid = String(profileId || '');
+  const fresh = loadProfiles();
+  let changed = false;
+  const unjailedPids = [];
+  for (const p of fresh) {
+    if (!profileId || String(p.id) === pid) {
+      if (p.isJailed || p.jailedAt || p.jailedMap || p.jailAutoStopped || p.isBanned || p.bannedAt || p.banReason || (resetDismissed && p.jailDismissedAt) || (!resetDismissed && !p.jailDismissedAt)) {
+        if (p.isJailed || p.isBanned) unjailedPids.push(String(p.id));
+        delete p.isJailed;
+        delete p.jailedAt;
+        delete p.jailedMap;
+        delete p.jailAutoStopped;
+        delete p.isBanned;
+        delete p.bannedAt;
+        delete p.banReason;
+        if (resetDismissed) {
+          delete p.jailDismissedAt;
+          delete p.banDismissedAt;
+        } else {
+          p.jailDismissedAt = Date.now();
+          p.banDismissedAt = Date.now();
+        }
+        changed = true;
+      }
+    }
+  }
+  if (changed) {
+    saveProfiles(fresh);
+    if (unjailedPids.length > 0 && typeof browserMode !== 'undefined' && browserMode && typeof browserMode.rotateDeviceGroup === 'function') {
+      for (const upid of unjailedPids) {
+        browserMode.rotateDeviceGroup(upid).then(grp => {
+          if (grp && Array.isArray(grp.profileIds)) {
+            for (const gpid of grp.profileIds) {
+              if (windowStates[gpid]) {
+                delete windowStates[gpid].syncedDeviceId;
+                delete windowStates[gpid].syncedMachineId;
+              }
+            }
+          }
+        }).catch(() => {});
+      }
+    }
+  }
+  return changed;
+}
+
+// Background monitor for Human Check (alerts Discord + OS beep even if Manager UI is closed/idle)
+setInterval(async () => {
+  if (humanCheckMonitorInFlight) return;
+  humanCheckMonitorInFlight = true;
+  try {
+    const profiles = loadProfiles().filter(p => {
+      if (!p || !p.debugPort) return false;
+      const proc = runningProcesses[p.id];
+      if (proc && isProcessAlive(proc.pid)) return true;
+      if (browserMode && typeof browserMode.isOpen === 'function' && browserMode.isOpen(p.id)) return true;
+      const cached = clientStateCacheByPort.get(p.debugPort);
+      return Boolean(cached && (Date.now() - cached.ts < 60000));
+    });
+    const BATCH_SIZE = 4;
+    let shouldBeepNormal = false;
+    let shouldBeepUrgent = false;
+
+    for (let i = 0; i < profiles.length; i += BATCH_SIZE) {
+      const batch = profiles.slice(i, i + BATCH_SIZE);
+      await Promise.all(batch.map(async (p) => {
+        try {
+          const state = await queryClientState(p.debugPort);
+          noteProfileCharCreationActivity(p.id, state);
+          const nowPoll = Date.now();
+          if (state && ((state.humanCheck && state.humanCheck.active) || (nowPoll - (lastEmbeddedBridgePollAt.get(p.id) || 0) >= 15000))) {
+            lastEmbeddedBridgePollAt.set(p.id, nowPoll);
+            await embeddedHumanCheckBridge.collect(p, state);
+          }
+          const bufferedWrong = pendingWrongAttemptsByPort.get(p.debugPort);
+          const wrongList = (Array.isArray(bufferedWrong) && bufferedWrong.length > 0)
+            ? bufferedWrong
+            : ((state && Array.isArray(state.humanCheckWrongAttempts)) ? state.humanCheckWrongAttempts : []);
+          if (wrongList.length > 0) {
+            pendingWrongAttemptsByPort.delete(p.debugPort);
+            if (state) state.humanCheckWrongAttempts = null;
+            shouldBeepUrgent = true;
+            if (typeof discordService.notifyHumanCheckWrongAttempt === 'function') {
+              for (const attempt of wrongList) {
+                discordService.notifyHumanCheckWrongAttempt({ profile: p, attempt });
+              }
+            }
+          }
+          if (state && state.humanCheck && state.humanCheck.active) {
+            const now = Date.now();
+            if (!humanCheckFirstSeenByProfile.has(p.id)) {
+              humanCheckFirstSeenByProfile.set(p.id, now);
+              shouldBeepNormal = true;
+            } else if (now - humanCheckFirstSeenByProfile.get(p.id) >= 4000) {
+              shouldBeepUrgent = true;
+            }
+            if (state.humanCheck.isUpdatedFormat) {
+              console.warn(`[EMERGENCY STOP] ตรวจพบ Human Check รูปแบบใหม่บนจอ ${p.name || p.id} — ปิดทุกจออัตโนมัติทันที!`);
+              stopAllProfiles();
+              if (typeof discordService.notifyHumanCheckEmergency === 'function') {
+                discordService.notifyHumanCheckEmergency({ profile: p, check: state.humanCheck, reason: 'ตรวจพบโจทย์รูปแบบใหม่ (Image Board / ไม่มีปุ่มเลือกไอคอนเดิม)' });
+              }
+            } else {
+              discordService.notifyHumanCheck({ profile: p, check: state.humanCheck });
+            }
+          } else if (state) {
+            humanCheckFirstSeenByProfile.delete(p.id);
+            discordService.clearHumanCheck(p.id);
+          }
+          if (state && isAccountBannedState(state)) {
+            if (!p.banDismissedAt) {
+              await recordProfileBannedAndBlockIp(p, state);
+            }
+          } else if (state && state.screenPhase === 'in_game' && !isJailMapName(state.map) && (p.isBanned || p.banDismissedAt)) {
+            clearProfileBanStatus(p.id, true);
+          }
+          if (state && isJailMapName(state.map)) {
+            if (!p.jailDismissedAt) {
+              if (!p.isJailed) {
+                const lastPrisonBeep = prisonAlertedByProfile.get(p.id) || 0;
+                if (Date.now() - lastPrisonBeep > 60000) {
+                  prisonAlertedByProfile.set(p.id, Date.now());
+                  shouldBeepUrgent = true;
+                }
+              }
+              await recordProfileJailedAndStop(p, state);
+            }
+          } else if (isConfirmedOutOfJailMap(state)) {
+            prisonAlertedByProfile.delete(p.id);
+            if (p.isJailed || p.jailAutoStopped || p.jailDismissedAt) clearProfileJailStatus(p.id, true);
+          }
+          if (state && state.unexpectedTown && state.unexpectedTown.active) {
+            discordService.notifyUnexpectedTown({ profile: p, unexpectedTown: state.unexpectedTown });
+          }
+        } catch (_) {}
+      }));
+    }
+
+    if (shouldBeepUrgent) {
+      triggerWindowsAlertBeep(true);
+    } else if (shouldBeepNormal) {
+      triggerWindowsAlertBeep(false);
+    }
+  } catch (e) {} finally {
+    humanCheckMonitorInFlight = false;
+  }
+}, 3500);
+
+// Cloud Profile & Credential (ID / Password) Backup Sync & Restore
+let centralProfileBackupTimer = null;
+let centralProfileBackupInFlight = false;
+
+function buildLocalProfileBackupPayload() {
+  const profiles = loadProfiles() || [];
+  const deviceName = getEffectiveDeviceNickname();
+  const hcSettings = humanCheckSolver.loadSettings() || {};
+  const hwidCode = String(hcSettings.hwidCode || "").trim();
+  const accountId = String(hcSettings.accountId || "").trim();
+  const machineId = (hwidCode && hwidCode !== "UNKNOWN") ? hwidCode : (accountId || deviceName);
+  const cleanProfiles = [];
+  const credsMap = {};
+  const seenBackupAccounts = new Set();
+  for (const p of profiles) {
+    if (!p || !p.id) continue;
+    const password = credentials.getPassword(p.id) || "";
+    const username = String(p.account || p.username || "").trim();
+    const uLower = username.toLowerCase();
+    // Never overwrite Central Backup with a clobbered duplicate account from another client
+    if (uLower && seenBackupAccounts.has(uLower)) {
+      continue;
+    }
+    if (uLower) seenBackupAccounts.add(uLower);
+    const characterName = String((p.liveState && p.liveState.charName) || p.lastCharName || "").trim();
+    const copy = { ...p };
+    delete copy.liveState;
+    delete copy.password;
+    if (username) {
+      copy.account = username;
+      copy.username = username;
+    }
+    if (characterName) copy.lastCharName = characterName;
+    cleanProfiles.push({
+      id: p.id,
+      name: p.name || p.id,
+      characterName,
+      username,
+      account: username,
+      password,
+      server: p.server || "aetheria-main",
+      profile: copy
+    });
+    if (username || password) {
+      credsMap[p.id] = { username, password, updatedAt: Date.now() };
+    }
+  }
+  return {
+    format: "pmhee-aetheria-profile-backup-v1",
+    exportedAt: new Date().toISOString(),
+    machineId,
+    machineName: deviceName,
+    hwidCode: hwidCode || undefined,
+    profiles: cleanProfiles,
+    credentials: credsMap
+  };
+}
+
+function applyProfileBackupPayload(data, options = {}) {
+  if (!data || typeof data !== "object") return { restoredProfiles: 0, restoredCredentials: 0 };
+  const replaceExisting = Boolean(options && options.replaceExisting);
+  const rawList = Array.isArray(data.profiles) ? data.profiles : [];
+  if (rawList.length === 0) return { restoredProfiles: 0, restoredCredentials: 0 };
+  const existing = loadProfiles() || [];
+  const existingById = new Map(existing.map(p => [p.id, p]));
+  const deletedIds = loadDeletedProfileIds();
+  const merged = [];
+  const seenIds = new Set();
+  let restoredCredentials = 0;
+  const credsObj = (data.credentials && typeof data.credentials === "object") ? data.credentials : {};
+
+  for (const item of rawList) {
+    if (!item || typeof item !== "object") continue;
+    const base = (item.profile && typeof item.profile === "object") ? { ...item.profile } : { ...item };
+    const id = String(base.id || item.id || item.profileId || "").trim();
+    if (!id || seenIds.has(id) || deletedIds.has(id)) continue;
+    const prev = replaceExisting ? {} : (existingById.get(id) || {});
+    const username = String(item.username || item.account || base.account || base.username || (credsObj[id] && credsObj[id].username) || prev.account || prev.username || "").trim();
+    const password = String(item.password || (credsObj[id] && credsObj[id].password) || "").trim();
+    const charName = String(item.characterName || base.lastCharName || prev.lastCharName || "").trim();
+    const finalName = String(item.name || base.name || prev.name || id).trim();
+    // Skip blank unconfigured Client X shells when restoring from backup
+    if (!username && !charName && /^Client \d+$/i.test(finalName)) continue;
+    seenIds.add(id);
+    delete base.password;
+    delete base.liveState;
+    const finalProfile = {
+      ...prev,
+      ...base,
+      id,
+      name: finalName,
+      server: String(item.server || base.server || prev.server || "aetheria-main").trim(),
+      ...(username ? { account: username, username } : {}),
+      ...(charName ? { lastCharName: charName } : {})
+    };
+    merged.push(finalProfile);
+    if (password) {
+      credentials.setPassword(id, password);
+      restoredCredentials++;
+    }
+  }
+
+  for (const [id, cred] of Object.entries(credsObj)) {
+    if (deletedIds.has(id)) continue;
+    if (cred && cred.password && seenIds.has(id) && !credentials.getPassword(id)) {
+      credentials.setPassword(id, String(cred.password));
+      restoredCredentials++;
+    }
+  }
+
+  if (replaceExisting) {
+    for (const oldP of existing) {
+      if (oldP && oldP.id && !seenIds.has(oldP.id)) {
+        try { credentials.setPassword(oldP.id, ""); } catch (_) {}
+        try {
+          const bsFile = path.join(SESSIONS_DIR, "_browser_storage", `${oldP.id}.json`);
+          if (fs.existsSync(bsFile)) fs.unlinkSync(bsFile);
+        } catch (_) {}
+      }
+    }
+  } else if (!isUntouchedDefaultMockProfiles(existing)) {
+    // Keep any existing non-mock profiles that were not in the backup
+    for (const p of existing) {
+      if (p && p.id && !seenIds.has(p.id) && !deletedIds.has(p.id)) {
+        merged.push(p);
+      }
+    }
+  }
+
+  if (merged.length > 0) {
+    saveProfiles(merged);
+  }
+  return { restoredProfiles: merged.length, restoredCredentials };
+}
+
+async function syncProfileBackupToCentral() {
+  if (TEST_INSTANCE || centralProfileBackupInFlight) return null;
+  centralProfileBackupInFlight = true;
+  try {
+    let accountSettings = humanCheckSolver.loadSettings();
+    if (!accountSettings || !accountSettings.accountId) {
+      await humanCheckSolver.refreshBalance().catch(() => {});
+      accountSettings = humanCheckSolver.loadSettings();
+    }
+    if (!accountSettings || !accountSettings.accountId) return null;
+    const currentProfiles = loadProfiles() || [];
+    const deletedProfileIds = Array.from(loadDeletedProfileIds());
+    if ((currentProfiles.length === 0 || isUntouchedDefaultMockProfiles(currentProfiles)) && deletedProfileIds.length === 0) return null;
+    const payload = buildLocalProfileBackupPayload();
+    const res = await humanCheckSolver.serviceRequest('/v1/aetheria/pmheenc/machine/profile-backup', {
+      machineId: payload.machineId,
+      machineName: payload.machineName,
+      profiles: payload.profiles,
+      deletedProfileIds
+    });
+    return res;
+  } catch (_) {
+    return null;
+  } finally {
+    centralProfileBackupInFlight = false;
+  }
+}
+
+function scheduleCentralProfileBackupSync(delayMs = 3500) {
+  if (TEST_INSTANCE) return;
+  if (centralProfileBackupTimer) clearTimeout(centralProfileBackupTimer);
+  centralProfileBackupTimer = setTimeout(() => {
+    centralProfileBackupTimer = null;
+    syncProfileBackupToCentral().catch(() => {});
+  }, delayMs);
+}
+
+async function restoreProfilesFromCentral(options = {}) {
+  try {
+    let accountSettings = humanCheckSolver.loadSettings();
+    if (!accountSettings || !accountSettings.accountId) {
+      await humanCheckSolver.refreshBalance().catch(() => {});
+      accountSettings = humanCheckSolver.loadSettings();
+    }
+    if (!accountSettings || !accountSettings.accountId) return { success: false, error: 'NO_ACCOUNT' };
+    const deviceId = getEffectiveDeviceNickname();
+    const deletedProfileIds = Array.from(loadDeletedProfileIds());
+    const res = await humanCheckSolver.serviceRequest('/v1/aetheria/pmheenc/machine/profile-restore', {
+      machineId: deviceId,
+      deletedProfileIds
+    });
+    if (res && res.success && Array.isArray(res.profiles) && res.profiles.length > 0) {
+      const result = applyProfileBackupPayload(res, options);
+      console.log(`[Central Admin] 🛡️ กู้คืนโปรไฟล์จากเซิร์ฟเวอร์สำเร็จ ${result.restoredProfiles} จอ (รหัสผ่าน ${result.restoredCredentials} จอ)`);
+      return { success: true, ...result };
+    }
+    return { success: false, error: 'NO_CLOUD_BACKUP' };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+let diskEvidenceImportedOnce = false;
+
+function importEvidenceFromOtherManagerDirsOnDisk() {
+  if (diskEvidenceImportedOnce) return;
+  diskEvidenceImportedOnce = true;
+  try {
+    const deletedIds = loadDeletedProfileIds();
+    const home = os.homedir();
+    const currentMgrDir = path.resolve(__dirname).toLowerCase();
+    const currentHwid = typeof humanCheckSolver.getMachineFingerprint === "function"
+      ? humanCheckSolver.getMachineFingerprint()
+      : "";
+    const currentAccountId = String(humanCheckSolver.loadSettings()?.accountId || "").trim();
+    const searchRoots = new Set([
+      path.resolve(__dirname, ".."),
+      path.resolve(__dirname, "../.."),
+      path.resolve(__dirname, "../../.."),
+      path.join(home, "Desktop"),
+      path.join(home, "Downloads"),
+      path.join(home, "Documents"),
+      path.join(home, "OneDrive", "Desktop"),
+      path.join(home, "OneDrive", "Documents"),
+      "C:\\",
+      "D:\\",
+      "E:\\"
+    ]);
+    const candidateMgrDirs = [];
+    const seenDirs = new Set();
+    const checkDir = (dir, depth = 0, maxDepth = 2) => {
+      if (!dir || depth > maxDepth) return;
+      let norm;
+      try { norm = path.resolve(dir).toLowerCase(); } catch (_) { return; }
+      if (seenDirs.has(norm) || norm.includes("$recycle.bin")) return;
+      seenDirs.add(norm);
+      if (!fs.existsSync(dir)) return;
+      try {
+        const hasServerJs = fs.existsSync(path.join(dir, "server.js"));
+        const hasSubMgr = fs.existsSync(path.join(dir, "manager", "server.js"));
+        const hasSessionsOnly = !hasServerJs && !hasSubMgr && (
+          fs.existsSync(path.join(dir, "sessions", "_browser", "Default", "Local Storage", "leveldb")) ||
+          fs.existsSync(path.join(dir, "sessions", "_browser_storage"))
+        );
+        if ((hasServerJs || hasSessionsOnly) && norm !== currentMgrDir) {
+          candidateMgrDirs.push(dir);
+        }
+        if (hasSubMgr && path.resolve(dir, "manager").toLowerCase() !== currentMgrDir) {
+          candidateMgrDirs.push(path.join(dir, "manager"));
+        }
+        if (depth < maxDepth) {
+          const entries = fs.readdirSync(dir, { withFileTypes: true });
+          for (const e of entries) {
+            if (!e.isDirectory()) continue;
+            if (/^(windows|program files|program files \(x86\)|programdata|system volume information|node_modules|\.git|appdata|\$recycle\.bin)$/i.test(e.name)) continue;
+            if (depth === 0 || /pelican|pmhee|aetheria|bot|manager|release/i.test(e.name)) {
+              checkDir(path.join(dir, e.name), depth + 1, maxDepth);
+            }
+          }
+        }
+      } catch (_) {}
+    };
+    for (const r of searchRoots) {
+      checkDir(r, 0, 2);
+    }
+
+    for (const mgrDir of candidateMgrDirs) {
+      try {
+        const otherRoot = path.resolve(mgrDir, "..");
+        // Verify the candidate folder does not belong to a foreign machine or different service account
+        let isForeignFolder = false;
+        for (const saPath of [
+          path.join(mgrDir, "data", "aetheria_service_account.json"),
+          path.join(otherRoot, "manager", "data", "aetheria_service_account.json")
+        ]) {
+          if (!fs.existsSync(saPath)) continue;
+          try {
+            const sa = JSON.parse(fs.readFileSync(saPath, "utf8"));
+            if (sa && typeof sa === "object") {
+              if (sa.machineHwid && currentHwid && String(sa.machineHwid).trim() !== currentHwid) {
+                isForeignFolder = true;
+              }
+              if (currentAccountId && sa.accountId && String(sa.accountId).trim() !== currentAccountId) {
+                isForeignFolder = true;
+              }
+            }
+          } catch (_) {}
+        }
+        if (isForeignFolder) continue;
+
+        // Also include any deleted_profiles.json from the other folder so previously deleted profiles stay deleted
+        for (const delPath of [path.join(mgrDir, "data", "deleted_profiles.json"), path.join(otherRoot, "manager", "data", "deleted_profiles.json")]) {
+          if (!fs.existsSync(delPath)) continue;
+          try {
+            const otherDel = JSON.parse(fs.readFileSync(delPath, "utf8"));
+            if (Array.isArray(otherDel)) {
+              for (const did of otherDel) {
+                if (did) {
+                  deletedIds.add(String(did));
+                  recordDeletedProfileId(String(did));
+                }
+              }
+            }
+          } catch (_) {}
+        }
+
+        // Collect configured profile IDs (those with account or lastCharName) from the other folder
+        const configuredPidsInFolder = new Set();
+        for (const pf of [path.join(mgrDir, "data", "profiles.backup.json"), path.join(mgrDir, "profiles.json")]) {
+          if (!fs.existsSync(pf)) continue;
+          try {
+            const arr = JSON.parse(fs.readFileSync(pf, "utf8"));
+            if (Array.isArray(arr)) {
+              for (const item of arr) {
+                if (item && item.id && !deletedIds.has(String(item.id)) && (item.account || item.lastCharName)) {
+                  configuredPidsInFolder.add(String(item.id));
+                }
+              }
+            }
+          } catch (_) {}
+        }
+
+        // 1. Copy credentials.json entries if missing locally (only for non-deleted, configured profiles)
+        for (const credPath of [path.join(mgrDir, "data", "credentials.json"), path.join(otherRoot, "manager", "data", "credentials.json")]) {
+          if (!fs.existsSync(credPath)) continue;
+          try {
+            const raw = JSON.parse(fs.readFileSync(credPath, "utf8"));
+            if (raw && typeof raw === "object") {
+              for (const [pid, val] of Object.entries(raw)) {
+                if (!pid.startsWith("profile_") || deletedIds.has(pid) || credentials.getPassword(pid)) continue;
+                if (configuredPidsInFolder.size > 0 && !configuredPidsInFolder.has(pid)) continue;
+                const pw = typeof val === "string" ? val : (val && val.password ? String(val.password) : "");
+                if (pw) credentials.setPassword(pid, pw);
+              }
+            }
+          } catch (_) {}
+        }
+        // 2. Merge _browser_storage/*.json and extract LevelDB directly
+        for (const sessBase of [path.join(otherRoot, "sessions"), path.join(mgrDir, "sessions")]) {
+          const otherBs = path.join(sessBase, "_browser_storage");
+          if (fs.existsSync(otherBs)) {
+            for (const f of fs.readdirSync(otherBs)) {
+              if (!f.endsWith(".json")) continue;
+              const pid = f.slice(0, -5);
+              if (!pid.startsWith("profile_") || deletedIds.has(pid)) continue;
+              try {
+                const srcData = JSON.parse(fs.readFileSync(path.join(otherBs, f), "utf8"));
+                writeOrMergeProfileStorageFile(pid, srcData);
+              } catch (_) {}
+            }
+          }
+          // 3. Extract _browser/Default/Local Storage/leveldb directly and merge into local _browser_storage
+          const otherLdb = path.join(sessBase, "_browser", "Default", "Local Storage", "leveldb");
+          if (fs.existsSync(otherLdb)) {
+            try {
+              const diskHarvest = extractPelicanStorageFromLevelDb(otherLdb);
+              if (diskHarvest && diskHarvest.byProfile) {
+                for (const [pid, entries] of Object.entries(diskHarvest.byProfile)) {
+                  if (!deletedIds.has(pid)) {
+                    writeOrMergeProfileStorageFile(pid, entries);
+                  }
+                }
+              }
+            } catch (_) {}
+          }
+          // 3b. Extract Electron sessions/profile_*/Local Storage/leveldb directly
+          if (fs.existsSync(sessBase)) {
+            for (const entry of fs.readdirSync(sessBase, { withFileTypes: true })) {
+              if (!entry.isDirectory() || !entry.name.startsWith("profile_")) continue;
+              const pid = entry.name;
+              if (deletedIds.has(pid)) continue;
+              const srcP = path.join(sessBase, pid, "Local Storage", "leveldb");
+              if (fs.existsSync(srcP)) {
+                try {
+                  const diskHarvest = extractPelicanStorageFromLevelDb(srcP, pid);
+                  if (diskHarvest && diskHarvest.byProfile && diskHarvest.byProfile[pid]) {
+                    writeOrMergeProfileStorageFile(pid, diskHarvest.byProfile[pid]);
+                  }
+                } catch (_) {}
+              }
+            }
+          }
+        }
+        // 4. Check profiles.backup.json or profiles.json in other folder
+        for (const pf of [path.join(mgrDir, "data", "profiles.backup.json"), path.join(mgrDir, "profiles.json")]) {
+          if (!fs.existsSync(pf)) continue;
+          try {
+            const rawArr = JSON.parse(fs.readFileSync(pf, "utf8"));
+            const arr = Array.isArray(rawArr) ? rawArr.filter(x => x && x.id && !deletedIds.has(String(x.id)) && (x.account || x.lastCharName)) : [];
+            if (arr.length > 0 && !isUntouchedDefaultMockProfiles(arr)) {
+              const cur = loadProfiles() || [];
+              if (isUntouchedDefaultMockProfiles(cur) && deletedIds.size === 0) {
+                saveProfiles(arr);
+              } else {
+                let enriched = false;
+                const byId = new Map(arr.filter(x => x && x.id).map(x => [String(x.id), x]));
+                for (const p of cur) {
+                  const donor = p && p.id ? byId.get(String(p.id)) : null;
+                  if (!donor) continue;
+                  if (!p.account && donor.account) {
+                    p.account = String(donor.account).trim();
+                    p.loginSyncPending = true;
+                    enriched = true;
+                  }
+                  if (!p.lastCharName && donor.lastCharName) {
+                    p.lastCharName = String(donor.lastCharName).trim();
+                    enriched = true;
+                  }
+                }
+                if (enriched) saveProfiles(cur);
+              }
+            }
+          } catch (_) {}
+        }
+      } catch (_) {}
+    }
+  } catch (_) {}
+}
+
+function hasProfilesMissingCredentialsOrAccount(list) {
+  return Array.isArray(list) && list.some(p => p && p.id && (!p.account || !credentials.getPassword(p.id)));
+}
+
+function hasDuplicateProfileAccounts(list) {
+  if (!Array.isArray(list)) return false;
+  const seen = new Set();
+  for (const p of list) {
+    const u = String(p && p.account || "").trim().toLowerCase();
+    if (!u) continue;
+    if (seen.has(u)) return true;
+    seen.add(u);
+  }
+  return false;
+}
+
+async function healDuplicateClobberedProfiles(current) {
+  if (!Array.isArray(current) || !hasDuplicateProfileAccounts(current)) return false;
+  const byAccount = new Map();
+  for (const p of current) {
+    if (!p || !p.id) continue;
+    const u = String(p.account || "").trim().toLowerCase();
+    if (!u) continue;
+    if (!byAccount.has(u)) byAccount.set(u, []);
+    byAccount.get(u).push(p);
+  }
+  const dupGroups = Array.from(byAccount.entries()).filter(([, grp]) => grp.length > 1);
+  if (dupGroups.length === 0) return false;
+
+  const cloudById = new Map();
+  try {
+    const accountSettings = humanCheckSolver.loadSettings();
+    if (accountSettings && accountSettings.accountId) {
+      const restoreRes = await humanCheckSolver.serviceRequest("/v1/aetheria/pmheenc/machine/profile-restore", {
+        machineId: getEffectiveDeviceNickname(),
+        deletedProfileIds: Array.from(loadDeletedProfileIds())
+      }).catch(() => null);
+      if (restoreRes && restoreRes.success && Array.isArray(restoreRes.profiles)) {
+        for (const item of restoreRes.profiles) {
+          const id = String(item && (item.id || item.profileId) || "").trim();
+          if (id) cloudById.set(id, item);
+        }
+      }
+    }
+  } catch (_) {}
+
+  const localBackupById = new Map();
+  try {
+    const bFile = path.join(dataDir, "profiles.backup.json");
+    if (fs.existsSync(bFile)) {
+      const arr = JSON.parse(fs.readFileSync(bFile, "utf8"));
+      if (Array.isArray(arr)) {
+        for (const item of arr) {
+          if (item && item.id) localBackupById.set(String(item.id), item);
+        }
+      }
+    }
+  } catch (_) {}
+
+  const usedAccounts = new Set(current.map(p => String(p && p.account || "").trim().toLowerCase()).filter(Boolean));
+  const bsDir = path.join(SESSIONS_DIR, "_browser_storage");
+  let healedAny = false;
+
+  for (const [uLower, group] of dupGroups) {
+    let owner = group.find(p => {
+      const cItem = cloudById.get(p.id);
+      const cUser = String(cItem && (cItem.username || cItem.account) || "").trim().toLowerCase();
+      return cUser === uLower;
+    }) || group[0];
+
+    for (const victim of group) {
+      if (victim === owner) continue;
+      let restoredUser = "";
+      let restoredPass = "";
+      let restoredChar = "";
+
+      const cItem = cloudById.get(victim.id);
+      if (cItem) {
+        const cu = String(cItem.username || cItem.account || "").trim();
+        if (cu && cu.toLowerCase() !== uLower && !usedAccounts.has(cu.toLowerCase())) {
+          restoredUser = cu;
+          restoredPass = String(cItem.password || "").trim();
+          restoredChar = String(cItem.characterName || (cItem.profile && cItem.profile.lastCharName) || "").trim();
+        }
+      }
+
+      if (!restoredUser) {
+        const bItem = localBackupById.get(victim.id);
+        if (bItem) {
+          const bu = String(bItem.account || bItem.username || "").trim();
+          if (bu && bu.toLowerCase() !== uLower && !usedAccounts.has(bu.toLowerCase())) {
+            restoredUser = bu;
+            restoredChar = String(bItem.lastCharName || "").trim();
+          }
+        }
+      }
+
+      if (!restoredUser && Array.isArray(victim.authHistory)) {
+        for (const h of victim.authHistory) {
+          const hu = String(h && h.username || "").trim();
+          if (hu && hu.toLowerCase() !== uLower && !usedAccounts.has(hu.toLowerCase())) {
+            restoredUser = hu;
+            if (h.password) restoredPass = String(h.password).trim();
+            if (h.charName) restoredChar = String(h.charName).trim();
+            break;
+          }
+        }
+      }
+
+      if (restoredUser) {
+        usedAccounts.add(restoredUser.toLowerCase());
+        victim.account = restoredUser;
+        victim.autoRegister = false;
+        victim.generatedAccount = /^pm[a-z0-9]{8}$/i.test(restoredUser);
+        victim.registerError = "";
+        victim.loginSyncPending = true;
+        victim.lastAuthSyncPushAt = Date.now();
+        if (restoredChar) {
+          victim.lastCharName = restoredChar;
+        } else if (owner && victim.lastCharName && victim.lastCharName === owner.lastCharName) {
+          victim.lastCharName = "";
+        }
+        if (restoredPass) {
+          credentials.setPassword(victim.id, restoredPass);
+        }
+        try {
+          const bsFile = path.join(bsDir, `${victim.id}.json`);
+          if (fs.existsSync(bsFile)) {
+            const bsData = JSON.parse(fs.readFileSync(bsFile, "utf8")) || {};
+            delete bsData["__ss:aetheria.session"];
+            delete bsData["pelican_auth_cfg"];
+            const pfxKey = `pelican_${victim.id}__auth_cfg`;
+            const finalPw = restoredPass || credentials.getPassword(victim.id) || "";
+            bsData[pfxKey] = JSON.stringify({
+              enabled: true,
+              username: restoredUser,
+              password: finalPw,
+              charName: victim.lastCharName || "",
+              register: false,
+              registerDone: true,
+              generatedUser: Boolean(victim.generatedAccount),
+              lastManagerPushAt: Date.now(),
+              userEditedAt: 0
+            });
+            fs.writeFileSync(bsFile + ".tmp", JSON.stringify(bsData), "utf8");
+            fs.renameSync(bsFile + ".tmp", bsFile);
+          }
+        } catch (_) {}
+        if (victim.debugPort) {
+          const finalPw = restoredPass || credentials.getPassword(victim.id) || "";
+          evalProfilePort(victim.debugPort, `(() => {
+            try { window.sessionStorage && window.sessionStorage.removeItem('aetheria.session'); } catch (_) {}
+            if (typeof window.applyPelicanAuthConfig === 'function') {
+              return window.applyPelicanAuthConfig(${JSON.stringify({
+                enabled: true,
+                username: restoredUser,
+                password: finalPw,
+                register: false,
+                registerDone: true,
+                generatedUser: Boolean(victim.generatedAccount),
+                autoResumeBot: true
+              })});
+            }
+            return { success: true };
+          })()`, 3000).catch(() => {});
+        }
+        console.log(`[ProfileHeal] 🛡️ กู้คืนโปรไฟล์ที่ถูกเขียนทับ ${victim.name} (${victim.id}): "${uLower}" -> "${restoredUser}" (${victim.lastCharName || "-"})`);
+        healedAny = true;
+      }
+    }
+  }
+  return healedAny;
+}
+
+async function recoverAndEnrichProfilesFromBrowserAndLocal() {
+  try {
+    const current = loadProfiles() || [];
+    if (current.length === 0 || isUntouchedDefaultMockProfiles(current)) {
+      return;
+    }
+    const harvestedAuthHistory = {};
+    const mergeHistoryList = (pid, list) => {
+      if (!pid || !Array.isArray(list) || list.length === 0) return;
+      if (!harvestedAuthHistory[pid]) harvestedAuthHistory[pid] = [];
+      for (const item of list) {
+        if (!item || (!item.username && !item.password)) continue;
+        const sig = (item.username || "") + ":" + (item.password || "");
+        if (!harvestedAuthHistory[pid].some(x => ((x.username || "") + ":" + (x.password || "")) === sig)) {
+          harvestedAuthHistory[pid].push(item);
+        }
+      }
+    };
+    try {
+      const browserLdbDir = path.join(SESSIONS_DIR, "_browser", "Default", "Local Storage", "leveldb");
+      if (fs.existsSync(browserLdbDir)) {
+        const diskHarvest = extractPelicanStorageFromLevelDb(browserLdbDir);
+        if (diskHarvest && diskHarvest.byProfile) {
+          for (const [pid, entries] of Object.entries(diskHarvest.byProfile)) {
+            writeOrMergeProfileStorageFile(pid, entries);
+          }
+        }
+        if (diskHarvest && diskHarvest.authHistoryByProfile) {
+          for (const [pid, list] of Object.entries(diskHarvest.authHistoryByProfile)) {
+            mergeHistoryList(pid, list);
+          }
+        }
+      }
+      if (fs.existsSync(SESSIONS_DIR)) {
+        for (const entry of fs.readdirSync(SESSIONS_DIR, { withFileTypes: true })) {
+          if (!entry.isDirectory() || !entry.name.startsWith("profile_")) continue;
+          const pid = entry.name;
+          const ldbDir = path.join(SESSIONS_DIR, pid, "Local Storage", "leveldb");
+          if (fs.existsSync(ldbDir)) {
+            const diskHarvest = extractPelicanStorageFromLevelDb(ldbDir, pid);
+            if (diskHarvest && diskHarvest.byProfile && diskHarvest.byProfile[pid]) {
+              writeOrMergeProfileStorageFile(pid, diskHarvest.byProfile[pid]);
+            }
+            if (diskHarvest && diskHarvest.authHistoryByProfile && diskHarvest.authHistoryByProfile[pid]) {
+              mergeHistoryList(pid, diskHarvest.authHistoryByProfile[pid]);
+            }
+          }
+        }
+      }
+    } catch (_) {}
+    if (typeof browserMode?.harvestAllFromBrowserLevelDb === "function") {
+      await browserMode.harvestAllFromBrowserLevelDb().catch(() => {});
+    }
+    const bsDir = path.join(SESSIONS_DIR, "_browser_storage");
+    let changed = false;
+    let authChanged = false;
+    for (const p of current) {
+      if (!p || !p.id) continue;
+      const f = path.join(bsDir, `${p.id}.json`);
+      if (!fs.existsSync(f)) continue;
+      try {
+        const d = JSON.parse(fs.readFileSync(f, "utf8"));
+        const pfx = `pelican_${p.id}__`;
+        const rawAuth = d[`${pfx}auth_cfg`];
+        if (harvestedAuthHistory[p.id] && harvestedAuthHistory[p.id].length > 0) {
+          const prevJson = JSON.stringify(p.authHistory || []);
+          const nextJson = JSON.stringify(harvestedAuthHistory[p.id]);
+          if (prevJson !== nextJson) {
+            p.authHistory = harvestedAuthHistory[p.id];
+            changed = true;
+          }
+        }
+        if (rawAuth) {
+          const auth = JSON.parse(rawAuth);
+          if (auth && typeof auth === "object") {
+            const verified = isVerifiedAuthConfig(auth);
+            const manualUserEditedAt = Number(auth.userEditedAt) || 0;
+            const managerPushStamp = Number(auth.lastManagerPushAt) || 0;
+            const candUser = auth.username ? String(auth.username).trim() : "";
+            const ownedByOtherProfile = Boolean(
+              candUser &&
+              String(p.account || "").trim().toLowerCase() !== candUser.toLowerCase() &&
+              current.some(o => o && o.id !== p.id && String(o.account || "").trim().toLowerCase() === candUser.toLowerCase())
+            );
+            const isNewerUserCred = verified && !auth.generatedUser && !ownedByOtherProfile && manualUserEditedAt > 0 && manualUserEditedAt > managerPushStamp;
+            if (verified && candUser && !ownedByOtherProfile && (!p.account || isNewerUserCred)) {
+              if (p.account !== candUser) {
+                p.account = candUser;
+                p.autoRegister = false;
+                p.generatedAccount = Boolean(auth.generatedUser);
+                p.loginSyncPending = true;
+                changed = true;
+                authChanged = true;
+              }
+            }
+            if (!ownedByOtherProfile && auth.charName && String(auth.charName).trim() && !p.lastCharName) {
+              p.lastCharName = String(auth.charName).trim();
+              if (/^Client \d+$/.test(p.name || "")) p.name = p.lastCharName;
+              changed = true;
+            }
+            if (verified && !ownedByOtherProfile && auth.password && String(auth.password).trim() && (!credentials.getPassword(p.id) || isNewerUserCred)) {
+              const nextPw = String(auth.password).trim();
+              if (credentials.getPassword(p.id) !== nextPw) {
+                credentials.setPassword(p.id, nextPw);
+                p.loginSyncPending = true;
+                changed = true;
+                authChanged = true;
+              }
+            }
+          }
+        }
+      } catch (_) {}
+    }
+    const healed = await healDuplicateClobberedProfiles(current).catch(() => false);
+    if (healed) {
+      changed = true;
+      authChanged = true;
+    }
+    if (changed) {
+      saveProfiles(current);
+    }
+    if (authChanged && typeof authSync?.tick === "function") {
+      authSync.tick().catch(() => {});
+    }
+    await syncProfileBackupToCentral().catch(() => {});
+  } catch (_) {}
+}
+
+if (!TEST_INSTANCE) {
+  setTimeout(async () => {
+    const cur = loadProfiles() || [];
+    if (hasProfilesMissingCredentialsOrAccount(cur) || hasDuplicateProfileAccounts(cur)) {
+      await recoverAndEnrichProfilesFromBrowserAndLocal().catch(() => {});
+    }
+  }, 5000);
+  setInterval(async () => {
+    const cur = loadProfiles() || [];
+    if (hasProfilesMissingCredentialsOrAccount(cur) || hasDuplicateProfileAccounts(cur)) {
+      await recoverAndEnrichProfilesFromBrowserAndLocal().catch(() => {});
+    } else {
+      await syncProfileBackupToCentral().catch(() => {});
+    }
+  }, 120000);
+}
+
+// Poll remote commands from Central Admin Dashboard (https://api.noggunsshop.xyz)
+let centralCommandPollInFlight = false;
+async function pollCentralCommands() {
+  if (centralCommandPollInFlight) return;
+  centralCommandPollInFlight = true;
+  try {
+    let accountSettings = humanCheckSolver.loadSettings();
+    const deviceNickname = getEffectiveDeviceNickname();
+    if ((!accountSettings || !accountSettings.accountId) && !accountSettings?.requiresLogin && !TEST_INSTANCE) {
+      await humanCheckSolver.ensureAccount?.(deviceNickname).catch(() => {});
+      accountSettings = humanCheckSolver.loadSettings();
+    }
+    if (!accountSettings || !accountSettings.accountId) return;
+    const offlineStatus = typeof offlineCoordinator?.getStatus === 'function'
+      ? offlineCoordinator.getStatus()
+      : (typeof offlineCoordinator?.status === 'function' ? offlineCoordinator.status() : null);
+    const primaryMachineId = (offlineStatus && offlineStatus.machineId) || deviceNickname;
+    const prevAccessStatus = humanCheckSolver.getAccessStatus?.() || 'approved';
+    const res = await humanCheckSolver.serviceRequest('/v1/aetheria/pmheenc/machine/commands', {
+      machineId: primaryMachineId,
+      altMachineId: deviceNickname,
+      deviceName: deviceNickname
+    });
+    if (res && res.success) {
+      const nextAccessStatus = humanCheckSolver.updateAccessStateFromServer?.(res) || prevAccessStatus;
+      if (nextAccessStatus !== 'approved' && prevAccessStatus === 'approved') {
+        console.warn(`[Central Admin] Machine access changed to ${nextAccessStatus} — stopping all profiles immediately`);
+        await stopAllProfiles().catch(() => {});
+        try { await offlineCoordinator?.cycle?.(); } catch (_) {}
+      }
+    }
+    if (res && res.success && Array.isArray(res.commands) && res.commands.length > 0) {
+      const ackIds = [];
+      let stoppedAny = false;
+      for (const cmd of res.commands) {
+        console.log(`[Central Admin] Received remote command: ${cmd.action} target: ${cmd.target}`);
+        if (cmd.action === 'stop') {
+          if (cmd.target === 'all') {
+            await stopAllProfiles();
+          } else {
+            await stopSingleProfile(cmd.target);
+          }
+          stoppedAny = true;
+        } else if (cmd.action === 'update_bot' || cmd.action === 'refresh_payload') {
+          botAutoUpdater.retryFailed().catch(() => {});
+        } else if (cmd.action === 'restore_profiles') {
+          await restoreProfilesFromCentral({ replaceExisting: cmd.target === 'replace' || cmd.target === 'all' }).catch(() => {});
+          await recoverAndEnrichProfilesFromBrowserAndLocal().catch(() => {});
+        }
+        ackIds.push(cmd.id);
+      }
+      if (ackIds.length > 0) {
+        await humanCheckSolver.serviceRequest('/v1/aetheria/pmheenc/machine/commands/ack', {
+          commandIds: ackIds,
+          machineId: primaryMachineId
+        }).catch(() => {});
+      }
+      if (stoppedAny) {
+        try { await offlineCoordinator?.cycle?.(); } catch (_) {}
+        try { await offlineCoordinator?.wallet?.forceRefresh?.(); } catch (_) {}
+      }
+    }
+  } catch (_) {} finally {
+    centralCommandPollInFlight = false;
+  }
+}
+setInterval(pollCentralCommands, 3000);
+
+const remoteFleet = createRemoteFleetService({
+  getPort: () => PORT,
+  publicDir: PUBLIC_DIR,
+  humanCheckSolver,
+  loadProfiles,
+  runningProcesses,
+  browserMode,
+  isProcessAlive,
+  queryClientState,
+  clientStateCacheByPort,
+  updateZenyRateTracker,
+  getEffectiveDeviceNickname,
+  setLocalDeviceNickname: (nick) => {
+    const clean = typeof nick === 'string' ? nick.trim().slice(0, 32) : '';
+    if (!clean) return;
+    const st = installer.loadSettings() || {};
+    st.deviceNickname = clean;
+    installer.saveSettings(st);
+    if (discordService && typeof discordService.setDeviceNickname === 'function') {
+      discordService.setDeviceNickname(clean);
+    }
+  },
+  managerVersion: '4.63.15'
+});
+humanCheckSolver.addAccountChangedListener?.(() => { remoteFleet.poke(); });
+
+const fleetZenyService = createFleetZenyConsolidationService({
+  dataDir: path.join(__dirname, "data"),
+  loadProfiles,
+  queryClientState,
+  evalProfilePort,
+  getProfileIpGroupKey,
+  ensureClientConsolidationItemHelpers,
+  activeConsolidationProfiles,
+  activeConsolidationTasks,
+  activeConsolidationChannels,
+  syncConsolidationGlobalState,
+  getConsolidationState: () => consolidationState,
+  stopLocalConsolidation: () => {
+    consolidationAborted = true;
+    for (const t of activeConsolidationTasks.values()) t.aborted = true;
+    if (activeConsolidationTasks.size === 0) {
+      consolidationState.running = false;
+      consolidationState.status = 'stopped';
+    }
+    syncConsolidationGlobalState();
+  },
+  remoteFleet,
+  humanCheckSolver,
+  getEffectiveDeviceNickname,
+  os,
+  managerVersion: '4.63.15',
+  runningProcesses,
+  isProcessAlive,
+  browserMode,
+  clientStateCacheByPort,
+  clientStateLastFailureByPort
+});
+
+const server = http.createServer(async (req, res) => {
+  req.setEncoding('utf8');   // request bodies are built with += (Thai split across chunks -> U+FFFD)
+  if (!allowLocalRequest(req, PORT)) {
+    res.writeHead(403, { "Content-Type": "application/json; charset=utf-8" });
+    return res.end(JSON.stringify({ success: false, error: "Forbidden request origin or host" }));
+  }
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Cache-Control", "no-store");
+  if (req.method === "OPTIONS") {
+    res.writeHead(204);
+    return res.end();
+  }
+
+  const parsedUrl = new URL(req.url, `http://localhost:${PORT}`);
+  const pathname = parsedUrl.pathname;
+
+  // JSON helper
+  const sendJSON = (data, code = 200) => {
+    if (res.headersSent || res.writableEnded) return true;
+    res.writeHead(code, { "Content-Type": "application/json; charset=utf-8" });
+    res.end(JSON.stringify(data));
+    return true;
+  };
+
+  if (req.headers['x-pmhee-remote-relay'] === '1' && (
+    pathname === '/api/auth/logout' ||
+    pathname === '/api/auth/login' ||
+    pathname === '/api/auth/register' ||
+    pathname === '/api/fleet' ||
+    pathname.startsWith('/api/fleet/') ||
+    pathname === '/api/support' ||
+    pathname.startsWith('/api/support/') ||
+    pathname === '/api/announcements' ||
+    pathname.startsWith('/api/announcements/') ||
+    pathname === '/api/game-install/browse' ||
+    pathname === '/api/test' ||
+    pathname.startsWith('/api/test/')
+  )) {
+    return sendJSON({
+      success: false,
+      code: pathname.startsWith('/api/auth/') ? 'REMOTE_AUTH_LOCKED' : 'REMOTE_ROUTE_BLOCKED',
+      error: pathname.startsWith('/api/auth/')
+        ? 'ไม่สามารถออกจากระบบหรือสลับบัญชีระหว่างการควบคุมระยะไกลได้'
+        : 'ไม่อนุญาตให้เรียกใช้งานเส้นทางนี้จากระยะไกล'
+    }, 403);
+  }
+
+  if (TEST_INSTANCE && pathname === '/api/test/outbound-blocked' && req.method === 'GET') {
+    return sendJSON({ success: true, blocked: testIsolation.blocked() });
+  }
+  if (TEST_INSTANCE && pathname === '/api/test/outbound-probe' && req.method === 'POST') {
+    // Proves the guard: each non-fixture destination must fail with TEST_OUTBOUND_BLOCKED before any socket opens.
+    const attempt = (fn) => new Promise(resolve => { try { fn(resolve); } catch (e) { resolve('THROW ' + (e.code || e.message)); } });
+    const viaHttp = (mod, url) => attempt(done => { const r = mod.get(url, { timeout: 3000 }, res => { res.resume(); done('STATUS ' + res.statusCode); }); r.on('error', e => done(e.code || e.message)); r.on('timeout', () => r.destroy(new Error('TIMEOUT'))); });
+    const results = {
+      githubHttps: await viaHttp(https, 'https://api.github.com/'),
+      ownerApiHttps: await viaHttp(https, 'https://api.noggunsshop.xyz/v1/aetheria/pmheenc/health'),
+      realGamePort: await viaHttp(http, 'http://127.0.0.1:48876/api/state'),
+      fetchExternal: await fetch('https://example.com/').then(r => 'STATUS ' + r.status, e => e.code || e.message),
+      fixture: await viaHttp(http, `http://127.0.0.1:${testFixturePort}/api/state`)
+    };
+    return sendJSON({ success: true, results, blocked: testIsolation.blocked() });
+  }
+
+  if (pathname.startsWith('/api/human-check/') && req.method === 'POST') {
+    if (!/^application\/json(?:\s*;|$)/i.test(req.headers['content-type'] || '')) {
+      return sendJSON({ success: false, error: 'JSON body required' }, 415);
+    }
+    if (Number(req.headers['content-length']) > 16384) {
+      return sendJSON({ success: false, error: 'Body too large' }, 413);
+    }
+  }
+
+  // ==========================================
+  // API ROUTING
+  // ==========================================
+  if (pathname === '/api/script/status' && req.method === 'GET') return sendJSON(scriptCoordinator.status());
+  if(pathname==='/api/script/pilot' && req.method==='GET')return sendJSON({success:true,profiles:loadProfiles().map(p=>({id:p.id,name:p.name})),...scriptCoordinator.status()});
+  if(pathname==='/api/script/pilot' && req.method==='POST') {
+    if(!/^application\/json(?:\s*;|$)/i.test(req.headers['content-type']||''))return sendJSON({success:false,error:'JSON body required'},415);
+    try {
+      let text='';for await(const chunk of req){text+=chunk;if(Buffer.byteLength(text)>16384)return sendJSON({success:false,error:'Body too large'},413);}
+      const input=JSON.parse(text);
+      if(Object.keys(input).some(k=>!['mode','pilotProfileIds','acknowledgePilot'].includes(k)))throw Error('INVALID_ROLLOUT_SELECTION');
+      const saved=saveScriptRolloutSelection({dataDir:path.join(__dirname,'data'),serviceOrigin:humanCheckSolver.serviceOrigin,profiles:loadProfiles(),...input});
+      // The coordinator picks this up at its next idle cycle; never replace its instance or queues.
+      scriptCoordinator.cycle().catch(()=>{});
+      return sendJSON({success:true,configurationCode:saved.configurationCode,pendingApply:true,message:'บันทึกแล้ว รอรอบตรวจสิทธิ์ที่ปลอดภัย จอเดิมยังไม่ถูกรีเฟรชหรือฉีดบอททับ'});
+    }catch(error){return sendJSON({success:false,error:error.message},409);}
+  }
+  if (pathname === '/api/script/statement' && req.method === 'GET') {
+    if(scriptCoordinator.statement)return sendJSON(scriptCoordinator.statement());
+    try { return sendJSON(await humanCheckSolver.serviceRequest('/v1/aetheria/pmheenc/usage/statement')); }
+    catch (_) { return sendJSON({ success: false, code: 'STATEMENT_UNAVAILABLE', message: 'ยังอ่านใบสรุปจากเซิร์ฟเวอร์ไม่ได้ โหมดสังเกตการณ์ไม่มีการเรียกเก็บเงิน' }, 503); }
+  }
+  if (pathname === '/api/script/terms' && req.method === 'POST') {
+    try {
+      let body = ''; for await (const chunk of req) { body += chunk; if (Buffer.byteLength(body) > 1024) return sendJSON({success:false,error:'Body too large'},413); }
+      const input = JSON.parse(body);
+      const statement = await humanCheckSolver.serviceRequest('/v1/aetheria/pmheenc/usage/statement');
+      if (!statement.activationDay || input.termsVersion !== statement.termsVersion) return sendJSON({success:false,error:'ยังไม่ประกาศวันเริ่ม หรือเงื่อนไขเปลี่ยนแล้ว กรุณาอ่านใบสรุปใหม่'},409);
+      return sendJSON(await humanCheckSolver.serviceRequest('/v1/aetheria/pmheenc/billing/accept', {termsVersion:input.termsVersion}));
+    } catch (_) { return sendJSON({success:false,error:'ยังบันทึกความยินยอมบนเซิร์ฟเวอร์ไม่ได้'},503); }
+  }
+
+  // HWID & Machine Access Control Endpoints (/api/access/status, /api/access/request)
+  if (pathname === '/api/access/status' && (req.method === 'GET' || req.method === 'POST')) {
+    const forceSync = parsedUrl.searchParams.get('sync') === '1' || req.method === 'POST';
+    const currentNick = getEffectiveDeviceNickname();
+    const preSyncState = typeof humanCheckSolver.getAccessState === 'function' ? humanCheckSolver.getAccessState() : {};
+    if (forceSync && preSyncState.accountId && typeof humanCheckSolver.syncAccessStatus === 'function') {
+      const prevStatus = humanCheckSolver.getAccessStatus?.() || 'approved';
+      await humanCheckSolver.syncAccessStatus(currentNick).catch(() => {});
+      const afterStatus = humanCheckSolver.getAccessStatus?.() || 'approved';
+      if (afterStatus === 'revoked' && prevStatus !== 'revoked' && !TEST_INSTANCE) {
+        await stopAllProfiles().catch(() => {});
+      }
+    }
+    const state = typeof humanCheckSolver.getAccessState === 'function' ? humanCheckSolver.getAccessState() : {};
+    return sendJSON({
+      success: true,
+      nickname: currentNick,
+      defaultNickname: getDefaultDeviceNickname(),
+      ...state
+    });
+  }
+
+  if (pathname === '/api/access/request' && req.method === 'POST') {
+    req.resume();
+    return sendJSON({
+      success: false,
+      code: 'USE_USER_REGISTER',
+      error: 'ยกเลิกระบบขออนุมัติรายเครื่องแล้ว กรุณาสมัคร ID ผู้ใช้งาน (Username / Password) เพื่อให้แอดมินอนุมัติ ID แทน'
+    }, 410);
+  }
+
+  if (pathname === '/api/auth/register' && req.method === 'POST') {
+    let body = '';
+    req.on('data', c => {
+      body += c;
+      if (Buffer.byteLength(body, 'utf8') > 16384) req.destroy();
+    });
+    req.on('end', async () => {
+      try {
+        const data = JSON.parse(body || '{}');
+        const rawNick = typeof data.nickname === 'string' && data.nickname.trim()
+          ? data.nickname.trim().slice(0, 32)
+          : (typeof data.deviceName === 'string' && data.deviceName.trim() ? data.deviceName.trim().slice(0, 32) : '');
+        if (rawNick) {
+          const st = installer.loadSettings() || {};
+          st.deviceNickname = rawNick;
+          installer.saveSettings(st);
+          if (discordService && typeof discordService.setDeviceNickname === 'function') {
+            discordService.setDeviceNickname(rawNick);
+          }
+        }
+        const effectiveNick = getEffectiveDeviceNickname();
+        const result = await humanCheckSolver.registerUserAccount({
+          username: String(data.username || '').trim(),
+          password: String(data.password || ''),
+          deviceName: effectiveNick,
+          note: typeof data.note === 'string' ? data.note.trim().slice(0, 240) : ''
+        });
+        offlineCoordinator.cycle?.().catch(() => {});
+        remoteFleet.poke();
+        return sendJSON({
+          success: true,
+          nickname: effectiveNick,
+          defaultNickname: getDefaultDeviceNickname(),
+          ...result
+        });
+      } catch (e) {
+        return sendJSON({
+          success: false,
+          code: e?.code || 'AUTH_REGISTER_FAILED',
+          error: e?.message || 'สมัครบัญชีไม่สำเร็จ'
+        }, e?.status && e.status >= 400 ? e.status : 400);
+      }
+    });
+    return;
+  }
+
+  if (pathname === '/api/auth/login' && req.method === 'POST') {
+    let body = '';
+    req.on('data', c => {
+      body += c;
+      if (Buffer.byteLength(body, 'utf8') > 16384) req.destroy();
+    });
+    req.on('end', async () => {
+      try {
+        const data = JSON.parse(body || '{}');
+        const rawNick = typeof data.nickname === 'string' && data.nickname.trim()
+          ? data.nickname.trim().slice(0, 32)
+          : (typeof data.deviceName === 'string' && data.deviceName.trim() ? data.deviceName.trim().slice(0, 32) : '');
+        if (rawNick) {
+          const st = installer.loadSettings() || {};
+          st.deviceNickname = rawNick;
+          installer.saveSettings(st);
+          if (discordService && typeof discordService.setDeviceNickname === 'function') {
+            discordService.setDeviceNickname(rawNick);
+          }
+        }
+        const effectiveNick = getEffectiveDeviceNickname();
+        const result = await humanCheckSolver.loginUserAccount({
+          username: String(data.username || '').trim(),
+          password: String(data.password || ''),
+          deviceName: effectiveNick
+        });
+        offlineCoordinator.cycle?.().catch(() => {});
+        remoteFleet.poke();
+        return sendJSON({
+          success: true,
+          nickname: effectiveNick,
+          defaultNickname: getDefaultDeviceNickname(),
+          ...result
+        });
+      } catch (e) {
+        return sendJSON({
+          success: false,
+          code: e?.code || 'AUTH_LOGIN_FAILED',
+          error: e?.message || 'เข้าสู่ระบบไม่สำเร็จ'
+        }, e?.status && e.status >= 400 ? e.status : 401);
+      }
+    });
+    return;
+  }
+
+  if (pathname === '/api/auth/logout' && req.method === 'POST') {
+    if (!TEST_INSTANCE) {
+      await stopAllProfiles().catch(() => {});
+    }
+    const result = await humanCheckSolver.logoutUserAccount();
+    return sendJSON({
+      success: true,
+      nickname: getEffectiveDeviceNickname(),
+      defaultNickname: getDefaultDeviceNickname(),
+      ...result
+    });
+  }
+
+  // Multi-PC Fleet Card Dashboard & Remote Manager Relay — see remote_fleet.js
+  if (await remoteFleet.handleRoute(req, res, pathname, parsedUrl, sendJSON)) return;
+
+  // Support Chat (Messenger synced by Username)
+  if (pathname === '/api/support/poll' && req.method === 'GET') {
+    try {
+      const afterId = Math.max(0, Number.parseInt(parsedUrl.searchParams.get('afterId') || '0', 10) || 0);
+      const result = await humanCheckSolver.supportRequest(`/v1/aetheria/pmheenc/machine/support/poll?afterId=${afterId}`, null);
+      return sendJSON(result);
+    } catch (e) {
+      return sendJSON({
+        success: false,
+        code: e?.code || 'SUPPORT_POLL_FAILED',
+        error: e?.message || 'โหลดประวัติแชทไม่สำเร็จ'
+      }, e?.status && e.status >= 400 ? e.status : 500);
+    }
+  }
+
+  if (pathname === '/api/support/send' && req.method === 'POST') {
+    let body = '';
+    let tooLarge = false;
+    req.on('data', c => {
+      if (tooLarge) return;
+      body += c;
+      if (Buffer.byteLength(body, 'utf8') > 750000) {
+        tooLarge = true;
+        sendJSON({ success: false, code: 'BODY_TOO_LARGE', error: 'รูปภาพหรือข้อความมีขนาดใหญ่เกินไป' }, 413);
+        req.destroy();
+      }
+    });
+    req.on('end', async () => {
+      if (tooLarge) return;
+      try {
+        const data = JSON.parse(body || '{}');
+        const result = await humanCheckSolver.supportRequest('/v1/aetheria/pmheenc/machine/support/send', {
+          body: typeof data.body === 'string' ? data.body : (typeof data.text === 'string' ? data.text : ''),
+          imageDataUrl: typeof data.imageDataUrl === 'string' ? data.imageDataUrl : '',
+          machineName: getEffectiveDeviceNickname(),
+          hwidCode: humanCheckSolver.getMachineHwidShort?.() || ''
+        });
+        return sendJSON(result);
+      } catch (e) {
+        return sendJSON({
+          success: false,
+          code: e?.code || 'SUPPORT_SEND_FAILED',
+          error: e?.message || 'ส่งข้อความไม่สำเร็จ'
+        }, e?.status && e.status >= 400 ? e.status : 400);
+      }
+    });
+    return;
+  }
+
+  if (pathname === '/api/support/read' && req.method === 'POST') {
+    let body = '';
+    let tooLarge = false;
+    req.on('data', c => {
+      if (tooLarge) return;
+      body += c;
+      if (Buffer.byteLength(body, 'utf8') > 8192) {
+        tooLarge = true;
+        sendJSON({ success: false, code: 'BODY_TOO_LARGE', error: 'คำขอมีขนาดใหญ่เกินไป' }, 413);
+        req.destroy();
+      }
+    });
+    req.on('end', async () => {
+      if (tooLarge) return;
+      try {
+        const data = JSON.parse(body || '{}');
+        const upToId = Math.max(0, Number.parseInt(data.upToId ?? '0', 10) || 0);
+        const result = await humanCheckSolver.supportRequest('/v1/aetheria/pmheenc/machine/support/read', { upToId });
+        return sendJSON(result);
+      } catch (e) {
+        return sendJSON({
+          success: false,
+          code: e?.code || 'SUPPORT_READ_FAILED',
+          error: e?.message || 'อัปเดตสถานะการอ่านไม่สำเร็จ'
+        }, e?.status && e.status >= 400 ? e.status : 400);
+      }
+    });
+    return;
+  }
+
+  // Realtime Broadcast Announcements (synced by Username ID)
+  if (pathname === '/api/announcements/poll' && req.method === 'GET') {
+    try {
+      const accessSt = typeof humanCheckSolver.getAccessState === 'function' ? humanCheckSolver.getAccessState() : {};
+      if (accessSt.requiresLogin || !accessSt.isUserAccount || !accessSt.username) {
+        return sendJSON({
+          success: true,
+          requiresLogin: true,
+          unackedAnnouncements: [],
+          historyAnnouncements: []
+        });
+      }
+      const result = await humanCheckSolver.announcementRequest('/v1/aetheria/pmheenc/machine/announcements/poll', null);
+      return sendJSON(result);
+    } catch (e) {
+      return sendJSON({
+        success: false,
+        code: e?.code || 'ANNOUNCEMENT_POLL_FAILED',
+        error: e?.message || 'โหลดประกาศไม่สำเร็จ'
+      }, e?.status && e.status >= 400 ? e.status : 500);
+    }
+  }
+
+  if (pathname === '/api/announcements/ack' && req.method === 'POST') {
+    let body = '';
+    let tooLarge = false;
+    req.on('data', c => {
+      if (tooLarge) return;
+      body += c;
+      if (Buffer.byteLength(body, 'utf8') > 16384) {
+        tooLarge = true;
+        sendJSON({ success: false, code: 'BODY_TOO_LARGE', error: 'คำขอมีขนาดใหญ่เกินไป' }, 413);
+        req.destroy();
+      }
+    });
+    req.on('end', async () => {
+      if (tooLarge) return;
+      try {
+        const data = JSON.parse(body || '{}');
+        const ids = Array.isArray(data.ids) ? data.ids : (data.id ? [data.id] : []);
+        const sObj = loadSettings();
+        const machineName = String(sObj.machineName || os.hostname() || '').trim().slice(0, 80);
+        const result = await humanCheckSolver.announcementRequest('/v1/aetheria/pmheenc/machine/announcements/ack', {
+          ids,
+          machineName
+        });
+        return sendJSON(result);
+      } catch (e) {
+        return sendJSON({
+          success: false,
+          code: e?.code || 'ANNOUNCEMENT_ACK_FAILED',
+          error: e?.message || 'บันทึกสถานะรับทราบไม่สำเร็จ'
+        }, e?.status && e.status >= 400 ? e.status : 400);
+      }
+    });
+    return;
+  }
+
+  // Gatekeeper: Block game launch & bot control routes if machine access is pending/revoked or logged out
+  const currentAccessStateObj = typeof humanCheckSolver.getAccessState === 'function' ? humanCheckSolver.getAccessState() : {};
+  const currentMachineAccessStatus = currentAccessStateObj.accessStatus || 'approved';
+  const requiresLogin = Boolean(currentAccessStateObj.requiresLogin || !currentAccessStateObj.isUserAccount || !currentAccessStateObj.username);
+  if (requiresLogin || currentMachineAccessStatus !== 'approved') {
+    const isBlockedActionRoute = (
+      (req.method === 'POST' && pathname === '/api/launch-all') ||
+      (req.method === 'POST' && /^\/api\/profiles\/[^/]+\/launch$/.test(pathname)) ||
+      (req.method === 'POST' && pathname === '/api/bot-control/start-all') ||
+      (req.method === 'POST' && pathname === '/api/consolidation/start') ||
+      (req.method === 'POST' && pathname === '/api/fleet-zeny/start') ||
+      (req.method === 'POST' && pathname === '/api/fleet-zeny/run-ring')
+    );
+    if (isBlockedActionRoute) {
+      return sendJSON({
+        success: false,
+        code: requiresLogin ? 'AUTH_LOGIN_REQUIRED' : (currentMachineAccessStatus === 'revoked' ? 'ACCESS_REVOKED' : 'ACCESS_PENDING'),
+        accessStatus: currentMachineAccessStatus,
+        requiresLogin,
+        machineHwidShort: humanCheckSolver.getMachineHwidShort?.() || '',
+        error: requiresLogin
+          ? 'กรุณาเข้าสู่ระบบบัญชีผู้ใช้งาน (Username / Password) ก่อนเปิดบอท'
+          : (currentMachineAccessStatus === 'revoked'
+            ? 'สิทธิ์การใช้งานของบัญชี/เครื่องนี้ถูกระงับโดยผู้ดูแลระบบ กรุณาติดต่อแอดมิน'
+            : 'บัญชีนี้ยังไม่ได้รับอนุมัติสิทธิ์เข้าใช้งาน กรุณารอแอดมินอนุมัติหรือเข้าสู่ระบบด้วย ID ที่อนุมัติแล้ว')
+      }, 403);
+    }
+  }
+
+  // Multi-PC Cross-Machine Zeny Consolidation — see fleet_zeny_consolidation.js
+  if (await fleetZenyService.handleRoute(req, res, pathname, parsedUrl, sendJSON)) return;
+
+  // Plan Script live status / on-off switch per client — see plan_sync.js
+  if (await planSync.handleRoute(req, res, pathname, sendJSON)) return;
+
+  // Copy bot settings to other clients (no ID/password/character) — see config_copy_api.js
+  if (await handleConfigCopyRoute(req, res, pathname, { loadProfiles, saveProfiles, evalProfilePort, sendJSON })) return;
+
+  // Manager self-update (manager/ folder) — see manager_self_update.js
+  if (await managerUpdater.handleRoute(req, res, pathname, sendJSON)) return;
+
+  // Auto-reload game clients when bot.js changes on GitHub — see bot_auto_update.js
+  if (await botAutoUpdater.handleRoute(req, res, pathname, sendJSON)) return;
+
+  // Bag (inventory) & market endpoints — see inventory_market_api.js
+  if (await handleInventoryMarketRoute(req, res, pathname, { loadProfiles, evalProfilePort, sendJSON })) return;
+
+  // Party system — see party_api.js
+  if (await partyService.handleRoute(req, res, pathname, sendJSON)) return;
+  // Auto Premium — see premium_api.js
+  if (await premiumService.handleRoute(req, res, pathname, sendJSON)) return;
+  // Guild Manager & Auto Daily Donation — see guild_api.js
+  if (await guildService.handleRoute(req, res, pathname, sendJSON)) return;
+  // Card Market Price & Farm Map Switcher — see card_market_api.js
+  if (await cardMarketService.handleRoute(req, res, pathname, sendJSON)) return;
+  // Centralized Market Misprice Sniper & Auto-Flip — see market_sniper_api.js
+  if (await marketSniperService.handleRoute(req, res, pathname, sendJSON)) return;
+  // Endless Tower 100-Floor Carry System — see tower_carry.js
+  if (await towerCarryService.handleRoute(req, res, pathname, sendJSON)) return;
+
+  // Discord Bot & Webhook Settings & Controls
+  if (pathname === "/api/discord/settings") {
+    if (req.method === "GET") {
+      return sendJSON({ success: true, settings: discordService.loadSettings() });
+    }
+    if (req.method === "POST") {
+      let body = "";
+      req.on("data", c => body += c);
+      req.on("end", () => {
+        try {
+          const data = JSON.parse(body || "{}");
+          const ok = discordService.saveSettings(data);
+          sendJSON({ success: ok, settings: discordService.loadSettings() });
+        } catch (e) {
+          sendJSON({ success: false, error: e.message }, 400);
+        }
+      });
+      return;
+    }
+  }
+
+  if (pathname === "/api/discord/test" && req.method === "POST") {
+    const testResult = await discordService.testNotification();
+    return sendJSON(testResult || { success: true });
+  }
+
+  if (pathname === "/api/discord/test-town" && req.method === "POST") {
+    let body = "";
+    req.on("data", c => body += c);
+    req.on("end", async () => {
+      try {
+        const data = JSON.parse(body || "{}");
+        const testResult = await discordService.testTownNotification(data.webhookUrl);
+        sendJSON(testResult || { success: true });
+      } catch (e) {
+        sendJSON({ success: false, error: e.message }, 400);
+      }
+    });
+    return;
+  }
+
+  if (pathname === "/api/discord/test-topup" && req.method === "POST") {
+    let body = "";
+    req.on("data", c => {
+      body += c;
+      if (Buffer.byteLength(body, "utf8") > 16384) req.destroy();
+    });
+    req.on("end", async () => {
+      try {
+        const data = JSON.parse(body || "{}");
+        const testResult = await discordService.testTopupNotification(data.webhookUrl, data);
+        sendJSON(testResult || { success: true });
+      } catch (e) {
+        sendJSON({ success: false, error: e.message }, 400);
+      }
+    });
+    return;
+  }
+
+  // GET /api/captcha-stats
+  if (req.method === "GET" && pathname === "/api/captcha-stats") {
+    const stats = getCaptchaStats();
+    const profiles = loadProfiles() || [];
+    const profileMap = {};
+    for (const p of profiles) {
+      if (p && p.id) {
+        profileMap[p.id] = {
+          id: p.id,
+          name: p.name || p.id,
+          characterName: p.characterName || ""
+        };
+      }
+    }
+    const todayKey = getThaiDateKey();
+    const todayTotal = (stats.daily && stats.daily[todayKey]) ? (stats.daily[todayKey].total || 0) : 0;
+    return sendJSON({
+      success: true,
+      totalSolved: stats.totalSolved || 0,
+      todaySolved: todayTotal,
+      todayDate: todayKey,
+      lastSolvedAt: stats.lastSolvedAt,
+      daily: stats.daily || {},
+      profiles: profileMap
+    });
+  }
+
+  // Answer human check from Manager UI or remote link
+  if (pathname === "/api/human-check/answer" && req.method === "POST") {
+    let body = "";
+    req.on("data", c => {
+        body += c;
+        if (Buffer.byteLength(body, "utf8") > 16384) req.destroy();
+      });
+    req.on("end", async () => {
+      try {
+        const { profileId, pick } = JSON.parse(body || "{}");
+        const res = await discordService.answerCheckInGame(profileId, pick);
+        sendJSON(res);
+      } catch (e) {
+        sendJSON({ success: false, error: e.message }, 400);
+      }
+    });
+    return;
+  }
+
+  // Human Check Auto-Answer & Point System Endpoints
+  if (pathname === "/api/human-check/settings") {
+    if (req.method === "GET") {
+      const s = await humanCheckSolver.refreshBalance();
+      return sendJSON({ success: true, settings: humanCheckSolver.publicSettings(s), isDev: false });
+    }
+    if (req.method === "POST") {
+      let body = "";
+      req.on("data", c => {
+        body += c;
+        if (Buffer.byteLength(body, "utf8") > 16384) req.destroy();
+      });
+      req.on("end", async () => {
+        try {
+          const data = JSON.parse(body || "{}");
+          const creditOverride = ['points', 'balance', 'pointsPerBaht', 'sig', 'claimedVouchers'].some(key => Object.prototype.hasOwnProperty.call(data, key)) || data.pointSystemEnabled === false;
+          if (creditOverride) humanCheckSolver.reportSecurityEvent('local_credit_override', { profileId: data.profileId }).catch(() => {});
+          const updated = humanCheckSolver.saveSettings(data);
+          // Sync to Discord settings as well if autoAnswer changed
+          if (data.autoAnswer !== undefined || data.answerDelayMs !== undefined) {
+            const dCfg = discordService.loadSettings();
+            discordService.saveSettings({
+              ...dCfg,
+              autoAnswer: updated.autoAnswer,
+              answerDelayMs: updated.answerDelayMs
+            });
+          }
+          // Sync autoHumanCheckEnabled & Captcha Policy into all running game clients
+          const clientPolicyCode = buildClientCaptchaPolicyInstallSnippet(updated);
+          const profiles = loadProfiles();
+          for (const p of profiles) {
+            if (p.debugPort) {
+              evalProfilePort(p.debugPort, clientPolicyCode).catch(() => {});
+            }
+          }
+          const publicUpdated = humanCheckSolver.publicSettings(updated);
+          sendJSON({ success: true, settings: publicUpdated });
+        } catch (e) {
+          sendJSON({ success: false, error: e.message }, 400);
+        }
+      });
+      return;
+    }
+  }
+
+  // Quick toggle for Auto-Answer (from Manager toolbar or UI button)
+  if (pathname === "/api/human-check/toggle" && req.method === "POST") {
+    try {
+      const current = humanCheckSolver.loadSettings();
+      const newAutoAnswer = !current.autoAnswer;
+      const updated = humanCheckSolver.saveSettings({ ...current, autoAnswer: newAutoAnswer });
+      // Keep discord settings in sync
+      const dCfg = discordService.loadSettings();
+      discordService.saveSettings({ ...dCfg, autoAnswer: newAutoAnswer });
+      // Sync into all running clients
+      const clientPolicyCode = buildClientCaptchaPolicyInstallSnippet(updated);
+      const profiles = loadProfiles();
+      for (const p of profiles) {
+        if (p.debugPort) {
+          evalProfilePort(p.debugPort, clientPolicyCode).catch(() => {});
+        }
+      }
+      return sendJSON({ success: true, autoAnswer: newAutoAnswer, settings: humanCheckSolver.publicSettings(updated) });
+    } catch (e) {
+      return sendJSON({ success: false, error: e.message }, 500);
+    }
+  }
+
+  // POST /api/human-check/simulate-board
+  if (pathname === "/api/human-check/simulate-board" && req.method === "POST") {
+    let body = "";
+    req.on("data", c => {
+      body += c;
+      if (Buffer.byteLength(body, "utf8") > 65536) req.destroy();
+    });
+    req.on("end", async () => {
+      try {
+        const payload = JSON.parse(body || "{}");
+        let catalogSeed = null;
+        try {
+          catalogSeed = JSON.parse(fs.readFileSync(path.join(__dirname, "human_check_catalog_seed.json"), "utf8"));
+        } catch (_) {}
+        const prompt = payload.prompt || "เลือก Red Potion";
+        const resolved = imageBoardSolver.resolveTargetItem(prompt, catalogSeed);
+        return sendJSON({
+          success: true,
+          prompt,
+          resolvedTarget: resolved,
+          solverReady: true,
+          boardWidth: 480,
+          boardHeight: 330
+        });
+      } catch (e) {
+        return sendJSON({ success: false, error: e.message }, 500);
+      }
+    });
+    return;
+  }
+
+  // Retired compatibility endpoint: never grants credits.
+  if (pathname === "/api/human-check/add-points" && req.method === "POST") {
+    humanCheckSolver.reportSecurityEvent("local_credit_override").catch(() => {});
+    return sendJSON({ success: false, error: "ปิดการเติม Point ทดสอบ กรุณาเติมผ่านซองของขวัญ" }, 403);
+  }
+
+  // TrueMoney Gift Voucher Top-up (ซองของขวัญ / อั่งเปา TrueMoney Wallet)
+  if (pathname === "/api/human-check/topup-voucher" && req.method === "POST") {
+    let body = "";
+    req.on("data", c => {
+        body += c;
+        if (Buffer.byteLength(body, "utf8") > 16384) req.destroy();
+      });
+    req.on("end", async () => {
+      try {
+        const { voucherUrl } = JSON.parse(body || "{}");
+        const beforeSettings = humanCheckSolver.loadSettings();
+        const result = await humanCheckSolver.redeemTrueMoneyVoucher(voucherUrl);
+        if (result && result.success && discordService && typeof discordService.notifyMeritTopup === "function") {
+          const afterSettings = humanCheckSolver.loadSettings();
+          const pointsAdded = Number(result.pointsAdded ?? result.amount ?? 0);
+          const amountBaht = Number(result.amount ?? pointsAdded ?? 0);
+          const netPoints = Number.isFinite(Number(afterSettings?.points))
+            ? Number(afterSettings.points)
+            : (Number.isFinite(Number(result.totalPoints))
+                ? Number(result.totalPoints)
+                : (Number.isSafeInteger(result.balanceUnits) ? result.balanceUnits / 100 : pointsAdded));
+          const previousPoints = Number((netPoints - pointsAdded).toFixed(2));
+          discordService.notifyMeritTopup({
+            amount: amountBaht,
+            pointsAdded,
+            previousPoints,
+            totalPoints: netPoints,
+            balanceUnits: afterSettings?.balanceUnits ?? result.balanceUnits,
+            accountId: afterSettings?.accountId || beforeSettings?.accountId || "",
+            machineHwid: afterSettings?.machineHwid || beforeSettings?.machineHwid || ""
+          }).catch(err => {
+            console.warn("[Discord] Merit top-up notification failed:", err?.message || err);
+          });
+        }
+        sendJSON(result, result.success ? 200 : 400);
+      } catch (e) {
+        sendJSON({ success: false, message: "เกิดข้อผิดพลาดในการประมวลผล: " + e.message }, 500);
+      }
+    });
+    return;
+  }
+
+  // PromptPay QR Code Top-up (สแกนพร้อมเพย์กสิกรไทย ยืนยันยอดสตางค์อัตโนมัติ ฟรีค่าธรรมเนียม 0%)
+  if (pathname === "/api/human-check/promptpay-order" && req.method === "POST") {
+    let body = "";
+    req.on("data", c => {
+      body += c;
+      if (Buffer.byteLength(body, "utf8") > 16384) req.destroy();
+    });
+    req.on("end", async () => {
+      try {
+        const payload = JSON.parse(body || "{}");
+        const beforeSettings = humanCheckSolver.loadSettings();
+        const result = await humanCheckSolver.serviceRequest("/v1/aetheria/pmheenc/machine/promptpay-order", payload);
+        if (result && result.success && result.order && result.order.state === "paid") {
+          try {
+            const snapUnits = Number.isSafeInteger(result.balanceUnits)
+              ? result.balanceUnits
+              : (Number.isSafeInteger(result.order.balanceUnits) ? result.order.balanceUnits : null);
+            const snapRev = Number.isSafeInteger(result.walletRevision)
+              ? result.walletRevision
+              : (Number.isSafeInteger(result.order.walletRevision) ? result.order.walletRevision : null);
+            if (Number.isSafeInteger(snapUnits)) {
+              humanCheckSolver.applyOfflineWalletSnapshot?.({
+                ...result,
+                unitScale: 100,
+                balanceUnits: snapUnits,
+                ...(Number.isSafeInteger(snapRev) ? { walletRevision: snapRev } : {})
+              });
+            }
+            if (offlineCoordinator && offlineCoordinator.wallet && typeof offlineCoordinator.wallet.forceRefresh === "function") {
+              await offlineCoordinator.wallet.forceRefresh().catch(() => {});
+            }
+            await humanCheckSolver.refreshBalance().catch(() => {});
+          } catch (_) {}
+          const afterSettings = humanCheckSolver.loadSettings();
+          const serverUnits = Number.isSafeInteger(result.balanceUnits)
+            ? result.balanceUnits
+            : (Number.isSafeInteger(result.order?.balanceUnits) ? result.order.balanceUnits : null);
+          const effectiveUnits = Number.isSafeInteger(serverUnits)
+            ? serverUnits
+            : (Number.isSafeInteger(afterSettings?.balanceUnits) ? afterSettings.balanceUnits : null);
+          if (Number.isSafeInteger(effectiveUnits)) {
+            result.balanceUnits = effectiveUnits;
+            result.totalPoints = Number((effectiveUnits / 100).toFixed(2));
+            if (result.order) {
+              result.order.balanceUnits = effectiveUnits;
+              result.order.totalPoints = result.totalPoints;
+            }
+          }
+          const orderId = String(result.order.orderId || "");
+          const notifiedFile = path.join(__dirname, "data", "notified_promptpay_orders.json");
+          if (!global.__pmNotifiedPromptPayOrders) {
+            global.__pmNotifiedPromptPayOrders = new Set();
+            try {
+              if (fs.existsSync(notifiedFile)) {
+                const savedIds = JSON.parse(fs.readFileSync(notifiedFile, "utf8"));
+                if (Array.isArray(savedIds)) savedIds.forEach(id => global.__pmNotifiedPromptPayOrders.add(String(id)));
+              }
+            } catch (_) {}
+          }
+          const paidAtMs = Number(result.order.paidAt || 0);
+          const isRecentPaid = !paidAtMs || (Date.now() - paidAtMs < 15 * 60 * 1000);
+          if (orderId && isRecentPaid && !result.order.discordNotified && !global.__pmNotifiedPromptPayOrders.has(orderId) && discordService && typeof discordService.notifyMeritTopup === "function") {
+            global.__pmNotifiedPromptPayOrders.add(orderId);
+            try {
+              const allIds = Array.from(global.__pmNotifiedPromptPayOrders).slice(-200);
+              fs.writeFileSync(notifiedFile, JSON.stringify(allIds), "utf8");
+            } catch (_) {}
+            const pointsAdded = Number(result.order.pointsAdded ?? result.pointsAdded ?? result.order.amountBaht ?? 0);
+            const amountBaht = Number(result.order.amountBaht ?? result.amount ?? pointsAdded ?? 0);
+            const netPoints = Number.isSafeInteger(effectiveUnits)
+              ? Number((effectiveUnits / 100).toFixed(2))
+              : (Number.isFinite(Number(afterSettings?.points))
+                  ? Number(afterSettings.points)
+                  : (Number.isFinite(Number(result.totalPoints)) ? Number(result.totalPoints) : pointsAdded));
+            const previousPoints = Number((netPoints - pointsAdded).toFixed(2));
+            discordService.notifyMeritTopup({
+              amount: amountBaht,
+              pointsAdded,
+              previousPoints,
+              totalPoints: netPoints,
+              balanceUnits: effectiveUnits ?? afterSettings?.balanceUnits ?? result.balanceUnits,
+              channel: "สแกน QR พร้อมเพย์ (กสิกรไทย)",
+              accountId: afterSettings?.accountId || beforeSettings?.accountId || "",
+              machineHwid: afterSettings?.machineHwid || beforeSettings?.machineHwid || ""
+            }).catch(err => {
+              console.warn("[Discord] PromptPay Merit top-up notification failed:", err?.message || err);
+            });
+          }
+        }
+        sendJSON(result, result && result.success ? 200 : 400);
+      } catch (e) {
+        sendJSON({ success: false, message: e?.message || "ไม่สามารถติดต่อเซิร์ฟเวอร์พร้อมเพย์ได้" }, 400);
+      }
+    });
+    return;
+  }
+
+  // LAN Webhook relay for PmheePayBridge Android NotificationListenerService -> local owner-host
+  if (pathname === "/api/promptpay/webhook" && req.method === "POST") {
+    let body = "";
+    req.on("data", c => {
+      body += c;
+      if (Buffer.byteLength(body, "utf8") > 32768) req.destroy();
+    });
+    req.on("end", () => {
+      try {
+        const dataBuf = Buffer.from(body || "{}", "utf8");
+        const forwardReq = http.request({
+          hostname: "127.0.0.1",
+          port: 5290,
+          path: "/v1/aetheria/machine/promptpay-webhook",
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Content-Length": dataBuf.length
+          },
+          timeout: 8000
+        }, forwardRes => {
+          let respBody = "";
+          forwardRes.setEncoding("utf8");
+          forwardRes.on("data", chunk => { respBody += chunk; });
+          forwardRes.on("end", () => {
+            try {
+              sendJSON(JSON.parse(respBody), forwardRes.statusCode || 200);
+            } catch (_) {
+              sendJSON({ success: true }, 200);
+            }
+          });
+        });
+        forwardReq.on("error", err => {
+          sendJSON({ success: false, message: err.message }, 502);
+        });
+        forwardReq.end(dataBuf);
+      } catch (e) {
+        sendJSON({ success: false, message: e.message }, 400);
+      }
+    });
+    return;
+  }
+
+  // Proxy Registration Endpoints (0.1 pt / registered account, Cloudflare IP slot coordination)
+  if (pathname === "/api/proxy-register/settings") {
+    if (req.method === "GET") {
+      return sendJSON({ success: true, settings: proxyRegister.publicSettings() });
+    }
+    if (req.method === "POST") {
+      let body = "";
+      req.on("data", c => {
+        body += c;
+        if (Buffer.byteLength(body, "utf8") > 16384) req.destroy();
+      });
+      req.on("end", () => {
+        try {
+          const data = JSON.parse(body || "{}");
+          const updated = proxyRegister.saveSettings(data);
+          if (updated.enabled) {
+            authSync.resetProxyFallback?.();
+            setImmediate(() => authSync.tick().catch(() => {}));
+          }
+          sendJSON({ success: true, settings: proxyRegister.publicSettings() });
+        } catch (e) {
+          sendJSON({ success: false, error: e.message }, 400);
+        }
+      });
+      return;
+    }
+  }
+
+  if (pathname === "/api/proxy-register/toggle" && req.method === "POST") {
+    let body = "";
+    req.on("data", c => {
+      body += c;
+      if (Buffer.byteLength(body, "utf8") > 4096) req.destroy();
+    });
+    req.on("end", () => {
+      try {
+        const data = JSON.parse(body || "{}");
+        const current = proxyRegister.loadSettings();
+        const nextState = typeof data.enabled === "boolean" ? data.enabled : !current.enabled;
+        const patch = { enabled: nextState };
+        if (nextState && !current.configured && current.mode !== "owner-broker") {
+          patch.mode = "owner-broker";
+        }
+        const updated = proxyRegister.saveSettings(patch);
+        if (updated.enabled) {
+          authSync.resetProxyFallback?.();
+          setImmediate(() => authSync.tick().catch(() => {}));
+        }
+        sendJSON({ success: true, enabled: updated.enabled, settings: proxyRegister.publicSettings() });
+      } catch (e) {
+        sendJSON({ success: false, error: e.message }, 400);
+      }
+    });
+    return;
+  }
+
+  if (pathname === "/api/proxy-register/test" && req.method === "POST") {
+    try {
+      const result = await proxyRegister.testConnection();
+      return sendJSON(result, result.success ? 200 : 502);
+    } catch (e) {
+      return sendJSON({ success: false, error: e.message }, 500);
+    }
+  }
+
+  // ==========================================
+  // PER-SCREEN IP QUEUE (1 IP : N SCREENS) API
+  // ==========================================
+  if (pathname === "/api/screen-proxy/status" && req.method === "GET") {
+    try {
+      const refresh = parsedUrl.searchParams.get("refresh") === "1";
+      const st = await screenProxy.getQueueStatus({ refreshBackend: refresh });
+      const deviceGroups = typeof browserMode.getDeviceGroupsSnapshot === "function"
+        ? browserMode.getDeviceGroupsSnapshot()
+        : [];
+      const customIpConfig = typeof browserMode.getCustomIpDeviceConfig === "function"
+        ? browserMode.getCustomIpDeviceConfig()
+        : { ipGroups: [] };
+      return sendJSON({ ...st, deviceGroups, customIpConfig });
+    } catch (e) {
+      return sendJSON({ success: false, error: e.message }, 500);
+    }
+  }
+
+  if (pathname === "/api/screen-proxy/settings") {
+    if (req.method === "GET") {
+      try {
+        const st = await screenProxy.getQueueStatus({ refreshBackend: false });
+        const deviceGroups = typeof browserMode.getDeviceGroupsSnapshot === "function"
+          ? browserMode.getDeviceGroupsSnapshot()
+          : [];
+        const customIpConfig = typeof browserMode.getCustomIpDeviceConfig === "function"
+          ? browserMode.getCustomIpDeviceConfig()
+          : { ipGroups: [] };
+        return sendJSON({ ...st, deviceGroups, customIpConfig });
+      } catch (e) {
+        return sendJSON({ success: false, error: e.message }, 500);
+      }
+    }
+    if (req.method === "POST") {
+      let body = "";
+      req.on("data", c => {
+        body += c;
+        if (Buffer.byteLength(body, "utf8") > 262144) req.destroy();
+      });
+      req.on("end", async () => {
+        try {
+          const data = JSON.parse(body || "{}");
+          const saved = await screenProxy.savePoolAndSettings(data);
+          if (typeof browserMode.rebalanceDeviceGroups === "function") {
+            browserMode.rebalanceDeviceGroups(null, true);
+          }
+          for (const wsState of Object.values(windowStates)) {
+            if (wsState) {
+              delete wsState.syncedDeviceId;
+              delete wsState.syncedMachineId;
+            }
+          }
+          if (saved.settings && saved.settings.enabled) {
+            await syncScreenProxyForOpenProfiles().catch(() => {});
+            if (isBrowserMode() && typeof browserMode.applyProxyModeToOpenWindows === "function") {
+              await browserMode.applyProxyModeToOpenWindows().catch(() => {});
+            }
+          } else if (saved.settings && !saved.settings.enabled) {
+            await screenProxy.releaseAll().catch(() => {});
+            if (isBrowserMode() && typeof browserMode.applyProxyModeToOpenWindows === "function") {
+              await browserMode.applyProxyModeToOpenWindows().catch(() => {});
+            }
+          }
+          if (isBrowserMode() && typeof browserMode.syncAssetCacheToOpenWindows === "function") {
+            await browserMode.syncAssetCacheToOpenWindows().catch(() => {});
+          }
+          const status = await screenProxy.getQueueStatus({ refreshBackend: true });
+          const deviceGroups = typeof browserMode.getDeviceGroupsSnapshot === "function"
+            ? browserMode.getDeviceGroupsSnapshot()
+            : [];
+          const customIpConfig = typeof browserMode.getCustomIpDeviceConfig === "function"
+            ? browserMode.getCustomIpDeviceConfig()
+            : { ipGroups: [] };
+          sendJSON({ ...status, deviceGroups, customIpConfig, backendSync: saved.backendSync || null });
+        } catch (e) {
+          sendJSON({ success: false, error: e.message }, 400);
+        }
+      });
+      return;
+    }
+  }
+
+  if (pathname === "/api/screen-proxy/toggle" && req.method === "POST") {
+    let body = "";
+    req.on("data", c => {
+      body += c;
+      if (Buffer.byteLength(body, "utf8") > 8192) req.destroy();
+    });
+    req.on("end", async () => {
+      try {
+        const data = JSON.parse(body || "{}");
+        const current = screenProxy.loadSettings();
+        const nextState = typeof data.enabled === "boolean" ? data.enabled : !current.enabled;
+        const updated = screenProxy.saveSettings({ enabled: nextState });
+        let openApplied = null;
+        if (updated.enabled) {
+          await syncScreenProxyForOpenProfiles().catch(() => {});
+          if ((data.applyToOpen || data.applyToOpenWindows) && isBrowserMode()) {
+            openApplied = await browserMode.applyProxyModeToOpenWindows().catch(err => ({ error: err.message }));
+          }
+        } else {
+          await screenProxy.releaseAll().catch(() => {});
+        }
+        if (isBrowserMode() && typeof browserMode.syncAssetCacheToOpenWindows === "function") {
+          await browserMode.syncAssetCacheToOpenWindows().catch(() => {});
+        }
+        const status = await screenProxy.getQueueStatus({ refreshBackend: false });
+        sendJSON({
+          ...status,
+          success: true,
+          enabled: updated.enabled,
+          openApplied
+        });
+      } catch (e) {
+        sendJSON({ success: false, error: e.message }, 400);
+      }
+    });
+    return;
+  }
+
+  if (pathname === "/api/screen-proxy/apply-open" && req.method === "POST") {
+    let body = "";
+    req.on("data", c => {
+      body += c;
+      if (Buffer.byteLength(body, "utf8") > 16384) req.destroy();
+    });
+    req.on("end", async () => {
+      try {
+        const data = JSON.parse(body || "{}");
+        if (!screenProxy.isEnabled()) {
+          screenProxy.saveSettings({ enabled: true });
+        }
+        const applied = isBrowserMode()
+          ? await browserMode.applyProxyModeToOpenWindows({ onlyProfileIds: data.profileIds })
+          : { switched: 0, updatedTunnels: (await syncScreenProxyForOpenProfiles()).length };
+        if (isBrowserMode() && typeof browserMode.syncAssetCacheToOpenWindows === "function") {
+          await browserMode.syncAssetCacheToOpenWindows().catch(() => {});
+        }
+        const status = await screenProxy.getQueueStatus({ refreshBackend: false });
+        sendJSON({
+          ...status,
+          success: true,
+          applied
+        });
+      } catch (e) {
+        sendJSON({ success: false, error: e.message }, 500);
+      }
+    });
+    return;
+  }
+
+  if (pathname === "/api/screen-proxy/reset-traffic" && req.method === "POST") {
+    try {
+      screenProxy.resetTrafficStats();
+      resetBandwidthTracker("all");
+      if (isBrowserMode() && typeof browserMode.syncAssetCacheToOpenWindows === "function") {
+        await browserMode.syncAssetCacheToOpenWindows().catch(() => {});
+      }
+      const status = await screenProxy.getQueueStatus({ refreshBackend: false });
+      return sendJSON({ ...status, success: true });
+    } catch (e) {
+      return sendJSON({ success: false, error: e.message }, 500);
+    }
+  }
+
+  if (pathname === "/api/screen-proxy/test" && req.method === "POST") {
+    let body = "";
+    req.on("data", c => {
+      body += c;
+      if (Buffer.byteLength(body, "utf8") > 8192) req.destroy();
+    });
+    req.on("end", async () => {
+      try {
+        const data = JSON.parse(body || "{}");
+        const result = await screenProxy.testProxy({
+          proxyLine: data.proxyLine || "",
+          profileId: data.profileId || ""
+        });
+        sendJSON(result, result.success ? 200 : 502);
+      } catch (e) {
+        sendJSON({ success: false, error: e.message }, 500);
+      }
+    });
+    return;
+  }
+
+  if (pathname === "/api/screen-proxy/re-ip" && req.method === "POST") {
+    let body = "";
+    req.on("data", c => {
+      body += c;
+      if (Buffer.byteLength(body, "utf8") > 65536) req.destroy();
+    });
+    req.on("end", async () => {
+      try {
+        const data = JSON.parse(body || "{}");
+        const rotRes = await screenProxy.rotateIp(data);
+        if (!rotRes || !rotRes.success) {
+          return sendJSON({
+            ...(rotRes || { success: false, error: "ไม่สามารถเปลี่ยน IP ใหม่ได้" }),
+            screenProxySummary: screenProxy.publicSettings()
+          }, rotRes?.code === "PROXY_DISABLED" || rotRes?.code === "HOME_IP_GROUP" ? 400 : 200);
+        }
+        const changedIds = Array.isArray(rotRes.changedProfileIds) ? rotRes.changedProfileIds : [];
+        if (changedIds.length > 0 && screenProxy.isEnabled()) {
+          const allProfiles = loadProfiles() || [];
+          const byId = new Map(allProfiles.map(p => [p.id, p]));
+          let knownTargets = {};
+          try {
+            const ktFile = path.join(SESSIONS_DIR, "_browser_targets.json");
+            if (fs.existsSync(ktFile)) {
+              knownTargets = JSON.parse(fs.readFileSync(ktFile, "utf8")) || {};
+            }
+          } catch (_) {}
+          const openChangedIds = [];
+          for (const pid of changedIds) {
+            const p = byId.get(pid);
+            if (!p) continue;
+            const isOpen = browserMode.isOpen(p.id) || Boolean(knownTargets[p.id]) || (runningProcesses[p.id] && isProcessAlive(runningProcesses[p.id].pid));
+            if (isOpen) {
+              openChangedIds.push(p.id);
+              await screenProxy.ensureProfileTunnel(p.id, p.debugPort).catch(() => {});
+            }
+          }
+          if (openChangedIds.length > 0 && isBrowserMode() && typeof browserMode.applyProxyModeToOpenWindows === "function") {
+            await browserMode.applyProxyModeToOpenWindows({ onlyProfileIds: openChangedIds }).catch(() => {});
+          }
+        }
+        return sendJSON({
+          ...rotRes,
+          success: true,
+          deviceGroups: typeof browserMode.getDeviceGroupsSnapshot === "function" ? browserMode.getDeviceGroupsSnapshot() : [],
+          customIpConfig: typeof browserMode.getCustomIpDeviceConfig === "function" ? browserMode.getCustomIpDeviceConfig() : { ipGroups: [] },
+          customGroupLeases: rotRes.customGroupLeases || screenProxy.getCustomGroupLeases(),
+          surchargeConfig: rotRes.surchargeConfig || screenProxy.getSurchargeConfig(),
+          screenProxySummary: screenProxy.publicSettings()
+        });
+      } catch (e) {
+        return sendJSON({ success: false, error: e.message }, 400);
+      }
+    });
+    return;
+  }
+
+  if (pathname === "/api/screen-proxy/block" && req.method === "POST") {
+    let body = "";
+    req.on("data", c => {
+      body += c;
+      if (Buffer.byteLength(body, "utf8") > 16384) req.destroy();
+    });
+    req.on("end", async () => {
+      try {
+        const data = JSON.parse(body || "{}");
+        const resBlock = data.profileId
+          ? await screenProxy.blockProxyForProfile(data.profileId, {
+              reason: data.reason || "บล็อค IP จากหน้าจัดการ",
+              trigger: data.trigger || "manual",
+              profileName: data.profileName || "",
+              charName: data.charName || "",
+              account: data.account || ""
+            })
+          : await screenProxy.blockProxyManual(data);
+        const status = await screenProxy.getQueueStatus({ refreshBackend: false });
+        sendJSON({ ...status, blockResult: resBlock, success: Boolean(resBlock?.success) });
+      } catch (e) {
+        sendJSON({ success: false, error: e.message }, 400);
+      }
+    });
+    return;
+  }
+
+  if (pathname === "/api/screen-proxy/unblock" && req.method === "POST") {
+    let body = "";
+    req.on("data", c => {
+      body += c;
+      if (Buffer.byteLength(body, "utf8") > 16384) req.destroy();
+    });
+    req.on("end", async () => {
+      try {
+        const data = JSON.parse(body || "{}");
+        const resUnblock = data.all
+          ? screenProxy.clearAllBlockedProxies()
+          : screenProxy.unblockProxy(data);
+        const status = await screenProxy.getQueueStatus({ refreshBackend: false });
+        sendJSON({ ...status, unblockResult: resUnblock, success: true });
+      } catch (e) {
+        sendJSON({ success: false, error: e.message }, 400);
+      }
+    });
+    return;
+  }
+
+  if (pathname === "/api/screen-proxy/prune-blocked" && req.method === "POST") {
+    try {
+      const pruned = screenProxy.pruneBlockedFromPool();
+      const status = await screenProxy.getQueueStatus({ refreshBackend: false });
+      return sendJSON({ ...status, pruneResult: pruned, success: true });
+    } catch (e) {
+      return sendJSON({ success: false, error: e.message }, 500);
+    }
+  }
+
+  if (pathname === "/api/screen-proxy/billing-config" && req.method === "POST") {
+    let body = "";
+    req.on("data", c => {
+      body += c;
+      if (Buffer.byteLength(body, "utf8") > 16384) req.destroy();
+    });
+    req.on("end", async () => {
+      try {
+        const data = JSON.parse(body || "{}");
+        const billing = screenProxy.updateBillingConfig(data);
+        if (data.syncNow && typeof screenProxy.syncProxyBillingToServer === "function") {
+          await screenProxy.syncProxyBillingToServer().catch(() => {});
+        }
+        const status = await screenProxy.getQueueStatus({ refreshBackend: false });
+        sendJSON({ ...status, billing: screenProxy.getBillingStatus(), success: true });
+      } catch (e) {
+        sendJSON({ success: false, error: e.message }, 400);
+      }
+    });
+    return;
+  }
+
+  // 1. GET /api/profiles
+  if (req.method === "GET" && pathname === "/api/profiles") {
+    lastProfilesZenyPollAt = Date.now();
+    const profiles = loadProfiles();
+    const enriched = await mapWithConcurrency(
+      profiles,
+      8,
+      async (p) => {
+        const proc = runningProcesses[p.id];
+        const isBrowserOpen = Boolean(browserMode && typeof browserMode.isOpen === 'function' && browserMode.isOpen(p.id));
+        let alive = Boolean((proc && isProcessAlive(proc.pid)) || isBrowserOpen);
+        let liveState = null;
+        let hasFreshLiveState = false;
+
+        // Auto-detect online state if debugPort is responding
+        let adoptedAuthFromClient = null;
+        if (p.debugPort) {
+          const lastFail = clientStateLastFailureByPort.get(p.debugPort);
+          const skipClosedPortProbe = !alive && lastFail && lastFail.reason === 'ECONNREFUSED' && (Date.now() - lastFail.ts < 5000);
+          if (!skipClosedPortProbe) {
+            liveState = await queryClientState(p.debugPort);
+            hasFreshLiveState = Boolean(liveState && !liveState.error);
+          }
+          if ((!liveState || liveState.error) && alive) {
+            const recentCached = clientStateCacheByPort.get(p.debugPort);
+            if (recentCached && recentCached.state && (Date.now() - recentCached.ts < 180000)) {
+              liveState = { ...JSON.parse(JSON.stringify(recentCached.state)), _cachedFallback: true };
+            } else {
+              liveState = {
+                isOnline: true,
+                isBotRunning: false,
+                autoLoop: false,
+                screenPhase: 'loading',
+                screenPhaseLabel: '⏳ กำลังโหลดหน้าเกม...',
+                botStatus: '⏳ กำลังโหลดหน้าเกม...',
+                charName: p.lastCharName || '',
+                charClass: p.lastCharClass || p.charClass || 'Hunter',
+                map: p.targetMap || 'ไม่ทราบแมพ',
+                coords: '--',
+                weight: '--',
+                zeny: null,
+                _syntheticLoading: true
+              };
+            }
+          }
+          if (liveState && !liveState.error) {
+            alive = true;
+            if (liveState.authConfig && typeof liveState.authConfig === 'object') {
+              const ca = liveState.authConfig;
+              const cUser = String(ca.username || '').trim();
+              const cPass = String(ca.password || '');
+              const cChar = String(ca.charName || '').trim();
+              // Never expose plaintext password over GET /api/profiles
+              delete liveState.authConfig.password;
+              liveState.authConfig.hasPassword = Boolean(cPass);
+              const hasClientCreds = Boolean(cUser && cPass && !ca.register && !ca.registerError);
+              if (hasClientCreds) {
+                const curProfPass = credentials.getPassword(p.id);
+                const ownedByOtherProfile = Boolean(
+                  cUser &&
+                  String(p.account || '').trim().toLowerCase() !== cUser.toLowerCase() &&
+                  profiles.some(o => o && o.id !== p.id && String(o.account || '').trim().toLowerCase() === cUser.toLowerCase())
+                );
+                const manualUserEditedAt = Number(ca.userEditedAt) || 0;
+                const lastManagerPushAt = Number(p.lastAuthSyncPushAt) || 0;
+                const identityChangedAt = Number(p.identityChangedAt) || 0;
+                const staleClientCredsAfterReset = Boolean(p.autoRegister && identityChangedAt > 0 && manualUserEditedAt <= identityChangedAt);
+                const managerMissingCreds = !p.account || !curProfPass;
+                const isSameGeneratedAccount = Boolean(p.generatedAccount && p.account && cUser === p.account);
+                const shouldAdopt = !staleClientCredsAfterReset && !isSameGeneratedAccount && !ownedByOtherProfile && (
+                  (manualUserEditedAt > 0 && manualUserEditedAt > lastManagerPushAt) ||
+                  managerMissingCreds ||
+                  (!ca.generatedUser && (p.autoRegister || p.generatedAccount))
+                );
+                if (shouldAdopt && (cUser !== p.account || cPass !== curProfPass || p.autoRegister || (p.generatedAccount && !ca.generatedUser))) {
+                  credentials.setPassword(p.id, cPass);
+                  p.account = cUser;
+                  p.autoRegister = false;
+                  p.generatedAccount = !!ca.generatedUser;
+                  p.registerError = '';
+                  p.loginSyncPending = false;
+                  p.lastAuthSyncPushAt = Date.now();
+                  if (cChar && !p.lastCharName) p.lastCharName = cChar;
+                  adoptedAuthFromClient = {
+                    account: cUser,
+                    autoRegister: false,
+                    generatedAccount: !!ca.generatedUser,
+                    registerError: '',
+                    loginSyncPending: false,
+                    lastAuthSyncPushAt: p.lastAuthSyncPushAt,
+                    ...(cChar && !p.lastCharName ? { lastCharName: cChar } : {})
+                  };
+                }
+              }
+            }
+          }
+        }
+
+        if (alive && liveState && !liveState.error && !liveState._syntheticLoading) {
+          noteProfileCharCreationActivity(p.id, liveState);
+          if (isAccountBannedState(liveState)) {
+            if (!p.banDismissedAt) {
+              if (!p.isBanned) {
+                recordProfileBannedAndBlockIp(p, liveState).catch(() => {});
+              }
+              p.isBanned = true;
+              p.bannedAt = p.bannedAt || Date.now();
+              p.banReason = String(liveState.banReason || liveState.screenError || liveState.screenDetail || 'บัญชีถูกระงับการใช้งาน').replace(/^🚫\s*หน้าเลือกตัวละคร:\s*/i, '').trim();
+            }
+          } else if (liveState.screenPhase === 'in_game' && !isJailMapName(liveState.map) && (p.isBanned || p.banDismissedAt)) {
+            clearProfileBanStatus(p.id, true);
+            p.isBanned = false;
+            p.banDismissedAt = null;
+            p.bannedAt = null;
+            p.banReason = null;
+          }
+          if (liveState.map) {
+            if (isJailMapName(liveState.map)) {
+              if (!p.jailDismissedAt) {
+                if (!p.isJailed || p.jailedMap !== liveState.map) {
+                  recordProfileJailedAndStop(p, liveState).catch(() => {});
+                }
+                p.isJailed = true;
+                p.jailedAt = p.jailedAt || Date.now();
+                p.jailedMap = liveState.map;
+              }
+            } else if (isConfirmedOutOfJailMap(liveState) && (p.isJailed || p.jailAutoStopped || p.jailDismissedAt)) {
+              clearProfileJailStatus(p.id, true);
+              p.isJailed = false;
+              p.jailAutoStopped = false;
+              p.jailDismissedAt = null;
+              p.jailedAt = null;
+              p.jailedMap = null;
+            }
+          }
+        }
+
+        if (!alive && proc) {
+          delete runningProcesses[p.id];
+        }
+
+        const zenyRate = updateZenyRateTracker(p.id, alive ? liveState : null);
+        const bandwidth = await updateBandwidthTracker(p.id, alive ? liveState : null, p.debugPort);
+
+        const isInGameLive = Boolean(alive && liveState && !liveState.error && !liveState._syntheticLoading && (!liveState.screenPhase || liveState.screenPhase === 'in_game'));
+        const liveHasPremium = !!(isInGameLive && liveState.hasPremium);
+        const livePremiumUntil = (isInGameLive && Number(liveState.premiumUntil) > 0) ? Number(liveState.premiumUntil) : null;
+        const effectivePremiumUntil = livePremiumUntil || (Number(p.lastPremiumUntil) > Date.now() ? Number(p.lastPremiumUntil) : null);
+        const hasPremium = isInGameLive ? liveHasPremium : Boolean(effectivePremiumUntil && effectivePremiumUntil > Date.now());
+
+        if (alive && liveState && typeof liveState.zeroRender === 'boolean') {
+          if (!windowStates[p.id] || (Date.now() - (windowStates[p.id].updatedAt || 0) > 4000)) {
+            windowStates[p.id] = { isHidden: liveState.zeroRender, zeroRender: liveState.zeroRender, updatedAt: windowStates[p.id]?.updatedAt || 0 };
+          }
+        }
+
+        const assignedDeviceId = typeof browserMode.ensureProfileDeviceId === "function"
+          ? browserMode.ensureProfileDeviceId(p.id)
+          : null;
+        const assignedMachineId = typeof browserMode.ensureProfileMachineId === "function"
+          ? browserMode.ensureProfileMachineId(p.id)
+          : null;
+        const deviceGroupIndex = typeof browserMode.ensureProfileDeviceGroupIndex === "function"
+          ? browserMode.ensureProfileDeviceGroupIndex(p.id)
+          : 1;
+        const assignedDeviceSpec = typeof browserMode.ensureProfileDeviceSpec === "function"
+          ? browserMode.ensureProfileDeviceSpec(p.id)
+          : null;
+
+        if (alive && hasFreshLiveState && p.debugPort && assignedDeviceId && !browserMode.isOpen(p.id)) {
+          if (!windowStates[p.id]) windowStates[p.id] = {};
+          const specPlat = assignedDeviceSpec?.platform || 'pc';
+          if (windowStates[p.id].syncedDeviceId !== assignedDeviceId || windowStates[p.id].syncedMachineId !== assignedMachineId || windowStates[p.id].syncedPlatform !== specPlat) {
+            windowStates[p.id].syncedDeviceId = assignedDeviceId;
+            windowStates[p.id].syncedMachineId = assignedMachineId;
+            windowStates[p.id].syncedPlatform = specPlat;
+            evalProfilePort(p.debugPort, `(() => {
+              window.__pmManagedDeviceGroup = true;
+              window.__pmDeviceId = ${JSON.stringify(assignedDeviceId)};
+              window.__pmMachineId = ${JSON.stringify(assignedMachineId || '')};
+              window.__pmDeviceSpec = ${JSON.stringify(assignedDeviceSpec || null)};
+              try {
+                if (window.localStorage) {
+                  window.localStorage.setItem('aetheria.device', window.__pmDeviceId);
+                  if (window.__pmMachineId) window.localStorage.setItem('aetheria.machine', window.__pmMachineId);
+                }
+              } catch (_) {}
+              if (!window.__pmEnterWorldDeviceHookInstalled && typeof window.fetch === 'function') {
+                window.__pmEnterWorldDeviceHookInstalled = true;
+                const __origFetch = window.fetch;
+                window.fetch = function(input, init) {
+                  try {
+                    const urlStr = typeof input === 'string' ? input : (input && typeof input.url === 'string' ? input.url : '');
+                    if (window.__pmDeviceId && init && typeof init.body === 'string' && (urlStr === '/world/enter' || urlStr.endsWith('/world/enter') || urlStr.includes('/world/enter?'))) {
+                      const parsed = JSON.parse(init.body);
+                      if (parsed && typeof parsed === 'object') {
+                        parsed.deviceId = window.__pmDeviceId;
+                        if (window.__pmMachineId) parsed.machineId = window.__pmMachineId;
+                        if (window.__pmDeviceSpec && typeof window.__pmDeviceSpec === 'object') {
+                          if (window.__pmDeviceSpec.gpu) parsed.gpu = window.__pmDeviceSpec.gpu;
+                          if (window.__pmDeviceSpec.ua) parsed.ua = window.__pmDeviceSpec.ua;
+                          if (typeof window.__pmDeviceSpec.touch === 'number') parsed.touch = window.__pmDeviceSpec.touch;
+                        }
+                        init = Object.assign({}, init, { body: JSON.stringify(parsed) });
+                      }
+                    }
+                  } catch (_) {}
+                  return __origFetch.call(this, input, init);
+                };
+              }
+              return { success: true, deviceId: window.__pmDeviceId, machineId: window.__pmMachineId };
+            })()`, 2500).catch(() => {});
+          }
+        }
+
+        return {
+          ...p,
+          _adoptedAuthFromClient: adoptedAuthFromClient,
+          deviceId: assignedDeviceId,
+          machineId: assignedMachineId,
+          deviceGroupIndex,
+          devicePlatform: assignedDeviceSpec?.platform || 'pc',
+          deviceModel: assignedDeviceSpec?.model || null,
+          deviceGpu: assignedDeviceSpec?.gpu || null,
+          hasLoginPassword: !!credentials.getPassword(p.id),
+          isRunning: alive,
+          pid: alive ? (proc ? proc.pid : null) : null,
+          uptime: alive ? (proc ? Math.round((Date.now() - proc.startTime) / 1000) : 0) : 0,
+          liveState,
+          hasPremium,
+          premiumUntil: effectivePremiumUntil,
+          zenyRate,
+          bandwidth,
+          screenProxy: screenProxy.getProfileLeaseSnapshot(p.id),
+          ipIsolation: getProfileIpIsolationInfo(p.id),
+          windowState: windowStates[p.id] || { isHidden: false, zeroRender: false }
+        };
+      }
+    );
+
+    // Remember last-seen portrait / character / premiumUntil so offline cards still show them.
+    // Re-read the file here: other requests may have saved profiles while we awaited.
+    const changed = enriched.filter(p => {
+      if (p._adoptedAuthFromClient) return true;
+      const s = p.liveState;
+      if (!s || s.error || s._syntheticLoading || s._cachedFallback) return false;
+      const hasChar = Boolean(s.charName);
+      const inGamePhase = !s.screenPhase || s.screenPhase === 'in_game';
+      const portrait = hasChar && s.portrait && portraitPathFromSrc(s.portrait);
+      const premChanged = (Number(s.premiumUntil) > 0 && Number(s.premiumUntil) !== Number(p.lastPremiumUntil || 0)) ||
+                          (inGamePhase && hasChar && s.hasPremium === false && Number(p.lastPremiumUntil || 0) > Date.now());
+      return (portrait && portrait !== p.lastPortrait) || (hasChar && s.charName !== p.lastCharName) || (hasChar && s.charClass && s.charClass !== p.lastCharClass) || premChanged;
+    });
+    if (changed.length > 0) {
+      const fresh = loadProfiles();
+      changed.forEach(p => {
+        const target = fresh.find(f => f.id === p.id);
+        if (!target) return;
+        if (p._adoptedAuthFromClient) {
+          Object.assign(target, p._adoptedAuthFromClient);
+        }
+        if (p.liveState && !p.liveState.error) {
+          const hasChar = Boolean(p.liveState.charName);
+          const inGamePhase = !p.liveState.screenPhase || p.liveState.screenPhase === 'in_game';
+          const liveCharLower = hasChar ? String(p.liveState.charName).trim().toLowerCase() : '';
+          const liveAuthLower = (p.liveState.authConfig && p.liveState.authConfig.username) ? String(p.liveState.authConfig.username).trim().toLowerCase() : '';
+          const charOrAuthOwnedByOther = fresh.some(o => {
+            if (!o || o.id === p.id) return false;
+            if (liveAuthLower && String(o.account || '').trim().toLowerCase() === liveAuthLower && String(target.account || '').trim().toLowerCase() !== liveAuthLower) return true;
+            if (liveCharLower && String(o.lastCharName || '').trim().toLowerCase() === liveCharLower && String(target.lastCharName || '').trim().toLowerCase() !== liveCharLower) return true;
+            return false;
+          });
+          if (!charOrAuthOwnedByOther) {
+            const portrait = hasChar && p.liveState.portrait && portraitPathFromSrc(p.liveState.portrait);
+            if (portrait) target.lastPortrait = p.lastPortrait = portrait;
+            if (hasChar) target.lastCharName = p.lastCharName = p.liveState.charName;
+            if (hasChar && p.liveState.charClass) target.lastCharClass = p.lastCharClass = p.liveState.charClass;
+            if (Number(p.liveState.premiumUntil) > 0) {
+              target.lastPremiumUntil = p.lastPremiumUntil = Number(p.liveState.premiumUntil);
+            } else if (inGamePhase && hasChar && p.liveState.hasPremium === false && Number(target.lastPremiumUntil || 0) > Date.now()) {
+              target.lastPremiumUntil = p.lastPremiumUntil = 0;
+            }
+          }
+        }
+      });
+      saveProfiles(fresh);
+    }
+    enriched.forEach(p => { delete p._adoptedAuthFromClient; });
+
+    const bandwidthSummary = enriched.reduce((acc, p) => {
+      const bw = p.bandwidth || {};
+      acc.todayBytes += (bw.todayBytes || 0);
+      acc.todayRxBytes += (bw.todayRxBytes || 0);
+      acc.todayTxBytes += (bw.todayTxBytes || 0);
+      acc.totalBps += (bw.bps || 0);
+      acc.totalBytesPerHour += (bw.bytesPerHour || 0);
+      acc.totalEstDayBytes += (bw.estDayBytes || 0);
+      return acc;
+    }, {
+      date: getThaiDateKey(),
+      todayBytes: 0,
+      todayRxBytes: 0,
+      todayTxBytes: 0,
+      totalBps: 0,
+      totalBytesPerHour: 0,
+      totalEstDayBytes: 0
+    });
+
+    return sendJSON({
+      success: true,
+      profiles: enriched,
+      deviceGroups: typeof browserMode.getDeviceGroupsSnapshot === "function" ? browserMode.getDeviceGroupsSnapshot() : [],
+      customIpConfig: typeof browserMode.getCustomIpDeviceConfig === "function" ? browserMode.getCustomIpDeviceConfig() : { ipGroups: [] },
+      customGroupLeases: typeof screenProxy.getCustomGroupLeases === "function" ? screenProxy.getCustomGroupLeases() : [],
+      ipSurchargeConfig: typeof screenProxy.getSurchargeConfig === "function" ? screenProxy.getSurchargeConfig() : null,
+      bandwidthSummary,
+      screenProxySummary: screenProxy.publicSettings(),
+      proxyBilling: typeof screenProxy.getBillingStatus === "function" ? screenProxy.getBillingStatus() : null,
+      blockedProxies: typeof screenProxy.getBlockedProxies === "function" ? screenProxy.getBlockedProxies() : [],
+      gameExe: getGameExe(),
+      allWindowsHidden,
+      captchaStats: getCaptchaStats(),
+      channelCheckMode: getEffectiveChannelCheckMode(),
+      lastJailAutoCloseEvent
+    });
+  }
+
+  // GET / POST /api/channel-check-mode
+  if (pathname === "/api/channel-check-mode") {
+    if (req.method === "GET") {
+      return sendJSON({ success: true, mode: getEffectiveChannelCheckMode(), validModes: VALID_CHANNEL_CHECK_MODES });
+    }
+    if (req.method === "POST") {
+      let body = "";
+      req.on("data", chunk => body += chunk);
+      req.on("end", async () => {
+        try {
+          const payload = JSON.parse(body || "{}");
+          const saved = saveChannelCheckMode(payload.mode);
+          const syncRes = await syncChannelCheckModeToAllClients(saved);
+          setTimeout(() => { try { partyService.tick().catch(() => {}); } catch (_) {} }, 50);
+          return sendJSON({
+            success: true,
+            mode: saved,
+            syncedClients: syncRes.syncedCount,
+            totalChecked: syncRes.totalChecked
+          });
+        } catch (e) {
+          return sendJSON({ success: false, error: e.message }, 400);
+        }
+      });
+      return;
+    }
+  }
+
+  // POST /api/profiles/:id/clear-jail
+  if (req.method === "POST" && pathname.match(/^\/api\/profiles\/[^/]+\/clear-jail$/)) {
+    const id = pathname.split("/")[3];
+    const cleared = clearProfileJailStatus(id, false);
+    return sendJSON({ success: true, cleared });
+  }
+
+  // POST /api/profiles/:id/clear-ban
+  if (req.method === "POST" && pathname.match(/^\/api\/profiles\/[^/]+\/clear-ban$/)) {
+    const id = pathname.split("/")[3];
+    const cleared = clearProfileBanStatus(id, false);
+    return sendJSON({ success: true, cleared });
+  }
+
+  // POST /api/jail/clear-all
+  if (req.method === "POST" && pathname === "/api/jail/clear-all") {
+    const fresh = loadProfiles();
+    let clearedCount = 0;
+    fresh.forEach(p => {
+      if (p.isJailed || p.isBanned) {
+        delete p.isJailed;
+        delete p.jailedAt;
+        delete p.jailedMap;
+        delete p.jailAutoStopped;
+        delete p.isBanned;
+        delete p.bannedAt;
+        delete p.banReason;
+        p.jailDismissedAt = Date.now();
+        p.banDismissedAt = Date.now();
+        clearedCount++;
+      }
+    });
+    if (clearedCount > 0) saveProfiles(fresh);
+    return sendJSON({ success: true, clearedCount });
+  }
+
+  // POST /api/profiles/:id/reset-zeny-rate
+  if (req.method === "POST" && pathname.match(/^\/api\/profiles\/[^/]+\/reset-zeny-rate$/)) {
+    const id = pathname.split("/")[3];
+    delete zenyRateTrackers[id];
+    zenyRateStateDirty = true;
+    saveZenyRateStateNow();
+    return sendJSON({ success: true });
+  }
+
+  // POST /api/profiles/:id/reset-bandwidth
+  if (req.method === "POST" && pathname.match(/^\/api\/profiles\/[^/]+\/reset-bandwidth$/)) {
+    const id = pathname.split("/")[3];
+    resetBandwidthTracker(id);
+    return sendJSON({ success: true });
+  }
+
+  // GET /api/device-groups
+  if (req.method === "GET" && pathname === "/api/device-groups") {
+    const groups = typeof browserMode.getDeviceGroupsSnapshot === "function"
+      ? browserMode.getDeviceGroupsSnapshot()
+      : [];
+    const screensPerIp = screenProxy.loadSettings().maxScreensPerIp || 6;
+    const customIpConfig = typeof browserMode.getCustomIpDeviceConfig === "function"
+      ? browserMode.getCustomIpDeviceConfig()
+      : { ipGroups: [] };
+    const customGroupLeases = typeof screenProxy.getCustomGroupLeases === "function"
+      ? screenProxy.getCustomGroupLeases()
+      : [];
+    const surchargeConfig = typeof screenProxy.getSurchargeConfig === "function"
+      ? screenProxy.getSurchargeConfig()
+      : null;
+    return sendJSON({ success: true, maxScreensPerDevice: 3, screensPerIp, groups, customIpConfig, customGroupLeases, surchargeConfig, lastJailAutoCloseEvent });
+  }
+
+  // GET / POST /api/custom-ip-devices
+  if (pathname === "/api/custom-ip-devices") {
+    if (req.method === "GET") {
+      try {
+        const refresh = parsedUrl.searchParams.get("refresh") === "1";
+        if (refresh && typeof screenProxy.reserveCustomIpGroupsNow === "function") {
+          await screenProxy.reserveCustomIpGroupsNow().catch(() => {});
+        }
+        return sendJSON({
+          success: true,
+          customIpConfig: typeof browserMode.getCustomIpDeviceConfig === "function" ? browserMode.getCustomIpDeviceConfig() : { ipGroups: [] },
+          customGroupLeases: typeof screenProxy.getCustomGroupLeases === "function" ? screenProxy.getCustomGroupLeases() : [],
+          surchargeConfig: typeof screenProxy.getSurchargeConfig === "function" ? screenProxy.getSurchargeConfig() : null,
+          deviceGroups: typeof browserMode.getDeviceGroupsSnapshot === "function" ? browserMode.getDeviceGroupsSnapshot() : [],
+          screensPerIp: screenProxy.loadSettings().maxScreensPerIp || 6,
+          screenProxySummary: screenProxy.publicSettings(),
+          lastJailAutoCloseEvent
+        });
+      } catch (e) {
+        return sendJSON({ success: false, error: e.message }, 500);
+      }
+    }
+    if (req.method === "POST") {
+      let body = "";
+      req.on("data", chunk => {
+        body += chunk;
+        if (Buffer.byteLength(body, "utf8") > 262144) req.destroy();
+      });
+      req.on("end", async () => {
+        try {
+          const payload = JSON.parse(body || "{}");
+          const mutated = await browserMode.mutateCustomIpDevices(payload);
+          const affected = Array.isArray(mutated.affectedProfileIds) ? mutated.affectedProfileIds : [];
+          for (const pid of affected) {
+            if (windowStates[pid]) {
+              delete windowStates[pid].syncedDeviceId;
+              delete windowStates[pid].syncedMachineId;
+            }
+          }
+          const skipReserve = payload?.action === "set_jail_auto_close_mode";
+          const resv = (!skipReserve && typeof screenProxy.reserveCustomIpGroupsNow === "function")
+            ? await screenProxy.reserveCustomIpGroupsNow().catch(() => ({}))
+            : {};
+          if (screenProxy.isEnabled() && affected.length > 0) {
+            await syncScreenProxyForOpenProfiles().catch(() => {});
+            if (isBrowserMode() && typeof browserMode.applyProxyModeToOpenWindows === "function") {
+              await browserMode.applyProxyModeToOpenWindows({ onlyProfileIds: affected }).catch(() => {});
+            }
+          }
+          return sendJSON({
+            success: true,
+            ...mutated,
+            customIpConfig: mutated.customIpConfig || browserMode.getCustomIpDeviceConfig(),
+            customGroupLeases: resv.customGroupLeases || screenProxy.getCustomGroupLeases(),
+            surchargeConfig: resv.surchargeConfig || screenProxy.getSurchargeConfig(),
+            deviceGroups: typeof browserMode.getDeviceGroupsSnapshot === "function" ? browserMode.getDeviceGroupsSnapshot() : [],
+            lastJailAutoCloseEvent
+          });
+        } catch (e) {
+          return sendJSON({ success: false, error: e.message }, 400);
+        }
+      });
+      return;
+    }
+  }
+
+  // ====================== UNBAN MODE API ======================
+  // SSE /api/unban/events — Server-Sent Events for unban notifications
+  if (pathname === "/api/unban/events" && req.method === "GET") {
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'Access-Control-Allow-Origin': '*'
+    });
+    res.write('data: {"type":"connected"}\n\n');
+    unbanSSEClients.add(res);
+    req.on('close', () => { unbanSSEClients.delete(res); });
+    return;
+  }
+
+  // GET /api/unban/status
+  if (pathname === "/api/unban/status" && req.method === "GET") {
+    try {
+      const status = typeof browserMode.getUnbanStatus === "function"
+        ? browserMode.getUnbanStatus()
+        : { activeSessions: [], configuredProfileIds: [], poolEntries: [], hasCredentials: false };
+      const profiles = loadProfiles() || [];
+      const profileMap = {};
+      for (const p of profiles) {
+        if (p && p.id) {
+          profileMap[p.id] = {
+            id: p.id,
+            name: p.name || p.id,
+            account: p.account || '',
+            charName: p.lastCharName || '',
+            isJailed: Boolean(p.isJailed),
+            jailedMap: p.jailedMap || '',
+            isBanned: Boolean(p.isBanned),
+            banReason: p.banReason || '',
+            debugPort: p.debugPort
+          };
+        }
+      }
+      return sendJSON({ success: true, ...status, profileMap });
+    } catch (e) {
+      return sendJSON({ success: false, error: e.message }, 500);
+    }
+  }
+
+  // POST /api/unban/add
+  if (pathname === "/api/unban/add" && req.method === "POST") {
+    let body = "";
+    req.on("data", chunk => { body += chunk; if (Buffer.byteLength(body, "utf8") > 65536) req.destroy(); });
+    req.on("end", async () => {
+      try {
+        const payload = JSON.parse(body || "{}");
+        const ids = Array.isArray(payload.profileIds) ? payload.profileIds : (payload.profileId ? [payload.profileId] : []);
+        const status = browserMode.addProfilesToUnbanPool(ids);
+        return sendJSON({ success: true, message: `เพิ่ม ${ids.length} จอเข้าวงโหมดปลดแล้ว`, ...status });
+      } catch (e) {
+        return sendJSON({ success: false, error: e.message }, 400);
+      }
+    });
+    return;
+  }
+
+  // POST /api/unban/remove
+  if (pathname === "/api/unban/remove" && req.method === "POST") {
+    let body = "";
+    req.on("data", chunk => { body += chunk; if (Buffer.byteLength(body, "utf8") > 65536) req.destroy(); });
+    req.on("end", async () => {
+      try {
+        const payload = JSON.parse(body || "{}");
+        const profileId = String(payload.profileId || "").trim();
+        if (!profileId) return sendJSON({ success: false, error: "Missing profileId" }, 400);
+        const status = await browserMode.removeProfileFromUnbanPool(profileId);
+        return sendJSON({ success: true, message: "ถอดออกจากวงโหมดปลดแล้ว", ...status });
+      } catch (e) {
+        return sendJSON({ success: false, error: e.message }, 400);
+      }
+    });
+    return;
+  }
+
+  // POST /api/unban/rotate-device
+  if (pathname === "/api/unban/rotate-device" && req.method === "POST") {
+    let body = "";
+    req.on("data", chunk => { body += chunk; if (Buffer.byteLength(body, "utf8") > 65536) req.destroy(); });
+    req.on("end", async () => {
+      try {
+        const payload = JSON.parse(body || "{}");
+        const profileId = String(payload.profileId || "").trim();
+        if (!profileId) return sendJSON({ success: false, error: "Missing profileId" }, 400);
+        const res = browserMode.rotateUnbanDevice(profileId);
+        return sendJSON({ ...res, message: `สุ่มรุ่นมือถือและ IP Session ใหม่แล้ว (${res.deviceModel})` });
+      } catch (e) {
+        return sendJSON({ success: false, error: e.message }, 400);
+      }
+    });
+    return;
+  }
+
+  // POST /api/unban/proxy-mode
+  if (pathname === "/api/unban/proxy-mode" && req.method === "POST") {
+    let body = "";
+    req.on("data", chunk => { body += chunk; if (Buffer.byteLength(body, "utf8") > 65536) req.destroy(); });
+    req.on("end", async () => {
+      try {
+        const payload = JSON.parse(body || "{}");
+        const useMobileProxy = Boolean(payload.useMobileProxy);
+        const status = browserMode.setUnbanProxyMode(useMobileProxy);
+        return sendJSON({
+          success: true,
+          message: useMobileProxy
+            ? "เปิดโหมดใช้เน็ตซิม DataImpulse Mobile สำหรับโหมดปลดแล้ว"
+            : "สลับโหมดปลดมาใช้เน็ตบ้าน / Wi-Fi ปกติ (ไม่เสีย GB DataImpulse) แล้ว",
+          ...status
+        });
+      } catch (e) {
+        return sendJSON({ success: false, error: e.message }, 400);
+      }
+    });
+    return;
+  }
+
+  // POST /api/unban/start
+  if (pathname === "/api/unban/start" && req.method === "POST") {
+    let body = "";
+    req.on("data", chunk => { body += chunk; if (Buffer.byteLength(body, "utf8") > 65536) req.destroy(); });
+    req.on("end", async () => {
+      try {
+        const payload = JSON.parse(body || "{}");
+        const profileId = String(payload.profileId || "").trim();
+        if (!profileId) return sendJSON({ success: false, error: "Missing profileId" }, 400);
+        if (!isBrowserMode()) return sendJSON({ success: false, error: "โหมดปลดต้องใช้โหมดเบราว์เซอร์เท่านั้น" }, 400);
+        const result = await browserMode.launchUnbanSession(profileId, {
+          rotateDevice: Boolean(payload.rotateDevice),
+          ...(payload.useMobileProxy !== undefined ? { useMobileProxy: Boolean(payload.useMobileProxy) } : {})
+        });
+        return sendJSON(result);
+      } catch (e) {
+        return sendJSON({ success: false, error: e.message }, 400);
+      }
+    });
+    return;
+  }
+
+  // POST /api/unban/stop
+  if (pathname === "/api/unban/stop" && req.method === "POST") {
+    let body = "";
+    req.on("data", chunk => { body += chunk; if (Buffer.byteLength(body, "utf8") > 65536) req.destroy(); });
+    req.on("end", async () => {
+      try {
+        const payload = JSON.parse(body || "{}");
+        const profileId = String(payload.profileId || "").trim();
+        if (!profileId) return sendJSON({ success: false, error: "Missing profileId" }, 400);
+        if (payload.markUnbanned) {
+          try { clearProfileJailStatus(profileId, false); } catch (_) {}
+        }
+        const result = await browserMode.stopUnbanSession(profileId, payload.reason || "manual", Boolean(payload.removeFromPool));
+        return sendJSON(result);
+      } catch (e) {
+        return sendJSON({ success: false, error: e.message }, 400);
+      }
+    });
+    return;
+  }
+
+  // POST /api/unban/stop-all
+  if (pathname === "/api/unban/stop-all" && req.method === "POST") {
+    try {
+      await browserMode.stopAllUnbanSessions();
+      return sendJSON({ success: true, message: "ปิดโหมดปลดทุกจอแล้ว" });
+    } catch (e) {
+      return sendJSON({ success: false, error: e.message }, 500);
+    }
+  }
+  // ====================== END UNBAN MODE API ======================
+
+  // POST /api/device-groups/rotate
+  if (req.method === "POST" && pathname === "/api/device-groups/rotate") {
+    let body = "";
+    req.on("data", chunk => body += chunk);
+    req.on("end", async () => {
+      try {
+        const payload = JSON.parse(body || "{}");
+        const target = payload.groupIndex || payload.profileId || payload.deviceId;
+        if (!target) return sendJSON({ success: false, error: "Missing groupIndex or profileId" }, 400);
+        const grp = typeof browserMode.rotateDeviceGroup === "function"
+          ? await browserMode.rotateDeviceGroup(target)
+          : null;
+        if (!grp) return sendJSON({ success: false, error: "Device group not found" }, 404);
+        for (const pid of (grp.profileIds || [])) {
+          if (windowStates[pid]) {
+            delete windowStates[pid].syncedDeviceId;
+            delete windowStates[pid].syncedMachineId;
+          }
+        }
+        const groups = typeof browserMode.getDeviceGroupsSnapshot === "function"
+          ? browserMode.getDeviceGroupsSnapshot()
+          : [];
+        return sendJSON({ success: true, group: grp, deviceGroups: groups });
+      } catch (e) {
+        return sendJSON({ success: false, error: e.message }, 400);
+      }
+    });
+    return;
+  }
+
+  // POST /api/profiles/:id/rotate-device-id
+  if (req.method === "POST" && pathname.match(/^\/api\/profiles\/[^/]+\/rotate-device-id$/)) {
+    const id = pathname.split("/")[3];
+    const profiles = loadProfiles();
+    const profile = profiles.find(p => p.id === id);
+    if (!profile) return sendJSON({ success: false, error: "Profile not found" }, 404);
+    const grp = typeof browserMode.rotateDeviceGroup === "function"
+      ? await browserMode.rotateDeviceGroup(id)
+      : null;
+    const newDeviceId = grp ? grp.deviceId : (typeof browserMode.rotateProfileDeviceId === "function"
+      ? await browserMode.rotateProfileDeviceId(id)
+      : null);
+    if (grp && Array.isArray(grp.profileIds)) {
+      for (const pid of grp.profileIds) {
+        if (windowStates[pid]) {
+          delete windowStates[pid].syncedDeviceId;
+          delete windowStates[pid].syncedMachineId;
+        }
+      }
+    } else if (windowStates[id]) {
+      delete windowStates[id].syncedDeviceId;
+      delete windowStates[id].syncedMachineId;
+    }
+    const groups = typeof browserMode.getDeviceGroupsSnapshot === "function"
+      ? browserMode.getDeviceGroupsSnapshot()
+      : [];
+    return sendJSON({
+      success: true,
+      profileId: id,
+      deviceId: newDeviceId,
+      machineId: grp ? grp.machineId : null,
+      group: grp,
+      deviceGroups: groups
+    });
+  }
+
+  // POST /api/profiles/rotate-all-device-ids
+  if (req.method === "POST" && pathname === "/api/profiles/rotate-all-device-ids") {
+    if (typeof browserMode.rotateAllDeviceIds === "function") {
+      const resAll = await browserMode.rotateAllDeviceIds();
+      for (const pid of Object.keys(resAll.deviceIds || {})) {
+        if (windowStates[pid]) {
+          delete windowStates[pid].syncedDeviceId;
+          delete windowStates[pid].syncedMachineId;
+        }
+      }
+      return sendJSON({
+        success: true,
+        count: Object.keys(resAll.deviceIds || {}).length,
+        deviceIds: resAll.deviceIds || {},
+        groups: resAll.groups || [],
+        deviceGroups: typeof browserMode.getDeviceGroupsSnapshot === "function" ? browserMode.getDeviceGroupsSnapshot() : []
+      });
+    }
+    const profiles = loadProfiles();
+    const rotated = {};
+    for (const p of profiles) {
+      if (p && p.id && typeof browserMode.rotateProfileDeviceId === "function") {
+        rotated[p.id] = await browserMode.rotateProfileDeviceId(p.id);
+        if (windowStates[p.id]) {
+          delete windowStates[p.id].syncedDeviceId;
+          delete windowStates[p.id].syncedMachineId;
+        }
+      }
+    }
+    return sendJSON({ success: true, count: Object.keys(rotated).length, deviceIds: rotated });
+  }
+
+  // GET /api/portrait?src=/art/classes/hunter-face.webp — cached character portrait
+  if (req.method === "GET" && pathname === "/api/portrait") {
+    const artPath = portraitPathFromSrc(parsedUrl.searchParams.get("src") || "");
+    const file = artPath ? await fetchPortrait(artPath) : null;
+    if (!file) {
+      res.writeHead(404, { "Content-Type": "text/plain" });
+      return res.end("portrait not found");
+    }
+    res.writeHead(200, {
+      "Content-Type": mimeTypes[path.extname(file).toLowerCase()] || "image/webp",
+      "Cache-Control": "public, max-age=86400"
+    });
+    return fs.createReadStream(file).pipe(res);
+  }
+
+  // GET /api/profiles/export-credentials-txt (Download all or jailed profiles' ID/Password as a human-readable .txt file)
+  if (req.method === "GET" && pathname === "/api/profiles/export-credentials-txt") {
+    const allProfiles = (loadProfiles() || []).filter(p => p && p.id);
+    const mode = String(parsedUrl.searchParams.get("mode") || "all").trim().toLowerCase();
+    const rawIdsParam = String(parsedUrl.searchParams.get("ids") || "").trim();
+    const explicitIdSet = new Set(rawIdsParam ? rawIdsParam.split(",").map(s => s.trim()).filter(Boolean) : []);
+
+    const getLiveForExport = (p) => {
+      const cached = p.debugPort ? clientStateCacheByPort.get(p.debugPort) : null;
+      return (cached && cached.state) || p.liveState || null;
+    };
+    const isProfileJailedForExport = (p) => {
+      if (!p) return false;
+      if (explicitIdSet.has(String(p.id))) return true;
+      if (p.isJailed) return true;
+      if (isJailMapName(p.jailedMap)) return true;
+      const live = getLiveForExport(p);
+      if (live && (live.charSelectInJail || isJailMapName(live.map))) return true;
+      return false;
+    };
+
+    const isJailedOnly = mode === "jailed";
+    const profiles = isJailedOnly ? allProfiles.filter(isProfileJailedForExport) : allProfiles;
+    const deviceName = getEffectiveDeviceNickname() || os.hostname() || "PC";
+    const nowStr = new Date().toLocaleString("th-TH", { timeZone: "Asia/Bangkok" });
+    const titleLabel = isJailedOnly
+      ? `📋 รายการไอดีและรหัสผ่านบอท (เฉพาะตัวที่ติดคุก) PmheeAether — เครื่อง: ${deviceName}`
+      : `📋 รายการไอดีและรหัสผ่านบอท PmheeAether — เครื่อง: ${deviceName}`;
+    const countLabel = isJailedOnly
+      ? `📅 ส่งออกเมื่อ: ${nowStr} (เฉพาะตัวที่ติดคุก ${profiles.length} / ทั้งหมด ${allProfiles.length} โปรไฟล์)`
+      : `📅 ส่งออกเมื่อ: ${nowStr} (ทั้งหมด ${profiles.length} โปรไฟล์)`;
+    const lines = [
+      "================================================================================",
+      titleLabel,
+      countLabel,
+      "================================================================================",
+      "ลำดับ | ชื่อโปรไฟล์ | ตัวละคร | อาชีพ | พอร์ต | ID (Username) | Password",
+      "--------------------------------------------------------------------------------"
+    ];
+    profiles.forEach((p, idx) => {
+      if (!p || !p.id) return;
+      const live = getLiveForExport(p);
+      const num = String(idx + 1).padStart(2, "0");
+      const name = String(p.name || p.id).trim();
+      const charName = String((live && live.charName) || p.lastCharName || "-").trim();
+      const cls = String((live && live.charClass) || p.lastCharClass || p.charClass || "-").trim();
+      const port = p.debugPort || "-";
+      const user = String(p.account || p.username || "").trim() || "(ยังไม่มี ID)";
+      const pass = String(credentials.getPassword(p.id) || "").trim() || "(ยังไม่มีรหัส)";
+      lines.push(`${num} | ${name} | ${charName} | ${cls} | ${port} | ${user} | ${pass}`);
+    });
+    lines.push("--------------------------------------------------------------------------------");
+    lines.push("");
+    lines.push("=== รูปแบบย่อ (ID:Password) สำหรับคัดลอกใช้งาน ===");
+    profiles.forEach((p) => {
+      if (!p || !p.id) return;
+      const live = getLiveForExport(p);
+      const user = String(p.account || p.username || "").trim();
+      const pass = String(credentials.getPassword(p.id) || "").trim();
+      const charName = String((live && live.charName) || p.lastCharName || p.name || p.id).trim();
+      if (user || pass) {
+        lines.push(`${user}:${pass}   # ${p.name || p.id} (${charName})`);
+      }
+    });
+    lines.push("");
+    const safeDev = String(deviceName).replace(/[^a-zA-Z0-9ก-๙_-]/g, "_") || "PC";
+    const dateTag = new Date().toISOString().slice(0, 10);
+    const filename = isJailedOnly
+      ? `PmheeAether_ID_Pass_JAILED_${safeDev}_${dateTag}.txt`
+      : `PmheeAether_ID_Pass_${safeDev}_${dateTag}.txt`;
+    res.writeHead(200, {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`
+    });
+    return res.end("\uFEFF" + lines.join("\r\n"));
+  }
+
+  // 2. POST /api/profiles (Create)
+  if (req.method === "POST" && pathname === "/api/profiles") {
+    let body = "";
+    req.on("data", chunk => body += chunk);
+    req.on("end", () => {
+      try {
+        const data = JSON.parse(body);
+        const profiles = loadProfiles();
+        const nextPort = Math.max(48875, ...profiles.map(p => p.debugPort || 48876)) + 1;
+        let newId = "profile_" + Date.now();
+        while (profiles.some(p => p.id === newId)) newId = "profile_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
+        const newProfile = {
+          id: newId,
+          name: (data.name || "New Client").trim(),
+          account: (data.account || "").trim(),
+          autoRegister: !(data.loginPassword || "").trim(),
+          charClass: data.charClass || "Archer",
+          targetMap: data.targetMap || "ถนนต้นหลิว",
+          debugPort: data.debugPort || nextPort,
+          autoStart: data.autoStart !== false,
+          notes: data.notes || "",
+          whitelist: data.whitelist || "Phracon, Rough Elunium, Enchant Rune, Composite Bow, Crossbow, Gakkung, Hunter Bow",
+          createdAt: Date.now()
+        };
+        profiles.push(newProfile);
+        saveProfiles(profiles);
+
+        // Pre-create session folder
+        const sessionFolder = path.join(SESSIONS_DIR, newProfile.id);
+        if (!fs.existsSync(sessionFolder)) fs.mkdirSync(sessionFolder, { recursive: true });
+
+        if ((data.loginPassword || "").trim()) credentials.setPassword(newProfile.id, data.loginPassword.trim());
+        sendJSON({ success: true, profile: newProfile });
+      } catch (err) {
+        sendJSON({ success: false, error: err.message }, 400);
+      }
+    });
+    return;
+  }
+
+  // 3. PUT /api/profiles/:id (Update)
+  if (req.method === "PUT" && pathname.match(/^\/api\/profiles\/[^/]+$/)) {
+    const id = pathname.split("/")[3];
+    let body = "";
+    req.on("data", chunk => body += chunk);
+    req.on("end", async () => {
+      try {
+        const data = JSON.parse(body);
+        const profiles = loadProfiles();
+        const idx = profiles.findIndex(p => p.id === id);
+        if (idx === -1) return sendJSON({ success: false, error: "Profile not found" }, 404);
+        const nextAccount = data.account !== undefined ? data.account.trim() : (profiles[idx].account || "");
+        const nextPassword = (data.loginPassword || "").trim();
+        const existingPassword = credentials.getPassword(id) || "";
+        const accountChanged = data.account !== undefined && nextAccount !== (profiles[idx].account || "");
+        const wantsNewAutoRegister = data.autoRegister === true || (
+          data.autoRegister !== false &&
+          !nextPassword &&
+          data.account !== undefined && (
+            nextAccount === "" ||
+            (accountChanged && !existingPassword)
+          )
+        );
+        const changesIdentity = accountChanged || !!nextPassword || wantsNewAutoRegister;
+        const wasJailedOrBanned = Boolean(profiles[idx].isJailed || profiles[idx].isBanned);
+        if (changesIdentity) await scriptCoordinator.prepareCredentialChange(profiles[idx]);
+
+        const nextAutoRegister = nextPassword
+          ? false
+          : (wantsNewAutoRegister ? true : !!profiles[idx].autoRegister);
+
+        profiles[idx] = {
+          ...profiles[idx],
+          name: data.name !== undefined ? data.name.trim() : profiles[idx].name,
+          account: wantsNewAutoRegister && data.autoRegister === true && !accountChanged ? "" : nextAccount,
+          autoRegister: nextAutoRegister,
+          ...(wantsNewAutoRegister ? { generatedAccount: false, registerError: "", loginSyncPending: false, proxyFallbackBrowser: undefined, proxyRegistrationState: undefined } : {}),
+          charClass: data.charClass || profiles[idx].charClass,
+          targetMap: data.targetMap || profiles[idx].targetMap,
+          debugPort: data.debugPort || profiles[idx].debugPort,
+          autoStart: data.autoStart !== undefined ? data.autoStart : profiles[idx].autoStart,
+          notes: data.notes !== undefined ? data.notes : profiles[idx].notes,
+          whitelist: data.whitelist !== undefined ? data.whitelist : profiles[idx].whitelist
+        };
+        if (wantsNewAutoRegister) {
+          delete profiles[idx].proxyFallbackBrowser;
+          delete profiles[idx].proxyRegistrationState;
+          delete profiles[idx].registeredAt;
+          delete profiles[idx].loginSyncPending;
+          credentials.setPassword(id, "");
+          if (typeof authSync?.resetProfileRegistration === "function") {
+            authSync.resetProfileRegistration(id);
+          }
+          try {
+            const bsFile = path.join(SESSIONS_DIR, "_browser_storage", `${id}.json`);
+            if (fs.existsSync(bsFile)) {
+              const bsData = JSON.parse(fs.readFileSync(bsFile, "utf8")) || {};
+              delete bsData["__ss:aetheria.session"];
+              delete bsData["pelican_auth_cfg"];
+              delete bsData[`pelican_${id}__auth_cfg`];
+              writeJsonAtomic(bsFile, bsData);
+            }
+          } catch (_) {}
+          if (profiles[idx].debugPort) {
+            evalProfilePort(profiles[idx].debugPort, `(() => {
+              try {
+                if (window.sessionStorage) window.sessionStorage.removeItem('aetheria.session');
+                localStorage.removeItem('pelican_auth_cfg');
+              } catch (_) {}
+              if (window.__authConfig) {
+                window.__authConfig.username = '';
+                window.__authConfig.password = '';
+                window.__authConfig.charName = '';
+                window.__authConfig.register = false;
+                window.__authConfig.registerDone = false;
+                window.__authConfig.registerError = '';
+                window.__authConfig.generatedUser = true;
+                window.__authConfig.userEditedAt = 0;
+                window.__authConfig.verifiedLoginAt = 0;
+              }
+              return { success: true };
+            })()`, 2500).catch(() => {});
+          }
+        }
+        if (changesIdentity) {
+          delete profiles[idx].isBanned;
+          delete profiles[idx].bannedAt;
+          delete profiles[idx].banReason;
+          delete profiles[idx].banDismissedAt;
+          delete profiles[idx].isJailed;
+          delete profiles[idx].jailedAt;
+          delete profiles[idx].jailedMap;
+          delete profiles[idx].jailAutoStopped;
+          delete profiles[idx].jailDismissedAt;
+          delete profiles[idx].jailIpBlocked;
+          delete profiles[idx].lastCharName;
+          delete profiles[idx].charFirstSeenAt;
+          profiles[idx].identityChangedAt = Date.now();
+          recentCharCreationByProfile.set(String(id), Date.now());
+        }
+        saveProfiles(profiles);
+        if (nextPassword) credentials.setPassword(id, nextPassword);
+        if (changesIdentity && wasJailedOrBanned && typeof screenProxy !== 'undefined' && screenProxy && screenProxy.isEnabled()) {
+          await screenProxy.releaseProfile(id).catch(() => {});
+          const isOpenNow = await clientAlreadyOpen(profiles[idx]).catch(() => false);
+          if (isOpenNow) {
+            await screenProxy.acquireForProfile(id, { debugPort: profiles[idx].debugPort }).catch(() => {});
+          }
+        }
+        if (profiles[idx].debugPort) {
+          setImmediate(() => authSync.syncOne(profiles[idx]).catch(() => {}));
+        }
+        sendJSON({ success: true, profile: profiles[idx] });
+      } catch (err) {
+        sendJSON({ success: false, error: err.message }, 400);
+      }
+    });
+    return;
+  }
+
+    // GET /api/profiles/:id/whitelist (Fetch live from game client or fallback to saved profile)
+  if (req.method === "GET" && pathname.match(/^\/api\/profiles\/[^/]+\/whitelist$/)) {
+    const id = pathname.split("/")[3];
+    const profiles = loadProfiles();
+    const profile = profiles.find(p => p.id === id);
+    if (!profile) return sendJSON({ success: false, error: "Profile not found" }, 404);
+
+    const defaultWL = "Phracon, Rough Elunium, Enchant Rune, Composite Bow, Crossbow, Gakkung, Hunter Bow";
+    const profileWL = profile.whitelist || (profile.sellConfig && profile.sellConfig.whitelist) || defaultWL;
+    const profileFS = (profile.sellConfig && typeof profile.sellConfig.forceSellList === "string") ? profile.sellConfig.forceSellList : (profile.forceSellList || "");
+
+    if (profile.debugPort) {
+      const evalCode = `(() => {
+        const sc = window.__sellConfig || {};
+        return {
+          whitelist: sc.whitelist !== undefined ? sc.whitelist : null,
+          forceSellList: sc.forceSellList !== undefined ? sc.forceSellList : null
+        };
+      })()`;
+      const evalUrl = `http://127.0.0.1:${profile.debugPort}/api/eval?code=` + encodeURIComponent(evalCode);
+      let responded = false;
+      const reqTimer = setTimeout(() => {
+        if (responded) return;
+        responded = true;
+        sendJSON({
+          success: true,
+          profileId: id,
+          profileName: profile.name,
+          whitelist: profileWL,
+          items: profileWL.split(",").map(s => s.trim()).filter(Boolean),
+          forceSellList: profileFS,
+          forceSellItems: profileFS.split(",").map(s => s.trim()).filter(Boolean),
+          isOnline: false
+        });
+      }, 700);
+
+      http.get(evalUrl, (cRes) => {
+        let d = "";
+        cRes.setEncoding('utf8');
+        cRes.on("data", c => d += c);
+        cRes.on("end", () => {
+          if (responded) return;
+          responded = true;
+          clearTimeout(reqTimer);
+          try {
+            const parsed = JSON.parse(d);
+            const resObj = (parsed.result && typeof parsed.result === "object") ? parsed.result : null;
+            const liveWL = resObj && resObj.whitelist !== null && resObj.whitelist !== undefined
+              ? String(resObj.whitelist)
+              : ((typeof parsed.result === "string") ? parsed.result : profileWL);
+            const liveFS = resObj && resObj.forceSellList !== null && resObj.forceSellList !== undefined
+              ? String(resObj.forceSellList)
+              : profileFS;
+            profile.whitelist = liveWL;
+            if (!profile.sellConfig) profile.sellConfig = {};
+            profile.sellConfig.whitelist = liveWL;
+            profile.sellConfig.forceSellList = liveFS;
+            saveProfiles(profiles);
+            sendJSON({
+              success: true,
+              profileId: id,
+              profileName: profile.name,
+              whitelist: liveWL,
+              items: liveWL.split(",").map(s => s.trim()).filter(Boolean),
+              forceSellList: liveFS,
+              forceSellItems: liveFS.split(",").map(s => s.trim()).filter(Boolean),
+              isOnline: true
+            });
+          } catch(e) {
+            sendJSON({
+              success: true,
+              profileId: id,
+              profileName: profile.name,
+              whitelist: profileWL,
+              items: profileWL.split(",").map(s => s.trim()).filter(Boolean),
+              forceSellList: profileFS,
+              forceSellItems: profileFS.split(",").map(s => s.trim()).filter(Boolean),
+              isOnline: false
+            });
+          }
+        });
+      }).on("error", () => {
+        if (responded) return;
+        responded = true;
+        clearTimeout(reqTimer);
+        sendJSON({
+          success: true,
+          profileId: id,
+          profileName: profile.name,
+          whitelist: profileWL,
+          items: profileWL.split(",").map(s => s.trim()).filter(Boolean),
+          forceSellList: profileFS,
+          forceSellItems: profileFS.split(",").map(s => s.trim()).filter(Boolean),
+          isOnline: false
+        });
+      });
+      return;
+    }
+
+    return sendJSON({
+      success: true,
+      profileId: id,
+      profileName: profile.name,
+      whitelist: profileWL,
+      items: profileWL.split(",").map(s => s.trim()).filter(Boolean),
+      forceSellList: profileFS,
+      forceSellItems: profileFS.split(",").map(s => s.trim()).filter(Boolean),
+      isOnline: false
+    });
+  }
+
+  // PUT /api/profiles/:id/whitelist (Update whitelist / forceSellList & sync live to clients)
+  if (req.method === "PUT" && pathname.match(/^\/api\/profiles\/[^/]+\/whitelist$/)) {
+    const id = pathname.split("/")[3];
+    let body = "";
+    req.on("data", chunk => body += chunk);
+    req.on("end", () => {
+      try {
+        const payload = JSON.parse(body);
+        const profiles = loadProfiles();
+        const profile = profiles.find(p => p.id === id);
+        if (!profile) return sendJSON({ success: false, error: "Profile not found" }, 404);
+
+        const updateWL = payload.whitelist !== undefined && (payload.mode !== "forceSell");
+        const updateFS = payload.forceSellList !== undefined && (payload.mode !== "whitelist");
+
+        const newWhitelist = updateWL ? String(payload.whitelist || "") : (profile.whitelist || (profile.sellConfig && profile.sellConfig.whitelist) || "");
+        const newForceSellList = updateFS ? String(payload.forceSellList || "") : ((profile.sellConfig && profile.sellConfig.forceSellList) || profile.forceSellList || "");
+
+        if (!profile.sellConfig) profile.sellConfig = {};
+        if (updateWL) {
+          profile.whitelist = newWhitelist;
+          profile.sellConfig.whitelist = newWhitelist;
+        }
+        if (updateFS) {
+          profile.forceSellList = newForceSellList;
+          profile.sellConfig.forceSellList = newForceSellList;
+        }
+
+        const syncToLiveClient = (p, syncWL, syncFS) => {
+          if (!p.debugPort) return;
+          const code = `(() => {
+            if (!window.__sellConfig || typeof window.__sellConfig.weaponRarity !== 'string') {
+              try {
+                const s = JSON.parse(localStorage.getItem("pelican_sell_cfg") || localStorage.getItem("pelican_sell_cfg_backup") || "{}") || {};
+                window.__sellConfig = Object.assign({}, s, window.__sellConfig || {});
+              } catch (_) {
+                if (!window.__sellConfig) window.__sellConfig = {};
+              }
+            }
+            if (${Boolean(syncWL)}) {
+              window.__sellConfig.whitelist = ${JSON.stringify(newWhitelist)};
+              const wlEl = document.getElementById("p-sell-whitelist");
+              if (wlEl) wlEl.value = ${JSON.stringify(newWhitelist)};
+            }
+            if (${Boolean(syncFS)}) {
+              window.__sellConfig.forceSellList = ${JSON.stringify(newForceSellList)};
+              const fsEl = document.getElementById("p-sell-force-list");
+              if (fsEl) fsEl.value = ${JSON.stringify(newForceSellList)};
+            }
+            window.__sellConfig.__userSavedAt = Date.now();
+            try {
+              const raw = JSON.stringify(window.__sellConfig);
+              localStorage.setItem("pelican_sell_cfg", raw);
+              if (typeof window.__sellConfig.weaponRarity === "string") {
+                localStorage.setItem("pelican_sell_cfg_backup", raw);
+              }
+            } catch(e){}
+            return { success: true };
+          })()`;
+          evalProfilePort(p.debugPort, code, 5000);
+        };
+
+        // Sync live to current profile's game client
+        syncToLiveClient(profile, updateWL, updateFS);
+
+        let copiedTargetsCount = 0;
+        if (Array.isArray(payload.targets) && payload.targets.length > 0) {
+          payload.targets.forEach(targetId => {
+            const targetProfile = profiles.find(p => p.id === targetId);
+            if (targetProfile) {
+              if (!targetProfile.sellConfig) targetProfile.sellConfig = {};
+              if (updateWL) {
+                targetProfile.whitelist = newWhitelist;
+                targetProfile.sellConfig.whitelist = newWhitelist;
+              }
+              if (updateFS) {
+                targetProfile.forceSellList = newForceSellList;
+                targetProfile.sellConfig.forceSellList = newForceSellList;
+              }
+              syncToLiveClient(targetProfile, updateWL, updateFS);
+              if (targetProfile.id !== profile.id) copiedTargetsCount++;
+            }
+          });
+        }
+
+        saveProfiles(profiles);
+        const listLabel = (updateFS && !updateWL) ? "รายการบังคับขาย NPC" : (updateWL && !updateFS ? "Whitelist" : "Whitelist + รายการขาย NPC");
+        sendJSON({
+          success: true,
+          whitelist: newWhitelist,
+          items: newWhitelist.split(",").map(s => s.trim()).filter(Boolean),
+          forceSellList: newForceSellList,
+          forceSellItems: newForceSellList.split(",").map(s => s.trim()).filter(Boolean),
+          copiedTargetsCount,
+          message: copiedTargetsCount > 0
+            ? `คัดลอก ${listLabel} ไปยัง ${copiedTargetsCount} จอเรียบร้อยแล้ว!`
+            : `บันทึกและซิงค์ ${listLabel} สำหรับจอนี้เรียบร้อยแล้ว!`
+        });
+      } catch (err) {
+        sendJSON({ success: false, error: err.message }, 400);
+      }
+    });
+    return;
+  }
+
+  // POST /api/profiles/recover (Manual / explicit auto-recovery trigger — local evidence first, then central server backup)
+  if (req.method === "POST" && pathname === "/api/profiles/recover") {
+    await recoverAndEnrichProfilesFromBrowserAndLocal().catch(() => {});
+    const recovered = recoverProfilesFromLocalEvidence();
+    if (recovered && recovered.length > 0) {
+      saveProfiles(recovered);
+      await recoverAndEnrichProfilesFromBrowserAndLocal().catch(() => {});
+      const enriched = loadProfiles() || recovered;
+      return sendJSON({ success: true, source: "local", recoveredCount: enriched.length, profiles: enriched });
+    }
+    const cloud = await restoreProfilesFromCentral();
+    if (cloud && cloud.success && cloud.restoredProfiles > 0) {
+      await recoverAndEnrichProfilesFromBrowserAndLocal().catch(() => {});
+      const fresh = loadProfiles();
+      return sendJSON({ success: true, source: "cloud", recoveredCount: cloud.restoredProfiles, restoredCredentials: cloud.restoredCredentials, profiles: fresh });
+    }
+    return sendJSON({ success: false, recoveredCount: 0, error: "ไม่พบข้อมูลโปรไฟล์สำรองในโฟลเดอร์นี้หรือบนเซิร์ฟเวอร์" }, 404);
+  }
+
+  // GET /api/profiles/export-backup (Export all local profiles + credentials as JSON)
+  if (req.method === "GET" && pathname === "/api/profiles/export-backup") {
+    const payload = buildLocalProfileBackupPayload();
+    return sendJSON({ success: true, backup: payload });
+  }
+
+  // POST /api/profiles/import-backup (Import backup JSON exported from Admin Console or Manager)
+  if (req.method === "POST" && pathname === "/api/profiles/import-backup") {
+    let body = "";
+    req.on("data", chunk => body += chunk);
+    req.on("end", () => {
+      try {
+        const parsed = JSON.parse(body || "{}");
+        const target = (parsed && parsed.backup && typeof parsed.backup === "object") ? parsed.backup : parsed;
+        const result = applyProfileBackupPayload(target);
+        if (result.restoredProfiles === 0) {
+          return sendJSON({ success: false, error: "ไม่พบรายการโปรไฟล์ในไฟล์สำรองที่เลือก" }, 400);
+        }
+        scheduleCentralProfileBackupSync(1000);
+        return sendJSON({
+          success: true,
+          restoredProfiles: result.restoredProfiles,
+          restoredCredentials: result.restoredCredentials,
+          profiles: loadProfiles()
+        });
+      } catch (err) {
+        return sendJSON({ success: false, error: "ไฟล์สำรองไม่ถูกต้อง: " + err.message }, 400);
+      }
+    });
+    return;
+  }
+
+  // POST /api/profiles/sync-cloud-backup (Force immediate sync of profiles + ID/Pass to central server)
+  if (req.method === "POST" && pathname === "/api/profiles/sync-cloud-backup") {
+    const resSync = await syncProfileBackupToCentral();
+    return sendJSON({ success: Boolean(resSync && resSync.success), result: resSync });
+  }
+
+  // POST /api/profiles/bulk-delete (Delete selected profiles or all profiles at once)
+  if (req.method === "POST" && pathname === "/api/profiles/bulk-delete") {
+    let body = "";
+    req.on("data", chunk => body += chunk);
+    req.on("end", async () => {
+      try {
+        const parsed = JSON.parse(body || "{}");
+        const profiles = loadProfiles();
+        const deleteAll = parsed.deleteAll === true;
+        const targetIds = deleteAll
+          ? profiles.map(p => String(p.id))
+          : (Array.isArray(parsed.ids) ? parsed.ids.map(String).filter(Boolean) : []);
+        const targetSet = new Set(targetIds);
+        if (targetSet.size === 0) {
+          return sendJSON({ success: false, error: "กรุณาเลือกโปรไฟล์ที่ต้องการลบอย่างน้อย 1 โปรไฟล์" }, 400);
+        }
+
+        const toDelete = profiles.filter(p => targetSet.has(String(p.id)));
+        const remaining = profiles.filter(p => !targetSet.has(String(p.id)));
+        const deletedIds = toDelete.map(p => String(p.id));
+
+        recordDeletedProfileIds(deletedIds);
+
+        for (const id of deletedIds) {
+          screenProxy.releaseProfile(id, "deleted").catch(() => {});
+          try { credentials.setPassword(id, ""); } catch (_) {}
+          try {
+            const bsFile = path.join(SESSIONS_DIR, "_browser_storage", `${id}.json`);
+            if (fs.existsSync(bsFile)) fs.unlinkSync(bsFile);
+          } catch (_) {}
+          if (browserMode.isOpen(id)) {
+            await browserMode.stop(id).catch(() => {});
+          }
+          if (runningProcesses[id] && isProcessAlive(runningProcesses[id].pid)) {
+            try { process.kill(runningProcesses[id].pid, "SIGTERM"); } catch (e) {}
+            delete runningProcesses[id];
+          }
+          delete windowStates[id];
+        }
+
+        saveProfiles(remaining, { allowEmpty: true });
+        try { browserMode.pruneDeletedProfilesFromCustomGroups?.(remaining.map(p => p.id)); } catch (_) {}
+        screenProxy.reserveCustomIpGroupsNow?.().catch(() => {});
+        try { writeJsonAtomic(PROFILES_BACKUP_FILE, remaining); } catch (_) {}
+        scheduleCentralProfileBackupSync(1000);
+        return sendJSON({
+          success: true,
+          deletedCount: deletedIds.length,
+          remainingCount: remaining.length,
+          deletedIds
+        });
+      } catch (err) {
+        return sendJSON({ success: false, error: err.message }, 400);
+      }
+    });
+    return;
+  }
+
+  // 4. DELETE /api/profiles/:id
+  if (req.method === "DELETE" && pathname.match(/^\/api\/profiles\/[^/]+$/)) {
+    const id = pathname.split("/")[3];
+    const profiles = loadProfiles();
+    const idx = profiles.findIndex(p => p.id === id);
+    if (idx === -1) return sendJSON({ success: false, error: "Profile not found" }, 404);
+
+    screenProxy.releaseProfile(id, "deleted").catch(() => {});
+    recordDeletedProfileId(id);
+    try { credentials.setPassword(id, ""); } catch (_) {}
+    try {
+      const bsFile = path.join(SESSIONS_DIR, "_browser_storage", `${id}.json`);
+      if (fs.existsSync(bsFile)) fs.unlinkSync(bsFile);
+    } catch (_) {}
+    if (browserMode.isOpen(id)) {
+      await browserMode.stop(id).catch(() => {});
+    }
+    // Stop process if running
+    if (runningProcesses[id] && isProcessAlive(runningProcesses[id].pid)) {
+      try { process.kill(runningProcesses[id].pid, "SIGTERM"); } catch (e) {}
+      delete runningProcesses[id];
+    }
+    delete windowStates[id];
+
+    profiles.splice(idx, 1);
+    saveProfiles(profiles, { allowEmpty: true });
+    try { browserMode.pruneDeletedProfilesFromCustomGroups?.(profiles.map(p => p.id)); } catch (_) {}
+    screenProxy.reserveCustomIpGroupsNow?.().catch(() => {});
+    try { writeJsonAtomic(PROFILES_BACKUP_FILE, profiles); } catch (_) {}
+    scheduleCentralProfileBackupSync(1000);
+    return sendJSON({ success: true });
+  }
+
+  // 5. POST /api/profiles/:id/launch
+  if (req.method === "POST" && pathname.match(/^\/api\/profiles\/[^/]+\/launch$/)) {
+    const id = pathname.split("/")[3];
+    const profilesForLaunch = loadProfiles();
+    const p0 = profilesForLaunch.find(p => p.id === id);
+    if (!p0) return sendJSON({ success: false, error: "Profile not found" }, 404);
+    // already open (also after a Manager restart, or as the other kind of window): bring it up, don't open a 2nd
+    if (!browserMode.isOpen(id) && await clientAlreadyOpen(p0)) {
+      http.get(`http://127.0.0.1:${p0.debugPort}/api/window?action=top`, r => r.resume()).on("error", () => {});
+      return sendJSON({ success: true, message: "จอนี้เปิดอยู่แล้ว", alreadyOpen: true });
+    }
+    const alreadyRunning = !isBrowserMode() && runningProcesses[id] && isProcessAlive(runningProcesses[id].pid);
+    const profile = (!alreadyRunning && !browserMode.isOpen(id)) ? await ensureUsableDebugPort(id) : loadProfiles().find(p => p.id === id);
+
+    if (isBrowserMode()) {
+      browserMode.launch(profile)
+        .then(r => {
+          if (r && r.alreadyOpen) scriptCoordinator.cycle?.().catch(() => {});
+          else setTimeout(() => scriptCoordinator.cycle?.().catch(() => {}), 2500);
+          if (profile.autoRegister || profile.loginSyncPending) {
+            setImmediate(() => authSync.syncOne(loadProfiles().find(x => x.id === profile.id) || profile).catch(() => {}));
+            setTimeout(() => authSync.syncOne(loadProfiles().find(x => x.id === profile.id) || profile).catch(() => {}), 2500);
+            setTimeout(() => authSync.syncOne(loadProfiles().find(x => x.id === profile.id) || profile).catch(() => {}), 5500);
+          }
+          sendJSON(r);
+        })
+        .catch(e => sendJSON({ success: false, error: `เปิดในเบราว์เซอร์ไม่สำเร็จ: ${e.message}` }, 500));
+      return;
+    }
+
+    if (runningProcesses[id] && isProcessAlive(runningProcesses[id].pid)) {
+      return sendJSON({ success: true, message: "Client is already running", pid: runningProcesses[id].pid });
+    }
+
+    const sessionDir = path.join(SESSIONS_DIR, profile.id);
+    if (!fs.existsSync(sessionDir)) fs.mkdirSync(sessionDir, { recursive: true });
+
+    const launchProblem = gameLaunchProblem();
+    if (launchProblem) return sendJSON({ success: false, error: launchProblem }, 500);
+
+    const protectedPilot=!!scriptCoordinator.profileScriptSource(profile.id);
+    if(protectedPilot&&!installer.checkStatus().protectedScriptCapable)return sendJSON({success:false,code:'PROTECTED_LOADER_UPDATE_REQUIRED',error:'จอทดลอง Electron ต้องอัปเดตผ่านปุ่ม สคริปต์เกม ก่อน (loader 1.0.7) จากนั้นเปิดเฉพาะจอทดลองใหม่ จออื่นไม่ต้องปิด'},409);
+    let proxyArgs = [];
+    if (screenProxy.isEnabled()) {
+      let tunnelInfo = null;
+      try {
+        tunnelInfo = await screenProxy.acquireForProfile(profile.id, { debugPort: profile.debugPort });
+      } catch (e) {
+        return sendJSON({ success: false, error: `ไม่สามารถจอง Proxy IP ได้ (${e.message}) — บล็อคการเปิดจอผ่านเน็ตบ้านอัตโนมัติ` }, 503);
+      }
+      if (!tunnelInfo || !tunnelInfo.proxyServerUrl || !tunnelInfo.lease || !tunnelInfo.lease.assigned) {
+        return sendJSON({
+          success: false,
+          error: tunnelInfo?.error || 'ไม่สามารถจอง Proxy IP สำหรับจอนี้ได้ ระบบบล็อคการเปิดจอผ่านเน็ตบ้านอัตโนมัติ'
+        }, 503);
+      }
+      proxyArgs = [
+        `--proxy-server=${tunnelInfo.proxyServerUrl}`,
+        "--proxy-bypass-list=127.0.0.1;localhost"
+      ];
+    }
+    const args = [
+      ...(protectedPilot?['--pmhee-protected-script']:[]),
+      ...proxyArgs,
+      `--user-data-dir=${sessionDir}`,
+      `--profile-name=${encodeURIComponent(profile.name)}`,
+      `--debug-port=${profile.debugPort || 48876}`,
+      "--multi-instance"
+    ];
+
+    try {
+      const child = spawn(getGameExe(), args, {
+        cwd: path.dirname(getGameExe()),
+        detached: true,
+        stdio: "ignore",
+        windowsHide: false
+      });
+      child.unref();
+
+      runningProcesses[id] = {
+        pid: child.pid,
+        startTime: Date.now()
+      };
+
+      console.log(`[PmheeAether Manager] 🚀 Launched client "${profile.name}" (PID: ${child.pid}, Port: ${profile.debugPort})`);
+      if (profile.autoRegister || profile.loginSyncPending) {
+        setImmediate(() => authSync.syncOne(loadProfiles().find(x => x.id === profile.id) || profile).catch(() => {}));
+        setTimeout(() => authSync.syncOne(loadProfiles().find(x => x.id === profile.id) || profile).catch(() => {}), 3500);
+      }
+      return sendJSON({ success: true, pid: child.pid, port: profile.debugPort, movedFromPort: profile.movedFromPort });
+    } catch (err) {
+      return sendJSON({ success: false, error: err.message }, 500);
+    }
+  }
+
+  // 6. POST /api/profiles/:id/stop
+  if (req.method === "POST" && pathname.match(/^\/api\/profiles\/[^/]+\/stop$/)) {
+    const id = pathname.split("/")[3];
+    await stopSingleProfile(id).catch(() => {});
+    return sendJSON({ success: true });
+  }
+
+  // 7. POST /api/launch-all
+  if (req.method === "POST" && pathname === "/api/launch-all") {
+    let reqData = {};
+    try {
+      let rawBody = "";
+      for await (const chunk of req) {
+        rawBody += chunk;
+        if (Buffer.byteLength(rawBody, "utf8") > 65536) {
+          reqData = null;
+          break;
+        }
+      }
+      if (reqData === null) {
+        return sendJSON({ success: false, error: "Request body too large" }, 413);
+      }
+      if (rawBody && rawBody.trim()) {
+        reqData = JSON.parse(rawBody);
+      }
+    } catch (e) {
+      return sendJSON({ success: false, error: "Invalid JSON body" }, 400);
+    }
+    const allProfiles = loadProfiles();
+    const filterSet = (reqData && Array.isArray(reqData.profileIds))
+      ? new Set(reqData.profileIds.map(String))
+      : null;
+    const targetProfiles = filterSet
+      ? allProfiles.filter(p => filterSet.has(String(p.id)))
+      : allProfiles;
+    const openFlags = await Promise.all(targetProfiles.map(p => clientAlreadyOpen(p)));
+    const skipped = targetProfiles.filter((p, i) => openFlags[i]).map(p => p.name);
+    const toOpen = targetProfiles.filter((p, i) => !openFlags[i]);
+
+    const interleaveProfilesByProxyIp = list => {
+      if (!Array.isArray(list) || list.length <= 1 || !screenProxy.isEnabled()) return list;
+      const groups = new Map();
+      for (const p of list) {
+        const snap = screenProxy.getProfileLeaseSnapshot(p.id);
+        const key = (snap && snap.active && (snap.ip || snap.proxyHost))
+          ? String(snap.ip || snap.proxyHost).toLowerCase()
+          : `__unassigned_${p.id}`;
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(p);
+      }
+      if (groups.size <= 1) return list;
+      const buckets = Array.from(groups.values());
+      const out = [];
+      let round = 0;
+      while (out.length < list.length) {
+        let added = false;
+        for (const b of buckets) {
+          if (round < b.length) {
+            out.push(b[round]);
+            added = true;
+          }
+        }
+        if (!added) break;
+        round++;
+      }
+      return out;
+    };
+
+    if (isBrowserMode()) {
+      (async () => {
+        if (screenProxy.isEnabled() && toOpen.length > 0) {
+          await screenProxy.acquireLeasesForProfiles(toOpen.map(p => p.id)).catch(() => {});
+        }
+        const orderedToOpen = interleaveProfilesByProxyIp(toOpen);
+        const launched = [], failed = [];
+        for (let i = 0; i < orderedToOpen.length; i++) {
+          const p0 = orderedToOpen[i];
+          if (!TEST_INSTANCE && i > 0) {
+            await new Promise(r => setTimeout(r, 1300 + Math.floor(Math.random() * 600)));
+          }
+          const p = (await ensureUsableDebugPort(p0.id)) || p0;
+          try {
+            const r = await browserMode.launch(p);
+            if (r && r.alreadyOpen) {
+              scriptCoordinator.cycle?.().catch(() => {});
+              if (!r.recovered) skipped.push(p.name);
+              else launched.push({ id: p.id, name: p.name });
+            } else {
+              launched.push({ id: p.id, name: p.name });
+            }
+            if (p.autoRegister || p.loginSyncPending) {
+              setImmediate(() => authSync.syncOne(loadProfiles().find(x => x.id === p.id) || p).catch(() => {}));
+            }
+          }
+          catch (e) { failed.push(`${p.name}: ${e.message}`); }
+        }
+        if (launched.length > 0) {
+          setTimeout(() => scriptCoordinator.cycle?.().catch(() => {}), 2500);
+          setTimeout(() => authSync.tick().catch(() => {}), 3800);
+          setTimeout(() => authSync.tick().catch(() => {}), 7500);
+        }
+        sendJSON({ success: failed.length === 0, launched, skipped, error: failed.length ? failed.join('\n') : undefined });
+      })();
+      return;
+    }
+    const launchProblem = gameLaunchProblem();
+    if (launchProblem) return sendJSON({ success: false, error: launchProblem }, 500);
+    if (screenProxy.isEnabled() && toOpen.length > 0) {
+      await screenProxy.acquireLeasesForProfiles(toOpen.map(p => p.id)).catch(() => {});
+    }
+    const orderedToOpen = interleaveProfilesByProxyIp(toOpen);
+    const electronNextSpawnByIp = new Map();
+    const launched = [], failed = [];
+    for (let i = 0; i < orderedToOpen.length; i++) {
+      const p0 = orderedToOpen[i];
+      if (!TEST_INSTANCE && i > 0) {
+        await new Promise(r => setTimeout(r, 1300 + Math.floor(Math.random() * 600)));
+      }
+      const p = (await ensureUsableDebugPort(p0.id)) || p0;
+      const sessionDir = path.join(SESSIONS_DIR, p.id);
+      if (!fs.existsSync(sessionDir)) fs.mkdirSync(sessionDir, { recursive: true });
+
+      const protectedPilot=!!scriptCoordinator.profileScriptSource(p.id);
+      if(protectedPilot&&!installer.checkStatus().protectedScriptCapable){failed.push(p.name+': ต้องอัปเดต สคริปต์เกม เป็น loader 1.0.7 ก่อนเปิดจอทดลอง');continue;}
+      let proxyArgs = [];
+      let assignedIpKey = '';
+      if (screenProxy.isEnabled()) {
+        let tunnelInfo = null;
+        try {
+          tunnelInfo = await screenProxy.acquireForProfile(p.id, { debugPort: p.debugPort });
+        } catch (e) {
+          failed.push(`${p.name}: จอง Proxy IP ไม่สำเร็จ (${e.message})`);
+          continue;
+        }
+        if (!tunnelInfo || !tunnelInfo.proxyServerUrl || !tunnelInfo.lease || !tunnelInfo.lease.assigned) {
+          failed.push(`${p.name}: ${tunnelInfo?.error || 'ไม่มี Proxy IP ว่างในคิว (บล็อคการเปิดผ่านเน็ตบ้าน)'}`);
+          continue;
+        }
+        assignedIpKey = String(tunnelInfo.lease.ip || tunnelInfo.lease.proxyHost || '').toLowerCase();
+        proxyArgs = [
+          `--proxy-server=${tunnelInfo.proxyServerUrl}`,
+          "--proxy-bypass-list=127.0.0.1;localhost"
+        ];
+      }
+      if (!TEST_INSTANCE && assignedIpKey) {
+        const nowMs = Date.now();
+        const readyAt = electronNextSpawnByIp.get(assignedIpKey) || 0;
+        const waitMs = Math.max(0, readyAt - nowMs);
+        electronNextSpawnByIp.set(assignedIpKey, Math.max(nowMs, readyAt) + 6800 + Math.floor(Math.random() * 2400));
+        if (waitMs > 0) await new Promise(r => setTimeout(r, waitMs));
+      }
+      const args = [
+        ...(protectedPilot?['--pmhee-protected-script']:[]),
+        ...proxyArgs,
+        `--user-data-dir=${sessionDir}`,
+        `--profile-name=${encodeURIComponent(p.name)}`,
+        `--debug-port=${p.debugPort || 48876}`,
+        "--multi-instance"
+      ];
+      try {
+        const child = spawn(getGameExe(), args, { cwd: path.dirname(getGameExe()), detached: true, stdio: "ignore", windowsHide: false });
+        child.unref();
+        runningProcesses[p.id] = { pid: child.pid, startTime: Date.now() };
+        launched.push({ id: p.id, name: p.name, pid: child.pid });
+        if (p.autoRegister || p.loginSyncPending) {
+          setImmediate(() => authSync.syncOne(loadProfiles().find(x => x.id === p.id) || p).catch(() => {}));
+        }
+      } catch (e) {}
+    }
+    if (launched.length > 0) {
+      setTimeout(() => authSync.tick().catch(() => {}), 4000);
+      setTimeout(() => authSync.tick().catch(() => {}), 8000);
+    }
+    return sendJSON({ success:failed.length===0, launched, skipped, error:failed.length?failed.join('\n'):undefined });
+  }
+
+  // 8. POST /api/stop-all
+  if (req.method === "POST" && pathname === "/api/stop-all") {
+    await stopAllProfiles().catch(() => {});
+    return sendJSON({ success: true });
+  }
+
+  // 9. POST /api/tile-windows (Arrange Windows side-by-side, grid, or shrink)
+  if (req.method === "POST" && pathname === "/api/tile-windows") {
+    const reqLayout = parsedUrl.searchParams.get("layout");
+    const layout = ["side", "grid", "compact", "shrink", "custom"].includes(reqLayout) ? reqLayout : "grid"; // only known values reach the PowerShell script
+    // "custom": a fixed cols x rows grid (e.g. 4x4) filled left to right, top to bottom; with more windows
+    // than cells, window cells+1 goes back on cell 1 (stacked on top of window 1), and so on
+    const gridCols = Math.max(1, Math.min(10, parseInt(parsedUrl.searchParams.get("cols")) || 3));
+    const gridRows = Math.max(1, Math.min(10, parseInt(parsedUrl.searchParams.get("rows")) || 3));
+    const browserOpen = loadProfiles().filter(p => browserMode.isOpen(p.id));
+    if (browserOpen.length) {
+      const scr = await runPowerShell("Add-Type -AssemblyName System.Windows.Forms; $a=[System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea; Write-Output \"$($a.Width)x$($a.Height)\"");
+      const m = String((scr && (scr.stdout || scr.output)) || '').match(/(\d+)x(\d+)/);
+      const sw = m ? Number(m[1]) : 1920, sh = m ? Number(m[2]) : 1040;
+      const n = browserOpen.length;
+      const cols = layout === 'custom' ? gridCols : (layout === 'side' || n <= 2 ? n : (n <= 4 ? 2 : n <= 9 ? 3 : 4));
+      const rows = layout === 'custom' ? gridRows : Math.ceil(n / cols);
+      const w = Math.floor(sw / cols), h = Math.floor(sh / rows);
+      browserOpen.forEach((p, i) => {
+        const cell = i % (cols * rows);
+        const x = (cell % cols) * w, y = Math.floor(cell / cols) * h;
+        http.get(`http://127.0.0.1:${p.debugPort}/api/window?action=set-bounds&x=${x}&y=${y}&w=${w}&h=${h}`, () => {}).on('error', () => {});
+      });
+      return sendJSON({ success: true });
+    }
+    
+    const pidOrder = loadProfiles().map(p => runningProcesses[p.id] && isProcessAlive(runningProcesses[p.id].pid) ? Number(runningProcesses[p.id].pid) : 0).filter(Boolean).join(",");
+    const psScript = `
+      Add-Type @"
+        using System;
+        using System.Runtime.InteropServices;
+        public class WinPos {
+          [DllImport("user32.dll")]
+          public static extern bool MoveWindow(IntPtr hWnd, int X, int Y, int nWidth, int nHeight, bool bRepaint);
+          [DllImport("user32.dll")]
+          public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+          [DllImport("user32.dll")]
+          public static extern bool SetForegroundWindow(IntPtr hWnd);
+        }
+"@
+      Add-Type -AssemblyName System.Windows.Forms
+      # same order as the profile list (windows started by this Manager), the rest after them
+      $order = @(${pidOrder})
+      $procs = @(Get-Process -Name "Aetheria Online" -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Sort-Object @{ Expression = { $k = [array]::IndexOf($order, $_.Id); if ($k -lt 0) { 100000 } else { $k } } }, MainWindowTitle)
+      $count = $procs.Count
+      if ($count -gt 0) {
+        $screen = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
+        $sw = $screen.Width
+        $sh = $screen.Height
+        for ($i = 0; $i -lt $count; $i++) {
+          $h = $procs[$i].MainWindowHandle
+          [WinPos]::ShowWindow($h, 9)
+          if ('${layout}' -eq 'custom') {
+            $cols = ${gridCols}
+            $rows = ${gridRows}
+            $cell = $i % ($cols * $rows)
+            $w = [int][Math]::Floor($sw / $cols)
+            $h_h = [int][Math]::Floor($sh / $rows)
+            [WinPos]::MoveWindow($h, ($cell % $cols) * $w, [Math]::Floor($cell / $cols) * $h_h, $w, $h_h, $true)
+          } elseif ('${layout}' -eq 'side' -or $count -le 2) {
+            $w = [int]($sw / $count)
+            $x = $i * $w
+            [WinPos]::MoveWindow($h, $x, 0, $w, $sh, $true)
+          } else {
+            # Fit every window on screen: 3-4 -> 2x2, 5-6 -> 3x2, 7-9 -> 3x3, 10+ -> 4 columns
+            if ($count -le 4) { $cols = 2 } elseif ($count -le 9) { $cols = 3 } else { $cols = 4 }
+            $rows = [Math]::Ceiling($count / $cols)
+            $w = [int][Math]::Floor($sw / $cols)
+            $h_h = [int][Math]::Floor($sh / $rows)
+            $col = $i % $cols
+            $row = [Math]::Floor($i / $cols)
+            $x = $col * $w
+            $y = $row * $h_h
+            [WinPos]::MoveWindow($h, $x, $y, $w, $h_h, $true)
+          }
+        }
+      }
+    `;
+
+    runPowerShell(psScript).then(r => sendJSON({ success: r.success }));
+    return;
+  }
+
+  // POST /api/toggle-all-windows (Toggle Smart Zero-Render Mode across all game windows)
+  if (req.method === "POST" && pathname === "/api/toggle-all-windows") {
+    allWindowsHidden = !allWindowsHidden;
+    const profiles = loadProfiles();
+    await Promise.all(profiles.map(async p => {
+      windowStates[p.id] = { isHidden: allWindowsHidden, zeroRender: allWindowsHidden, updatedAt: Date.now() };
+      if (p.debugPort) {
+        clientStateCacheByPort.delete(p.debugPort);
+        if (!allWindowsHidden) {
+          http.get(`http://127.0.0.1:${p.debugPort}/api/window?action=show`, () => {}).on('error', () => {});
+        }
+        await evalProfilePort(p.debugPort, `typeof window.setZeroRenderMode === 'function' ? window.setZeroRenderMode(${allWindowsHidden}) : (typeof window.setLowPowerMode === 'function' && window.setLowPowerMode(${allWindowsHidden}))`, 3000).catch(() => {});
+        clientStateCacheByPort.delete(p.debugPort);
+      }
+    }));
+    return sendJSON({ success: true, allWindowsHidden, zeroRender: allWindowsHidden });
+  }
+
+  // POST /api/weight-check?apply=0|1&target=7000 — max weight of every online client that runs a plan.
+  // apply=1 asks those below the target to buy + use Weight Limit Scrolls (bot: window.requestWeightTopUp).
+  if (req.method === "POST" && pathname === "/api/weight-check") {
+    const apply = parsedUrl.searchParams.get("apply") === "1";
+    const target = Math.max(1000, Math.min(20000, parseInt(parsedUrl.searchParams.get("target")) || 7000));
+    const only = (parsedUrl.searchParams.get("ids") || "").split(",").filter(Boolean);
+    const code = `(() => {
+      if (!window.__planScriptEnabled || !window.__currentScriptPlan) return { skip: 'no-plan' };
+      const limit = Number((window.__latestInventory || {}).weightLimit) || 0;
+      if (!limit) return { error: 'ยังไม่มีข้อมูลกระเป๋า (ยังไม่เข้าเกม?)' };
+      const ch = (typeof window.getLiveCharacterData === 'function' && window.getLiveCharacterData()) || {};
+      // scrolls already used, from max weight = 2000 + 30 × STR (base + bonus) + 500 × used (the game allows 10)
+      let used = null;
+      if (ch.stats && typeof ch.stats.STR === 'number' && !(Number((ch.skills || {})['enlarge-weight']) > 0)) {
+        const x = (limit - 2000 - 30 * ((Number(ch.stats.STR) || 0) + (Number(ch.bonusStats && ch.bonusStats.STR) || 0))) / 500;
+        if (Math.abs(x - Math.round(x)) < 0.01 && Math.round(x) >= 0 && Math.round(x) <= 10) used = Math.round(x);
+      }
+      const need = Math.max(0, Math.min(10 - (used || 0), Math.ceil((${target} - limit) / 500)));
+      const supported = typeof window.requestWeightTopUp === 'function';
+      const scrolls = ((window.__latestInventory || {}).items || []).filter(it => it && Number(it.itemId) === 90309).reduce((a, it) => a + (it.qty || 1), 0);
+      let requested = false;
+      if (${apply} && need > 0 && supported) requested = window.requestWeightTopUp(${target});
+      return { limit, need, used, scrolls, zeny: Number(ch.zeny) || 0, bot: !!window.__isBotRunning, supported, requested,
+               pending: !!(typeof window.getWeightTopUpState === 'function' && window.getWeightTopUpState()) };
+    })()`;
+    const profiles = loadProfiles().filter(p => p.debugPort && (!only.length || only.includes(p.id)));
+    const results = await Promise.all(profiles.map(async p => {
+      const r = await evalProfilePort(p.debugPort, code, 5000);
+      if (!r || !r.success) return { id: p.id, name: p.name, offline: true };
+      return { id: p.id, name: p.name, ...(r.result || {}) };
+    }));
+    return sendJSON({ success: true, target, apply, results });
+  }
+
+  // POST /api/profiles/:id/focus-window — bring this game window to the front (wakes graphics if in Zero-Render)
+  if (req.method === "POST" && pathname.match(/^\/api\/profiles\/[^/]+\/focus-window$/)) {
+    const id = pathname.split("/")[3];
+    const profile = loadProfiles().find(p => p.id === id);
+    if (!profile) return sendJSON({ success: false, error: "Profile not found" }, 404);
+    if (!profile.debugPort) return sendJSON({ success: false, error: "Client debug port not set" }, 400);
+    const port = profile.debugPort;
+
+    const proc = runningProcesses[id];
+    windowStates[id] = { isHidden: false, zeroRender: false, updatedAt: Date.now() };
+    clientStateCacheByPort.delete(port);
+    if (proc && proc.pid) {
+      runPowerShell(`Add-Type 'using System; using System.Runtime.InteropServices; public class PmShow { [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int c); }'
+        Get-Process -Id ${proc.pid} -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | ForEach-Object { [PmShow]::ShowWindow($_.MainWindowHandle, 9) }`);
+    }
+    await evalProfilePort(port, `typeof window.setZeroRenderMode === 'function' ? window.setZeroRenderMode(false) : (typeof window.setLowPowerMode === 'function' && window.setLowPowerMode(false))`, 3000).catch(() => {});
+    clientStateCacheByPort.delete(port);
+    // Electron loader: restore + always-on-top for a moment + focus. Browser mode: restore + activate tab.
+    await new Promise(resolve => {
+      http.get(`http://127.0.0.1:${port}/api/window?action=top`, { timeout: 5000 }, r => { r.resume(); r.on("end", resolve); })
+        .on("error", resolve).on("timeout", resolve);
+    });
+
+    // Windows does not let a background program raise another program's window, and a browser window has
+    // no process of its own to look up: tag the page title, find that top-level window, then raise it.
+    if (browserMode.isOpen(id)) {
+      const token = `PMFOCUS${Date.now()}`;
+      await evalProfilePort(port, `(() => { window.__pmTitleBeforeFocus = document.title; document.title = ${JSON.stringify(token)} + ' ' + document.title; return true; })()`, 3000);
+      await new Promise(r => setTimeout(r, 350));
+      const ps = await runPowerShell(`Add-Type @"
+using System; using System.Runtime.InteropServices; using System.Text;
+public class PmFocus {
+  public delegate bool EnumProc(IntPtr h, IntPtr l);
+  [DllImport("user32.dll")] static extern bool EnumWindows(EnumProc f, IntPtr l);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
+  [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr h);
+  [DllImport("user32.dll")] static extern bool IsIconic(IntPtr h);
+  [DllImport("user32.dll")] static extern bool ShowWindow(IntPtr h, int c);
+  [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr h);
+  [DllImport("user32.dll")] static extern bool BringWindowToTop(IntPtr h);
+  [DllImport("user32.dll")] static extern void keybd_event(byte k, byte s, uint f, UIntPtr e);
+  public static string Raise(string token) {
+    IntPtr found = IntPtr.Zero;
+    EnumWindows((h, l) => {
+      if (!IsWindowVisible(h)) return true;
+      var sb = new StringBuilder(512); GetWindowText(h, sb, 512);
+      if (sb.ToString().Contains(token)) { found = h; return false; }
+      return true;
+    }, IntPtr.Zero);
+    if (found == IntPtr.Zero) return "notfound";
+    if (IsIconic(found)) ShowWindow(found, 9);
+    keybd_event(0x12, 0, 0, UIntPtr.Zero); keybd_event(0x12, 0, 2, UIntPtr.Zero); // Alt tap: allows SetForegroundWindow
+    BringWindowToTop(found);
+    return SetForegroundWindow(found) ? "ok" : "fail";
+  }
+}
+"@
+[PmFocus]::Raise('${token}')`);
+      await evalProfilePort(port, `(() => { if (document.title.startsWith(${JSON.stringify(token)})) document.title = window.__pmTitleBeforeFocus; return true; })()`, 3000);
+      return sendJSON({ success: true, raised: String(ps.stdout || "").trim() });
+    }
+    return sendJSON({ success: true });
+  }
+
+  // POST /api/profiles/:id/toggle-window (Toggle Smart Zero-Render Mode for single game window)
+  if (req.method === "POST" && pathname.match(/^\/api\/profiles\/[^/]+\/toggle-window$/)) {
+    const id = pathname.split("/")[3];
+    const profiles = loadProfiles();
+    const profile = profiles.find(p => p.id === id);
+    if (!profile) return sendJSON({ success: false, error: "Profile not found" }, 404);
+
+    if (!windowStates[id]) windowStates[id] = { isHidden: false, zeroRender: false };
+    windowStates[id].isHidden = !windowStates[id].isHidden;
+    windowStates[id].zeroRender = windowStates[id].isHidden;
+    windowStates[id].updatedAt = Date.now();
+    const isHidden = windowStates[id].isHidden;
+
+    if (profile.debugPort) {
+      clientStateCacheByPort.delete(profile.debugPort);
+      if (!isHidden) {
+        http.get(`http://127.0.0.1:${profile.debugPort}/api/window?action=show`, () => {}).on('error', () => {});
+      }
+      await evalProfilePort(profile.debugPort, `typeof window.setZeroRenderMode === 'function' ? window.setZeroRenderMode(${isHidden}) : (typeof window.setLowPowerMode === 'function' && window.setLowPowerMode(${isHidden}))`, 3000).catch(() => {});
+      clientStateCacheByPort.delete(profile.debugPort);
+    }
+
+    return sendJSON({ success: true, isHidden, zeroRender: isHidden });
+  }
+
+  // POST /api/profiles/:id/reload-page (Reload game page on specific client)
+  if (req.method === "POST" && pathname.match(/^\/api\/profiles\/[^/]+\/reload-page$/)) {
+    const id = pathname.split("/")[3];
+    const profiles = loadProfiles();
+    const profile = profiles.find(p => p.id === id);
+    if (!profile) return sendJSON({ success: false, error: "Profile not found" }, 404);
+    if (!profile.debugPort) return sendJSON({ success: false, error: "Client debug port not set" }, 400);
+
+    clientStateCacheByPort.delete(profile.debugPort);
+    const evalRes = await evalProfilePort(profile.debugPort, `(() => {
+      try { sessionStorage.setItem('__pm_last_auto_reload_at', String(Date.now())); } catch (_) {}
+      setTimeout(() => { try { window.location.reload(); } catch (_) {} }, 50);
+      return { success: true };
+    })()`, 3000).catch(e => ({ error: e.message }));
+    clientStateCacheByPort.delete(profile.debugPort);
+
+    if (evalRes && evalRes.error) {
+      return sendJSON({ success: false, error: evalRes.error }, 502);
+    }
+    return sendJSON({ success: true });
+  }
+
+  // POST /api/profiles/:id/toggle-bot (Start / Stop Bot loop on specific card)
+  if (req.method === "POST" && pathname.match(/^\/api\/profiles\/[^/]+\/toggle-bot$/)) {
+    const id = pathname.split("/")[3];
+    const profiles = loadProfiles();
+    const profile = profiles.find(p => p.id === id);
+    if (!profile) return sendJSON({ success: false, error: "Profile not found" }, 404);
+    if (!profile.debugPort) return sendJSON({ success: false, error: "Client debug port not set" }, 400);
+
+    const action = parsedUrl.searchParams.get("action"); // 'start', 'stop', or toggle
+    const live = await queryClientState(profile.debugPort);
+    // "ลูป 24 ชม." (autoLoop) is only a setting — START BOT is __isBotRunning
+    const isRunning = Boolean(live && live.isBotRunning);
+    const targetRunning = action === "start" ? true : (action === "stop" ? false : !isRunning);
+    const plansData = loadPlans();
+    const assignedPlanId = plansData && plansData.assignments ? plansData.assignments[id] : null;
+    const assignedPlan = assignedPlanId ? (plansData.profiles || []).find(x => x.id === assignedPlanId) : null;
+    const planShouldEnable = Boolean(assignedPlan && plansData.pendingEnable && plansData.pendingEnable[id]);
+
+    const code = targetRunning ? `(() => {
+      try {
+        const assignedPlan = ${JSON.stringify(assignedPlan || null)};
+        const shouldEnablePlan = ${JSON.stringify(planShouldEnable)};
+        const userDis = localStorage.getItem('pelican_plan_user_disabled') === 'true';
+        if (assignedPlan && typeof window.__applyScriptPlan === 'function') {
+          const curId = window.__currentScriptPlan ? window.__currentScriptPlan.id : null;
+          if (curId !== assignedPlan.id || (shouldEnablePlan && !userDis && !window.__planScriptEnabled)) {
+            window.__applyScriptPlan(assignedPlan, (shouldEnablePlan && !userDis) ? true : undefined);
+          }
+        }
+      } catch (_) {}
+      if (window.__isBotRunning) {
+        if (typeof updateMasterBotUI === 'function') updateMasterBotUI();
+        return { success: true, running: true, unchanged: true };
+      }
+      window.__autoLoopEnabled = true;
+      window.__isBotRunning = true;
+      try { localStorage.setItem('pelican_auto_loop', true); } catch(e){}
+      if (typeof window.startMasterBot === 'function') window.startMasterBot();
+      if (typeof window.startAutoLoop === 'function') window.startAutoLoop();
+      if (typeof updateMasterBotUI === 'function') updateMasterBotUI();
+      return { success: true, running: true };
+    })()` : `(() => {
+      if (!window.__isBotRunning) {
+        window.__autoLoopEnabled = false;
+        try { localStorage.setItem('pelican_auto_loop', false); } catch(e){}
+        if (typeof updateMasterBotUI === 'function') updateMasterBotUI();
+        return { success: true, running: false, unchanged: true };
+      }
+      window.__autoLoopEnabled = false;
+      window.__isBotRunning = false;
+      try { localStorage.setItem('pelican_auto_loop', false); } catch(e){}
+      if (typeof window.stopMasterBot === 'function') window.stopMasterBot();
+      if (typeof window.stopAutoLoop === 'function') window.stopAutoLoop();
+      if (typeof updateMasterBotUI === 'function') updateMasterBotUI();
+      return { success: true, running: false };
+    })()`;
+
+    try {
+      const r = await evalProfilePort(profile.debugPort, code, 6000);
+      const ok = !!(r && r.success && r.result && r.result.success);
+      if (ok) return sendJSON({ success: true, isBotRunning: targetRunning });
+      return sendJSON({ success: false, error: "เกมไม่ตอบรับคำสั่ง (บอทอาจยังโหลดไม่เสร็จ)" }, 502);
+    } catch (err) {
+      return sendJSON({ success: false, error: err.message }, 502);
+    }
+  }
+
+  // GET /api/profiles/:id/client-data (Live Bot Configs & State for Floating Web HUD)
+  if (req.method === "GET" && pathname.match(/^\/api\/profiles\/[^/]+\/client-data$/)) {
+    const id = pathname.split("/")[3];
+    const profiles = loadProfiles();
+    const profile = profiles.find(p => p.id === id);
+    if (!profile || !profile.debugPort) return sendJSON({ success: false, error: "Profile offline" }, 400);
+
+    const code = `(() => {
+      const auth = window.__authConfig || {};
+      const archer = window.__archerConfig || {};
+      const buffPotions = window.__buffPotionConfig || {};
+      const sell = window.__sellConfig || {};
+      const autosell = window.__autoMarketSellConfig || {};
+      const marketFilter = window.__marketFilterConfig || {};
+      const travel = window.__travelConfig || {};
+      const humanize = window.__humanizeConfig || {};
+      const shop = window.__shopConfig || {};
+      const state = typeof window.__getClientLiveState === 'function' ? window.__getClientLiveState() : null;
+      const bagCount = (itemId) => (typeof window.getBagItemCount === 'function' ? window.getBagItemCount(itemId) : 0);
+      const charData = (typeof window.getLiveCharacterData === 'function') ? window.getLiveCharacterData() : (window.__latestCharacterData || null);
+      const liveAutoCfg = (charData && charData.auto && charData.auto.config) ? charData.auto.config : {};
+      let savedInGameAuto = window.__inGameAutoCombatConfig;
+      if (!savedInGameAuto || typeof savedInGameAuto !== 'object') {
+        try { savedInGameAuto = JSON.parse(localStorage.getItem('pelican_ingame_auto_cfg') || '{}') || {}; } catch (e) { savedInGameAuto = {}; }
+      }
+      const defaultOrder = ['self', 'party', 'players', 'free', 'others'];
+      const rawOrder = Array.isArray(savedInGameAuto.targetOrder) && savedInGameAuto.targetOrder.length
+        ? savedInGameAuto.targetOrder
+        : (Array.isArray(liveAutoCfg.targetOrder) && liveAutoCfg.targetOrder.length ? liveAutoCfg.targetOrder : defaultOrder);
+      const inGameAutoConfig = {
+        basicAttack: savedInGameAuto.basicAttack !== undefined ? !!savedInGameAuto.basicAttack : (liveAutoCfg.basicAttack !== false),
+        targetOrder: rawOrder.slice(),
+        buffParty: savedInGameAuto.buffParty !== undefined ? !!savedInGameAuto.buffParty : (liveAutoCfg.buffParty !== false),
+        acceptParty: savedInGameAuto.acceptParty !== undefined ? !!savedInGameAuto.acceptParty : (liveAutoCfg.acceptParty === true),
+        joinOthers: savedInGameAuto.joinOthers !== undefined ? !!savedInGameAuto.joinOthers : (liveAutoCfg.joinOthers === true),
+        autoQuiver: savedInGameAuto.autoQuiver !== undefined ? !!savedInGameAuto.autoQuiver : (liveAutoCfg.autoQuiver === true),
+        autoRevive: savedInGameAuto.autoRevive !== undefined ? !!savedInGameAuto.autoRevive : (liveAutoCfg.autoRevive === true),
+        autoReviveMax: Math.max(1, Math.min(99, Number(savedInGameAuto.autoReviveMax ?? liveAutoCfg.autoReviveMax ?? 10) || 10)),
+        pickupLoot: savedInGameAuto.pickupLoot !== undefined ? !!savedInGameAuto.pickupLoot : (liveAutoCfg.pickupLoot !== false),
+        lootWhen: (savedInGameAuto.lootWhen === 'clear' || savedInGameAuto.lootWhen === 'first') ? savedInGameAuto.lootWhen : (liveAutoCfg.lootWhen === 'clear' ? 'clear' : 'first'),
+        flyWing: savedInGameAuto.flyWing !== undefined ? !!savedInGameAuto.flyWing : (liveAutoCfg.flyWing === true)
+      };
+      return {
+        state: state,
+        botVersion: window.__pelicanBotVersion || null,
+        targetFarmMap: window.__targetFarmMap || (document.getElementById('p-target-map-select')?.value) || (state ? state.targetMap : null),
+        autoLoopEnabled: !!window.__autoLoopEnabled,
+        isBotRunning: !!window.__isBotRunning,
+        planScriptEnabled: !!window.__planScriptEnabled,
+        currentPlanName: (window.__currentScriptPlan && window.__currentScriptPlan.name) || null,
+        travelConfig: {
+          minZenyForWarp: Number(travel.minZenyForWarp) || 0
+        },
+        inGameAutoConfig: inGameAutoConfig,
+        unexpectedTownGuardEnabled: window.__unexpectedTownGuardEnabled !== false,
+        unexpectedTownWaiting: !!window.__unexpectedTownWaiting,
+        unexpectedTownCountdown: document.getElementById('p-unexpected-countdown')?.innerText || '--:--',
+        humanizeConfig: {
+          enabled: humanize.enabled !== false,
+          chance: Number(humanize.chance ?? humanize.chancePercent ?? 70),
+          chancePercent: Number(humanize.chancePercent ?? humanize.chance ?? 70),
+          buyBlacksmith: (humanize.buyBlacksmith ?? humanize.visitBlacksmith) !== false,
+          visitBlacksmith: (humanize.visitBlacksmith ?? humanize.buyBlacksmith) !== false,
+          buySundries: (humanize.buySundries ?? humanize.visitSundries) !== false,
+          visitSundries: (humanize.visitSundries ?? humanize.buySundries) !== false,
+          randomWalk: humanize.randomWalk !== false,
+          storeDeposit: (humanize.storeDeposit ?? humanize.openStorage) !== false,
+          openStorage: (humanize.openStorage ?? humanize.storeDeposit) !== false
+        },
+        archerConfig: archer,
+        bwingCount: bagCount(90311),
+        buffPotionConfig: buffPotions,
+        potionCounts: {
+          90306: bagCount(90306),
+          90307: bagCount(90307),
+          90308: bagCount(90308)
+        },
+        sellConfig: sell,
+        autoMarketSellConfig: autosell,
+        marketFilterConfig: marketFilter,
+        shopConfig: shop,
+        ultraLowSpecEnabled: window.__ultraLowSpecEnabled !== false,
+        autoConfigCharEnabled: window.__autoConfigCharEnabled !== false,
+        autoMuteDisplayEnabled: window.__autoMuteDisplayEnabled !== false,
+        authConfig: {
+          enabled: !!auth.enabled,
+          username: auth.username || (document.getElementById('p-auth-user')?.value) || '',
+          charName: auth.charName || (document.getElementById('p-auth-char')?.value) || '',
+          hasPassword: !!(auth.password || (document.getElementById('p-auth-pass')?.value)),   // never the password itself
+          autoResumeBot: !!auth.autoResumeBot
+        },
+        serverWeight: window.__serverWeight || null,
+        currentAmmo: (typeof window.__currentAmmo === 'number') ? window.__currentAmmo : (state ? state.ammo : 0),
+        myMarketActiveCount: window.__myMarketActiveCount || 0
+      };
+    })()`;
+
+    const evalUrl = `http://127.0.0.1:${profile.debugPort}/api/eval?code=` + encodeURIComponent(code);
+    http.get(evalUrl, (cRes) => {
+      let d = "";
+      cRes.setEncoding('utf8');
+      cRes.on("data", c => d += c);
+      cRes.on("end", () => {
+        try {
+          const parsed = JSON.parse(d);
+          sendJSON({ success: true, data: parsed.result || {} });
+        } catch(e) {
+          sendJSON({ success: false, error: e.message }, 500);
+        }
+      });
+    }).on('error', err => sendJSON({ success: false, error: err.message }, 502));
+    return;
+  }
+
+  // GET /api/profiles/:id/character (Full character sheet, equipment slots, bag items, and stats)
+  if (req.method === "GET" && pathname.match(/^\/api\/profiles\/[^/]+\/character$/)) {
+    const id = pathname.split("/")[3];
+    const profiles = loadProfiles();
+    const profile = profiles.find(p => p.id === id);
+    if (!profile || !profile.debugPort) return sendJSON({ success: false, error: "Profile offline" }, 400);
+
+    const evalCode = `(typeof window.getCharacterFullDetail === 'function') ? window.getCharacterFullDetail() : { success: false, error: 'Character data not initialized' }`;
+    const r = await evalProfilePort(profile.debugPort, evalCode, 5000);
+    if (r && r.result && r.result.success) {
+      return sendJSON({ success: true, profileId: id, profileName: profile.name, ...r.result });
+    }
+    return sendJSON({ success: false, error: r?.error || "Cannot retrieve character detail" }, 500);
+  }
+
+  // POST /api/profiles/:id/equip (Equip item from bag into specific slot or auto)
+  if (req.method === "POST" && pathname.match(/^\/api\/profiles\/[^/]+\/equip$/)) {
+    const id = pathname.split("/")[3];
+    const profiles = loadProfiles();
+    const profile = profiles.find(p => p.id === id);
+    if (!profile || !profile.debugPort) return sendJSON({ success: false, error: "Profile offline" }, 400);
+
+    let body = "";
+    req.on("data", chunk => body += chunk);
+    req.on("end", async () => {
+      try {
+        const payload = JSON.parse(body || "{}");
+        const bagSlot = payload.bagSlot !== undefined ? payload.bagSlot : payload.slot;
+        const targetSlot = payload.targetSlot || payload.to || null;
+        if (bagSlot === undefined || bagSlot === null) {
+          return sendJSON({ success: false, error: "Missing bagSlot" }, 400);
+        }
+        const evalCode = `(typeof window.executeEquipItem === 'function') ? window.executeEquipItem(${JSON.stringify(bagSlot)}, ${JSON.stringify(targetSlot)}) : { success: false, error: 'Equip function unavailable' }`;
+        const r = await evalProfilePort(profile.debugPort, evalCode, 4000);
+        sendJSON(r?.result || { success: true });
+      } catch (e) {
+        sendJSON({ success: false, error: e.message }, 400);
+      }
+    });
+    return;
+  }
+
+  // POST /api/profiles/:id/unequip (Unequip worn item from slot)
+  if (req.method === "POST" && pathname.match(/^\/api\/profiles\/[^/]+\/unequip$/)) {
+    const id = pathname.split("/")[3];
+    const profiles = loadProfiles();
+    const profile = profiles.find(p => p.id === id);
+    if (!profile || !profile.debugPort) return sendJSON({ success: false, error: "Profile offline" }, 400);
+
+    let body = "";
+    req.on("data", chunk => body += chunk);
+    req.on("end", async () => {
+      try {
+        const payload = JSON.parse(body || "{}");
+        const slotKey = payload.slot || payload.slotKey;
+        if (!slotKey) {
+          return sendJSON({ success: false, error: "Missing slotKey" }, 400);
+        }
+        const evalCode = `(typeof window.executeUnequipItem === 'function') ? window.executeUnequipItem(${JSON.stringify(slotKey)}) : { success: false, error: 'Unequip function unavailable' }`;
+        const r = await evalProfilePort(profile.debugPort, evalCode, 4000);
+        sendJSON(r?.result || { success: true });
+      } catch (e) {
+        sendJSON({ success: false, error: e.message }, 400);
+      }
+    });
+    return;
+  }
+
+  // POST /api/profiles/:id/stat-up (Add status points to STR/AGI/VIT/INT/DEX/LUK)
+  if (req.method === "POST" && pathname.match(/^\/api\/profiles\/[^/]+\/stat-up$/)) {
+    const id = pathname.split("/")[3];
+    const profiles = loadProfiles();
+    const profile = profiles.find(p => p.id === id);
+    if (!profile || !profile.debugPort) return sendJSON({ success: false, error: "Profile offline" }, 400);
+
+    let body = "";
+    req.on("data", chunk => body += chunk);
+    req.on("end", async () => {
+      try {
+        const payload = JSON.parse(body || "{}");
+        const statKey = payload.stat;
+        const count = payload.count || payload.n || 1;
+        if (!statKey) {
+          return sendJSON({ success: false, error: "Missing stat" }, 400);
+        }
+        const evalCode = `(typeof window.executeAddStat === 'function') ? window.executeAddStat(${JSON.stringify(statKey)}, ${Number(count)}) : { success: false, error: 'Stat-up function unavailable' }`;
+        const r = await evalProfilePort(profile.debugPort, evalCode, 4000);
+        sendJSON(r?.result || { success: true });
+      } catch (e) {
+        sendJSON({ success: false, error: e.message }, 400);
+      }
+    });
+    return;
+  }
+
+  // POST /api/profiles/:id/client-action (Proxy config changes & actions from Web HUD / Central Menu)
+  if (req.method === "POST" && pathname.match(/^\/api\/profiles\/[^/]+\/client-action$/)) {
+    const id = decodeURIComponent(pathname.split("/")[3]);
+    const profiles = loadProfiles();
+
+    if (id !== "__central__") {
+      const profile = profiles.find(p => p.id === id);
+      if (!profile || !profile.debugPort) return sendJSON({ success: false, error: "Profile offline" }, 400);
+    }
+
+    let body = "";
+    req.on("data", chunk => body += chunk);
+    req.on("end", async () => {
+      try {
+        const payload = JSON.parse(body || "{}");
+        const codeToRun = buildClientActionEvalCode(payload);
+
+        if (id === "__central__") {
+          const targetSet = Array.isArray(payload.targetProfileIds) && payload.targetProfileIds.length > 0
+            ? new Set(payload.targetProfileIds.map(String))
+            : null;
+          const targets = profiles.filter(p => p.debugPort && (!targetSet || targetSet.has(String(p.id))));
+          if (targets.length === 0) {
+            return sendJSON({ success: false, error: "ไม่มีจอเกมที่กำลังออนไลน์", updatedCount: 0, totalOnline: 0 }, 400);
+          }
+          const results = await Promise.allSettled(targets.map(p =>
+            enqueueProfileClientAction(p.id, () => evalProfilePort(p.debugPort, codeToRun, 15000))
+          ));
+          const okCount = results.filter(r =>
+            r.status === "fulfilled" && r.value && !(r.value.success === false && !("result" in r.value))
+          ).length;
+          return sendJSON({
+            success: okCount > 0,
+            updatedCount: okCount,
+            totalOnline: targets.length
+          });
+        }
+
+        const profile = profiles.find(p => p.id === id);
+        if (!profile || !profile.debugPort) return sendJSON({ success: false, error: "Profile offline" }, 400);
+
+        if (payload.type === 'update-auth' && payload.config && typeof payload.config === 'object') {
+          const cfg = payload.config;
+          const nextUser = cfg.username !== undefined ? String(cfg.username || '').trim() : undefined;
+          const nextPass = cfg.password !== undefined ? String(cfg.password || '') : undefined;
+          if (nextPass) {
+            credentials.setPassword(profile.id, nextPass);
+          }
+          if (nextUser || nextPass) {
+            const fresh = loadProfiles();
+            const target = fresh.find(f => f.id === profile.id);
+            if (target) {
+              if (nextUser) target.account = nextUser;
+              target.autoRegister = false;
+              target.generatedAccount = false;
+              target.registerError = '';
+              target.loginSyncPending = false;
+              target.lastAuthSyncPushAt = Date.now();
+              if (cfg.charName && !target.lastCharName) target.lastCharName = String(cfg.charName).trim();
+              saveProfiles(fresh);
+            }
+          }
+        }
+
+        // POST: configs (import-config, whitelists, rules) are far too long for a URL once Thai text is encoded
+        if (payload.type === 'update-sell' && payload.config && typeof payload.config === 'object') {
+          const fresh = loadProfiles();
+          const target = fresh.find(f => f.id === profile.id);
+          if (target) {
+            if (!target.sellConfig || typeof target.sellConfig !== 'object') target.sellConfig = {};
+            Object.assign(target.sellConfig, payload.config);
+            if (payload.config.whitelist !== undefined) target.whitelist = String(payload.config.whitelist || '');
+            if (payload.config.forceSellList !== undefined) target.forceSellList = String(payload.config.forceSellList || '');
+            saveProfiles(fresh);
+          }
+        }
+        if (payload.type === 'update-autosell' && payload.config && typeof payload.config === 'object') {
+          try {
+            const asStorePath = path.join(__dirname, 'data', 'autosell_configs.json');
+            let allAs = {};
+            if (fs.existsSync(asStorePath)) {
+              try { allAs = JSON.parse(fs.readFileSync(asStorePath, 'utf8')) || {}; } catch (_) { allAs = {}; }
+            }
+            const prevAs = (allAs[profile.id] && typeof allAs[profile.id] === 'object') ? allAs[profile.id] : { enabled: false, priceStrategy: 'median', rules: [] };
+            const patchAs = Object.assign({}, payload.config);
+            if (Array.isArray(patchAs.rules) && patchAs.rules.length === 0 && Array.isArray(prevAs.rules) && prevAs.rules.length > 0 && !patchAs.__userClearedAt) {
+              delete patchAs.rules;
+            }
+            const nextAs = Object.assign({}, prevAs, patchAs, { updatedAt: Date.now() });
+            allAs[profile.id] = nextAs;
+            fs.mkdirSync(path.dirname(asStorePath), { recursive: true });
+            fs.writeFileSync(asStorePath, JSON.stringify(allAs, null, 2), 'utf8');
+          } catch (_) {}
+        }
+        const r = await enqueueProfileClientAction(profile.id, () => evalProfilePort(profile.debugPort, codeToRun, 15000));
+        if (r && r.success === false && !('result' in r)) return sendJSON({ success: false, error: r.error || 'สั่งงานจอเกมไม่สำเร็จ' }, 502);
+        sendJSON({ success: true, result: r });
+      } catch (err) {
+        sendJSON({ success: false, error: err.message }, 400);
+      }
+    });
+    return;
+  }
+
+  
+  // ==========================================
+  // ZENY CONSOLIDATION & MARKET CLAIM API
+  // ==========================================
+
+  // POST /api/market/claim-all (Claim all items & zeny from market across all active sessions)
+  if (req.method === "POST" && pathname === "/api/market/claim-all") {
+    (async () => {
+      const profiles = loadProfiles();
+      const results = [];
+      for (const p of profiles) {
+        if (p.debugPort) {
+          try {
+            const evalCode = `(async () => {
+              if (typeof window.claimAllMarket === 'function') {
+                return await window.claimAllMarket();
+              }
+              const r = (typeof window.getGameRoom === 'function') ? window.getGameRoom() : window.__gameRoom;
+              if (r && r.connection?.isOpen) {
+                r.send('market', { op: 'collect_all' });
+                r.send('market', { op: 'mine' });
+                return { success: true };
+              }
+              return { success: false, error: 'No room connection' };
+            })()`;
+            const r = await evalProfilePort(p.debugPort, evalCode, 3000);
+            results.push({ id: p.id, name: p.name, port: p.debugPort, result: r });
+          } catch(e) {
+            results.push({ id: p.id, name: p.name, port: p.debugPort, error: e.message });
+          }
+        }
+      }
+      return sendJSON({ success: true, results });
+    })();
+    return;
+  }
+
+  // GET / POST /api/consolidation/item-settings
+  if (pathname === "/api/consolidation/item-settings") {
+    if (req.method === "GET") {
+      return sendJSON({ success: true, settings: loadConsolidationItemSettings() });
+    }
+    if (req.method === "POST") {
+      let body = "";
+      req.on("data", chunk => body += chunk);
+      req.on("end", async () => {
+        try {
+          const payload = JSON.parse(body || "{}");
+          const saved = saveConsolidationItemSettings(payload);
+          const syncRes = await syncStashTradeConfigToAllClients(saved);
+          return sendJSON({
+            success: true,
+            settings: saved,
+            syncedClients: syncRes.syncedCount,
+            totalChecked: syncRes.totalChecked
+          });
+        } catch (e) {
+          return sendJSON({ success: false, error: e.message }, 400);
+        }
+      });
+      return;
+    }
+  }
+
+  // POST /api/consolidation/start
+  if (req.method === "POST" && pathname === "/api/consolidation/start") {
+    let body = "";
+    req.on("data", chunk => body += chunk);
+    req.on("end", async () => {
+      try {
+        const payload = JSON.parse(body || "{}");
+        const keepZeny = parseInt(payload.keepZeny) || 0;
+        const sameIpOnly = Boolean(payload.sameIpOnly);
+        const roundHundredK = Boolean(payload.roundHundredK);
+        const ipGroupsInput = Array.isArray(payload.ipGroups) ? payload.ipGroups : null;
+
+        const zenyOnly = Boolean(payload.zenyOnly);
+
+        // Persist item trade preferences if supplied (skipped for zeny-only fleet Stage 1 runs)
+        let itemCfg = loadConsolidationItemSettings();
+        if (!zenyOnly && (typeof payload.tradeOnConsolidate === "boolean" || Array.isArray(payload.items) || typeof payload.storeOnlyEnabled === "boolean")) {
+          itemCfg = saveConsolidationItemSettings({
+            storeOnlyEnabled: typeof payload.storeOnlyEnabled === "boolean" ? payload.storeOnlyEnabled : itemCfg.storeOnlyEnabled,
+            tradeOnConsolidate: typeof payload.tradeOnConsolidate === "boolean" ? payload.tradeOnConsolidate : itemCfg.tradeOnConsolidate,
+            items: payload.items !== undefined ? payload.items : itemCfg.items
+          });
+          syncStashTradeConfigToAllClients(itemCfg).catch(() => {});
+        }
+
+        const profiles = loadProfiles();
+        const checkProfilePremium = async (pid) => {
+          const p = profiles.find(x => x.id === pid);
+          if (!p) return { ok: false, name: pid, ip: 'LOCAL' };
+          const ip = getProfileIpGroupKey(pid);
+          if (p.debugPort) {
+            const st = await queryClientState(p.debugPort);
+            if (st && !st.error) {
+              return { ok: !!st.hasPremium, name: st.charName || p.name, ip };
+            }
+          }
+          return { ok: Number(p.lastPremiumUntil || 0) > Date.now(), name: p.lastCharName || p.name, ip };
+        };
+
+        // Multi-group IP consolidation mode (runs non-overlapping IP groups concurrently in parallel)
+        if (ipGroupsInput && ipGroupsInput.length > 0) {
+          const validatedGroups = [];
+          for (const g of ipGroupsInput) {
+            if (!g || !g.receiverProfileId || !Array.isArray(g.senderProfileIds) || g.senderProfileIds.length === 0) continue;
+            if (activeConsolidationProfiles.has(g.receiverProfileId)) continue;
+            const recCheck = await checkProfilePremium(g.receiverProfileId);
+            if (!recCheck.ok) continue;
+            if (Array.from(activeConsolidationTasks.values()).some(t => t.ip === recCheck.ip)) continue;
+            const sChecks = await Promise.all(g.senderProfileIds.map(async sid => ({ sid, ...(await checkProfilePremium(sid)) })));
+            const validSenders = sChecks
+              .filter(sc => sc.ok && sc.sid !== g.receiverProfileId && sc.ip === recCheck.ip && !activeConsolidationProfiles.has(sc.sid))
+              .map(sc => sc.sid);
+            if (validSenders.length > 0) {
+              validatedGroups.push({
+                ip: recCheck.ip,
+                receiverProfileId: g.receiverProfileId,
+                senderProfileIds: validSenders
+              });
+            }
+          }
+          if (validatedGroups.length === 0) {
+            return sendJSON({
+              success: false,
+              error: activeConsolidationTasks.size > 0
+                ? "วง IP ที่เลือกกำลังดำเนินการรวมเงินอยู่แล้วในขณะนี้"
+                : "ไม่พบวง IP ที่มีทั้งตัวรับและผู้โอนสถานะ 👑 Premium พร้อมโอนในวงเดียวกัน"
+            }, activeConsolidationTasks.size > 0 ? 409 : 400);
+          }
+          runIpGroupsConsolidationWorkflow(validatedGroups, keepZeny, {
+            enabled: zenyOnly ? false : Boolean(itemCfg.tradeOnConsolidate),
+            items: zenyOnly ? [] : itemCfg.items,
+            roundHundredK
+          });
+          return sendJSON({
+            success: true,
+            ipGroupsCount: validatedGroups.length,
+            activeTasksCount: activeConsolidationTasks.size,
+            message: `เริ่มต้นรวมเงินแบบ Multi-Task แยกตามวง IP (${validatedGroups.length} วง IP) พร้อมกันเรียบร้อยแล้ว`
+          });
+        }
+
+        const receiverId = payload.receiverProfileId;
+        const senderIds = Array.isArray(payload.senderProfileIds) ? payload.senderProfileIds : [];
+
+        if (!receiverId) {
+          return sendJSON({ success: false, error: "กรุณาระบุโปรไฟล์ตัวรับเงิน (receiverProfileId)" }, 400);
+        }
+        if (senderIds.length === 0) {
+          return sendJSON({ success: false, error: "กรุณาเลือกจอที่จะโอนเงินอย่างน้อย 1 จอ" }, 400);
+        }
+
+        if (activeConsolidationProfiles.has(receiverId)) {
+          return sendJSON({ success: false, error: "ตัวรับเงินนี้กำลังดำเนินการรวมเงินอยู่แล้วในขณะนี้" }, 409);
+        }
+
+        const [recCheck, senderChecks] = await Promise.all([
+          checkProfilePremium(receiverId),
+          Promise.all(senderIds.map(async sid => ({ sid, ...(await checkProfilePremium(sid)) })))
+        ]);
+        if (!recCheck.ok) {
+          return sendJSON({ success: false, error: `ตัวรับเงิน (${recCheck.name}) ไม่มีสถานะ 👑 Premium — ระบบเทรดรวมเงินเลือกได้เฉพาะตัวละครที่มี Premium เท่านั้น` }, 400);
+        }
+
+        if (sameIpOnly && Array.from(activeConsolidationTasks.values()).some(t => t.ip === recCheck.ip)) {
+          return sendJSON({ success: false, error: `วง IP [${recCheck.ip}] กำลังดำเนินการรวมเงินอยู่แล้วในขณะนี้` }, 409);
+        }
+
+        let validSenders = senderChecks
+          .filter(sc => sc.ok && !activeConsolidationProfiles.has(sc.sid))
+          .map(sc => sc.sid);
+        if (validSenders.length === 0) {
+          const anyBusy = senderChecks.some(sc => activeConsolidationProfiles.has(sc.sid));
+          return sendJSON({
+            success: false,
+            error: anyBusy
+              ? "จอผู้โอนที่เลือกกำลังติดภารกิจรวมเงินอยู่ในขณะนี้"
+              : "จอผู้โอนที่เลือกไม่มีสถานะ 👑 Premium (การเทรดโอนเงินใช้ได้เฉพาะตัวที่มี Premium เท่านั้น)"
+          }, anyBusy ? 409 : 400);
+        }
+
+        if (sameIpOnly) {
+          validSenders = senderChecks
+            .filter(sc => sc.ok && sc.ip === recCheck.ip && !activeConsolidationProfiles.has(sc.sid))
+            .map(sc => sc.sid);
+          if (validSenders.length === 0) {
+            return sendJSON({
+              success: false,
+              error: `ไม่มีจอผู้โอนที่ว่างอยู่ในวง IP เดียวกับตัวรับ (${recCheck.ip}) และมี 👑 Premium`
+            }, 400);
+          }
+        }
+
+        // Run in background (supports parallel non-overlapping tasks!)
+        runConsolidationWorkflow(receiverId, validSenders, keepZeny, {
+          enabled: Boolean(itemCfg.tradeOnConsolidate),
+          items: itemCfg.items,
+          sameIpOnly,
+          roundHundredK
+        });
+        return sendJSON({
+          success: true,
+          sameIpOnly,
+          ip: recCheck.ip,
+          sendersCount: validSenders.length,
+          activeTasksCount: activeConsolidationTasks.size,
+          message: sameIpOnly
+            ? `เริ่มต้นรวมเงินเฉพาะในวง IP [${recCheck.ip}] (${validSenders.length} จอ) เรียบร้อยแล้ว`
+            : "เริ่มต้นกระบวนการรวมเงินเรียบร้อยแล้ว"
+        });
+      } catch(e) {
+        return sendJSON({ success: false, error: e.message }, 400);
+      }
+    });
+    return;
+  }
+
+  // GET /api/consolidation/status
+  if (req.method === "GET" && pathname === "/api/consolidation/status") {
+    return sendJSON({ success: true, ...consolidationState });
+  }
+
+  // POST /api/consolidation/stop
+  if (req.method === "POST" && pathname === "/api/consolidation/stop") {
+    let body = "";
+    req.on("data", chunk => body += chunk);
+    req.on("end", () => {
+      let payload = {};
+      try { payload = JSON.parse(body || "{}"); } catch (_) {}
+      const targetTaskId = payload && payload.taskId ? String(payload.taskId) : null;
+      const targetIp = payload && payload.ip ? String(payload.ip) : null;
+
+      if (targetTaskId || targetIp) {
+        const stoppedIps = [];
+        for (const t of activeConsolidationTasks.values()) {
+          if ((targetTaskId && t.taskId === targetTaskId) || (targetIp && t.ip === targetIp)) {
+            t.aborted = true;
+            stoppedIps.push(t.ip);
+          }
+        }
+        if (stoppedIps.length > 0) {
+          addConsolidationLog(`⏹️ ผู้ใช้สั่งหยุดการรวมเงินเฉพาะวง IP [${stoppedIps.join(', ')}] (วงอื่นยังทำงานต่อตามปกติ)`, 'warning');
+          syncConsolidationGlobalState();
+          return sendJSON({ success: true, stoppedIps, message: `สั่งหยุดการรวมเงินของวง IP [${stoppedIps.join(', ')}] เรียบร้อยแล้ว` });
+        }
+      }
+
+      consolidationAborted = true;
+      for (const t of activeConsolidationTasks.values()) {
+        t.aborted = true;
+      }
+      if (activeConsolidationTasks.size === 0) {
+        consolidationState.running = false;
+        consolidationState.status = 'stopped';
+      }
+      syncConsolidationGlobalState();
+      addConsolidationLog('⏹️ ผู้ใช้สั่งหยุดกระบวนการรวมเงินทั้งหมด', 'warning');
+      return sendJSON({ success: true, message: "ยกเลิกกระบวนการรวมเงินเรียบร้อย" });
+    });
+    return;
+  }
+
+  // ==========================================
+  // PLAN PROFILES & WORKFLOW BUILDER API
+  // ==========================================
+
+  // ==========================================
+  // GAME INSTALLER & PATCHER API
+  // ==========================================
+
+  // GET /api/game-install/status
+  if (req.method === "GET" && pathname === "/api/game-install/status") {
+    const qPath = parsedUrl.searchParams.get("path");
+    const status = installer.checkStatus(qPath);
+    return sendJSON({ success: true, ...status });
+  }
+
+  // GET/POST /api/launch-mode ({ launchMode: 'electron' | 'browser', browserKind: 'chrome' | 'edge' })
+  if (pathname === "/api/launch-mode") {
+    if (req.method === "GET") {
+      const raw = typeof installer.loadRawSettings === "function" ? (installer.loadRawSettings() || {}) : {};
+      const st = installer.loadSettings() || {};
+      const launchMode = st.launchMode || "browser";
+      const browserKind = st.browserKind || "chrome";
+      return sendJSON({
+        success: true,
+        launchMode,
+        browserKind,
+        browserKindConfigured: Boolean(raw.browserKind && ["chrome", "edge"].includes(raw.browserKind)),
+        chrome: !!browserMode.findBrowser("chrome"),
+        edge: !!browserMode.findBrowser("edge"),
+        browserPath: browserMode.findBrowser(browserKind)
+      });
+    }
+    if (req.method === "POST") {
+      let body = "";
+      req.on("data", c => body += c);
+      req.on("end", () => {
+        try {
+          const data = JSON.parse(body || "{}");
+          const st = installer.loadSettings() || {};
+          if (["electron", "browser"].includes(data.launchMode)) st.launchMode = data.launchMode;
+          if (["chrome", "edge"].includes(data.browserKind)) st.browserKind = data.browserKind;
+          installer.saveSettings(st);
+          sendJSON({
+            success: true,
+            launchMode: st.launchMode,
+            browserKind: st.browserKind,
+            browserKindConfigured: true,
+            browserPath: browserMode.findBrowser(st.browserKind)
+          });
+        } catch (e) { sendJSON({ success: false, error: e.message }, 400); }
+      });
+      return;
+    }
+  }
+
+  // GET/POST /api/device-nickname ({ nickname: '...' })
+  if (pathname === "/api/device-nickname") {
+    if (req.method === "GET") {
+      const defaultNick = getDefaultDeviceNickname();
+      const currentNick = getEffectiveDeviceNickname();
+      const accessMeta = typeof humanCheckSolver.getAccessState === "function" ? humanCheckSolver.getAccessState() : {};
+      return sendJSON({
+        success: true,
+        nickname: currentNick,
+        defaultNickname: defaultNick,
+        ...accessMeta
+      });
+    }
+    if (req.method === "POST") {
+      let body = "";
+      req.on("data", c => body += c);
+      req.on("end", () => {
+        try {
+          const data = JSON.parse(body || "{}");
+          const st = installer.loadSettings() || {};
+          const cleaned = typeof data.nickname === 'string' ? data.nickname.trim().slice(0, 32) : '';
+          st.deviceNickname = cleaned;
+          installer.saveSettings(st);
+          const nextNick = st.deviceNickname || getDefaultDeviceNickname();
+          if (discordService && typeof discordService.setDeviceNickname === 'function') {
+            discordService.setDeviceNickname(nextNick);
+          }
+          if (!TEST_INSTANCE && typeof humanCheckSolver.syncAccessStatus === 'function' && humanCheckSolver.getAccessState?.().accountId) {
+            humanCheckSolver.syncAccessStatus(nextNick).catch(() => {});
+          }
+          const accessMeta = typeof humanCheckSolver.getAccessState === "function" ? humanCheckSolver.getAccessState() : {};
+          sendJSON({
+            success: true,
+            nickname: nextNick,
+            defaultNickname: getDefaultDeviceNickname(),
+            ...accessMeta
+          });
+        } catch (e) {
+          sendJSON({ success: false, error: e.message }, 400);
+        }
+      });
+      return;
+    }
+  }
+
+  // POST /api/game-install/install
+  if (req.method === "POST" && pathname === "/api/game-install/install") {
+    let body = "";
+    req.on("data", chunk => body += chunk);
+    req.on("end", () => {
+      try {
+        const payload = body ? JSON.parse(body) : {};
+        // Program Files installs need admin rights -> installScriptAsync asks once through UAC
+        installer.installScriptAsync(payload.gamePath)
+          .then(result => sendJSON(result, result.success ? 200 : 500))
+          .catch(e => sendJSON({ success: false, error: e.message }, 500));
+      } catch (e) {
+        return sendJSON({ success: false, error: e.message }, 400);
+      }
+    });
+    return;
+  }
+
+  // POST /api/game-install/restore
+  if (req.method === "POST" && pathname === "/api/game-install/restore") {
+    let body = "";
+    req.on("data", chunk => body += chunk);
+    req.on("end", () => {
+      try {
+        const payload = body ? JSON.parse(body) : {};
+        const result = installer.restoreOriginal(payload.gamePath);
+        return sendJSON(result, result.success ? 200 : 500);
+      } catch (e) {
+        return sendJSON({ success: false, error: e.message }, 400);
+      }
+    });
+    return;
+  }
+
+  // POST /api/game-install/browse
+  if (req.method === "POST" && pathname === "/api/game-install/browse") {
+    installer.browseFolder().then((result) => {
+      return sendJSON(result);
+    }).catch((err) => {
+      return sendJSON({ success: false, error: err.message }, 500);
+    });
+    return;
+  }
+
+  // GET /api/game-install/manager-update
+  if (req.method === "GET" && pathname === "/api/game-install/manager-update") {
+    installer.checkManagerOnlineUpdate().then((result) => {
+      return sendJSON(result);
+    }).catch((err) => {
+      return sendJSON({ success: false, error: err.message }, 500);
+    });
+    return;
+  }
+
+    // GET /api/plan-profiles (List all plan profiles & assignments)
+  // GET /api/game-items — the game's equipment (its /wiki-data, the same data as the in-game wiki) with icon
+  // URLs, for the plan's gear set editor. Cached 6 h in memory and on disk (works offline from the last copy).
+  if (req.method === "GET" && pathname === "/api/game-items") {
+    try {
+      sendJSON({ success: true, ...(await getGameItems()) });
+    } catch (e) {
+      sendJSON({ success: false, error: e.message }, 502);
+    }
+    return;
+  }
+
+  if (req.method === "GET" && pathname === "/api/plan-profiles") {
+    const plansData = loadPlans();
+    return sendJSON({
+      success: true,
+      profiles: plansData.profiles || [],
+      assignments: plansData.assignments || {}
+    });
+  }
+
+  // POST /api/plan-profiles (Create new plan profile)
+  if (req.method === "POST" && pathname === "/api/plan-profiles") {
+    let body = "";
+    req.on("data", chunk => body += chunk);
+    req.on("end", () => {
+      try {
+        const payload = JSON.parse(body);
+        const plansData = loadPlans();
+        const newPlan = {
+          id: "plan_" + Date.now(),
+          name: (payload.name || "New Plan").trim(),
+          description: payload.description || "",
+          class1Target: payload.class1Target || "archer",
+          class2Target: payload.class2Target || "hunter",
+          // New plans: the player places "เปลี่ยนอาชีพ" actions (automatic change only when asked for)
+          autoJobChange: payload.autoJobChange === true,
+          autoUpgradeGems: payload.autoUpgradeGems !== false,
+          eventPet: payload.eventPet !== false,
+          class1JobLevel: planJobLevel(payload.class1JobLevel, 10),
+          class2JobLevel: planJobLevel(payload.class2JobLevel, 50),
+          skillBuild: payload.skillBuild || null,
+          statBuild: payload.statBuild || null,
+          gearPlan: payload.gearPlan || null,
+          triggers: Array.isArray(payload.triggers) ? payload.triggers : [],
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        };
+        plansData.profiles.push(newPlan);
+        savePlans(plansData);
+        return sendJSON({ success: true, profile: newPlan });
+      } catch (err) {
+        return sendJSON({ success: false, error: err.message }, 400);
+      }
+    });
+    return;
+  }
+
+  // PUT /api/plan-profiles/:id (Update plan profile)
+  if (req.method === "PUT" && pathname.match(/^\/api\/plan-profiles\/[^/]+$/)) {
+    const id = pathname.split("/")[3];
+    let body = "";
+    req.on("data", chunk => body += chunk);
+    req.on("end", () => {
+      try {
+        const payload = JSON.parse(body);
+        const plansData = loadPlans();
+        const idx = plansData.profiles.findIndex(p => p.id === id);
+        if (idx === -1) return sendJSON({ success: false, error: "Plan profile not found" }, 404);
+
+        plansData.profiles[idx] = {
+          ...plansData.profiles[idx],
+          name: payload.name !== undefined ? payload.name.trim() : plansData.profiles[idx].name,
+          description: payload.description !== undefined ? payload.description : plansData.profiles[idx].description,
+          class1Target: payload.class1Target !== undefined ? payload.class1Target : (plansData.profiles[idx].class1Target || "archer"),
+          class2Target: payload.class2Target !== undefined ? payload.class2Target : (plansData.profiles[idx].class2Target || "hunter"),
+          autoJobChange: typeof payload.autoJobChange === 'boolean' ? payload.autoJobChange : plansData.profiles[idx].autoJobChange,
+          autoUpgradeGems: typeof payload.autoUpgradeGems === 'boolean' ? payload.autoUpgradeGems : plansData.profiles[idx].autoUpgradeGems,
+          eventPet: typeof payload.eventPet === 'boolean' ? payload.eventPet : plansData.profiles[idx].eventPet,
+          class1JobLevel: planJobLevel(payload.class1JobLevel !== undefined ? payload.class1JobLevel : plansData.profiles[idx].class1JobLevel, 10),
+          class2JobLevel: planJobLevel(payload.class2JobLevel !== undefined ? payload.class2JobLevel : plansData.profiles[idx].class2JobLevel, 50),
+          skillBuild: payload.skillBuild !== undefined ? payload.skillBuild : plansData.profiles[idx].skillBuild,
+          statBuild: payload.statBuild !== undefined ? payload.statBuild : plansData.profiles[idx].statBuild,
+          gearPlan: payload.gearPlan !== undefined ? payload.gearPlan : plansData.profiles[idx].gearPlan,
+          triggers: Array.isArray(payload.triggers) ? payload.triggers : plansData.profiles[idx].triggers,
+          updatedAt: Date.now()
+        };
+
+        savePlans(plansData);
+
+        // Send the edited plan to clients using it (their Plan Script on/off switch is left as is)
+        planSync.pushToAssigned(plansData.profiles[idx]).catch(() => {});
+
+        return sendJSON({ success: true, profile: plansData.profiles[idx] });
+      } catch (err) {
+        return sendJSON({ success: false, error: err.message }, 400);
+      }
+    });
+    return;
+  }
+
+  // DELETE /api/plan-profiles/:id (Delete plan profile)
+  if (req.method === "DELETE" && pathname.match(/^\/api\/plan-profiles\/[^/]+$/)) {
+    const id = pathname.split("/")[3];
+    const plansData = loadPlans();
+    const idx = plansData.profiles.findIndex(p => p.id === id);
+    if (idx === -1) return sendJSON({ success: false, error: "Plan profile not found" }, 404);
+
+    const usedBy = planSync.assignedProfiles(id);
+    plansData.profiles.splice(idx, 1);
+    planSync.clearClients(usedBy).catch(() => {});
+    // Remove assignments
+    if (plansData.assignments) {
+      Object.keys(plansData.assignments).forEach(cId => {
+        if (plansData.assignments[cId] === id) delete plansData.assignments[cId];
+      });
+    }
+
+    savePlans(plansData);
+    return sendJSON({ success: true });
+  }
+
+  // POST /api/plan-profiles/:id/assign (Assign plan to a client card & sync live)
+  if (req.method === "POST" && pathname.match(/^\/api\/plan-profiles\/[^/]+\/assign$/)) {
+    const id = pathname.split("/")[3];
+    let body = "";
+    req.on("data", chunk => body += chunk);
+    req.on("end", async () => {
+      try {
+        const payload = JSON.parse(body);
+        // One client (clientProfileId) or a picked list (clientProfileIds); unassignProfileIds = unticked clients
+        const addIds = Array.isArray(payload.clientProfileIds) ? payload.clientProfileIds : (payload.clientProfileId ? [payload.clientProfileId] : []);
+        const removeIds = Array.isArray(payload.unassignProfileIds) ? payload.unassignProfileIds : [];
+        if (!addIds.length && !removeIds.length) return sendJSON({ success: false, error: "ยังไม่ได้เลือกจอเกม" }, 400);
+
+        const plansData = loadPlans();
+        const plan = plansData.profiles.find(p => p.id === id);
+        if (!plan) return sendJSON({ success: false, error: "Plan profile not found" }, 404);
+        if (!plansData.assignments) plansData.assignments = {};
+        if (!plansData.pendingEnable) plansData.pendingEnable = {};
+        if (!plansData.userDisabled) plansData.userDisabled = {};
+        const profiles = loadProfiles();
+        const label = cid => { const p = profiles.find(x => x.id === cid); return p ? (p.name || cid) : cid; };
+
+        // Send to each client now and switch Plan Script on; offline ones get it when they come online
+        const live = [], later = [];
+        for (const cid of addIds) {
+          plansData.assignments[cid] = id;
+          delete plansData.userDisabled[cid];
+          const synced = await planSync.push(profiles.find(p => p.id === cid), plan, true);
+          if (synced) { delete plansData.pendingEnable[cid]; live.push(label(cid)); }
+          else { plansData.pendingEnable[cid] = true; later.push(label(cid)); }
+        }
+        const removed = [];
+        for (const cid of removeIds) {
+          if (plansData.assignments[cid] !== id || addIds.includes(cid)) continue;
+          delete plansData.assignments[cid];
+          delete plansData.pendingEnable[cid];
+          delete plansData.userDisabled[cid];
+          removed.push(cid);
+        }
+        savePlans(plansData);
+        if (removed.length) await planSync.clearClients(removed.map(cid => profiles.find(p => p.id === cid)).filter(Boolean));
+
+        const lines = [];
+        if (live.length) lines.push(`ส่งแผนและเปิด Plan Script แล้ว: ${live.join(', ')}`);
+        if (later.length) lines.push(`จะเริ่มเมื่อเปิดจอ (ออฟไลน์อยู่): ${later.join(', ')}`);
+        if (removed.length) lines.push(`ถอดแผนออกจาก: ${removed.map(label).join(', ')}`);
+        return sendJSON({
+          success: true,
+          planId: id,
+          clientProfileId: addIds[0],
+          syncedLive: live.length > 0,
+          message: `แผน "${plan.name}"\n` + lines.join('\n')
+        });
+      } catch (err) {
+        return sendJSON({ success: false, error: err.message }, 400);
+      }
+    });
+    return;
+  }
+
+  // POST /api/plan-profiles/import (Import plans from JSON)
+  if (req.method === "POST" && pathname === "/api/plan-profiles/import") {
+    let body = "";
+    req.on("data", chunk => body += chunk);
+    req.on("end", () => {
+      try {
+        const payload = JSON.parse(body);
+        const plansData = loadPlans();
+        let importedList = [];
+        if (Array.isArray(payload)) {
+          importedList = payload;
+        } else if (payload && Array.isArray(payload.profiles)) {
+          importedList = payload.profiles;
+        } else if (payload && payload.name) {
+          importedList = [payload];
+        }
+
+        let addedCount = 0;
+        importedList.forEach(p => {
+          if (p && p.name) {
+            plansData.profiles.push({
+              id: "plan_" + Date.now() + "_" + Math.floor(Math.random() * 1000),
+              name: p.name.trim(),
+              description: p.description || "",
+              class1Target: p.class1Target || "archer",
+              class2Target: p.class2Target || "hunter",
+              autoJobChange: typeof p.autoJobChange === 'boolean' ? p.autoJobChange : undefined,
+              autoUpgradeGems: p.autoUpgradeGems !== false,
+              eventPet: p.eventPet !== false,
+              class1JobLevel: planJobLevel(p.class1JobLevel, 10),
+              class2JobLevel: planJobLevel(p.class2JobLevel, 50),
+              skillBuild: p.skillBuild || null,
+              statBuild: p.statBuild || null,
+              gearPlan: p.gearPlan || null,
+              triggers: Array.isArray(p.triggers) ? p.triggers : [],
+              createdAt: Date.now(),
+              updatedAt: Date.now()
+            });
+            addedCount++;
+          }
+        });
+
+        savePlans(plansData);
+        return sendJSON({
+          success: true,
+          addedCount,
+          profiles: plansData.profiles,
+          message: `นำเข้า Plan Profiles สำเร็จ ${addedCount} รายการ!`
+        });
+      } catch (err) {
+        return sendJSON({ success: false, error: err.message }, 400);
+      }
+    });
+    return;
+  }
+
+  // 9. GET /api/plans/:id
+  if (req.method === "GET" && pathname.match(/^\/api\/plans\/[^/]+$/)) {
+    const id = pathname.split("/")[3];
+    const plans = loadPlans();
+    return sendJSON({ success: true, plan: plans[id] || null });
+  }
+
+  // 10. POST /api/plans/:id
+  if (req.method === "POST" && pathname.match(/^\/api\/plans\/[^/]+$/)) {
+    const id = pathname.split("/")[3];
+    let body = "";
+    req.on("data", chunk => body += chunk);
+    req.on("end", () => {
+      try {
+        const plan = JSON.parse(body);
+        const plans = loadPlans();
+        plans[id] = plan;
+        savePlans(plans);
+        return sendJSON({ success: true, plan });
+      } catch (err) {
+        return sendJSON({ success: false, error: err.message }, 400);
+      }
+    });
+    return;
+  }
+
+  // 11. POST /api/plans/:id/apply
+  if (req.method === "POST" && pathname.match(/^\/api\/plans\/[^/]+\/apply$/)) {
+    const id = pathname.split("/")[3];
+    let body = "";
+    req.on("data", chunk => body += chunk);
+    req.on("end", async () => {
+      try {
+        const plan = JSON.parse(body);
+        const plans = loadPlans();
+        plans[id] = plan;
+        savePlans(plans);
+
+        const profiles = loadProfiles();
+        const profile = profiles.find(p => p.id === id);
+        if (!profile || !profile.debugPort) {
+          return sendJSON({ success: true, warning: "Profile saved, but client debugPort not found", plan });
+        }
+
+        const code = `
+          if (typeof window.__applyScriptPlan === 'function') {
+            window.__applyScriptPlan(${JSON.stringify(plan)});
+          } else {
+            window.__currentScriptPlan = ${JSON.stringify(plan)};
+            console.log('[PmheeAether Plan] Plan loaded:', ${JSON.stringify(plan.name)});
+          }
+        `;
+        
+        try {
+          await evalProfilePort(profile.debugPort, code, 5000);
+        } catch (e) {}
+
+        return sendJSON({ success: true, message: "Plan applied successfully", plan });
+      } catch (err) {
+        return sendJSON({ success: false, error: err.message }, 400);
+      }
+    });
+    return;
+  }
+
+  
+  // ==========================================
+  // PRESETS & PROFILE SAVE LIST API (CENTRAL PRESET LIBRARY)
+  // ==========================================
+
+  // GET /api/presets (List all presets)
+  if (req.method === "GET" && pathname === "/api/presets") {
+    return sendJSON({ success: true, presets: loadPresets() });
+  }
+
+  // GET /api/presets/export (Export all presets as downloadable JSON)
+  if (req.method === "GET" && pathname === "/api/presets/export") {
+    const presets = loadPresets();
+    res.writeHead(200, {
+      "Content-Type": "application/json; charset=utf-8",
+      "Content-Disposition": 'attachment; filename="aetheria_profiles_presets.json"'
+    });
+    return res.end(JSON.stringify(presets, null, 2));
+  }
+
+  // POST /api/presets (Create or update single preset)
+  if (req.method === "POST" && pathname === "/api/presets") {
+    let body = "";
+    req.on("data", chunk => body += chunk);
+    req.on("end", () => {
+      try {
+        const data = JSON.parse(body);
+        const presets = loadPresets();
+        const id = data.id || ("preset_" + Date.now());
+        const existingIdx = presets.findIndex(p => p.id === id);
+
+        // Sanitize auth config (strictly exclude username & password)
+        const safeCfg = Object.assign({}, data.config || {});
+        if (safeCfg.authConfig) {
+          safeCfg.authConfig = {
+            enabled: !!safeCfg.authConfig.enabled,
+            autoResumeBot: safeCfg.authConfig.autoResumeBot !== false,
+            charName: safeCfg.authConfig.charName || ''
+          };
+        }
+
+        const presetItem = {
+          id: id,
+          name: (data.name || "โปรไฟล์ส่วนกลาง").trim(),
+          description: data.description || "",
+          updatedAt: Date.now(),
+          createdAt: existingIdx >= 0 ? presets[existingIdx].createdAt : Date.now(),
+          config: safeCfg
+        };
+
+        if (existingIdx >= 0) {
+          presets[existingIdx] = presetItem;
+        } else {
+          presets.unshift(presetItem);
+        }
+        savePresets(presets);
+        return sendJSON({ success: true, preset: presetItem });
+      } catch (err) {
+        return sendJSON({ success: false, error: err.message }, 400);
+      }
+    });
+    return;
+  }
+
+  // POST /api/presets/import (Import 1 or multiple profiles/presets)
+  if (req.method === "POST" && pathname === "/api/presets/import") {
+    let body = "";
+    req.on("data", chunk => body += chunk);
+    req.on("end", () => {
+      try {
+        let payload = JSON.parse(body);
+        let itemsToImport = [];
+
+        if (Array.isArray(payload)) {
+          itemsToImport = payload;
+        } else if (Array.isArray(payload.presets)) {
+          itemsToImport = payload.presets;
+        } else if (payload.config) {
+          itemsToImport = [payload];
+        } else if (payload.sellConfig || payload.archerConfig) {
+          // Direct exported config object
+          itemsToImport = [{
+            name: payload.name || "โปรไฟล์นำเข้าส่วนกลาง",
+            description: payload.description || "นำเข้าจากการตั้งค่าเดี่ยว",
+            config: payload
+          }];
+        }
+
+        if (itemsToImport.length === 0) {
+          return sendJSON({ success: false, error: "ไม่พบข้อมูลโปรไฟล์ที่สามารถนำเข้าได้" }, 400);
+        }
+
+        const presets = loadPresets();
+        let importedCount = 0;
+
+        itemsToImport.forEach(item => {
+          const cfg = item.config || item;
+          // Sanitize
+          const safeCfg = Object.assign({}, cfg);
+          if (safeCfg.authConfig) {
+            safeCfg.authConfig = {
+              enabled: !!safeCfg.authConfig.enabled,
+              autoResumeBot: safeCfg.authConfig.autoResumeBot !== false,
+              charName: safeCfg.authConfig.charName || ''
+            };
+          }
+
+          const newPreset = {
+            id: "preset_" + Date.now() + "_" + Math.floor(Math.random() * 1000),
+            name: (item.name || payload.name || "โปรไฟล์นำเข้าส่วนกลาง").trim(),
+            description: item.description || "นำเข้าเมื่อ " + new Date().toLocaleString('th-TH'),
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            config: safeCfg
+          };
+          presets.unshift(newPreset);
+          importedCount++;
+        });
+
+        savePresets(presets);
+        return sendJSON({ success: true, count: importedCount, presets });
+      } catch (err) {
+        return sendJSON({ success: false, error: err.message }, 400);
+      }
+    });
+    return;
+  }
+
+  // DELETE /api/presets/:id (Delete preset)
+  if (req.method === "DELETE" && pathname.match(/^\/api\/presets\/[^/]+$/)) {
+    const id = pathname.split("/")[3];
+    let presets = loadPresets();
+    presets = presets.filter(p => p.id !== id);
+    savePresets(presets);
+    return sendJSON({ success: true });
+  }
+
+  // POST /api/presets/:id/apply (Copy to specified profiles)
+  if (req.method === "POST" && pathname.match(/^\/api\/presets\/[^/]+\/apply$/)) {
+    const id = pathname.split("/")[3];
+    let body = "";
+    req.on("data", chunk => body += chunk);
+    req.on("end", async () => {
+      try {
+        const data = JSON.parse(body);
+        const targetIds = Array.isArray(data.targetProfileIds) ? data.targetProfileIds : [];
+        const presets = loadPresets();
+        const preset = presets.find(p => p.id === id);
+        if (!preset) return sendJSON({ success: false, error: "Preset not found" }, 404);
+
+        const profiles = loadProfiles();
+        const appliedProfiles = [];
+        const failedProfiles = [];
+        const presetConfig = JSON.parse(JSON.stringify(preset.config || {}));
+        if (presetConfig.authConfig) {
+          delete presetConfig.authConfig.username;
+          delete presetConfig.authConfig.password;
+          delete presetConfig.authConfig.charName;
+        }
+
+        for (const pId of targetIds) {
+          const profile = profiles.find(p => p.id === pId);
+          if (!profile) continue;
+
+          // 1. Update targetMap in profile
+          if (preset.config?.targetMap) {
+            profile.targetMap = preset.config.targetMap;
+          }
+          // 2. Send importAllBotSettings to the running game (POST: the config is too long for a URL)
+          if (profile.debugPort) {
+            const codeToRun = `(() => {
+              if (typeof window.importAllBotSettings === 'function') {
+                try {
+                  if (typeof window.freeBotLocalStorageSpace === 'function') window.freeBotLocalStorageSpace(true);
+                  const s = Object.getPrototypeOf(window.localStorage);
+                  const len = window.localStorage.length;
+                  const drop = [];
+                  for (let i = 0; i < len; i++) {
+                    const k = s.key.call(window.localStorage, i);
+                    if (k && (k.startsWith('webgame.chat.') || k === 'pelican_item_catalog' || k === 'pelican_latest_inventory' || k === 'pelican_icon_manifest' || /__(?:icon_manifest|item_catalog|latest_inventory|packet_logs|last_weight)$/.test(k))) drop.push(k);
+                  }
+                  drop.forEach(k => s.removeItem.call(window.localStorage, k));
+                } catch (e) {}
+                const res = window.importAllBotSettings(${JSON.stringify(presetConfig)});
+                try {
+                  if (window.__planScriptEnabled && window.__currentScriptPlan && typeof window.planMapForNow === 'function') {
+                    localStorage.removeItem('pelican_plan_manual_map');
+                    const planMap = window.planMapForNow();
+                    if (planMap && !/เมืองหลวง|โซลเฮเวน|ตลาดคาราวาน/.test(window.__targetFarmMap || '')) {
+                      if (typeof window.setTargetFarmMap === 'function') window.setTargetFarmMap(planMap, Boolean(window.__isBotRunning));
+                      else window.__targetFarmMap = planMap;
+                    }
+                  }
+                } catch (e) {}
+                return Object.assign({}, res, { effectiveTargetMap: window.__targetFarmMap || null });
+              } else {
+                return { success: false, error: 'importAllBotSettings not ready' };
+              }
+            })()`;
+
+            const r = await evalProfilePort(profile.debugPort, codeToRun, 8000);
+            if (r && r.success && r.result && r.result.success) {
+              if (r.result.effectiveTargetMap && !/เมืองหลวง|โซลเฮเวน|ตลาดคาราวาน/.test(r.result.effectiveTargetMap)) {
+                profile.targetMap = r.result.effectiveTargetMap;
+              }
+              appliedProfiles.push(profile.name || profile.id);
+            }
+            else failedProfiles.push(`${profile.name || profile.id} (${(r && r.result && r.result.error) || (r && r.error) || 'จอออฟไลน์'})`);
+          } else {
+            failedProfiles.push(`${profile.name || profile.id} (จอออฟไลน์)`);
+          }
+        }
+
+        saveProfiles(profiles);
+        return sendJSON({
+          success: appliedProfiles.length > 0 || failedProfiles.length === 0,
+          appliedCount: appliedProfiles.length,
+          appliedProfiles: appliedProfiles,
+          failedProfiles,
+          message: `คัดลอกการตั้งค่า "${preset.name}" ไปยัง ${appliedProfiles.length} จอเรียบร้อยแล้ว`
+            + (failedProfiles.length ? `\n\n⚠️ ส่งไม่สำเร็จ ${failedProfiles.length} จอ (ต้องเปิดจอเกมไว้ก่อน):\n• ${failedProfiles.join('\n• ')}` : ''),
+          error: appliedProfiles.length ? undefined : `ส่งการตั้งค่าไม่สำเร็จ — ต้องเปิดจอเกมไว้ก่อน:\n• ${failedProfiles.join('\n• ')}`
+        });
+      } catch (err) {
+        return sendJSON({ success: false, error: err.message }, 400);
+      }
+    });
+    return;
+  }
+
+  // POST /api/profiles/:id/save-as-preset (Save current profile config as a preset)
+  if (req.method === "POST" && pathname.match(/^\/api\/profiles\/[^/]+\/save-as-preset$/)) {
+    const id = pathname.split("/")[3];
+    let body = "";
+    req.on("data", chunk => body += chunk);
+    req.on("end", async () => {
+      try {
+        const data = JSON.parse(body);
+        const profiles = loadProfiles();
+        const profile = profiles.find(p => p.id === id);
+        if (!profile) return sendJSON({ success: false, error: "Profile not found" }, 404);
+
+        // Read the client's real settings (POST eval, generous timeout). Never save made-up defaults:
+        // a preset with only a map and basic sell settings looked fine but copied nothing useful.
+        if (!profile.debugPort) return sendJSON({ success: false, error: `จอ "${profile.name}" ออฟไลน์ — เปิดจอเกมนี้ก่อนแล้วค่อยบันทึก` }, 400);
+        const r = await evalProfilePort(profile.debugPort, "typeof window.exportAllBotSettings === 'function' ? window.exportAllBotSettings() : null", 10000);
+        const finalConfig = r && r.success && r.result && r.result.data;
+        if (!finalConfig || typeof finalConfig !== 'object' || !finalConfig.sellConfig) {
+          return sendJSON({ success: false, error: `อ่านการตั้งค่าจากจอ "${profile.name}" ไม่สำเร็จ (${(r && r.error) || 'บอทยังโหลดไม่เสร็จ'}) — รอให้จอโหลดเสร็จแล้วลองใหม่` }, 502);
+        }
+
+        const presets = loadPresets();
+        const newPreset = {
+          id: "preset_" + Date.now(),
+          name: (data.name || (`เซฟจาก ${profile.name}`)).trim(),
+          description: data.description || (`ดึงการตั้งค่าจากโปรไฟล์ "${profile.name}" เมื่อ ` + new Date().toLocaleString('th-TH')),
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          config: finalConfig
+        };
+        presets.unshift(newPreset);
+        savePresets(presets);
+
+        return sendJSON({ success: true, preset: newPreset });
+      } catch (err) {
+        return sendJSON({ success: false, error: err.message }, 400);
+      }
+    });
+    return;
+  }
+
+  // ==========================================
+
+  // ==========================================
+  // ADMIN MANAGER FLEET API
+  // ==========================================
+
+  // GET /api/admin/peer-status — queried by other Managers on the network
+  if (req.method === "GET" && pathname === "/api/admin/peer-status") {
+    const allProfiles = loadProfiles();
+    const openProfiles = allProfiles.filter(p => browserMode.isOpen(p.id) || (runningProcesses[p.id] && isProcessAlive(runningProcesses[p.id].pid))).map(p => ({
+      id: p.id,
+      name: p.name,
+      charName: p.liveState?.charName || p.lastCharName || p.name,
+      baseLv: p.liveState?.baseLv || null,
+      jobLv: p.liveState?.jobLv || null,
+      currentMap: p.liveState?.currentMap || null,
+      status: p.liveState?.status || 'Online',
+      debugPort: p.debugPort
+    }));
+    return sendJSON({
+      success: true,
+      nickname: getEffectiveDeviceNickname(),
+      hostname: os.hostname(),
+      onlineCount: openProfiles.length,
+      profiles: openProfiles,
+      port: PORT,
+      timestamp: Date.now()
+    });
+  }
+
+  // POST /api/admin/remote-stop — executed when remote admin orders stop
+  if (req.method === "POST" && pathname === "/api/admin/remote-stop") {
+    let body = "";
+    req.on("data", c => body += c);
+    req.on("end", async () => {
+      try {
+        const payload = JSON.parse(body || "{}");
+        if (payload.mode === "single" && payload.profileId) {
+          await stopSingleProfile(payload.profileId);
+          return sendJSON({ success: true, stopped: payload.profileId });
+        }
+        await stopAllProfiles();
+        return sendJSON({ success: true, stopped: "all" });
+      } catch (err) {
+        return sendJSON({ success: false, error: err.message }, 500);
+      }
+    });
+    return;
+  }
+
+  // Serve or proxy game icon art assets
+  if (req.method === "GET" && pathname.startsWith("/art/icons/")) {
+    const rel = pathname.slice("/art/icons/".length);
+    const safeRel = path.normalize(rel).replace(/^(\.\.[\/\\])+/, "");
+    const localPath = path.join(__dirname, "data", "icons", safeRel);
+    if (fs.existsSync(localPath)) {
+      const ext = path.extname(localPath).toLowerCase();
+      res.writeHead(200, {
+        "Content-Type": ext === ".webp" ? "image/webp" : (ext === ".png" ? "image/png" : "application/octet-stream"),
+        "Cache-Control": "public, max-age=86400"
+      });
+      return fs.createReadStream(localPath).pipe(res);
+    }
+    const remoteUrl = "https://play.nightcamp.app/art/icons/" + safeRel.replace(/\\/g, "/");
+    https.get(remoteUrl, (pRes) => {
+      if (pRes.statusCode === 200) {
+        fs.mkdirSync(path.dirname(localPath), { recursive: true });
+        const fileStream = fs.createWriteStream(localPath);
+        pRes.pipe(fileStream);
+        res.writeHead(200, {
+          "Content-Type": pRes.headers["content-type"] || "image/webp",
+          "Cache-Control": "public, max-age=86400"
+        });
+        pRes.pipe(res);
+      } else {
+        res.writeHead(pRes.statusCode, { "Content-Type": "text/plain" });
+        res.end("Icon Not Found");
+      }
+    }).on("error", () => {
+      res.writeHead(502, { "Content-Type": "text/plain" });
+      res.end("Bad Gateway");
+    });
+    return;
+  }
+
+  // STATIC FILE SERVING
+  // ==========================================
+  if (res.headersSent || res.writableEnded) return;
+  let filePath = path.join(PUBLIC_DIR, pathname === "/" ? "index.html" : pathname);
+  if (!filePath.startsWith(PUBLIC_DIR + path.sep)) return sendJSON({ success: false }, 403);
+  const ext = path.extname(filePath).toLowerCase();
+
+  fs.stat(filePath, (err, stats) => {
+    if (res.headersSent || res.writableEnded) return;
+    if (err || !stats.isFile()) {
+      filePath = path.join(PUBLIC_DIR, "index.html");
+    }
+    const finalExt = path.extname(filePath).toLowerCase();
+    const contentType = mimeTypes[finalExt] || "application/octet-stream";
+
+    fs.readFile(filePath, (readErr, content) => {
+      if (res.headersSent || res.writableEnded) return;
+      if (readErr) {
+        res.writeHead(404, { "Content-Type": "text/plain" });
+        res.end("404 Not Found");
+      } else {
+        res.writeHead(200, {
+          "Content-Type": contentType,
+          "Cache-Control": "no-cache, no-store, must-revalidate",
+          "Pragma": "no-cache",
+          "Expires": "0"
+        });
+        res.end(content);
+      }
+    });
+  });
+});
+
+server.listen(PORT, "127.0.0.1", () => {
+  scriptCoordinator.start();
+  if (!TEST_INSTANCE || process.env.PMHEE_ENABLE_FLEET_WORKER === '1') remoteFleet.start();
+  if(!TEST_INSTANCE)botAutoUpdater.start();
+  if(!TEST_INSTANCE)managerUpdater.start();
+  planSync.start();
+  if(!TEST_INSTANCE)authSync.start();
+  if (!TEST_INSTANCE) {
+    syncScreenProxyForOpenProfiles().catch(() => {});
+  }
+  browserMode.start();
+  if (!TEST_INSTANCE) {
+    setTimeout(() => {
+      if (isBrowserMode() && typeof browserMode.syncAssetCacheToOpenWindows === "function") {
+        browserMode.syncAssetCacheToOpenWindows().catch(() => {});
+      }
+      syncScreenProxyForOpenProfiles().catch(() => {});
+    }, 3800);
+    setInterval(() => {
+      if (screenProxy.isEnabled()) {
+        syncScreenProxyForOpenProfiles().catch(() => {});
+      }
+    }, 60000);
+    setTimeout(() => syncStashTradeConfigToAllClients().catch(() => {}), 3500);
+    setInterval(() => syncStashTradeConfigToAllClients().catch(() => {}), 25000);
+  }
+  console.log(`========================================================`);
+  console.log(`🚀 [PmheeNightcamp Manager] Running on http://127.0.0.1:${PORT}`);
+  console.log(`📁 Sessions directory: ${SESSIONS_DIR}`);
+  console.log(`🎮 Game executable: ${getGameExe()}`);
+  console.log(`========================================================`);
+});
+server.once('close', () => { try { remoteFleet.stop(); } catch (_) {} });
