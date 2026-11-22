@@ -208,6 +208,7 @@ const READ_JS = `(() => {
   const domUser = (document.getElementById('p-auth-user')?.value || '').trim();
   const domPass = document.getElementById('p-auth-pass')?.value || '';
   const domChar = (document.getElementById('p-auth-char')?.value || '').trim();
+  const domSrv = (document.getElementById('p-auth-server')?.value || '').trim();
   if (domUser && !c.username) {
     c.username = domUser;
     c.userEditedAt = c.userEditedAt || Date.now();
@@ -226,7 +227,12 @@ const READ_JS = `(() => {
     c.charName = domChar;
     try { localStorage.setItem('pelican_auth_cfg', JSON.stringify(c)); } catch (_) {}
   }
+  if (domSrv && !c.serverName) {
+    c.serverName = domSrv;
+    try { localStorage.setItem('pelican_auth_cfg', JSON.stringify(c)); } catch (_) {}
+  }
   const inGame = Boolean(
+    window.NC?.OnlineLobby?.entered === true ||
     document.querySelector('.char-card:not(.empty)') ||
     (typeof window.getCurrentMapName === 'function' && window.getCurrentMapName() && window.getCurrentMapName() !== 'ไม่ทราบ') ||
     window.__charName
@@ -234,7 +240,8 @@ const READ_JS = `(() => {
   let charName = '';
   try {
     const live = typeof window.getLiveCharacterData === 'function' ? window.getLiveCharacterData() : null;
-    charName = String((live && (live.name || live.characterName)) || window.__charName || c.charName || '').trim();
+    const ncName = window.NC?.OnlineLobby?.entered ? (document.querySelector('#sq .hud [data-f="name"], #cname')?.textContent || '').trim() : '';
+    charName = String((live && (live.name || live.characterName)) || (ncName && ncName !== '…' ? ncName : '') || window.__charName || c.charName || '').trim();
   } catch (_) {}
   const activeEl = document.activeElement;
   const isEditingAuth = Boolean(
@@ -242,12 +249,16 @@ const READ_JS = `(() => {
       activeEl.id === 'p-auth-user' ||
       activeEl.id === 'p-auth-pass' ||
       activeEl.id === 'p-auth-char' ||
-      (typeof activeEl.closest === 'function' && activeEl.closest('form.login-form'))
+      activeEl.id === 'p-auth-server' ||
+      (typeof activeEl.closest === 'function' && (activeEl.closest('form.login-form') || activeEl.closest('#nightcamp-hud') || activeEl.closest('#sq [data-p="door"]')))
     )
   );
   return {
     username: String(c.username || '').trim(),
     password: String(c.password || ''),
+    serverName: String(c.serverName || '').trim(),
+    charNameCfg: String(c.charName || '').trim(),
+    autoResumeBot: !!c.autoResumeBot,
     enabled: !!c.enabled,
     register: !!c.register,
     registerDone: !!c.registerDone,
@@ -409,6 +420,13 @@ const pushJs = cfg => `(() => {
   if (c.enabled !== undefined) set('p-auth-enabled', c.enabled);
   set('p-auth-user', c.username || '');
   set('p-auth-pass', c.password || '');
+  if (c.serverName !== undefined) set('p-auth-server', c.serverName || '');
+  if (c.charName !== undefined) set('p-auth-char', c.charName || '');
+  if (c.autoResumeBot !== undefined) set('p-auth-resume', !!c.autoResumeBot);
+  window.__ncLastFailedAuthKey = '';
+  if (c.enabled && c.username && c.password && typeof window.executeAutoLogin === 'function') {
+    setTimeout(() => { try { window.executeAutoLogin(false).catch(() => {}); } catch (_) {} }, 200);
+  }
   return { success: true };
 })()`;
 
@@ -838,10 +856,12 @@ function createAuthSync({
         await evalProfilePort(profile.debugPort, pushQueueOverlayJs(null), 2000);
         lastPushedQueueDigest.delete(profile.id);
       }
-      if (cur.username !== profile.account || cur.password !== pw(profile) || profile.autoRegister || (profile.generatedAccount && !cur.generatedUser)) {
+      if (cur.username !== profile.account || cur.password !== pw(profile) || (cur.serverName && cur.serverName !== (profile.serverName || '')) || (cur.charNameCfg && cur.charNameCfg !== (profile.charName || '')) || profile.autoRegister || (profile.generatedAccount && !cur.generatedUser)) {
         credentials.setPassword(profile.id, cur.password);
         updateProfile(profile.id, {
           account: cur.username,
+          ...(cur.serverName ? { serverName: cur.serverName } : {}),
+          ...(cur.charNameCfg ? { charName: cur.charNameCfg } : {}),
           autoRegister: false,
           generatedAccount: !!cur.generatedUser,
           registerError: '',
@@ -988,12 +1008,23 @@ function createAuthSync({
     }
 
     // Only push Manager credentials to the client when Manager actually has both account and password
-    if (profile.account && pw(profile) && (profile.loginSyncPending || cur.username !== profile.account || cur.password !== pw(profile))) {
+    if (profile.account && pw(profile) && (
+      profile.loginSyncPending ||
+      cur.username !== profile.account ||
+      cur.password !== pw(profile) ||
+      (profile.serverName !== undefined && cur.serverName !== (profile.serverName || '')) ||
+      (profile.charName !== undefined && cur.charNameCfg !== (profile.charName || '')) ||
+      (profile.autoLoginEnabled !== undefined && cur.enabled !== (profile.autoLoginEnabled !== false)) ||
+      (profile.autoResumeBot !== undefined && cur.autoResumeBot !== Boolean(profile.autoResumeBot))
+    )) {
       const delivered = await evalProfilePort(profile.debugPort, pushJs({
-        enabled: true,
-        preserveUserToggle: !profile.loginSyncPending,
+        enabled: profile.autoLoginEnabled !== false,
+        preserveUserToggle: !profile.loginSyncPending && profile.autoLoginEnabled === undefined,
         username: profile.account,
         password: pw(profile),
+        serverName: profile.serverName || '',
+        charName: profile.charName || '',
+        autoResumeBot: Boolean(profile.autoResumeBot),
         register: false,
         generatedUser: !!profile.generatedAccount,
         ...(profile.loginSyncPending ? { registerDone: true, autoCreateChar: true, autoResumeBot: true } : {})

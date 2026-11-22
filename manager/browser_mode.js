@@ -658,7 +658,7 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
   }
   function isProtectedProfileStorageKey(k) {
     if (!k || typeof k !== 'string') return false;
-    return k.endsWith('__auth_cfg') || k.endsWith('__sell_cfg') || k.endsWith('__aetheria_device') || k.endsWith('__aetheria_machine') || k === '__ss:aetheria.session';
+    return k.endsWith('__auth_cfg') || k.endsWith('__sell_cfg') || k.endsWith('__aetheria_device') || k.endsWith('__aetheria_machine') || k.indexOf('__nc__nightcamp.online.') !== -1 || k === '__ss:aetheria.session';
   }
   function saveProfileStorage(profileId, entries, opts = {}) {
     if (!storageDir || !profileId || !entries || typeof entries !== 'object') return;
@@ -2161,7 +2161,7 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
       saved[`pelican_${profileId}__aetheria_machine`] = machineId;
     }
     const orderedSaved = {};
-    const isPriorityStorageKey = k => k.endsWith('_cfg') || k.endsWith('_config') || k.endsWith('__script_plan') || k.endsWith('__plan_script_enabled') || k.endsWith('__auto_loop') || k.endsWith('__farm_map') || k.endsWith('__target_map') || k.endsWith('__aetheria_device') || k.endsWith('__aetheria_machine') || k.startsWith('__ss:');
+    const isPriorityStorageKey = k => k.endsWith('_cfg') || k.endsWith('_config') || k.endsWith('__script_plan') || k.endsWith('__plan_script_enabled') || k.endsWith('__auto_loop') || k.endsWith('__farm_map') || k.endsWith('__target_map') || k.endsWith('__aetheria_device') || k.endsWith('__aetheria_machine') || k.indexOf('__nc__') !== -1 || k.startsWith('__ss:');
     for (const [k, v] of Object.entries(saved)) {
       if (isPriorityStorageKey(k)) orderedSaved[k] = v;
     }
@@ -2392,6 +2392,9 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
           const pfx = 'pelican_' + pid + '__';
           if (k === 'aetheria.device') return pfx + 'aetheria_device';
           if (k === 'aetheria.machine') return pfx + 'aetheria_machine';
+          if (k === 'nightcamp.uid' || k === 'nightcamp.online.server' || k === 'nightcamp.online.lastPlayed' || k.startsWith('nightcamp.online.acct:') || k.startsWith('nightcamp.online.heroes:')) {
+            return pfx + 'nc__' + k;
+          }
           if (k.startsWith('pelican_') && !k.startsWith(pfx) && k.indexOf('__') === -1 && k !== 'pelican_icon_manifest' && k !== 'pelican_item_catalog') {
             return pfx + k.slice(8);
           }
@@ -2403,6 +2406,9 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
             if (window.__pmDeviceId && (k === 'aetheria.device' || (pid && k === 'pelican_' + pid + '__aetheria_device'))) {
               return window.__pmDeviceId;
             }
+            if (window.__pmDeviceId && k === 'nightcamp.online.device') {
+              return JSON.stringify(String(window.__pmDeviceId).split('-').join(''));
+            }
             if (window.__pmMachineId && (k === 'aetheria.machine' || (pid && k === 'pelican_' + pid + '__aetheria_machine'))) {
               return window.__pmMachineId;
             }
@@ -2412,6 +2418,9 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
         __sp.setItem = function(k, v) {
           const pid = __getPid();
           if (this === window.localStorage && pid) {
+            if (k === 'nightcamp.online.device') {
+              return;
+            }
             if (!__isTransientStorageKey(k)) {
               window.__pmStorageDirtyAt = Date.now();
             }

@@ -375,6 +375,8 @@ const formMap = document.getElementById("form-map");
 const formPort = document.getElementById("form-port");
 const formNotes = document.getElementById("form-notes");
 const formPassword = document.getElementById("form-password");
+const formServer = document.getElementById("form-server");
+const formChar = document.getElementById("form-char");
 const formAuthHint = document.getElementById("form-auth-hint");
 const formPasswordEye = document.getElementById("form-password-eye");
 if (formPasswordEye && formPassword) formPasswordEye.onclick = () => { formPassword.type = formPassword.type === 'password' ? 'text' : 'password'; };
@@ -7949,14 +7951,30 @@ function formatNightcampLevelLine(state, profile) {
   return cls;
 }
 
+function renderNightcampServerOptions(selectedServer) {
+  const cur = String(selectedServer || '');
+  const opts = [
+    { value: '', label: '🌐 อัตโนมัติ (เซิร์ฟแรกที่ว่าง)' },
+    { value: 'Nightfall', label: 'Nightfall' },
+    { value: 'Moonlight', label: 'Moonlight' },
+    { value: 'Stardust', label: 'Stardust' },
+    { value: 'Sunflare', label: 'Sunflare' }
+  ];
+  return opts.map(o => `<option value="${escapeHTML(o.value)}"${o.value === cur ? ' selected' : ''}>${escapeHTML(o.label)}</option>`).join('');
+}
+
 function getNightcampHudTemplate(profileId, clientData, profile) {
   const isCentral = (profileId === '__central__');
   const onlineCount = currentProfiles.filter(p => p.isRunning).length;
   const runningBots = currentProfiles.filter(p => p.isRunning && p.liveState?.isBotRunning).length;
   const state = clientData?.state || (profile?.isRunning ? profile?.liveState : null) || {};
   const auth = clientData?.authConfig || {};
-  const savedUser = auth.username || profile?.account || '';
-  const savedPass = auth.password || profile?.loginPassword || '';
+  const savedEnabled = (auth.enabled !== undefined) ? !!auth.enabled : (profile?.autoLoginEnabled !== false);
+  const savedServer = (auth.serverName !== undefined) ? String(auth.serverName || '') : String(profile?.serverName || '');
+  const savedUser = (auth.username !== undefined) ? String(auth.username || '') : String(profile?.account || '');
+  const savedPass = (auth.password !== undefined) ? String(auth.password || '') : String(profile?.loginPassword || '');
+  const savedChar = (auth.charName !== undefined) ? String(auth.charName || '') : String(profile?.charName || '');
+  const savedResume = (auth.autoResumeBot !== undefined) ? !!auth.autoResumeBot : Boolean(profile?.autoResumeBot);
   const isOnline = isCentral ? onlineCount > 0 : Boolean(profile?.isRunning);
   const isBotRunning = Boolean(clientData?.isBotRunning ?? state?.isBotRunning);
   const isZeroRender = Boolean(state?.zeroRender ?? profile?.windowState?.isHidden);
@@ -7972,6 +7990,7 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
   const spText = (typeof state?.sp === 'number')
     ? `${state.sp.toLocaleString()} / ${(state.spMax || state.sp).toLocaleString()}`
     : '-- / --';
+  const authStatusText = state?.authStatus || (savedEnabled ? (savedServer ? `Auto-Login: พร้อม (${savedServer})` : 'Auto-Login: พร้อมใช้งาน') : 'Auto-Login: ปิดใช้งาน');
 
   return `
 <div class="p-header" id="pelican-drag-handle" style="flex-direction: column; align-items: stretch; gap: 5px; ${isCentral ? 'background: linear-gradient(135deg, #78350f 0%, #451a03 100%); border-bottom: 1px solid rgba(250, 204, 21, 0.45);' : 'background: linear-gradient(135deg, rgba(14, 116, 144, 0.45), rgba(15, 23, 42, 0.95));'}">
@@ -7992,69 +8011,120 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
 </div>
 
 <div class="p-body" id="pelican-content" style="display:flex; flex-direction:column; gap:8px; padding:10px; max-height:76vh; overflow-y:auto;">
-  ${isCentral ? `
-  <div style="background: rgba(250, 204, 21, 0.12); border: 1px solid rgba(250, 204, 21, 0.35); color: #fde68a; padding: 6px 8px; border-radius: 6px; font-size: 10px; line-height: 1.45;">
-    🎛️ <b>เมนูส่วนกลาง Nightcamp:</b> สั่งเริ่ม/หยุดบอท พักกราฟิกทุกจอ หรือ Inspect Runtime ได้จากหน้าต่างนี้
-  </div>
-  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
-    <button type="button" class="p-btn" id="p-btn-central-start-bot" style="margin: 0; font-size: 11px; padding: 8px 6px; font-weight: bold; border-radius: 6px; background: linear-gradient(135deg, #16a34a, #15803d); color: #fff; border: 1px solid #4ade80; cursor: pointer;">▶️ เริ่มบอททุกจอ</button>
-    <button type="button" class="p-btn" id="p-btn-central-stop-bot" style="margin: 0; font-size: 11px; padding: 8px 6px; font-weight: bold; border-radius: 6px; background: linear-gradient(135deg, #dc2626, #b91c1c); color: #fff; border: 1px solid #f87171; cursor: pointer;">⏹️ หยุดบอททุกจอ</button>
-  </div>
-  <button type="button" class="p-btn" id="p-btn-central-zero-render" style="margin: 0; width: 100%; font-size: 11px; padding: 7px 8px; font-weight: bold; border-radius: 6px; background: rgba(56, 189, 248, 0.16); color: #7dd3fc; border: 1px solid rgba(56, 189, 248, 0.45); cursor: pointer;">⚡ สลับพักกราฟิกทุกจอ (Zero-Render)</button>
-  ` : `
-  <div style="background: rgba(2, 6, 23, 0.55); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 7px; padding: 7px 9px; display:flex; flex-direction:column; gap:4px; font-size:10.5px;">
-    <div style="display:flex; justify-content:space-between; gap:6px;">
-      <span style="color:#94a3b8;">อาชีพ/เลเวล:</span>
-      <b id="p-nc-class-lv" style="color:#7dd3fc;">${escapeHTML(lvLine)}</b>
-    </div>
-    <div style="display:flex; justify-content:space-between; gap:6px;">
-      <span style="color:#94a3b8;">สถานะบอท:</span>
-      <b id="p-char-state" style="color:${isBotRunning ? '#4ade80' : '#facc15'};">${escapeHTML(state?.botStatus || (isOnline ? (isBotRunning ? '⚔️ บอทกำลังทำงาน' : '⏸️ ยืนรอ / แสตนด์บาย') : '⚫ ออฟไลน์'))}</b>
-    </div>
-    <div style="display:flex; justify-content:space-between; gap:6px; border-top:1px solid rgba(255,255,255,0.06); padding-top:4px;">
-      <span style="color:#fca5a5;">HP: <b id="p-nc-hp">${escapeHTML(hpText)}</b></span>
-      <span style="color:#93c5fd;">SP: <b id="p-nc-sp">${escapeHTML(spText)}</b></span>
-    </div>
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px; background:rgba(2, 6, 23, 0.65); border:1px solid rgba(148, 163, 184, 0.22); border-radius:7px; padding:3px;">
+    <button type="button" id="p-nc-tab-bot" style="padding:6px 8px; border:0; border-radius:5px; font-size:11px; font-weight:700; cursor:pointer; background:rgba(14, 165, 233, 0.24); color:#38bdf8;">🚀 บอท</button>
+    <button type="button" id="p-nc-tab-settings" style="padding:6px 8px; border:0; border-radius:5px; font-size:11px; font-weight:700; cursor:pointer; background:transparent; color:#94a3b8;">⚙️ ตั้งค่า</button>
   </div>
 
-  <button type="button" class="p-btn" id="p-btn-toggle-bot" ${isOnline ? '' : 'disabled'} style="width: 100%; font-size: 12px; padding: 8px 10px; font-weight: bold; border-radius: 6px; cursor: ${isOnline ? 'pointer' : 'not-allowed'}; opacity: ${isOnline ? '1' : '0.55'};">${isBotRunning ? '⏹️ STOP BOT (หยุดทำงาน)' : '▶️ START BOT (เริ่มทำงาน)'}</button>
-
-  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
-    <button type="button" class="p-btn" id="p-btn-nc-zerorender" style="margin:0; font-size:10.5px; padding:6px; border-radius:6px; background:rgba(34,197,94,0.14); border:1px solid rgba(52,211,153,0.4); color:#6ee7b7; font-weight:700; cursor:pointer;">${isZeroRender ? '🖥️ แสดงภาพปกติ' : '⚡ พักกราฟิก'}</button>
-    <button type="button" class="p-btn" id="p-btn-nc-focus" style="margin:0; font-size:10.5px; padding:6px; border-radius:6px; background:rgba(56,189,248,0.14); border:1px solid rgba(56,189,248,0.4); color:#7dd3fc; font-weight:700; cursor:pointer;">🔝 ดึงจอขึ้นบนสุด</button>
-    <button type="button" class="p-btn" id="p-btn-nc-reload" style="margin:0; font-size:10.5px; padding:6px; border-radius:6px; background:rgba(245,158,11,0.14); border:1px solid rgba(251,191,36,0.4); color:#fde68a; font-weight:700; cursor:pointer;">🔄 รีเฟรชจอเกม</button>
-    <button type="button" class="p-btn" id="p-btn-nc-edit" style="margin:0; font-size:10.5px; padding:6px; border-radius:6px; background:rgba(148,163,184,0.14); border:1px solid rgba(148,163,184,0.35); color:#e2e8f0; font-weight:700; cursor:pointer;">⚙️ แก้ไขโปรไฟล์</button>
-  </div>
-
-  <div class="p-card" style="border: 1px solid rgba(168, 85, 247, 0.35); background: rgba(15, 23, 42, 0.72); border-radius: 7px; padding: 8px; display:flex; flex-direction:column; gap:6px;">
-    <div style="display:flex; justify-content:space-between; align-items:center;">
-      <span style="font-size:10.5px; font-weight:700; color:#d8b4fe;">🔐 Auto-Login ประจำจอ</span>
-      <label style="display:flex; align-items:center; gap:4px; font-size:10px; color:#cbd5e1; cursor:pointer;">
-        <input type="checkbox" id="p-auth-enabled" ${auth.enabled !== false ? 'checked' : ''}>
-        <span>ใช้งาน</span>
-      </label>
+  <div id="p-nc-pane-bot" style="display:flex; flex-direction:column; gap:8px;">
+    ${isCentral ? `
+    <div style="background: rgba(250, 204, 21, 0.12); border: 1px solid rgba(250, 204, 21, 0.35); color: #fde68a; padding: 6px 8px; border-radius: 6px; font-size: 10px; line-height: 1.45;">
+      🎛️ <b>เมนูส่วนกลาง Nightcamp:</b> สั่งเริ่ม/หยุดบอท พักกราฟิกทุกจอ หรือเข้าแท็บ ⚙️ ตั้งค่า เพื่อเลือก Server / สั่ง Auto-Login ทุกจอได้
     </div>
-    <div style="display:flex; align-items:center; justify-content:space-between; gap:6px;">
-      <span style="font-size:10px; color:#94a3b8; white-space:nowrap;">ID / Email:</span>
-      <input type="text" id="p-auth-user" value="${escapeHTML(savedUser)}" placeholder="ไอดีหรืออีเมล" autocomplete="off" style="flex:1; min-width:0; background:#020617; border:1px solid rgba(192,132,252,0.45); color:#fff; border-radius:4px; font-size:10.5px; padding:4px 6px;">
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+      <button type="button" class="p-btn" id="p-btn-central-start-bot" style="margin: 0; font-size: 11px; padding: 8px 6px; font-weight: bold; border-radius: 6px; background: linear-gradient(135deg, #16a34a, #15803d); color: #fff; border: 1px solid #4ade80; cursor: pointer;">▶️ เริ่มบอททุกจอ</button>
+      <button type="button" class="p-btn" id="p-btn-central-stop-bot" style="margin: 0; font-size: 11px; padding: 8px 6px; font-weight: bold; border-radius: 6px; background: linear-gradient(135deg, #dc2626, #b91c1c); color: #fff; border: 1px solid #f87171; cursor: pointer;">⏹️ หยุดบอททุกจอ</button>
     </div>
-    <div style="display:flex; align-items:center; justify-content:space-between; gap:6px;">
-      <span style="font-size:10px; color:#94a3b8; white-space:nowrap;">Password:</span>
-      <div style="display:flex; align-items:center; gap:3px; flex:1; min-width:0;">
-        <input type="text" id="p-auth-pass" value="${escapeHTML(savedPass)}" placeholder="เว้นว่าง = ไม่มีรหัส" autocomplete="off" style="flex:1; min-width:0; background:#020617; border:1px solid rgba(192,132,252,0.45); color:#fff; border-radius:4px; font-size:10.5px; padding:4px 6px;">
-        <button type="button" id="p-auth-toggle-pass" style="background:rgba(15,23,42,0.9); border:1px solid #475569; color:#cbd5e1; border-radius:4px; font-size:10px; padding:3px 6px; cursor:pointer;" title="แสดง/ซ่อนรหัสผ่าน">👁</button>
+    <button type="button" class="p-btn" id="p-btn-central-zero-render" style="margin: 0; width: 100%; font-size: 11px; padding: 7px 8px; font-weight: bold; border-radius: 6px; background: rgba(56, 189, 248, 0.16); color: #7dd3fc; border: 1px solid rgba(56, 189, 248, 0.45); cursor: pointer;">⚡ สลับพักกราฟิกทุกจอ (Zero-Render)</button>
+    ` : `
+    <div style="background: rgba(2, 6, 23, 0.55); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 7px; padding: 7px 9px; display:flex; flex-direction:column; gap:4px; font-size:10.5px;">
+      <div style="display:flex; justify-content:space-between; gap:6px;">
+        <span style="color:#94a3b8;">อาชีพ/เลเวล:</span>
+        <b id="p-nc-class-lv" style="color:#7dd3fc;">${escapeHTML(lvLine)}</b>
+      </div>
+      <div style="display:flex; justify-content:space-between; gap:6px;">
+        <span style="color:#94a3b8;">สถานะบอท:</span>
+        <b id="p-char-state" style="color:${isBotRunning ? '#4ade80' : '#facc15'};">${escapeHTML(state?.botStatus || (isOnline ? (isBotRunning ? '⚔️ บอทกำลังทำงาน' : '⏸️ ยืนรอ / แสตนด์บาย') : '⚫ ออฟไลน์'))}</b>
+      </div>
+      <div style="display:flex; justify-content:space-between; gap:6px;">
+        <span style="color:#94a3b8;">Auto-Login:</span>
+        <b id="p-nc-auth-status" style="color:#c4b5fd;">${escapeHTML(authStatusText)}</b>
+      </div>
+      <div style="display:flex; justify-content:space-between; gap:6px; border-top:1px solid rgba(255,255,255,0.06); padding-top:4px;">
+        <span style="color:#fca5a5;">HP: <b id="p-nc-hp">${escapeHTML(hpText)}</b></span>
+        <span style="color:#93c5fd;">SP: <b id="p-nc-sp">${escapeHTML(spText)}</b></span>
       </div>
     </div>
-    <button type="button" class="p-btn" id="p-btn-nc-save-auth" style="width:100%; margin-top:2px; background:linear-gradient(135deg,#7c3aed,#6d28d9); border:1px solid #a855f7; color:#fff; font-size:10.5px; font-weight:700; padding:6px; border-radius:5px; cursor:pointer;">💾 บันทึก ID / Password ประจำจอ</button>
-  </div>
-  `}
 
-  <div class="p-card" style="border: 1px solid rgba(56, 189, 248, 0.32); background: rgba(2, 6, 23, 0.65); border-radius: 7px; padding: 8px; display:flex; flex-direction:column; gap:6px;">
-    <div style="display:flex; justify-content:space-between; align-items:center;">
-      <span style="font-size:10.5px; font-weight:700; color:#7dd3fc;">🔍 Nightcamp Runtime Debug</span>
+    <button type="button" class="p-btn" id="p-btn-toggle-bot" ${isOnline ? '' : 'disabled'} style="width: 100%; font-size: 12px; padding: 8px 10px; font-weight: bold; border-radius: 6px; cursor: ${isOnline ? 'pointer' : 'not-allowed'}; opacity: ${isOnline ? '1' : '0.55'};">${isBotRunning ? '⏹️ STOP BOT (หยุดทำงาน)' : '▶️ START BOT (เริ่มทำงาน)'}</button>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+      <button type="button" class="p-btn" id="p-btn-nc-zerorender" style="margin:0; font-size:10.5px; padding:6px; border-radius:6px; background:rgba(34,197,94,0.14); border:1px solid rgba(52,211,153,0.4); color:#6ee7b7; font-weight:700; cursor:pointer;">${isZeroRender ? '🖥️ แสดงภาพปกติ' : '⚡ พักกราฟิก'}</button>
+      <button type="button" class="p-btn" id="p-btn-nc-focus" style="margin:0; font-size:10.5px; padding:6px; border-radius:6px; background:rgba(56,189,248,0.14); border:1px solid rgba(56,189,248,0.4); color:#7dd3fc; font-weight:700; cursor:pointer;">🔝 ดึงจอขึ้นบนสุด</button>
+      <button type="button" class="p-btn" id="p-btn-nc-reload" style="margin:0; font-size:10.5px; padding:6px; border-radius:6px; background:rgba(245,158,11,0.14); border:1px solid rgba(251,191,36,0.4); color:#fde68a; font-weight:700; cursor:pointer;">🔄 รีเฟรชจอเกม</button>
+      <button type="button" class="p-btn" id="p-btn-nc-edit" style="margin:0; font-size:10.5px; padding:6px; border-radius:6px; background:rgba(148,163,184,0.14); border:1px solid rgba(148,163,184,0.35); color:#e2e8f0; font-weight:700; cursor:pointer;">⚙️ แก้ไขโปรไฟล์</button>
     </div>
-    <button type="button" class="p-btn" id="p-btn-nc-inspect" style="width:100%; background:#0284c7; border:1px solid #38bdf8; color:#fff; font-size:10.5px; font-weight:700; padding:6px; border-radius:5px; cursor:pointer;">🔍 Inspect Runtime ในจอเกม</button>
-    <pre id="p-nc-inspect-out" style="margin:0; padding:6px; background:#060a14; border:1px solid rgba(148,163,184,0.2); border-radius:5px; color:#cbd5e1; font-family:var(--font-mono,monospace); font-size:9.5px; line-height:1.35; max-height:140px; overflow:auto; white-space:pre-wrap; word-break:break-word;">กดปุ่มด้านบนเพื่อดูโครงสร้าง WebSocket / Canvas / UI ของจอเกม</pre>
+    `}
+
+    <div class="p-card" style="border: 1px solid rgba(56, 189, 248, 0.32); background: rgba(2, 6, 23, 0.65); border-radius: 7px; padding: 8px; display:flex; flex-direction:column; gap:6px;">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <span style="font-size:10.5px; font-weight:700; color:#7dd3fc;">🔍 Nightcamp Runtime Debug</span>
+      </div>
+      <button type="button" class="p-btn" id="p-btn-nc-inspect" style="width:100%; background:#0284c7; border:1px solid #38bdf8; color:#fff; font-size:10.5px; font-weight:700; padding:6px; border-radius:5px; cursor:pointer;">🔍 Inspect Runtime ในจอเกม</button>
+      <pre id="p-nc-inspect-out" style="margin:0; padding:6px; background:#060a14; border:1px solid rgba(148,163,184,0.2); border-radius:5px; color:#cbd5e1; font-family:var(--font-mono,monospace); font-size:9.5px; line-height:1.35; max-height:140px; overflow:auto; white-space:pre-wrap; word-break:break-word;">กดปุ่มด้านบนเพื่อดูโครงสร้าง WebSocket / Canvas / UI ของจอเกม</pre>
+    </div>
+  </div>
+
+  <div id="p-nc-pane-settings" style="display:none; flex-direction:column; gap:8px;">
+    ${isCentral ? `
+    <div class="p-card" style="border: 1px solid rgba(168, 85, 247, 0.55); background: rgba(30, 17, 56, 0.62); border-radius: 8px; padding: 10px; display:flex; flex-direction:column; gap:8px;">
+      <label style="display:flex; align-items:center; gap:7px; font-size:11.5px; font-weight:700; color:#e9d5ff; cursor:pointer;">
+        <input type="checkbox" id="p-central-auth-enabled" checked style="accent-color:#a855f7;">
+        <span>🔐 เปิดระบบ Auto-Login ทุกจอที่ออนไลน์</span>
+      </label>
+      <div style="font-size:10px; color:#cbd5e1; line-height:1.45;">
+        กำหนด Server และ Auto-Resume ให้ทุกจอที่เปิดอยู่พร้อมกัน (แต่ยังคงใช้ ID / PS / ตัวละคร แยกตามแต่ละโปรไฟล์)
+      </div>
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+        <span style="font-size:10.5px; color:#e2e8f0; white-space:nowrap;">เลือก Server:</span>
+        <select id="p-central-auth-server" style="flex:1; min-width:0; background:#090d16; border:1px solid rgba(192,132,252,0.5); color:#fff; border-radius:5px; font-size:11px; padding:5px 7px;">
+          ${renderNightcampServerOptions('')}
+        </select>
+      </div>
+      <label style="display:flex; align-items:center; gap:6px; font-size:10.5px; color:#4ade80; cursor:pointer;">
+        <input type="checkbox" id="p-central-auth-resume" style="accent-color:#22c55e;">
+        <span>เริ่มทำงานบอทต่อทันทีเมื่อ Login สำเร็จ (Auto-Resume)</span>
+      </label>
+      <button type="button" class="p-btn" id="p-btn-central-apply-auth" style="width:100%; background:#6d28d9; border:1px solid #a855f7; color:#fff; font-size:11px; font-weight:700; padding:7px; border-radius:6px; cursor:pointer;">💾 บันทึกการตั้งค่าไปยังทุกจอที่ออนไลน์</button>
+      <button type="button" class="p-btn" id="p-btn-central-test-login" style="width:100%; background:linear-gradient(135deg,#9333ea,#7e22ce); border:1px solid #c084fc; color:#fff; font-size:11px; font-weight:700; padding:8px; border-radius:6px; cursor:pointer;">🔑 ทดสอบเข้าสู่ระบบทันทีทุกจอ (Test Login)</button>
+    </div>
+    ` : `
+    <div class="p-card" style="border: 1px solid rgba(168, 85, 247, 0.55); background: rgba(30, 17, 56, 0.62); border-radius: 8px; padding: 10px; display:flex; flex-direction:column; gap:7px;">
+      <label style="display:flex; align-items:center; gap:7px; font-size:11.5px; font-weight:700; color:#e9d5ff; cursor:pointer;">
+        <input type="checkbox" id="p-auth-enabled" ${savedEnabled ? 'checked' : ''} style="accent-color:#a855f7;">
+        <span>🔐 เปิดระบบ Auto-Login (เข้าเกมอัตโนมัติ)</span>
+      </label>
+      <div style="font-size:10px; color:#cbd5e1; line-height:1.45;">
+        เมื่อเกมหลุดหรือเด้งไปหน้าเลือกเซิร์ฟ/Login บอทจะเลือก Server, กรอก ID/PS และเลือกตัวละครเข้าเกมให้อัตโนมัติ
+      </div>
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+        <span style="font-size:10.5px; color:#e2e8f0; white-space:nowrap;">เลือก Server:</span>
+        <select id="p-auth-server" style="flex:1; min-width:0; background:#090d16; border:1px solid rgba(192,132,252,0.5); color:#fff; border-radius:5px; font-size:11px; padding:5px 7px;">
+          ${renderNightcampServerOptions(savedServer)}
+        </select>
+      </div>
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+        <span style="font-size:10.5px; color:#e2e8f0; white-space:nowrap;">ชื่อผู้ใช้ (ID):</span>
+        <input type="text" id="p-auth-user" value="${escapeHTML(savedUser)}" placeholder="Email หรือ Username" autocomplete="off" style="flex:1; min-width:0; background:#090d16; border:1px solid rgba(192,132,252,0.5); color:#fff; border-radius:5px; font-size:11px; padding:5px 7px;">
+      </div>
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+        <span style="font-size:10.5px; color:#e2e8f0; white-space:nowrap;">รหัสผ่าน (PS):</span>
+        <div style="display:flex; align-items:center; gap:4px; flex:1; min-width:0;">
+          <input type="text" id="p-auth-pass" value="${escapeHTML(savedPass)}" placeholder="รหัสผ่าน (เว้นว่าง = ไม่มีรหัส)" autocomplete="off" style="flex:1; min-width:0; background:#090d16; border:1px solid rgba(192,132,252,0.5); color:#fff; border-radius:5px; font-size:11px; padding:5px 7px;">
+          <button type="button" id="p-auth-toggle-pass" style="background:#0f172a; border:1px solid #64748b; color:#cbd5e1; border-radius:5px; font-size:11px; padding:4px 7px; cursor:pointer;" title="แสดง/ซ่อนรหัสผ่าน">👁</button>
+        </div>
+      </div>
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+        <span style="font-size:10.5px; color:#e2e8f0; white-space:nowrap;">เลือกตัวละคร (Char):</span>
+        <input type="text" id="p-auth-char" value="${escapeHTML(savedChar)}" placeholder="ชื่อตัวละคร (เว้นว่าง = ตัวแรก)" autocomplete="off" style="flex:1; min-width:0; background:#090d16; border:1px solid rgba(192,132,252,0.5); color:#fff; border-radius:5px; font-size:11px; padding:5px 7px;">
+      </div>
+      <label style="display:flex; align-items:center; gap:6px; font-size:10px; color:#4ade80; cursor:pointer;">
+        <input type="checkbox" id="p-auth-resume" ${savedResume ? 'checked' : ''} style="accent-color:#22c55e;">
+        <span>เริ่มทำงานบอทต่อทันทีเมื่อ Login สำเร็จ (Auto-Resume)</span>
+      </label>
+      <button type="button" class="p-btn" id="p-btn-test-login" style="width:100%; margin-top:2px; background:linear-gradient(135deg,#9333ea,#7e22ce); border:1px solid #c084fc; color:#fff; font-size:11px; font-weight:700; padding:8px; border-radius:6px; cursor:pointer;">🔑 ทดสอบเข้าสู่ระบบทันที (Test Login)</button>
+    </div>
+    `}
   </div>
 </div>
 `;
@@ -8072,6 +8142,146 @@ document.addEventListener('DOMContentLoaded', () => {
 if (document.readyState !== 'loading') {
   const centralBtn = document.getElementById('btn-open-central-bot-menu');
   if (centralBtn) centralBtn.onclick = () => openCentralBotHUD();
+}
+
+async function saveWebHudAuthSettings(profileId, hudEl, { triggerNow = false, silent = false, btn = null } = {}) {
+  const hudObj = activeWebHuds[profileId];
+  const curProf = currentProfiles.find(p => p.id === profileId) || hudObj?.profile;
+  if (!curProf || !hudEl) return false;
+  const enabled = Boolean(hudEl.querySelector('#p-auth-enabled')?.checked);
+  const serverName = String(hudEl.querySelector('#p-auth-server')?.value || '').trim();
+  const username = String(hudEl.querySelector('#p-auth-user')?.value || '').trim();
+  const password = String(hudEl.querySelector('#p-auth-pass')?.value || '').trim();
+  const charName = String(hudEl.querySelector('#p-auth-char')?.value || '').trim();
+  const autoResumeBot = Boolean(hudEl.querySelector('#p-auth-resume')?.checked);
+
+  if (hudObj) hudObj.savingAuth = true;
+  const origText = btn ? btn.innerText : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerText = triggerNow ? '⏳ กำลังสั่ง Login...' : '⏳ กำลังบันทึก...';
+  }
+  try {
+    const res = await fetch(`${API_BASE}/api/profiles/${profileId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: curProf.name,
+        account: username,
+        loginPassword: password,
+        serverName,
+        charName,
+        autoLoginEnabled: enabled,
+        autoResumeBot,
+        debugPort: curProf.debugPort,
+        autoRegister: !username && !password
+      })
+    });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok || j.success === false) {
+      showToast('❌ ' + (j.error || 'บันทึกการตั้งค่า Auto-Login ไม่สำเร็จ'), 'error');
+      return false;
+    }
+
+    Object.assign(curProf, {
+      account: username,
+      loginPassword: password,
+      serverName,
+      charName,
+      autoLoginEnabled: enabled,
+      autoResumeBot
+    });
+    if (hudObj?.data?.authConfig) {
+      Object.assign(hudObj.data.authConfig, {
+        enabled,
+        serverName,
+        username,
+        password,
+        charName,
+        autoResumeBot
+      });
+    }
+
+    if (curProf.isRunning) {
+      await sendWebHudAction(profileId, {
+        type: 'update-auth',
+        config: {
+          enabled,
+          serverName,
+          username,
+          password,
+          charName,
+          autoResumeBot,
+          clearPassword: !password,
+          triggerNow: Boolean(triggerNow)
+        }
+      });
+    } else if (triggerNow) {
+      showToast('💾 บันทึกการตั้งค่าแล้ว (เปิดจอเกมเพื่อรัน Test Login)', 'warning');
+      return true;
+    }
+
+    if (triggerNow) {
+      showToast(`🔑 กำลังสั่ง Auto-Login (${serverName || 'อัตโนมัติ'}${charName ? ' / ' + charName : ''})`, 'success');
+    } else if (!silent) {
+      showToast('✅ บันทึกการตั้งค่า Auto-Login แล้ว', 'success');
+    }
+    return true;
+  } catch (err) {
+    showToast('❌ ' + err.message, 'error');
+    return false;
+  } finally {
+    if (hudObj) hudObj.savingAuth = false;
+    if (btn) {
+      btn.disabled = false;
+      btn.innerText = origText;
+    }
+  }
+}
+
+async function applyCentralAuthSettings(hudEl, { triggerNow = false, btn = null } = {}) {
+  const online = currentProfiles.filter(p => p.isRunning);
+  if (online.length === 0) {
+    showToast('⚠️ ไม่มีจอเกมที่กำลังออนไลน์', 'warning');
+    return;
+  }
+  const enabled = Boolean(hudEl.querySelector('#p-central-auth-enabled')?.checked);
+  const serverName = String(hudEl.querySelector('#p-central-auth-server')?.value || '').trim();
+  const autoResumeBot = Boolean(hudEl.querySelector('#p-central-auth-resume')?.checked);
+  const origText = btn ? btn.innerText : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerText = triggerNow ? '⏳ กำลังสั่ง Login ทุกจอ...' : '⏳ กำลังส่งค่าทุกจอ...';
+  }
+  try {
+    await Promise.allSettled(online.map(p => fetch(`${API_BASE}/api/profiles/${p.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: p.name,
+        account: p.account || '',
+        loginPassword: p.loginPassword || '',
+        serverName,
+        charName: p.charName || '',
+        autoLoginEnabled: enabled,
+        autoResumeBot,
+        debugPort: p.debugPort
+      })
+    })));
+    online.forEach(p => Object.assign(p, { serverName, autoLoginEnabled: enabled, autoResumeBot }));
+    await sendWebHudAction('__central__', {
+      type: 'update-auth',
+      config: { enabled, serverName, autoResumeBot, triggerNow: Boolean(triggerNow) }
+    });
+    if (typeof fetchProfiles === 'function') fetchProfiles();
+  } catch (err) {
+    showToast('❌ ' + err.message, 'error');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerText = origText;
+    }
+  }
 }
 
 async function openWebBotHUD(profileId) {
@@ -8118,11 +8328,33 @@ async function openWebBotHUD(profileId) {
 
   activeWebHuds[profileId] = {
     el: hudEl,
-    activeTab: 'nightcamp',
+    activeTab: 'bot',
     data: clientData,
     profile: profile,
     isCentral: isCentral
   };
+
+  // Tab switchers (🚀 บอท | ⚙️ ตั้งค่า)
+  const tabBotBtn = hudEl.querySelector('#p-nc-tab-bot');
+  const tabSetBtn = hudEl.querySelector('#p-nc-tab-settings');
+  const paneBot = hudEl.querySelector('#p-nc-pane-bot');
+  const paneSet = hudEl.querySelector('#p-nc-pane-settings');
+  const switchTab = (tab) => {
+    if (activeWebHuds[profileId]) activeWebHuds[profileId].activeTab = tab;
+    const isBot = (tab === 'bot');
+    if (paneBot) paneBot.style.display = isBot ? 'flex' : 'none';
+    if (paneSet) paneSet.style.display = isBot ? 'none' : 'flex';
+    if (tabBotBtn) {
+      tabBotBtn.style.background = isBot ? 'rgba(14, 165, 233, 0.24)' : 'transparent';
+      tabBotBtn.style.color = isBot ? '#38bdf8' : '#94a3b8';
+    }
+    if (tabSetBtn) {
+      tabSetBtn.style.background = isBot ? 'transparent' : 'rgba(168, 85, 247, 0.28)';
+      tabSetBtn.style.color = isBot ? '#94a3b8' : '#d8b4fe';
+    }
+  };
+  if (tabBotBtn) tabBotBtn.onclick = () => switchTab('bot');
+  if (tabSetBtn) tabSetBtn.onclick = () => switchTab('settings');
 
   // Central actions
   const centralStartBtn = hudEl.querySelector('#p-btn-central-start-bot');
@@ -8135,6 +8367,12 @@ async function openWebBotHUD(profileId) {
   if (centralZeroBtn && typeof toggleAllClientWindows === 'function') {
     centralZeroBtn.onclick = () => toggleAllClientWindows();
   }
+
+  const centralApplyBtn = hudEl.querySelector('#p-btn-central-apply-auth');
+  if (centralApplyBtn) centralApplyBtn.onclick = () => applyCentralAuthSettings(hudEl, { triggerNow: false, btn: centralApplyBtn });
+
+  const centralTestLoginBtn = hudEl.querySelector('#p-btn-central-test-login');
+  if (centralTestLoginBtn) centralTestLoginBtn.onclick = () => applyCentralAuthSettings(hudEl, { triggerNow: true, btn: centralTestLoginBtn });
 
   // Single screen actions
   const toggleBotBtn = hudEl.querySelector('#p-btn-toggle-bot');
@@ -8166,48 +8404,19 @@ async function openWebBotHUD(profileId) {
     };
   }
 
-  const saveAuthBtn = hudEl.querySelector('#p-btn-nc-save-auth');
-  if (saveAuthBtn) {
-    saveAuthBtn.onclick = async () => {
-      const curProf = currentProfiles.find(x => x.id === profileId) || profile;
-      const en = Boolean(hudEl.querySelector('#p-auth-enabled')?.checked);
-      const userVal = String(hudEl.querySelector('#p-auth-user')?.value || '').trim();
-      const passVal = String(hudEl.querySelector('#p-auth-pass')?.value || '').trim();
-      saveAuthBtn.disabled = true;
-      const origTxt = saveAuthBtn.innerText;
-      saveAuthBtn.innerText = '⏳ กำลังบันทึก...';
-      try {
-        const res = await fetch(`${API_BASE}/api/profiles/${profileId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: curProf.name,
-            account: userVal,
-            loginPassword: passVal,
-            debugPort: curProf.debugPort,
-            autoRegister: !userVal && !passVal
-          })
-        });
-        const j = await res.json().catch(() => ({}));
-        if (!res.ok || j.success === false) {
-          showToast('❌ ' + (j.error || 'บันทึก ID / Password ไม่สำเร็จ'), 'error');
-        } else {
-          if (curProf.isRunning) {
-            await sendWebHudAction(profileId, {
-              type: 'update-auth',
-              config: { enabled: en, username: userVal, password: passVal, clearPassword: !passVal }
-            });
-          }
-          if (typeof fetchProfiles === 'function') await fetchProfiles();
-          showToast('✅ บันทึก ID / Password ประจำจอเรียบร้อย', 'success');
-        }
-      } catch (err) {
-        showToast('❌ ' + err.message, 'error');
-      } finally {
-        saveAuthBtn.disabled = false;
-        saveAuthBtn.innerText = origTxt;
-      }
-    };
+  // Auto-save auth settings on field changes + Test Login button
+  ['#p-auth-enabled', '#p-auth-server', '#p-auth-user', '#p-auth-pass', '#p-auth-char', '#p-auth-resume'].forEach(sel => {
+    const el = hudEl.querySelector(sel);
+    if (el) {
+      el.addEventListener('change', () => {
+        saveWebHudAuthSettings(profileId, hudEl, { triggerNow: false, silent: true });
+      });
+    }
+  });
+
+  const testLoginBtn = hudEl.querySelector('#p-btn-test-login');
+  if (testLoginBtn) {
+    testLoginBtn.onclick = () => saveWebHudAuthSettings(profileId, hudEl, { triggerNow: true, btn: testLoginBtn });
   }
 
   const inspectBtn = hudEl.querySelector('#p-btn-nc-inspect');
@@ -8383,12 +8592,32 @@ function populateWebHudData(profileId, data) {
   if (zeroBtn) zeroBtn.innerText = isZeroRender ? '🖥️ แสดงภาพปกติ' : '⚡ พักกราฟิก';
 
   const auth = data.authConfig || {};
-  const authEn = hud.querySelector('#p-auth-enabled');
-  if (authEn && document.activeElement !== authEn && auth.enabled !== undefined) authEn.checked = !!auth.enabled;
-  const authUs = hud.querySelector('#p-auth-user');
-  if (authUs && document.activeElement !== authUs) authUs.value = auth.username || prof.account || '';
-  const authPs = hud.querySelector('#p-auth-pass');
-  if (authPs && document.activeElement !== authPs) authPs.value = auth.password || prof.loginPassword || '';
+  const resolvedEnabled = (auth.enabled !== undefined) ? !!auth.enabled : (prof.autoLoginEnabled !== false);
+  const resolvedServer = String((auth.serverName !== undefined ? auth.serverName : prof.serverName) || '');
+  const resolvedUser = String((auth.username !== undefined ? auth.username : prof.account) || '');
+  const resolvedPass = String((auth.password !== undefined ? auth.password : prof.loginPassword) || '');
+  const resolvedChar = String((auth.charName !== undefined ? auth.charName : prof.charName) || '');
+  const resolvedResume = (auth.autoResumeBot !== undefined) ? !!auth.autoResumeBot : Boolean(prof.autoResumeBot);
+
+  const authStatusEl = hud.querySelector('#p-nc-auth-status');
+  if (authStatusEl) {
+    authStatusEl.innerText = st.authStatus || (resolvedEnabled ? (resolvedServer ? `Auto-Login: พร้อม (${resolvedServer})` : 'Auto-Login: พร้อมใช้งาน') : 'Auto-Login: ปิดใช้งาน');
+  }
+
+  if (!hudObj.savingAuth) {
+    const authEn = hud.querySelector('#p-auth-enabled');
+    if (authEn && document.activeElement !== authEn) authEn.checked = resolvedEnabled;
+    const authSrv = hud.querySelector('#p-auth-server');
+    if (authSrv && document.activeElement !== authSrv) authSrv.value = resolvedServer;
+    const authUs = hud.querySelector('#p-auth-user');
+    if (authUs && document.activeElement !== authUs) authUs.value = resolvedUser;
+    const authPs = hud.querySelector('#p-auth-pass');
+    if (authPs && document.activeElement !== authPs) authPs.value = resolvedPass;
+    const authCh = hud.querySelector('#p-auth-char');
+    if (authCh && document.activeElement !== authCh) authCh.value = resolvedChar;
+    const authRes = hud.querySelector('#p-auth-resume');
+    if (authRes && document.activeElement !== authRes) authRes.checked = resolvedResume;
+  }
 }
 
 async function sendWebHudAction(profileId, payload) {
@@ -10100,6 +10329,8 @@ function openAddModal() {
     formPassword.value = "";
     formPassword.placeholder = "เว้นว่าง = สมัครบัญชีใหม่ให้";
   }
+  if (formServer) formServer.value = "";
+  if (formChar) formChar.value = "";
   modalTitle.innerText = "➕ เพิ่มโปรไฟล์จอเกมใหม่";
   refreshCountUi();
   modalEl.classList.add("active");
@@ -10123,6 +10354,8 @@ function openEditModal(id) {
     formPassword.value = profile.loginPassword || "";
     formPassword.placeholder = profile.autoRegister ? "กำลังรอสมัครบัญชีอัตโนมัติ" : "เว้นว่าง = สมัครบัญชีใหม่ให้";
   }
+  if (formServer) formServer.value = profile.serverName || "";
+  if (formChar) formChar.value = profile.charName || "";
   modalTitle.innerText = `⚙️ แก้ไขโปรไฟล์: ${profile.name}`;
   refreshCountUi();
   modalEl.classList.add("active");
@@ -10135,6 +10368,7 @@ document.getElementById("btn-form-reset-autoreg")?.addEventListener("click", () 
     formPassword.value = "";
     formPassword.placeholder = "📝 จะสุ่มสมัครบัญชีใหม่ให้อัตโนมัติเมื่อกดบันทึก";
   }
+  if (formChar) formChar.value = "";
   if (typeof showToast === "function") {
     showToast("📝 ตั้งค่าให้สมัครบัญชีใหม่แล้ว — กด 'บันทึกโปรไฟล์' ได้เลย", "info");
   }
@@ -10149,6 +10383,8 @@ profileForm.onsubmit = async (e) => {
   const id = formId.value;
   const acctVal = (formAccount.value || "").trim();
   const passVal = formPassword ? (formPassword.value || "").trim() : "";
+  const serverVal = formServer ? String(formServer.value || "").trim() : "";
+  const charVal = formChar ? String(formChar.value || "").trim() : "";
   const shouldAutoReg = Boolean(formForceAutoRegister || (!acctVal && !passVal));
   const payload = {
     name: formName.value,
@@ -10158,6 +10394,8 @@ profileForm.onsubmit = async (e) => {
     debugPort: parseInt(formPort.value),
     notes: formNotes.value,
     loginPassword: passVal,
+    serverName: serverVal,
+    charName: charVal,
     ...(shouldAutoReg ? { autoRegister: true } : {})
   };
 

@@ -7,19 +7,19 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=nc1.0.2">
-  <link rel="stylesheet" href="inventory_market.css?v=nc1.0.2">
-  <link rel="stylesheet" href="bot_update.css?v=nc1.0.2">
-  <link rel="stylesheet" href="plan_editor.css?v=nc1.0.2">
-  <link rel="stylesheet" href="party_manager.css?v=nc1.0.2">
-  <link rel="stylesheet" href="premium_manager.css?v=nc1.0.2">
-  <link rel="stylesheet" href="card_manager.css?v=nc1.0.2">
-  <link rel="stylesheet" href="market_overview.css?v=nc1.0.2">
-  <link rel="stylesheet" href="guild_manager.css?v=nc1.0.2">
-  <link rel="stylesheet" href="jail_manager.css?v=nc1.0.2">
-  <link rel="stylesheet" href="device_manager.css?v=nc1.0.2">
-  <link rel="stylesheet" href="fleet_dashboard.css?v=nc1.0.2">
-  <link rel="stylesheet" href="support_chat.css?v=nc1.0.2">
+  <link rel="stylesheet" href="style.css?v=nc1.1.0">
+  <link rel="stylesheet" href="inventory_market.css?v=nc1.1.0">
+  <link rel="stylesheet" href="bot_update.css?v=nc1.1.0">
+  <link rel="stylesheet" href="plan_editor.css?v=nc1.1.0">
+  <link rel="stylesheet" href="party_manager.css?v=nc1.1.0">
+  <link rel="stylesheet" href="premium_manager.css?v=nc1.1.0">
+  <link rel="stylesheet" href="card_manager.css?v=nc1.1.0">
+  <link rel="stylesheet" href="market_overview.css?v=nc1.1.0">
+  <link rel="stylesheet" href="guild_manager.css?v=nc1.1.0">
+  <link rel="stylesheet" href="jail_manager.css?v=nc1.1.0">
+  <link rel="stylesheet" href="device_manager.css?v=nc1.1.0">
+  <link rel="stylesheet" href="fleet_dashboard.css?v=nc1.1.0">
+  <link rel="stylesheet" href="support_chat.css?v=nc1.1.0">
   <style id="nc-cleanup-overrides">
     #hw-tab, #hw-scrim, #hw-drawer,
     #pm-tab, #pm-scrim, #pm-drawer,
@@ -1234,6 +1234,22 @@
             </div>
           </div>
         </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>เลือก Server:</label>
+            <select id="form-server" class="form-input">
+              <option value="">🌐 อัตโนมัติ (เซิร์ฟแรกที่ว่าง)</option>
+              <option value="Nightfall">Nightfall</option>
+              <option value="Moonlight">Moonlight</option>
+              <option value="Stardust">Stardust</option>
+              <option value="Sunflare">Sunflare</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>ชื่อตัวละคร (Char):</label>
+            <input type="text" id="form-char" placeholder="เว้นว่าง = เข้าตัวแรกอัตโนมัติ" class="form-input" autocomplete="off">
+          </div>
+        </div>
         <div id="form-reset-autoreg-row" style="display:none;margin-top:-4px;margin-bottom:8px;">
           <button type="button" class="btn btn-secondary btn-sm" id="btn-form-reset-autoreg" style="width:100%;font-size:12px;padding:6px 10px;border-color:rgba(52,211,153,0.45);color:#6ee7b7;background:rgba(16,185,129,0.12);font-weight:700;">
             🔄 ล้างไอดีเดิม &amp; ให้โปรไฟล์นี้สมัครบัญชีใหม่อัตโนมัติ (ไม่ต้องลบสร้างใหม่)
@@ -1724,18 +1740,18 @@
     </div>
   </div>
 
-  <script src="image_board_solver.js?v=nc1.0.2"></script>
-  <script src="app.js?v=nc1.0.2"></script>
-  <script src="patcher_module.js?v=nc1.0.2"></script>
-  <script src="bot_update.js?v=nc1.0.2"></script>
-  <script src="config_copy.js?v=nc1.0.2"></script>
-  <script src="party_manager.js?v=nc1.0.2"></script>
-  <script src="jail_manager.js?v=nc1.0.2"></script>
-  <script src="device_manager.js?v=nc1.0.2"></script>
-  <script src="fleet_dashboard.js?v=nc1.0.2"></script>
-  <script src="support_chat.js?v=nc1.0.2"></script>
-  <script src="announcements.js?v=nc1.0.2"></script>
-  <script src="update_log.js?v=nc1.0.2"></script>
+  <script src="image_board_solver.js?v=nc1.1.0"></script>
+  <script src="app.js?v=nc1.1.0"></script>
+  <script src="patcher_module.js?v=nc1.1.0"></script>
+  <script src="bot_update.js?v=nc1.1.0"></script>
+  <script src="config_copy.js?v=nc1.1.0"></script>
+  <script src="party_manager.js?v=nc1.1.0"></script>
+  <script src="jail_manager.js?v=nc1.1.0"></script>
+  <script src="device_manager.js?v=nc1.1.0"></script>
+  <script src="fleet_dashboard.js?v=nc1.1.0"></script>
+  <script src="support_chat.js?v=nc1.1.0"></script>
+  <script src="announcements.js?v=nc1.1.0"></script>
+  <script src="update_log.js?v=nc1.1.0"></script>
   <!-- FLOATING IN-GAME BOT HUDS CONTAINER -->
   <div id="web-huds-container"></div>
 

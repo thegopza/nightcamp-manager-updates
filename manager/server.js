@@ -1084,6 +1084,7 @@ const LIVE_STATE_EVAL = `(() => {
       }
     }
   } catch (_) {}
+  if (!window.__nightcampBotVersion) {
   try {
     const isBadMap = (t) => !t || t === 'ไม่ทราบแมพ' || /^(?:\\d+|[-—–]+)\\s*ms$/i.test(t) || /\\b\\d+\\s*ms\\b/i.test(t) || /^CH\\b/i.test(t) || /▾/.test(t);
     if (isBadMap(String(s.map || '').trim())) {
@@ -1353,6 +1354,7 @@ const LIVE_STATE_EVAL = `(() => {
       window.__pmScreenPhaseTracker.reloaded = true;
     }
   } catch (e) {}
+  }
   try {
     const hc = document.querySelector('.human-check');
     if (hc) {
@@ -2664,11 +2666,17 @@ function buildClientActionEvalCode(payload) {
       if (authPs && patch.password !== undefined) authPs.value = String(window.__authConfig.password);
       const authCh = document.getElementById('p-auth-char');
       if (authCh && patch.charName !== undefined) authCh.value = String(window.__authConfig.charName || '');
+      const authSrv = document.getElementById('p-auth-server');
+      if (authSrv && patch.serverName !== undefined) authSrv.value = String(window.__authConfig.serverName || '');
       const authRes = document.getElementById('p-auth-resume');
       if (authRes && patch.autoResumeBot !== undefined) authRes.checked = !!window.__authConfig.autoResumeBot;
+      window.__ncLastFailedAuthKey = '';
       if (typeof window.syncAllHudInputsFromConfig === 'function') window.syncAllHudInputsFromConfig();
       if (patch.charName !== undefined && typeof window.ensureConfiguredCharacterActive === 'function') {
         window.ensureConfiguredCharacterActive(true);
+      }
+      if (patch.triggerNow === true && typeof window.executeAutoLogin === 'function') {
+        setTimeout(() => { window.executeAutoLogin(true).catch(() => {}); }, 100);
       }
       return { success: true };
     })()`;
@@ -9901,9 +9909,13 @@ const server = http.createServer(async (req, res) => {
           id: newId,
           name: (data.name || "New Client").trim(),
           account: (data.account || "").trim(),
+          serverName: data.serverName !== undefined ? String(data.serverName || "").trim() : "",
+          charName: data.charName !== undefined ? String(data.charName || "").trim() : "",
+          autoLoginEnabled: data.autoLoginEnabled !== undefined ? Boolean(data.autoLoginEnabled) : true,
+          autoResumeBot: data.autoResumeBot !== undefined ? Boolean(data.autoResumeBot) : false,
           autoRegister: !(data.loginPassword || "").trim(),
-          charClass: data.charClass || "Archer",
-          targetMap: data.targetMap || "ถนนต้นหลิว",
+          charClass: data.charClass || "Traveler",
+          targetMap: data.targetMap !== undefined ? data.targetMap : "",
           debugPort: data.debugPort || nextPort,
           autoStart: data.autoStart !== false,
           notes: data.notes || "",
@@ -9963,10 +9975,14 @@ const server = http.createServer(async (req, res) => {
           ...profiles[idx],
           name: data.name !== undefined ? data.name.trim() : profiles[idx].name,
           account: wantsNewAutoRegister && data.autoRegister === true && !accountChanged ? "" : nextAccount,
+          serverName: data.serverName !== undefined ? String(data.serverName || "").trim() : (profiles[idx].serverName || ""),
+          charName: data.charName !== undefined ? String(data.charName || "").trim() : (profiles[idx].charName || ""),
+          autoLoginEnabled: data.autoLoginEnabled !== undefined ? Boolean(data.autoLoginEnabled) : (profiles[idx].autoLoginEnabled !== false),
+          autoResumeBot: data.autoResumeBot !== undefined ? Boolean(data.autoResumeBot) : Boolean(profiles[idx].autoResumeBot),
           autoRegister: nextAutoRegister,
           ...(wantsNewAutoRegister ? { generatedAccount: false, registerError: "", loginSyncPending: false, proxyFallbackBrowser: undefined, proxyRegistrationState: undefined } : {}),
           charClass: data.charClass || profiles[idx].charClass,
-          targetMap: data.targetMap || profiles[idx].targetMap,
+          targetMap: data.targetMap !== undefined ? data.targetMap : profiles[idx].targetMap,
           debugPort: data.debugPort || profiles[idx].debugPort,
           autoStart: data.autoStart !== undefined ? data.autoStart : profiles[idx].autoStart,
           notes: data.notes !== undefined ? data.notes : profiles[idx].notes,
@@ -9988,6 +10004,11 @@ const server = http.createServer(async (req, res) => {
               delete bsData["__ss:aetheria.session"];
               delete bsData["pelican_auth_cfg"];
               delete bsData[`pelican_${id}__auth_cfg`];
+              for (const bsKey of Object.keys(bsData)) {
+                if (bsKey.startsWith(`pelican_${id}__nc__nightcamp.online.acct:`)) {
+                  delete bsData[bsKey];
+                }
+              }
               writeJsonAtomic(bsFile, bsData);
             }
           } catch (_) {}
@@ -9997,6 +10018,9 @@ const server = http.createServer(async (req, res) => {
                 if (window.sessionStorage) window.sessionStorage.removeItem('aetheria.session');
                 localStorage.removeItem('pelican_auth_cfg');
               } catch (_) {}
+              if (window.NC && window.NC.Online && typeof window.NC.Online.logout === 'function') {
+                try { window.NC.Online.logout().catch(() => {}); } catch (_) {}
+              }
               if (window.__authConfig) {
                 window.__authConfig.username = '';
                 window.__authConfig.password = '';
@@ -11112,9 +11136,17 @@ public class PmFocus {
           const parsed = JSON.parse(d);
           const resultObj = (parsed && parsed.result && typeof parsed.result === "object") ? parsed.result : {};
           resultObj.authConfig = Object.assign({}, resultObj.authConfig || {}, {
+            enabled: (resultObj.authConfig && resultObj.authConfig.enabled !== undefined)
+              ? Boolean(resultObj.authConfig.enabled)
+              : (profile.autoLoginEnabled !== false),
+            serverName: (resultObj.authConfig && resultObj.authConfig.serverName) || profile.serverName || "",
             username: (resultObj.authConfig && resultObj.authConfig.username) || savedAccount || "",
             password: savedPassword || (resultObj.authConfig && resultObj.authConfig.password) || "",
-            hasPassword: Boolean(savedPassword || (resultObj.authConfig && resultObj.authConfig.hasPassword))
+            charName: (resultObj.authConfig && resultObj.authConfig.charName) || profile.charName || "",
+            hasPassword: Boolean(savedPassword || (resultObj.authConfig && resultObj.authConfig.hasPassword)),
+            autoResumeBot: (resultObj.authConfig && resultObj.authConfig.autoResumeBot !== undefined)
+              ? Boolean(resultObj.authConfig.autoResumeBot)
+              : Boolean(profile.autoResumeBot)
           });
           sendJSON({ success: true, data: resultObj });
         } catch(e) {
@@ -11265,20 +11297,30 @@ public class PmFocus {
           const cfg = payload.config;
           const nextUser = cfg.username !== undefined ? String(cfg.username || '').trim() : undefined;
           const nextPass = cfg.password !== undefined ? String(cfg.password || '') : undefined;
+          const nextServer = cfg.serverName !== undefined ? String(cfg.serverName || '').trim() : undefined;
+          const nextChar = cfg.charName !== undefined ? String(cfg.charName || '').trim() : undefined;
+          const nextEnabled = cfg.enabled !== undefined ? Boolean(cfg.enabled) : undefined;
+          const nextResume = cfg.autoResumeBot !== undefined ? Boolean(cfg.autoResumeBot) : undefined;
           if (nextPass !== undefined && (nextPass || cfg.clearPassword === true)) {
             credentials.setPassword(profile.id, nextPass);
           }
-          if (nextUser !== undefined || nextPass) {
+          if (nextUser !== undefined || nextPass !== undefined || nextServer !== undefined || nextChar !== undefined || nextEnabled !== undefined || nextResume !== undefined) {
             const fresh = loadProfiles();
             const target = fresh.find(f => f.id === profile.id);
             if (target) {
               if (nextUser !== undefined) target.account = nextUser;
-              target.autoRegister = false;
-              target.generatedAccount = false;
-              target.registerError = '';
-              target.loginSyncPending = false;
-              target.lastAuthSyncPushAt = Date.now();
-              if (cfg.charName && !target.lastCharName) target.lastCharName = String(cfg.charName).trim();
+              if (nextServer !== undefined) target.serverName = nextServer;
+              if (nextChar !== undefined) target.charName = nextChar;
+              if (nextEnabled !== undefined) target.autoLoginEnabled = nextEnabled;
+              if (nextResume !== undefined) target.autoResumeBot = nextResume;
+              if (nextUser || nextPass) {
+                target.autoRegister = false;
+                target.generatedAccount = false;
+                target.registerError = '';
+                target.loginSyncPending = false;
+                target.lastAuthSyncPushAt = Date.now();
+              }
+              if (nextChar && !target.lastCharName) target.lastCharName = nextChar;
               saveProfiles(fresh);
             }
           }
