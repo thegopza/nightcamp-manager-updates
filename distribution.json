@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "sourceCommit": "0430d6d6333eb1415fcec7f79b56f444185339cd",
+  "sourceCommit": "aa8fd705e8f1c6c5a6840e185fcf4a6039a92f0e",
   "files": [
     {
       "path": "manager/asset_cache.js",
@@ -108,7 +108,7 @@
     },
     {
       "path": "manager/offline_script_bootstrap.js",
-      "sha256": "51140c89bafc652925d3a8b7d3100e3eb02d74cbf72f56e707642c49902acf22"
+      "sha256": "f4ef8095f5d401f334bf9fb8a69efb9568d39c378d046f31ebe5640e34b88898"
     },
     {
       "path": "manager/party_api.js",
