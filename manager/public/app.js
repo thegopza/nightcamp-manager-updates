@@ -8071,6 +8071,10 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
         <input type="checkbox" id="p-nc-upgrade-ai-enabled" ${state?.upgradeBotAiEnabled !== false ? 'checked' : ''} style="accent-color:#0ea5e9;">
         <span>🧠 Upgrade BOT AI (เก็บของไว/ไม่เดินวน/วิ่งหาโซนมอน)</span>
       </label>
+      <label style="display:flex; align-items:center; gap:5px; font-size:10.5px; font-weight:700; color:#fda4af; cursor:pointer;" title="ตายแล้วกดกลับค่ายเกิดใหม่ทันที ไม่ต้องรอ 30 วินาที แล้วกลับไปทำเควส/แมพฟาร์มต่อ">
+        <input type="checkbox" id="p-nc-autorespawn-enabled" ${state?.autoRespawnEnabled !== false ? 'checked' : ''} style="accent-color:#f43f5e;">
+        <span>⚰️ เปิด Auto-Respawn (ตายเกิดใหม่ทันที + ลุยต่อ)</span>
+      </label>
       <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; border-top:1px solid rgba(255,255,255,0.08); padding-top:5px;">
         <label style="display:flex; align-items:center; gap:5px; font-size:10.5px; font-weight:700; color:#fde68a; cursor:pointer;">
           <input type="checkbox" id="p-nc-autosell-enabled" ${state?.autoSellEnabled !== false ? 'checked' : ''} style="accent-color:#f59e0b;">
@@ -8079,6 +8083,41 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
         <select id="p-nc-autosell-pct" style="background:#090d16; border:1px solid rgba(251,191,36,0.5); color:#fde68a; border-radius:4px; font-size:10px; font-weight:700; padding:2px 5px; cursor:pointer;">
           ${[45, 50, 55, 60, 65, 70, 75, 80].map(pct => `<option value="${pct}" ${Number(state?.autoSellWeightPct || 65) === pct ? 'selected' : ''}>${pct}%</option>`).join('')}
         </select>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:4px; border-top:1px solid rgba(255,255,255,0.08); padding-top:5px; background:rgba(2,6,23,0.4); border-radius:5px; padding:6px;">
+        <span style="font-size:10px; font-weight:700; color:#6ee7b7;">🧪 ระบบยา (ต้มยาจากขยะมอนลด 50% ➔ ขยะหมดซื้อในเมือง):</span>
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:4px;">
+          <label style="display:flex; align-items:center; gap:4px; font-size:10px; font-weight:700; color:#fca5a5; cursor:pointer;">
+            <input type="checkbox" id="p-nc-pot-hp-en" ${state?.potionConfig?.hpEnabled !== false ? 'checked' : ''} style="accent-color:#ef4444;">
+            <span>HP</span>
+          </label>
+          <select id="p-nc-pot-hp-size" style="flex:1; background:#090d16; border:1px solid rgba(248,113,113,0.45); color:#fecaca; border-radius:4px; font-size:9.5px; padding:2px 4px;">
+            <option value="red" ${(state?.potionConfig?.hpSize || 'red') === 'red' ? 'selected' : ''}>ขวดเล็ก (HP+60)</option>
+            <option value="red_m" ${state?.potionConfig?.hpSize === 'red_m' ? 'selected' : ''}>ขวดกลาง (HP+220)</option>
+            <option value="red_l" ${state?.potionConfig?.hpSize === 'red_l' ? 'selected' : ''}>ขวดใหญ่ (HP+900)</option>
+            <option value="auto" ${state?.potionConfig?.hpSize === 'auto' ? 'selected' : ''}>อัตโนมัติตาม Lv</option>
+          </select>
+          <span style="font-size:9.5px; color:#cbd5e1;">&lt;</span>
+          <input type="number" id="p-nc-pot-hp-min" value="${state?.potionConfig?.hpMin ?? 15}" title="กลับไปซื้อ/คราฟเมื่อต่ำกว่า" style="width:38px; background:#090d16; border:1px solid rgba(248,113,113,0.45); color:#fff; border-radius:4px; font-size:9.5px; padding:2px 4px;">
+          <span style="font-size:9.5px; color:#cbd5e1;">➔</span>
+          <input type="number" id="p-nc-pot-hp-target" value="${state?.potionConfig?.hpTarget ?? 100}" title="จำนวนซื้อ/คราฟให้ครบ" style="width:42px; background:#090d16; border:1px solid rgba(248,113,113,0.45); color:#fff; border-radius:4px; font-size:9.5px; padding:2px 4px;">
+        </div>
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:4px;">
+          <label style="display:flex; align-items:center; gap:4px; font-size:10px; font-weight:700; color:#93c5fd; cursor:pointer;">
+            <input type="checkbox" id="p-nc-pot-sp-en" ${state?.potionConfig?.spEnabled !== false ? 'checked' : ''} style="accent-color:#3b82f6;">
+            <span>Mana</span>
+          </label>
+          <select id="p-nc-pot-sp-size" style="flex:1; background:#090d16; border:1px solid rgba(96,165,250,0.45); color:#bfdbfe; border-radius:4px; font-size:9.5px; padding:2px 4px;">
+            <option value="blue" ${(state?.potionConfig?.spSize || 'blue') === 'blue' ? 'selected' : ''}>ขวดเล็ก (SP+60)</option>
+            <option value="blue_m" ${state?.potionConfig?.spSize === 'blue_m' ? 'selected' : ''}>ขวดกลาง (SP+200)</option>
+            <option value="blue_l" ${state?.potionConfig?.spSize === 'blue_l' ? 'selected' : ''}>ขวดใหญ่ (SP+390)</option>
+            <option value="auto" ${state?.potionConfig?.spSize === 'auto' ? 'selected' : ''}>อัตโนมัติตาม Lv</option>
+          </select>
+          <span style="font-size:9.5px; color:#cbd5e1;">&lt;</span>
+          <input type="number" id="p-nc-pot-sp-min" value="${state?.potionConfig?.spMin ?? 10}" title="กลับไปซื้อ/คราฟเมื่อต่ำกว่า" style="width:38px; background:#090d16; border:1px solid rgba(96,165,250,0.45); color:#fff; border-radius:4px; font-size:9.5px; padding:2px 4px;">
+          <span style="font-size:9.5px; color:#cbd5e1;">➔</span>
+          <input type="number" id="p-nc-pot-sp-target" value="${state?.potionConfig?.spTarget ?? 60}" title="จำนวนซื้อ/คราฟให้ครบ" style="width:42px; background:#090d16; border:1px solid rgba(96,165,250,0.45); color:#fff; border-radius:4px; font-size:9.5px; padding:2px 4px;">
+        </div>
       </div>
       <div style="display:flex; flex-direction:column; gap:3px; border-top:1px solid rgba(255,255,255,0.08); padding-top:5px;">
         <span style="font-size:10px; font-weight:700; color:#e2e8f0;">🗺️ แมพฟาร์มประจำ (เมื่อปิด Auto-Quest):</span>
@@ -8495,6 +8534,41 @@ async function openWebBotHUD(profileId) {
     };
   }
 
+  const respEnableCb = hudEl.querySelector('#p-nc-autorespawn-enabled');
+  if (respEnableCb) {
+    respEnableCb.onchange = async () => {
+      try {
+        await sendWebHudAction(profileId, {
+          type: 'eval',
+          code: `(typeof window.__setAutoRespawnEnabled === 'function' ? window.__setAutoRespawnEnabled(${Boolean(respEnableCb.checked)}) : (window.__autoRespawnEnabled = ${Boolean(respEnableCb.checked)}))`
+        });
+      } catch (_) {}
+    };
+  }
+
+  const syncWebPotCfg = async () => {
+    try {
+      const patch = {
+        hpEnabled: Boolean(hudEl.querySelector('#p-nc-pot-hp-en')?.checked),
+        hpSize: hudEl.querySelector('#p-nc-pot-hp-size')?.value || 'red',
+        hpMin: Number(hudEl.querySelector('#p-nc-pot-hp-min')?.value ?? 15),
+        hpTarget: Number(hudEl.querySelector('#p-nc-pot-hp-target')?.value ?? 100),
+        spEnabled: Boolean(hudEl.querySelector('#p-nc-pot-sp-en')?.checked),
+        spSize: hudEl.querySelector('#p-nc-pot-sp-size')?.value || 'blue',
+        spMin: Number(hudEl.querySelector('#p-nc-pot-sp-min')?.value ?? 10),
+        spTarget: Number(hudEl.querySelector('#p-nc-pot-sp-target')?.value ?? 60)
+      };
+      await sendWebHudAction(profileId, {
+        type: 'eval',
+        code: `(typeof window.__setPotionConfig === 'function' ? window.__setPotionConfig(${JSON.stringify(patch)}) : null)`
+      });
+    } catch (_) {}
+  };
+  ['#p-nc-pot-hp-en', '#p-nc-pot-hp-size', '#p-nc-pot-hp-min', '#p-nc-pot-hp-target', '#p-nc-pot-sp-en', '#p-nc-pot-sp-size', '#p-nc-pot-sp-min', '#p-nc-pot-sp-target'].forEach(sel => {
+    const el = hudEl.querySelector(sel);
+    if (el) el.onchange = syncWebPotCfg;
+  });
+
   const sellEnableCb = hudEl.querySelector('#p-nc-autosell-enabled');
   const sellPctSel = hudEl.querySelector('#p-nc-autosell-pct');
   const syncSellCfg = async () => {
@@ -8719,6 +8793,27 @@ function populateWebHudData(profileId, data) {
   const aiEnableCb = hud.querySelector('#p-nc-upgrade-ai-enabled');
   if (aiEnableCb && typeof st.upgradeBotAiEnabled === 'boolean' && document.activeElement !== aiEnableCb) {
     aiEnableCb.checked = st.upgradeBotAiEnabled;
+  }
+  const respEnableCb = hud.querySelector('#p-nc-autorespawn-enabled');
+  if (respEnableCb && typeof st.autoRespawnEnabled === 'boolean' && document.activeElement !== respEnableCb) {
+    respEnableCb.checked = st.autoRespawnEnabled;
+  }
+  if (st.potionConfig && typeof st.potionConfig === 'object') {
+    const pc = st.potionConfig;
+    const setField = (sel, val, isCb) => {
+      const el = hud.querySelector(sel);
+      if (!el || document.activeElement === el) return;
+      if (isCb) el.checked = !!val;
+      else if (val !== undefined && val !== null) el.value = String(val);
+    };
+    setField('#p-nc-pot-hp-en', pc.hpEnabled !== false, true);
+    setField('#p-nc-pot-hp-size', pc.hpSize || 'red', false);
+    setField('#p-nc-pot-hp-min', pc.hpMin ?? 15, false);
+    setField('#p-nc-pot-hp-target', pc.hpTarget ?? 100, false);
+    setField('#p-nc-pot-sp-en', pc.spEnabled !== false, true);
+    setField('#p-nc-pot-sp-size', pc.spSize || 'blue', false);
+    setField('#p-nc-pot-sp-min', pc.spMin ?? 10, false);
+    setField('#p-nc-pot-sp-target', pc.spTarget ?? 60, false);
   }
   const sellEnableCb = hud.querySelector('#p-nc-autosell-enabled');
   if (sellEnableCb && typeof st.autoSellEnabled === 'boolean' && document.activeElement !== sellEnableCb) {

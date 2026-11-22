@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "sourceCommit": "ca8985da03ef9455f17be1cbce158cf8f5fa3e58",
+  "sourceCommit": "1ae4e2bc3bb6ad610d4fe82b29de5a2fed1c9b26",
   "files": [
     {
       "path": "manager/asset_cache.js",
@@ -140,7 +140,7 @@
     },
     {
       "path": "manager/public/app.js",
-      "sha256": "93f30eb6e4ff53c95857fe3d027d81e5fe791efcc94290d179b484c351e45103"
+      "sha256": "d5ace912cfc63828ddce6f5dda5fec81cee10124d705a741d58f2c55695d49d2"
     },
     {
       "path": "manager/public/bot_update.css",
