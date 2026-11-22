@@ -1196,7 +1196,7 @@ const LIVE_STATE_EVAL = `(() => {
           baseLabel = '⚠️ ตัวละครค้างออนไลน์ (กำลังเคลียร์...)';
           detail = '⚠️ หน้าเลือกตัวละคร: ' + errText;
           autoReloadAfterMs = 16000;
-        } else if (/เครื่องนี้เล่นพร้อมกันได้สูงสุด|ออกจากตัวละครอื่นก่อน/i.test(errText)) {
+        } else if (/เครื่องนี้เล่นพร้อมกันได้สูงสุด|เครื่องนี้เปิดเกมครบ|ออกจากตัวละครอื่นก่อน/i.test(errText)) {
           screenPhase = 'char_select_limit';
           baseLabel = '🔑 จำกัด 2 จอ (กำลังสลับ Device ID...)';
           detail = '🔑 หน้าเลือกตัวละคร: ' + errText;

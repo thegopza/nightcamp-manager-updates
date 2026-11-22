@@ -2368,13 +2368,15 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
         if (typeof WebGLRenderingContext !== 'undefined') __patchWebGl(WebGLRenderingContext);
         if (typeof WebGL2RenderingContext !== 'undefined') __patchWebGl(WebGL2RenderingContext);
       }
-      if (!window.__pmDeviceIdHookInstalled) {
-        window.__pmDeviceIdHookInstalled = true;
+      if (window.__pmDeviceIdHookInstalled !== 2) {
+        window.__pmDeviceIdHookInstalled = 2;
         const __sp = Storage.prototype;
-        const __rawGet = __sp.getItem;
-        const __rawSet = __sp.setItem;
-        const __rawDel = __sp.removeItem;
-        window.__pmRawStorage = { get: __rawGet, set: __rawSet, del: __rawDel };
+        if (!window.__pmRawStorage) {
+          window.__pmRawStorage = { get: __sp.getItem, set: __sp.setItem, del: __sp.removeItem };
+        }
+        const __rawGet = window.__pmRawStorage.get;
+        const __rawSet = window.__pmRawStorage.set;
+        const __rawDel = window.__pmRawStorage.del;
         const __getPid = function() {
           if (window.__pmProfileId) return window.__pmProfileId;
           try {
@@ -2392,7 +2394,7 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
           const pfx = 'pelican_' + pid + '__';
           if (k === 'aetheria.device') return pfx + 'aetheria_device';
           if (k === 'aetheria.machine') return pfx + 'aetheria_machine';
-          if (k === 'nightcamp.uid' || k === 'nightcamp.online.server' || k === 'nightcamp.online.lastPlayed' || k.startsWith('nightcamp.online.acct:') || k.startsWith('nightcamp.online.heroes:')) {
+          if (k === 'nightcamp.online.device' || k === 'nightcamp.uid' || k === 'nightcamp.online.server' || k === 'nightcamp.online.lastPlayed' || k.startsWith('nightcamp.online.acct:') || k.startsWith('nightcamp.online.heroes:')) {
             return pfx + 'nc__' + k;
           }
           if (k.startsWith('pelican_') && !k.startsWith(pfx) && k.indexOf('__') === -1 && k !== 'pelican_icon_manifest' && k !== 'pelican_item_catalog') {
@@ -2406,7 +2408,7 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
             if (window.__pmDeviceId && (k === 'aetheria.device' || (pid && k === 'pelican_' + pid + '__aetheria_device'))) {
               return window.__pmDeviceId;
             }
-            if (window.__pmDeviceId && k === 'nightcamp.online.device') {
+            if (window.__pmDeviceId && (k === 'nightcamp.online.device' || (pid && k === 'pelican_' + pid + '__nc__nightcamp.online.device'))) {
               return JSON.stringify(String(window.__pmDeviceId).split('-').join(''));
             }
             if (window.__pmMachineId && (k === 'aetheria.machine' || (pid && k === 'pelican_' + pid + '__aetheria_machine'))) {
@@ -2418,7 +2420,7 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
         __sp.setItem = function(k, v) {
           const pid = __getPid();
           if (this === window.localStorage && pid) {
-            if (k === 'nightcamp.online.device') {
+            if (k === 'nightcamp.online.device' || k === 'pelican_' + pid + '__nc__nightcamp.online.device') {
               return;
             }
             if (!__isTransientStorageKey(k)) {
@@ -2477,7 +2479,7 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
         };
         __sp.removeItem = function(k) {
           const pid = __getPid();
-          if (this === window.localStorage && pid && (k === 'aetheria.device' || k === 'aetheria.machine' || k === 'pelican_' + pid + '__aetheria_device' || k === 'pelican_' + pid + '__aetheria_machine')) {
+          if (this === window.localStorage && pid && (k === 'aetheria.device' || k === 'aetheria.machine' || k === 'nightcamp.online.device' || k === 'pelican_' + pid + '__aetheria_device' || k === 'pelican_' + pid + '__aetheria_machine' || k === 'pelican_' + pid + '__nc__nightcamp.online.device')) {
             return;
           }
           return __rawDel.call(this, __mapKey(this, k));
@@ -2489,13 +2491,20 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
           const __rawDel = (window.__pmRawStorage && window.__pmRawStorage.del) || Storage.prototype.removeItem;
           try { __rawDel.call(window.localStorage, 'aetheria.device'); } catch (_) {}
           try { __rawDel.call(window.localStorage, 'aetheria.machine'); } catch (_) {}
+          try { __rawDel.call(window.localStorage, 'nightcamp.online.device'); } catch (_) {}
           if (window.__pmProfileId && window.__pmDeviceId) {
             const targetKey = 'pelican_' + window.__pmProfileId + '__aetheria_device';
+            const ncDevKey = 'pelican_' + window.__pmProfileId + '__nc__nightcamp.online.device';
+            const ncDevVal = JSON.stringify(String(window.__pmDeviceId).split('-').join(''));
             try {
               __rawSet.call(window.localStorage, targetKey, window.__pmDeviceId);
+              __rawSet.call(window.localStorage, ncDevKey, ncDevVal);
             } catch (_) {
               __freeStorageQuota(window.localStorage, __rawDel);
-              try { __rawSet.call(window.localStorage, targetKey, window.__pmDeviceId); } catch (__) {}
+              try {
+                __rawSet.call(window.localStorage, targetKey, window.__pmDeviceId);
+                __rawSet.call(window.localStorage, ncDevKey, ncDevVal);
+              } catch (__) {}
             }
           }
           if (window.__pmProfileId && window.__pmMachineId) {
@@ -2506,6 +2515,12 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
               __freeStorageQuota(window.localStorage, __rawDel);
               try { __rawSet.call(window.localStorage, machKey, window.__pmMachineId); } catch (__) {}
             }
+          }
+        }
+        if (window.__pmDeviceId && window.__pmLastNcPhoneDev !== window.__pmDeviceId) {
+          window.__pmLastNcPhoneDev = window.__pmDeviceId;
+          if (typeof document !== 'undefined' && document.querySelector('#sq [data-sq="phone"]') && window.NC && window.NC.PhoneWin && typeof window.NC.PhoneWin.open === 'function') {
+            window.NC.PhoneWin.open();
           }
         }
       } catch (_) {}
@@ -3174,6 +3189,8 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
       } catch (probeErr) {
         if (probeErr && probeErr.message === 'PROFILE_ID_CONFLICT') throw probeErr;
       }
+    } else {
+      evaluate({ sessionId }, initScript, 4000).catch(() => {});
     }
     if(stoppedProfiles.has(profileId))throw Error('PROFILE_STOPPED');
     const initScriptId = (addedInit && addedInit.identifier) ? addedInit.identifier : null;
