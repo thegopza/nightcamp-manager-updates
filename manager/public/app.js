@@ -8062,11 +8062,15 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
       <button type="button" class="p-btn" id="p-btn-nc-edit" style="margin:0; font-size:10.5px; padding:6px; border-radius:6px; background:rgba(148,163,184,0.14); border:1px solid rgba(148,163,184,0.35); color:#e2e8f0; font-weight:700; cursor:pointer;">⚙️ แก้ไขโปรไฟล์</button>
     </div>
 
-    <div class="p-card" style="border: 1px solid rgba(168, 85, 247, 0.42); background: linear-gradient(145deg, rgba(30, 17, 56, 0.65), rgba(15, 23, 42, 0.85)); border-radius: 7px; padding: 8px; display:flex; flex-direction:column; gap:5px;">
-      <div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
+    <div class="p-card" style="border: 1px solid rgba(168, 85, 247, 0.42); background: linear-gradient(145deg, rgba(30, 17, 56, 0.65), rgba(15, 23, 42, 0.85)); border-radius: 7px; padding: 8px; display:flex; flex-direction:column; gap:6px;">
+      <label style="display:flex; align-items:center; gap:5px; font-size:10.5px; font-weight:700; color:#86efac; cursor:pointer;" title="ทำเควส/บทเรียนอัตโนมัติทั้งหมด หากไม่ได้เปิด Plan Script ระบบจะหยุดรอให้คุณเลือกอาชีพเอง">
+        <input type="checkbox" id="p-nc-smart-autoquest-enabled" ${state?.smartAutoQuestEnabled !== false ? 'checked' : ''} style="accent-color:#22c55e;">
+        <span>🧭 เปิด Smart Auto-Quest (ทำเควสอัตโนมัติ)</span>
+      </label>
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; border-top:1px solid rgba(255,255,255,0.08); padding-top:5px;">
         <label style="display:flex; align-items:center; gap:5px; font-size:10.5px; font-weight:700; color:#e9d5ff; cursor:pointer;">
           <input type="checkbox" id="p-nc-plan-enabled" ${state?.planScriptEnabled !== false ? 'checked' : ''} style="accent-color:#a855f7;">
-          <span>📜 Plan Script & Smart Auto-Quest</span>
+          <span>📜 เปิด Plan Script</span>
         </label>
         <button type="button" id="p-btn-nc-open-plan" style="padding:3px 8px; font-size:10px; font-weight:700; border-radius:5px; border:1px solid rgba(56,189,248,0.45); background:rgba(14,165,233,0.22); color:#7dd3fc; cursor:pointer;">✏️ จัดการแผน</button>
       </div>
@@ -8423,6 +8427,18 @@ async function openWebBotHUD(profileId) {
   const openPlanBtn = hudEl.querySelector('#p-btn-nc-open-plan');
   if (openPlanBtn) openPlanBtn.onclick = () => openScriptPlanModal(profileId);
 
+  const aqEnableCb = hudEl.querySelector('#p-nc-smart-autoquest-enabled');
+  if (aqEnableCb) {
+    aqEnableCb.onchange = async () => {
+      try {
+        await sendWebHudAction(profileId, {
+          type: 'eval',
+          code: `(typeof window.__setSmartAutoQuestEnabled === 'function' ? window.__setSmartAutoQuestEnabled(${Boolean(aqEnableCb.checked)}) : (window.__smartAutoQuestEnabled = ${Boolean(aqEnableCb.checked)}))`
+        });
+      } catch (_) {}
+    };
+  }
+
   const planEnableCb = hudEl.querySelector('#p-nc-plan-enabled');
   if (planEnableCb) {
     planEnableCb.onchange = async () => {
@@ -8612,6 +8628,10 @@ function populateWebHudData(profileId, data) {
   if (planNameEl && st.planName) planNameEl.innerText = st.planName;
   const planTaskEl = hud.querySelector('#p-nc-plan-task');
   if (planTaskEl && st.planTask) planTaskEl.innerText = st.planTask;
+  const aqEnableCb = hud.querySelector('#p-nc-smart-autoquest-enabled');
+  if (aqEnableCb && typeof st.smartAutoQuestEnabled === 'boolean' && document.activeElement !== aqEnableCb) {
+    aqEnableCb.checked = st.smartAutoQuestEnabled;
+  }
   const planEnableCb = hud.querySelector('#p-nc-plan-enabled');
   if (planEnableCb && typeof st.planScriptEnabled === 'boolean' && document.activeElement !== planEnableCb) {
     planEnableCb.checked = st.planScriptEnabled;
