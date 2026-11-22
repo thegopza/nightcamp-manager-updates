@@ -657,6 +657,9 @@ function createHumanCheckSolver({ dataDir, requestJSON: testRequest, serviceUrl:
     announcementRequest,
     serviceRequest: (route, payload) => {
       if (route !== '/v1/aetheria/health' && route !== '/v1/aetheria/pmheenc/health' && !/^\/v1\/aetheria\/(?:pmheenc\/)?(?:script|usage|billing|proxy|offline|machine)\/[a-z-]+(?:\/[a-z-]+)?$/.test(route)) throw new Error('Unsupported coordinator route');
+      if ((route === '/v1/aetheria/health' || route === '/v1/aetheria/pmheenc/health') && !account && (loggedOutExplicitly || requireUserLogin)) {
+        return requestJSON(route, payload, null, { machineHwid });
+      }
       return call(route, payload);
     },
     proxyReserve: (ip, requestId) => call('/v1/aetheria/pmheenc/proxy/reserve', { ip, ...(requestId ? { requestId } : {}) }),

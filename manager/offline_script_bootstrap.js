@@ -4,7 +4,7 @@
 // This ownership notice is not an AI safeguard or a claim that memory extraction is impossible.
 (function (host) {
   'use strict';
-  if (host.__pmScriptBootstrap && !(host.__pmScriptBootstrap.status?.()?.protocol === 1 && host.__pmScriptBootstrap.status?.()?.phase === 'waiting' && !host.__pmScriptBootstrap.status?.()?.activated && !host.__pelicanBotVersion)) return;
+  if (host.__pmScriptBootstrap && !(host.__pmScriptBootstrap.status?.()?.protocol === 1 && host.__pmScriptBootstrap.status?.()?.phase === 'waiting' && !host.__pmScriptBootstrap.status?.()?.activated && !host.__pelicanBotVersion && !host.__nightcampBotVersion)) return;
   // Protected release tooling replaces this exact marker with pinned PUBLIC keys.
   // Never accept trust anchors supplied by a ticket, payload, or an API response.
   const PUBLIC_KEYS = /* PMHEE_PUBLIC_KEYS */ {};
@@ -18,7 +18,11 @@
   const exports = new Map();
   const passthrough = new Set(['requestAnimationFrame', 'cancelAnimationFrame', 'dispatchEvent', 'WebSocket',
     'setLowPowerMode', 'getColyseusRoom', 'getGameRoom', '__getClientLiveState',
-    'getCurrentMapName', 'getCurrentChannel', 'getLiveCharacterData']);
+    'getCurrentMapName', 'getCurrentChannel', 'getLiveCharacterData',
+    '__inspectNightcampRuntime', 'getCharacterName', 'syncAllHudInputsFromConfig',
+    '__setAutoRespawnEnabled', '__setPotionConfig', '__setSmartAutoQuestEnabled',
+    '__setUpgradeBotAiEnabled', '__setAutoSellConfig', '__setTargetFarmMap',
+    '__applyScriptPlan', '__triggerPotionRestockTripNow']);
   const safeStops = new Set(['stopMasterBot', 'stopPelicanBot']);
   const facade = new Proxy(host, {
     get(target, key) {
@@ -100,7 +104,7 @@
       const digest = await host.crypto.subtle.digest('SHA-256', encoder.encode(source));
       const hash = Array.from(new Uint8Array(digest), x => x.toString(16).padStart(2, '0')).join('');
       if (hash !== next.payloadHash) throw Error('PAYLOAD_HASH_MISMATCH');
-      if (host.__pelicanBotVersion || host.__pmPayloadInitialized || host.__pmLegacyInjectionAttempted || ('__isBotRunning' in host) || typeof host.startMasterBot === 'function' || host.document?.getElementById?.('pelican-hud')) throw Error('EXISTING_RUNTIME_REFRESH_REQUIRED');
+      if (host.__nightcampBotVersion || host.__pelicanBotVersion || host.__pmPayloadInitialized || host.__pmLegacyInjectionAttempted || ('__isBotRunning' in host) || typeof host.startMasterBot === 'function' || host.document?.getElementById?.('nightcamp-hud') || host.document?.getElementById?.('pelican-hud')) throw Error('EXISTING_RUNTIME_REFRESH_REQUIRED');
       const initialize = new Function('runtime', source);
       claims = next;
       phase = 'ready';

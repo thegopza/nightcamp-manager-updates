@@ -5932,7 +5932,6 @@ function getProfileIpIsolationInfo(profileId) {
 }
 const offlineCoordinator = createOfflineCoordinator({dataDir:path.join(__dirname,'data'),loadProfiles,evalProfilePort,service:humanCheckSolver,trustedKeys:require('./script_release_keys'),legacyCoordinator:legacyScriptCoordinator,getProfileIpIsolationMeta:(pid)=>getProfileIpIsolationInfo(pid),autoBindWallet:false});
 humanCheckSolver.setDeviceNameProvider?.(() => getEffectiveDeviceNickname());
-humanCheckSolver.setOnAccountChanged?.(() => { offlineCoordinator.cycle?.().catch(() => {}); });
 
 const { createCoordinatedScriptCoordinator } = require('./coordinated_coordinator');
 
@@ -5943,13 +5942,14 @@ const scriptCoordinator = createCoordinatedScriptCoordinator({
   getSettings: () => ({ ...installer.loadSettings(), accountId: humanCheckSolver.loadSettings()?.accountId || null }),
   dataDir: path.join(__dirname, 'data')
 });
+humanCheckSolver.setOnAccountChanged?.(() => { scriptCoordinator.cycle?.().catch(() => {}); });
 
 const botAutoUpdater = createBotAutoUpdater({
   loadProfiles,
   evalProfilePort,
   getGameDir: () => installer.getEffectiveGamePath(),
-  getManagedRelease: undefined,
-  getCachedManagedRelease: undefined,
+  getManagedRelease: (force) => scriptCoordinator.refreshRelease ? scriptCoordinator.refreshRelease(force) : scriptCoordinator.release?.(),
+  getCachedManagedRelease: () => scriptCoordinator.release?.(),
   isConsolidating: () => Boolean((typeof consolidationState !== 'undefined' && consolidationState && consolidationState.running) || (typeof fleetZenyService !== 'undefined' && fleetZenyService && fleetZenyService.getState()?.running)),
   dataDir: path.join(__dirname, "data")
 });
@@ -5962,7 +5962,7 @@ const screenProxy = createScreenProxyManager({
   loadProfiles
 });
 // Browser mode: game windows in one real Chrome / Edge instead of one Electron app each (manager/browser_mode.js)
-const browserMode = createBrowserMode({ rootDir: path.resolve(__dirname, ".."), sessionsDir: SESSIONS_DIR, getSettings: () => installer.loadSettings(), loadProfiles, preferLocalBot: fs.existsSync(path.join(BASE_DIR, ".git")), ...(TEST_INSTANCE?{cdpPort:testCdpPort,browserUserDataDir:path.join(SESSIONS_DIR,'_isolated_test_browser')}:{ }), screenProxy });
+const browserMode = createBrowserMode({ rootDir: path.resolve(__dirname, ".."), sessionsDir: SESSIONS_DIR, getSettings: () => installer.loadSettings(), loadProfiles, ...(TEST_INSTANCE?{cdpPort:testCdpPort,browserUserDataDir:path.join(SESSIONS_DIR,'_isolated_test_browser')}:{ }), profileScriptSource: id => scriptCoordinator.profileScriptSource(id), screenProxy });
 if (typeof screenProxy.setCustomIpGroupsProvider === "function") {
   screenProxy.setCustomIpGroupsProvider(() => browserMode.getCustomIpDeviceConfig());
 }

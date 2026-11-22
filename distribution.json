@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "sourceCommit": "1ae4e2bc3bb6ad610d4fe82b29de5a2fed1c9b26",
+  "sourceCommit": "bc851c1964f088545006be0fac81b2cfbb44f0d0",
   "files": [
     {
       "path": "manager/asset_cache.js",
@@ -64,7 +64,7 @@
     },
     {
       "path": "manager/human_check_solver.js",
-      "sha256": "8366a4f8556bb24cff85ea4ec83fad5f86d1c47cf928ed1c6647e05e21b659eb"
+      "sha256": "68be10b9e8e90d85c119c07dde51ac47ee817fe13a6d679b2dfe62d2760adee3"
     },
     {
       "path": "manager/image_board_solver.js",
@@ -96,7 +96,7 @@
     },
     {
       "path": "manager/offline_coordinator.js",
-      "sha256": "49073c0d1628c8f492a39cd6150626b86887b67c18b65a098054e8d6d9b9906a"
+      "sha256": "57c464c9520575f67b214859f5b526e8247194ce200b86aa48996a40ae2fec7d"
     },
     {
       "path": "manager/offline_journal.js",
@@ -108,7 +108,7 @@
     },
     {
       "path": "manager/offline_script_bootstrap.js",
-      "sha256": "2177ce5a3cc481589910bd28ead78bd717c0c79924403a6a5b8e7fce0619ecb9"
+      "sha256": "88691ced250478f0284a519dcb1a1c883247862595b5465c0e3eb80223ac0382"
     },
     {
       "path": "manager/party_api.js",
@@ -300,7 +300,7 @@
     },
     {
       "path": "manager/script_bootstrap.js",
-      "sha256": "dfb73ffef15c1c3ac74524f32abdf3090660447735b18c1fb14e2dbc96b9f728"
+      "sha256": "44c00ec7b0fa9bfefb94a8388813c981d7dc0d5437e41aa831d62eedc83a61fb"
     },
     {
       "path": "manager/script_coordinator.js",
@@ -320,7 +320,7 @@
     },
     {
       "path": "manager/server.js",
-      "sha256": "38c3cf39909ca82bb8b1efa67d4989fc3f92feda9d173fcd13b9e31f0be64fb6"
+      "sha256": "e8adeb61e20c9f9f89685f5458b781a1d416ccd807173d425e8c8d53ebbac0c9"
     },
     {
       "path": "manager/test_isolation.js",
