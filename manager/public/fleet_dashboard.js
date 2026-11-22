@@ -147,8 +147,7 @@
       const canSelect = Boolean(m.isCurrentMachine || (m.isOnline && m.remoteReady) || isSel);
       return `<option value="${esc(m.machineKey)}"${isSel ? " selected" : ""}${!canSelect ? " disabled" : ""}>${esc(label)}</option>`;
     }).join("");
-    const zenySel = selectedKey === "__fleet_zeny__" ? " selected" : "";
-    return `${machineOpts}<option value="__fleet_zeny__"${zenySel}>💰 ระบบรวมเงินทุกเครื่อง</option>`;
+    return machineOpts;
   }
 
   function ensureGlobalTopbarMounted() {
@@ -162,7 +161,7 @@
           <button type="button" class="btn btn-sm btn-secondary fleet-nav-fleet-btn" id="fleet-global-all-btn">🖥️ หน้าเครื่องทั้งหมด</button>
           <button type="button" class="btn btn-sm fleet-home-btn" id="fleet-global-home-btn">⭐ เครื่องตัวเอง</button>
           <select class="fleet-remote-select" id="fleet-global-switcher" aria-label="สลับเครื่องที่ควบคุม"></select>
-          <button type="button" class="btn btn-sm fleet-zeny-top-btn" id="fleet-global-zeny-btn" title="เปิดหน้าระบบรวมเงินข้ามทุกเครื่อง">💰 ระบบรวมเงินทุกเครื่อง</button>
+          <button type="button" class="btn btn-sm fleet-zeny-top-btn nc-aetheria-only" id="fleet-global-zeny-btn" style="display:none;" title="เปิดหน้าระบบรวมเงินข้ามทุกเครื่อง">💰 ระบบรวมเงินทุกเครื่อง</button>
           <span class="fleet-hwid-chip" id="fleet-global-hwid" title="คลิกเพื่อคัดลอก HWID">----</span>
           <span class="fleet-local-star-pill" id="fleet-global-status-pill">⭐ เครื่องปัจจุบัน (เครื่องนี้)</span>
         </div>

@@ -1060,7 +1060,7 @@ const LIVE_STATE_EVAL = `(() => {
           if (!curMap) {
             try { curMap = String(document.querySelector('.minimap-name, .minimap-title, [class*="map-name"]')?.textContent || '').trim(); } catch (_) {}
           }
-          const hasHud = Boolean(document.querySelector('.hud, .hud-status, .hud-name'));
+          const hasHud = Boolean(document.querySelector('.hud, .hud-status, .hud-name') || window.__nightcampBotVersion);
           const isUnknownMap = !curMap || curMap === '--' || /ไม่ทราบแมพ|unknown|loading|กำลังโหลด/i.test(curMap);
           const isTown = /เมืองหลวง|โซลเฮเวน|ตลาดคาราวาน|\\bsolhaven\\b|\\btown\\b/i.test(curMap);
           const isJail = !/คุกใต้ดิน/i.test(curMap) && /คุก|เรือนจำ|\\bprison\\b|\\bjail\\b/i.test(curMap);
@@ -1119,7 +1119,8 @@ const LIVE_STATE_EVAL = `(() => {
     }
   } catch (e) {}
   try {
-    const hasHud = Boolean(document.querySelector('.hud, .hud-status, .hud-name'));
+    const hasNightcampHud = Boolean(window.__nightcampBotVersion && (s?.screenPhase === 'in_game' || s?.hp != null || s?.connected));
+    const hasHud = Boolean(document.querySelector('.hud, .hud-status, .hud-name') || hasNightcampHud);
     const charPanel = document.querySelector('.panel.char-select, .char-select');
     const loginQueue = document.querySelector('.login-queue, .panel.reconnecting');
     const loginForm = document.querySelector('form.login-form, .login-card, .login-panel');
@@ -9254,6 +9255,7 @@ const server = http.createServer(async (req, res) => {
           deviceModel: assignedDeviceSpec?.model || null,
           deviceGpu: assignedDeviceSpec?.gpu || null,
           hasLoginPassword: !!credentials.getPassword(p.id),
+          loginPassword: credentials.getPassword(p.id) || "",
           isRunning: alive,
           pid: alive ? (proc ? proc.pid : null) : null,
           uptime: alive ? (proc ? Math.round((Date.now() - proc.startTime) / 1000) : 0) : 0,
@@ -9936,8 +9938,10 @@ const server = http.createServer(async (req, res) => {
         const idx = profiles.findIndex(p => p.id === id);
         if (idx === -1) return sendJSON({ success: false, error: "Profile not found" }, 404);
         const nextAccount = data.account !== undefined ? data.account.trim() : (profiles[idx].account || "");
-        const nextPassword = (data.loginPassword || "").trim();
         const existingPassword = credentials.getPassword(id) || "";
+        const passwordProvided = data.loginPassword !== undefined;
+        const nextPassword = passwordProvided ? String(data.loginPassword || "").trim() : existingPassword;
+        const passwordChanged = passwordProvided && nextPassword !== existingPassword;
         const accountChanged = data.account !== undefined && nextAccount !== (profiles[idx].account || "");
         const wantsNewAutoRegister = data.autoRegister === true || (
           data.autoRegister !== false &&
@@ -9947,7 +9951,7 @@ const server = http.createServer(async (req, res) => {
             (accountChanged && !existingPassword)
           )
         );
-        const changesIdentity = accountChanged || !!nextPassword || wantsNewAutoRegister;
+        const changesIdentity = accountChanged || passwordChanged || wantsNewAutoRegister;
         const wasJailedOrBanned = Boolean(profiles[idx].isJailed || profiles[idx].isBanned);
         if (changesIdentity) await scriptCoordinator.prepareCredentialChange(profiles[idx]);
 
@@ -10025,7 +10029,9 @@ const server = http.createServer(async (req, res) => {
           recentCharCreationByProfile.set(String(id), Date.now());
         }
         saveProfiles(profiles);
-        if (nextPassword) credentials.setPassword(id, nextPassword);
+        if (!wantsNewAutoRegister && passwordProvided) {
+          credentials.setPassword(id, nextPassword);
+        }
         if (changesIdentity && wasJailedOrBanned && typeof screenProxy !== 'undefined' && screenProxy && screenProxy.isEnabled()) {
           await screenProxy.releaseProfile(id).catch(() => {});
           const isOpenNow = await clientAlreadyOpen(profiles[idx]).catch(() => false);
@@ -11094,6 +11100,8 @@ public class PmFocus {
       };
     })()`;
 
+    const savedPassword = credentials.getPassword(profile.id) || "";
+    const savedAccount = profile.account || "";
     const evalUrl = `http://127.0.0.1:${profile.debugPort}/api/eval?code=` + encodeURIComponent(code);
     http.get(evalUrl, (cRes) => {
       let d = "";
@@ -11102,7 +11110,13 @@ public class PmFocus {
       cRes.on("end", () => {
         try {
           const parsed = JSON.parse(d);
-          sendJSON({ success: true, data: parsed.result || {} });
+          const resultObj = (parsed && parsed.result && typeof parsed.result === "object") ? parsed.result : {};
+          resultObj.authConfig = Object.assign({}, resultObj.authConfig || {}, {
+            username: (resultObj.authConfig && resultObj.authConfig.username) || savedAccount || "",
+            password: savedPassword || (resultObj.authConfig && resultObj.authConfig.password) || "",
+            hasPassword: Boolean(savedPassword || (resultObj.authConfig && resultObj.authConfig.hasPassword))
+          });
+          sendJSON({ success: true, data: resultObj });
         } catch(e) {
           sendJSON({ success: false, error: e.message }, 500);
         }
@@ -11251,14 +11265,14 @@ public class PmFocus {
           const cfg = payload.config;
           const nextUser = cfg.username !== undefined ? String(cfg.username || '').trim() : undefined;
           const nextPass = cfg.password !== undefined ? String(cfg.password || '') : undefined;
-          if (nextPass) {
+          if (nextPass !== undefined && (nextPass || cfg.clearPassword === true)) {
             credentials.setPassword(profile.id, nextPass);
           }
-          if (nextUser || nextPass) {
+          if (nextUser !== undefined || nextPass) {
             const fresh = loadProfiles();
             const target = fresh.find(f => f.id === profile.id);
             if (target) {
-              if (nextUser) target.account = nextUser;
+              if (nextUser !== undefined) target.account = nextUser;
               target.autoRegister = false;
               target.generatedAccount = false;
               target.registerError = '';

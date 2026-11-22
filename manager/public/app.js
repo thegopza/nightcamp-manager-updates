@@ -1628,8 +1628,9 @@ function buildProfileCard(p) {
   const postSellStopReason = state?.postSellStopReason || p.postSellStopReason || 'ขายแล้วยังน้ำหนักเกิน';
   const postSellStopDetail = state?.postSellStopDetail || p.postSellStopDetail || postSellStopReason;
 
+  const rawSavedClass = (p.charClass === 'Hunter' && !p.lastCharClass) ? '' : (p.lastCharClass || p.charClass || '');
   const charName = state?.charName || p.lastCharName || null;
-  const curClass = (state?.charName && state?.charClass) ? state.charClass : (p.lastCharClass || p.charClass || state?.charClass || 'Archer');
+  const curClass = (state?.charClass && state.charClass !== 'Novice') ? state.charClass : (rawSavedClass || state?.charClass || 'Traveler');
   const hue = getClassHue(curClass);
   const portraitSrc = getPortraitSrc(p, state);
   const initial = escapeHTML(String(charName || p.name || '?').trim().charAt(0).toUpperCase());
@@ -1643,13 +1644,10 @@ function buildProfileCard(p) {
     if (jobLv === null && nums[1]) jobLv = Number(nums[1]);
   }
 
-  const curMap = isJailed ? (p.jailedMap || state?.map || 'คุก') : (state && state.map ? state.map : p.targetMap);
-  const curAmmo = state && typeof state.ammo === 'number' ? state.ammo.toLocaleString() : '--';
-  const curPos = state && state.pos && state.pos.tileX ? `${state.pos.tileX}, ${state.pos.tileY}` : (state?.coords && state.coords !== '--' ? state.coords.split(' (')[0] : '--');
-  const curZeny = (state && typeof state.zeny === 'number') ? state.zeny.toLocaleString() : '--';
+  const rawTargetMap = (p.targetMap === 'ถนนต้นหลิว' || p.targetMap === 'เมืองหลวงโซลเฮเวน') ? '' : (p.targetMap || '');
+  const curMap = (state && state.map && state.map !== 'ไม่ทราบแมพ') ? state.map : (rawTargetMap || (isOnline ? 'Nightcamp World' : 'ออฟไลน์'));
   const weightPct = state?.weight ? parseFloat(String(state.weight).replace(/[^\d.]/g, '')) : NaN;
   const weightTone = weightPct >= 80 ? 'bad' : weightPct >= 60 ? 'warn' : 'ok';
-  const zenyRate = getProfileZenyRate(p);
   const bw = getProfileBandwidth(p);
   const allBw = getAllBandwidthSummary();
 
@@ -1742,12 +1740,12 @@ function buildProfileCard(p) {
       </div>` : '')}
       <div class="card-hero">
         ${portraitSrc ? `<div class="card-hero-bg-wrap"><div class="card-hero-bg" style="background-image: url('${portraitSrc}');"></div></div>` : ''}
-        <div class="avatar ${portraitSrc ? '' : 'no-img'}" onclick="openCharacterModal('${p.id}')" title="คลิกเพื่อดูหน้าต่างตัวละคร สวมใส่/ถอดอุปกรณ์ และดูสถานะ (Equipment & Stats)">
+        <div class="avatar ${portraitSrc ? '' : 'no-img'}" onclick="openWebBotHUD('${p.id}')" title="คลิกเพื่อเปิดเมนูบอทของจอนี้">
           <span class="avatar-fallback">${initial}</span>
           ${portraitSrc ? `<img src="${portraitSrc}" alt="${escapeHTML(curClass)}" draggable="false" onerror="onPortraitError(this)">` : ''}
           ${baseLv !== null ? `<span class="avatar-lv" title="Base Level">${baseLv}</span>` : ''}
           <span class="avatar-dot ${isOnline ? 'online' : ''}"></span>
-          <span class="avatar-hover-hint">🔍 ตรวจสอบ</span>
+          <span class="avatar-hover-hint">🎮 เมนูบอท</span>
         </div>
         <div class="card-identity">
           <div class="card-title-row">
@@ -1822,21 +1820,9 @@ function buildProfileCard(p) {
                   <span>ปิดจอเกมนี้</span>
                 </button>
                 <div class="card-menu-divider"></div>` : ''}
-                <button type="button" class="card-menu-item" onclick="closeCardMenu(); openScriptPlanModal('${p.id}')">
-                  <span class="cm-icon">📜</span>
-                  <span>ตั้งค่าแผนการเล่น (Plan)</span>
-                </button>
-                <button type="button" class="card-menu-item" onclick="closeCardMenu(); openCardWhitelistModal('${p.id}', 'whitelist')">
-                  <span class="cm-icon">🛡️</span>
-                  <span>จัดการ Whitelist (ห้ามขาย)</span>
-                </button>
-                <button type="button" class="card-menu-item" onclick="closeCardMenu(); openCardWhitelistModal('${p.id}', 'forceSell')">
-                  <span class="cm-icon">💰</span>
-                  <span>จัดการรายการบังคับขาย NPC</span>
-                </button>
-                <button type="button" class="card-menu-item" onclick="closeCardMenu(); openSaveClientPresetModal('${p.id}')">
-                  <span class="cm-icon">💾</span>
-                  <span>บันทึกเข้า Save List (Preset)</span>
+                <button type="button" class="card-menu-item" onclick="closeCardMenu(); openWebBotHUD('${p.id}')">
+                  <span class="cm-icon">🎮</span>
+                  <span>เปิดเมนูบอท Nightcamp</span>
                 </button>
                 <button type="button" class="card-menu-item" onclick="closeCardMenu(); openEditModal('${p.id}')">
                   <span class="cm-icon">⚙️</span>
@@ -1931,39 +1917,28 @@ function buildProfileCard(p) {
           <span class="stat-lbl">🖥️ สถานะหน้าจอเกม${state?.autoRefreshInSec ? ` (รีเฟรชอัตโนมัติใน ${state.autoRefreshInSec} วิ)` : ''}</span>
           <span class="stat-val stat-map ${isErrorScreen ? 'is-screen-error' : 'is-screen-wait'}" title="${escapeHTML(state?.screenDetail || activityText)}">${escapeHTML(state?.screenDetail || activityText)}</span>
           ` : `
-          <span class="stat-lbl">📍 ${isOnline ? 'แมพปัจจุบัน' : 'แมพเป้าหมาย'}</span>
-          <span class="stat-val stat-map" title="${escapeHTML(curMap)}">${escapeHTML(curMap || '--')}</span>
+          <span class="stat-lbl">🌙 สถานะ / โซน</span>
+          <span class="stat-val stat-map" title="${escapeHTML(curMap)}">${escapeHTML(curMap || 'Nightcamp World')}</span>
           `}
         </div>
         ${isOnline ? `
         <div class="stat-item">
-          <span class="stat-lbl">พิกัด</span>
-          <span class="stat-val mono" title="${escapeHTML(state?.coords || '')}">${escapeHTML(curPos)}</span>
+          <span class="stat-lbl">เลเวล</span>
+          <span class="stat-val mono text-cyan">${baseLv !== null ? `Lv ${baseLv}${jobLv !== null ? ` · Job ${jobLv}` : ''}` : '--'}</span>
         </div>
         <div class="stat-item">
-          <span class="stat-lbl">ลูกธนู</span>
-          <span class="stat-val mono text-cyan">${curAmmo}</span>
+          <span class="stat-lbl">HP</span>
+          <span class="stat-val mono">${escapeHTML(hpStr)}</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-lbl">SP</span>
+          <span class="stat-val mono text-cyan">${escapeHTML(spStr)}</span>
         </div>
         <div class="stat-item">
           <span class="stat-lbl">น้ำหนัก</span>
           <span class="stat-val mono">${escapeHTML(state?.weight || '--')}</span>
           ${!isNaN(weightPct) ? `<div class="mini-track"><div class="mini-fill ${weightTone}" style="width: ${Math.min(100, weightPct)}%;"></div></div>` : ''}
-        </div>
-        <div class="stat-item">
-          <span class="stat-lbl">Zeny</span>
-          <span class="stat-val mono text-gold">${curZeny}</span>
         </div>` : ''}
-        <div class="gp-rate-row" onclick="resetZenyRate('${p.id}', event)" title="รายได้เฉลี่ยต่อนาที (GP/M) และต่อชั่วโมง (GP/H) [คิดเฉพาะรายได้อย่างเดียว ไม่หักค่าซื้อของ/Token]${zenyRate.totalGained > 0 ? ` · สะสมรอบนี้ +${zenyRate.totalGained.toLocaleString()} z` : ''} — คลิกเพื่อรีเซ็ตการนับใหม่">
-          <div class="gp-rate-cell">
-            <span class="gp-rate-lbl">⚡ GP/M</span>
-            <span class="gp-rate-val gp-m">${isOnline ? `${zenyRate.gpm.toLocaleString()} <small>z/m</small>` : '--'}</span>
-          </div>
-          <div class="gp-rate-sep"></div>
-          <div class="gp-rate-cell">
-            <span class="gp-rate-lbl">📈 GP/H</span>
-            <span class="gp-rate-val gp-h">${isOnline ? `${zenyRate.gph.toLocaleString()} <small>z/h</small>` : '--'}</span>
-          </div>
-        </div>
         <div class="bw-rate-row" onclick="resetProfileBandwidth('${p.id}', event)" title="ปริมาณการใช้เน็ตของจอนี้วันนี้ (↓${formatBytes(bw.todayRxBytes)} / ↑${formatBytes(bw.todayTxBytes)}) · ความเร็ว ${formatBytes(bw.bps, 1)}/s (~${formatBytes(bw.bytesPerHour)}/ชม.) · รวมทุกจอวันนี้ ${formatBytes(allBw.todayBytes)} (คาดการณ์รวม ~${formatBytes(allBw.totalEstDayBytes)}/วัน) — คลิกเพื่อรีเซ็ตสถิติของจอนี้">
           <div class="bw-rate-cell">
             <div class="bw-cell-top">
@@ -2037,7 +2012,8 @@ let cardSortMode = 'default';
 try {
   const urlView = new URLSearchParams(window.location.search).get('view');
   cardViewMode = (urlView === 'party' || urlView === 'default') ? urlView : (localStorage.getItem('pelican_card_view_mode') || 'default');
-  cardSortMode = localStorage.getItem('pelican_card_sort_mode') || 'default';
+  const savedSort = localStorage.getItem('pelican_card_sort_mode') || 'default';
+  cardSortMode = (savedSort === 'default' || savedSort === 'level_desc') ? savedSort : 'default';
 } catch (_) {}
 const collapsedCardGroups = new Set();
 
@@ -2311,139 +2287,20 @@ function resetGroupZenyRate(groupKey, event) {
 }
 
 function buildPartyVsSoloBanner(partyCount, partyStats, soloStats) {
-  const maxAvg = Math.max(1, partyStats.avgGpm, soloStats.avgGpm);
-  const partyBarPct = partyStats.avgGpm > 0 ? Math.max(6, Math.round((partyStats.avgGpm / maxAvg) * 100)) : 0;
-  const soloBarPct = soloStats.avgGpm > 0 ? Math.max(6, Math.round((soloStats.avgGpm / maxAvg) * 100)) : 0;
-
-  let verdictHtml = `<div class="pvs-verdict neutral"><span class="pvs-verdict-icon">⏳</span><div><div class="pvs-verdict-title">รอข้อมูลเปรียบเทียบ GP/M ต่อจอ</div><div class="pvs-verdict-sub">เปิดบอทฟาร์มทั้งแบบตี้และแบบเดี่ยว ระบบจะคำนวณให้ทันทีว่าแบบไหนทำเงินต่อจอได้ไวกว่ากัน</div></div></div>`;
-
-  if (partyStats.avgGpm > 0 && soloStats.avgGpm > 0) {
-    const diffGpm = partyStats.avgGpm - soloStats.avgGpm;
-    const diffGph = partyStats.avgGph - soloStats.avgGph;
-    const base = Math.min(partyStats.avgGpm, soloStats.avgGpm);
-    const pct = base > 0 ? ((Math.abs(diffGpm) / base) * 100).toFixed(1) : '0.0';
-    if (Math.abs(diffGpm) <= Math.max(50, base * 0.02)) {
-      verdictHtml = `
-        <div class="pvs-verdict tie">
-          <span class="pvs-verdict-icon">⚖️</span>
-          <div>
-            <div class="pvs-verdict-title">สูสีกัน! รายได้เฉลี่ยต่อจอใกล้เคียงกันมาก (ต่างกัน ~${pct}%)</div>
-            <div class="pvs-verdict-sub">แบบตี้ ${partyStats.avgGpm.toLocaleString()} z/m ต่อจอ vs แบบเดี่ยว ${soloStats.avgGpm.toLocaleString()} z/m ต่อจอ</div>
-          </div>
-        </div>`;
-    } else if (diffGpm > 0) {
-      verdictHtml = `
-        <div class="pvs-verdict party-win">
-          <span class="pvs-verdict-icon">🏆</span>
-          <div>
-            <div class="pvs-verdict-title">ฟาร์มแบบตี้ไวกว่า <b>+${pct}%</b> ต่อจอ!</div>
-            <div class="pvs-verdict-sub">ได้มากกว่าเฉลี่ย <b>+${diffGpm.toLocaleString()} z/m</b> (<b>+${diffGph.toLocaleString()} z/h</b>) ต่อ 1 จอที่ออนไลน์</div>
-          </div>
-        </div>`;
-    } else {
-      const absGpm = Math.abs(diffGpm);
-      const absGph = Math.abs(diffGph);
-      verdictHtml = `
-        <div class="pvs-verdict solo-win">
-          <span class="pvs-verdict-icon">⚡</span>
-          <div>
-            <div class="pvs-verdict-title">ฟาร์มเดี่ยว (Solo) ไวกว่า <b>+${pct}%</b> ต่อจอ!</div>
-            <div class="pvs-verdict-sub">ได้มากกว่าเฉลี่ย <b>+${absGpm.toLocaleString()} z/m</b> (<b>+${absGph.toLocaleString()} z/h</b>) ต่อ 1 จอที่ออนไลน์</div>
-          </div>
-        </div>`;
-    }
-  } else if (partyStats.avgGpm > 0 && soloStats.onlineCount === 0) {
-    verdictHtml = `
-      <div class="pvs-verdict party-win">
-        <span class="pvs-verdict-icon">👑</span>
-        <div>
-          <div class="pvs-verdict-title">กำลังฟาร์มแบบตี้: เฉลี่ย <b>${partyStats.avgGpm.toLocaleString()} z/m</b> (${partyStats.avgGph.toLocaleString()} z/h) ต่อจอ</div>
-          <div class="pvs-verdict-sub">รวมทุกตี้ ${partyStats.totalGpm.toLocaleString()} z/m · ${partyStats.totalGph.toLocaleString()} z/h (ไม่มีจอฟาร์มเดี่ยวออนไลน์)</div>
-        </div>
-      </div>`;
-  } else if (soloStats.avgGpm > 0 && partyStats.onlineCount === 0) {
-    verdictHtml = `
-      <div class="pvs-verdict solo-win">
-        <span class="pvs-verdict-icon">⚔️</span>
-        <div>
-          <div class="pvs-verdict-title">กำลังฟาร์มเดี่ยว: เฉลี่ย <b>${soloStats.avgGpm.toLocaleString()} z/m</b> (${soloStats.avgGph.toLocaleString()} z/h) ต่อจอ</div>
-          <div class="pvs-verdict-sub">รวมโซโล่ ${soloStats.totalGpm.toLocaleString()} z/m · ${soloStats.totalGph.toLocaleString()} z/h (ยังไม่มีจอในปาร์ตี้ออนไลน์)</div>
-        </div>
-      </div>`;
-  }
-
   return `
     <div class="party-vs-solo-banner" data-group-id="banner-party-vs-solo">
       <div class="pvs-top-row">
         <div class="pvs-heading">
-          <span class="pvs-badge-icon">📊</span>
+          <span class="pvs-badge-icon">👑</span>
           <div>
-            <div class="pvs-title">เปรียบเทียบความไว: ฟาร์มแบบตี้ (Party) vs ฟาร์มเดี่ยว (Solo)</div>
-            <div class="pvs-subtitle">เทียบค่าเฉลี่ย GP/M (ต่อนาที) และ GP/H (ต่อชั่วโมง) ต่อ 1 จอที่ออนไลน์ เพื่อดูว่าโหมดไหนคุ้มค่ากว่ากัน</div>
+            <div class="pvs-title">จัดกลุ่มหน้าจอเกมตามปาร์ตี้ (Party) vs โซโล่ (Solo)</div>
+            <div class="pvs-subtitle">👑 ปาร์ตี้ทั้งหมด ${partyCount} ตี้ (ออนไลน์ ${partyStats.onlineCount}/${partyStats.totalCount} จอ) · 👤 โซโล่ (ออนไลน์ ${soloStats.onlineCount}/${soloStats.totalCount} จอ)</div>
           </div>
         </div>
         <div class="pvs-actions">
-          <button type="button" class="btn btn-ghost btn-sm pvs-btn-reset" onclick="resetAllZenyRates(event)" title="รีเซ็ตตัวนับ GP/M และ GP/H ของทุกจอพร้อมกัน เพื่อเริ่มจับเวลาเปรียบเทียบใหม่พร้อมกัน">
-            <span>🔄</span> รีเซ็ต GP/M ทุกจอพร้อมกัน
-          </button>
           <button type="button" class="btn btn-ghost btn-sm pvs-btn-party" onclick="if(window.openPartyDrawer)window.openPartyDrawer()" title="เปิดหน้าต่างตั้งค่าปาร์ตี้">
             <span>👑</span> จัดการตี้ (${partyCount})
           </button>
-        </div>
-      </div>
-
-      <div class="pvs-grid">
-        <!-- PARTY SUMMARY -->
-        <div class="pvs-metric-box is-party ${partyStats.avgGpm > soloStats.avgGpm && partyStats.avgGpm > 0 ? 'is-leading' : ''}">
-          <div class="pvs-box-head">
-            <span class="pvs-box-tag party">👑 เฉลี่ยแบบตี้ (ต่อ 1 จอ)</span>
-            <span class="pvs-box-count">${partyCount} ตี้ · ออนไลน์ <b>${partyStats.onlineCount}</b>/${partyStats.totalCount} จอ</span>
-          </div>
-          <div class="pvs-main-numbers">
-            <div class="pvs-num-col">
-              <span class="pvs-num-lbl">⚡ เฉลี่ย GP/M ต่อจอ</span>
-              <span class="pvs-num-val gpm">${partyStats.avgGpm.toLocaleString()} <small>z/m</small></span>
-            </div>
-            <div class="pvs-num-sep"></div>
-            <div class="pvs-num-col">
-              <span class="pvs-num-lbl">📈 เฉลี่ย GP/H ต่อจอ</span>
-              <span class="pvs-num-val gph">${partyStats.avgGph.toLocaleString()} <small>z/h</small></span>
-            </div>
-          </div>
-          <div class="pvs-bar-track"><div class="pvs-bar-fill party" style="width: ${partyBarPct}%;"></div></div>
-          <div class="pvs-box-foot">
-            <span>รวมทุกตี้: <b>${partyStats.totalGpm.toLocaleString()} z/m</b> · <b>${partyStats.totalGph.toLocaleString()} z/h</b></span>
-            <span>สะสมรอบนี้: <b>+${partyStats.totalGained.toLocaleString()} z</b></span>
-          </div>
-        </div>
-
-        <!-- SOLO SUMMARY -->
-        <div class="pvs-metric-box is-solo ${soloStats.avgGpm > partyStats.avgGpm && soloStats.avgGpm > 0 ? 'is-leading' : ''}">
-          <div class="pvs-box-head">
-            <span class="pvs-box-tag solo">⚔️ เฉลี่ยฟาร์มเดี่ยว (ต่อ 1 จอ)</span>
-            <span class="pvs-box-count">โซโล่ · ออนไลน์ <b>${soloStats.onlineCount}</b>/${soloStats.totalCount} จอ</span>
-          </div>
-          <div class="pvs-main-numbers">
-            <div class="pvs-num-col">
-              <span class="pvs-num-lbl">⚡ เฉลี่ย GP/M ต่อจอ</span>
-              <span class="pvs-num-val gpm">${soloStats.avgGpm.toLocaleString()} <small>z/m</small></span>
-            </div>
-            <div class="pvs-num-sep"></div>
-            <div class="pvs-num-col">
-              <span class="pvs-num-lbl">📈 เฉลี่ย GP/H ต่อจอ</span>
-              <span class="pvs-num-val gph">${soloStats.avgGph.toLocaleString()} <small>z/h</small></span>
-            </div>
-          </div>
-          <div class="pvs-bar-track"><div class="pvs-bar-fill solo" style="width: ${soloBarPct}%;"></div></div>
-          <div class="pvs-box-foot">
-            <span>รวมโซโล่: <b>${soloStats.totalGpm.toLocaleString()} z/m</b> · <b>${soloStats.totalGph.toLocaleString()} z/h</b></span>
-            <span>สะสมรอบนี้: <b>+${soloStats.totalGained.toLocaleString()} z</b></span>
-          </div>
-        </div>
-
-        <!-- VERDICT -->
-        <div class="pvs-verdict-wrap">
-          ${verdictHtml}
         </div>
       </div>
     </div>`;
@@ -2514,19 +2371,7 @@ function buildPartyGroupSection(party, idx, profileById, roleMap, soloAvgGpm) {
         </div>
 
         <div class="pg-head-right" onclick="event.stopPropagation()">
-          <div class="pg-rate-summary">
-            <div class="pg-rate-col">
-              <span class="pg-rate-lbl">⚡ รวมทั้งตี้ (${stats.onlineCount} จอ)</span>
-              <span class="pg-rate-val total">${stats.totalGpm.toLocaleString()} <small>z/m</small> · <span class="gph">${stats.totalGph.toLocaleString()} <small>z/h</small></span></span>
-            </div>
-            <div class="pg-rate-sep"></div>
-            <div class="pg-rate-col">
-              <span class="pg-rate-lbl">👤 เฉลี่ยต่อจอ ${vsSoloBadge}</span>
-              <span class="pg-rate-val avg">${stats.avgGpm.toLocaleString()} <small>z/m</small> · <span class="gph">${stats.avgGph.toLocaleString()} <small>z/h</small></span></span>
-            </div>
-          </div>
           <div class="pg-head-actions">
-            <button type="button" class="btn btn-ghost btn-sm pg-action-btn" onclick="resetGroupZenyRate('${groupKey}', event)" title="รีเซ็ต GP/M · GP/H เฉพาะสมาชิกในปาร์ตี้นี้">🔄 รีเซ็ตตี้</button>
             <button type="button" class="btn btn-ghost btn-sm pg-action-btn" onclick="if(window.openPartyDrawer)window.openPartyDrawer()" title="ตั้งค่าปาร์ตี้นี้">⚙️ ตั้งค่าตี้</button>
           </div>
         </div>
@@ -2749,30 +2594,17 @@ function buildSoloGroupSection(soloProfiles) {
           <div class="pg-title-block">
             <div class="pg-title-main">
               <span>ตัวละครที่ไม่ได้อยู่ในปาร์ตี้ (${stats.totalCount} จอ)</span>
-              ${stats.topEarner ? `<span class="pg-top-earner-pill" title="จอฟาร์มเดี่ยวที่ทำ GP/M สูงสุดในตอนนี้">🏆 สูงสุด: <b>${escapeHTML(stats.topEarner.name)}</b> (${stats.topEarner.gpm.toLocaleString()} z/m)</span>` : ''}
             </div>
             <div class="pg-meta-pills">
               <span class="pg-meta-chip">🖥️ ออนไลน์ <b>${stats.onlineCount}</b>/${stats.totalCount} จอ</span>
-              <span class="pg-meta-chip">⚔️ กำลังฟาร์ม <b>${stats.farmingCount}</b> จอ</span>
-              <span class="pg-meta-chip">💰 สะสมรอบนี้ <b>+${stats.totalGained.toLocaleString()} z</b></span>
+              <span class="pg-meta-chip">⚔️ กำลังทำงาน <b>${stats.farmingCount}</b> จอ</span>
             </div>
           </div>
         </div>
 
         <div class="pg-head-right" onclick="event.stopPropagation()">
-          <div class="pg-rate-summary">
-            <div class="pg-rate-col">
-              <span class="pg-rate-lbl">⚡ รวมโซโล่ (${stats.onlineCount} จอ)</span>
-              <span class="pg-rate-val total">${stats.totalGpm.toLocaleString()} <small>z/m</small> · <span class="gph">${stats.totalGph.toLocaleString()} <small>z/h</small></span></span>
-            </div>
-            <div class="pg-rate-sep"></div>
-            <div class="pg-rate-col">
-              <span class="pg-rate-lbl">👤 เฉลี่ยต่อจอ</span>
-              <span class="pg-rate-val avg">${stats.avgGpm.toLocaleString()} <small>z/m</small> · <span class="gph">${stats.avgGph.toLocaleString()} <small>z/h</small></span></span>
-            </div>
-          </div>
           <div class="pg-head-actions">
-            <button type="button" class="btn btn-ghost btn-sm pg-action-btn" onclick="resetGroupZenyRate('solo', event)" title="รีเซ็ต GP/M · GP/H เฉพาะกลุ่มฟาร์มเดี่ยว">🔄 รีเซ็ตโซโล่</button>
+            <button type="button" class="btn btn-ghost btn-sm pg-action-btn" onclick="if(window.openPartyDrawer)window.openPartyDrawer()" title="จัดการปาร์ตี้">👑 จัดการตี้</button>
           </div>
         </div>
       </header>
@@ -8105,1076 +7937,128 @@ if (document.readyState === 'loading') {
 }
 
 // ==========================================
-// FLOATING IN-GAME BOT HUD (DIRECT GITHUB REPLICA)
+// FLOATING NIGHTCAMP BOT MENU & CENTRAL CONTROL
 // ==========================================
-const DEFAULT_WEB_INGAME_AUTO_ORDER = ['self', 'party', 'players', 'free', 'others'];
-const WEB_INGAME_AUTO_TARGET_LABELS = {
-  self: { label: 'สวนกลับมอนที่ตีเรา', help: 'มอนที่กำลังตีเราอยู่ ไม่ว่ามันยืนตรงไหน' },
-  party: { label: 'ช่วยเพื่อนในปาร์ตี้', help: 'มอนที่กำลังตีเพื่อนในปาร์ตี้ และบอสที่มีคนตีอยู่' },
-  players: { label: 'ตีผู้เล่นศัตรู (PvP / PK)', help: 'เฉพาะแมพ PvP และช่อง PK: ผู้เล่นศัตรูที่ใกล้สุด' },
-  free: { label: 'ล่ามอนว่าง', help: 'มอนในเขตล่าที่ยังไม่มีใครตี เลเวลเหมาะกับเราก่อน' },
-  others: { label: 'แจมผู้เล่นอื่น', help: 'มอนที่ผู้เล่นอื่นนอกปาร์ตี้ตีอยู่ (ทำงานเมื่อเปิดแจมผู้เล่นอื่น)' }
-};
-
-function normalizeWebInGameAutoOrder(order) {
-  const valid = new Set(DEFAULT_WEB_INGAME_AUTO_ORDER);
-  const out = [];
-  if (Array.isArray(order)) {
-    for (const k of order) {
-      const key = String(k || '').trim();
-      if (valid.has(key) && !out.includes(key)) out.push(key);
-    }
-  }
-  for (const k of DEFAULT_WEB_INGAME_AUTO_ORDER) {
-    if (!out.includes(k)) out.push(k);
-  }
-  return out;
+function formatNightcampLevelLine(state, profile) {
+  const rawSavedClass = (profile?.charClass === 'Hunter' && !profile?.lastCharClass) ? '' : (profile?.lastCharClass || profile?.charClass || '');
+  const cls = (state?.charClass && state.charClass !== 'Novice') ? state.charClass : (rawSavedClass || state?.charClass || 'Traveler');
+  const bLv = state?.baseLv ?? null;
+  const jLv = state?.jobLv ?? null;
+  if (bLv != null && jLv != null) return `${cls} · Lv ${bLv} / Job ${jLv}`;
+  if (bLv != null) return `${cls} · Lv ${bLv}`;
+  return cls;
 }
 
-function renderWebInGameAutoPriorityHtml(orderInput) {
-  const order = normalizeWebInGameAutoOrder(orderInput);
-  const summaryHtml = order.map((k, i) => {
-    const info = WEB_INGAME_AUTO_TARGET_LABELS[k] || { label: k, help: '' };
-    return `<span style="display:inline-block; margin-right:6px;"><b style="color:#facc15;">${i + 1}</b> ${escapeHTML(info.label)}</span>`;
-  }).join(' · ');
-  const rowsHtml = order.map((k, i) => {
-    const info = WEB_INGAME_AUTO_TARGET_LABELS[k] || { label: k, help: '' };
-    return `<div style="display:flex; align-items:center; gap:6px; padding:4px 6px; background:rgba(2,6,23,0.65); border:1px solid rgba(148,163,184,0.2); border-radius:5px; margin-top:4px;">
-      <b style="color:#facc15; font-size:11px; min-width:14px; text-align:center;">${i + 1}</b>
-      <div style="flex:1; min-width:0; line-height:1.25;">
-        <div style="font-size:10px; font-weight:bold; color:#f8fafc;">${escapeHTML(info.label)}</div>
-        <div style="font-size:8.5px; color:#94a3b8;">${escapeHTML(info.help)}</div>
-      </div>
-      <div style="display:flex; gap:3px;">
-        <button type="button" class="p-ig-prio-move" data-prio-idx="${i}" data-prio-dir="-1" ${i === 0 ? 'disabled' : ''} style="background:#1e293b; color:${i === 0 ? '#475569' : '#e2e8f0'}; border:1px solid #334155; border-radius:4px; font-size:9px; padding:2px 5px; cursor:${i === 0 ? 'default' : 'pointer'};">▲</button>
-        <button type="button" class="p-ig-prio-move" data-prio-idx="${i}" data-prio-dir="1" ${i === order.length - 1 ? 'disabled' : ''} style="background:#1e293b; color:${i === order.length - 1 ? '#475569' : '#e2e8f0'}; border:1px solid #334155; border-radius:4px; font-size:9px; padding:2px 5px; cursor:${i === order.length - 1 ? 'default' : 'pointer'};">▼</button>
-      </div>
-    </div>`;
-  }).join('');
-  return { summaryHtml, rowsHtml, order };
-}
-
-function getGitHubHudTemplate(profileId, clientData, profile) {
+function getNightcampHudTemplate(profileId, clientData, profile) {
   const isCentral = (profileId === '__central__');
   const onlineCount = currentProfiles.filter(p => p.isRunning).length;
-  const charDisplayName = isCentral ? `เมนูส่วนกลาง (${onlineCount} จอออนไลน์)` : (clientData?.state?.charName || profile.name);
-  const archer = clientData?.archerConfig || {};
-  const sell = clientData?.sellConfig || {};
+  const runningBots = currentProfiles.filter(p => p.isRunning && p.liveState?.isBotRunning).length;
+  const state = clientData?.state || (profile?.isRunning ? profile?.liveState : null) || {};
   const auth = clientData?.authConfig || {};
-  const autosell = clientData?.autoMarketSellConfig || {};
-  const marketFilter = clientData?.marketFilterConfig || {};
-  const shop = clientData?.shopConfig || {};
-  const travel = clientData?.travelConfig || {};
-  const humanize = clientData?.humanizeConfig || {};
-  const igAuto = Object.assign({
-    basicAttack: true,
-    targetOrder: DEFAULT_WEB_INGAME_AUTO_ORDER.slice(),
-    buffParty: true,
-    acceptParty: false,
-    joinOthers: false,
-    autoQuiver: false,
-    autoRevive: false,
-    autoReviveMax: 10,
-    pickupLoot: true,
-    lootWhen: 'first'
-  }, clientData?.inGameAutoConfig || {});
-  const igPrio = renderWebInGameAutoPriorityHtml(igAuto.targetOrder);
-  const potionCounts = clientData?.potionCounts || {};
-  const planName = clientData?.currentPlanName || '(ยังไม่เลือกแผน)';
+  const savedUser = auth.username || profile?.account || '';
+  const savedPass = auth.password || profile?.loginPassword || '';
+  const isOnline = isCentral ? onlineCount > 0 : Boolean(profile?.isRunning);
+  const isBotRunning = Boolean(clientData?.isBotRunning ?? state?.isBotRunning);
+  const isZeroRender = Boolean(state?.zeroRender ?? profile?.windowState?.isHidden);
+  const charDisplayName = isCentral
+    ? `เมนูส่วนกลาง (${onlineCount} จอออนไลน์)`
+    : (state?.charName || profile?.name || 'จอเกม Nightcamp');
+  const lvLine = isCentral
+    ? `บอททำงาน ${runningBots}/${onlineCount} จอ`
+    : formatNightcampLevelLine(state, profile);
+  const hpText = (typeof state?.hp === 'number')
+    ? `${state.hp.toLocaleString()} / ${(state.hpMax || state.maxHp || state.hp).toLocaleString()}`
+    : '-- / --';
+  const spText = (typeof state?.sp === 'number')
+    ? `${state.sp.toLocaleString()} / ${(state.spMax || state.sp).toLocaleString()}`
+    : '-- / --';
 
   return `
-<div class="p-header" id="pelican-drag-handle" style="${isCentral ? 'background: linear-gradient(135deg, #78350f 0%, #451a03 100%); border-bottom: 1px solid rgba(250, 204, 21, 0.45);' : ''}">
-                <div class="p-header-top">
-                    <div class="p-header-name">
-                        <span style="font-size: 13px;">${isCentral ? '🎛️' : '🔄'}</span>
-                        <span class="p-header-title" style="${isCentral ? 'color: #fde047;' : ''}">${escapeHTML(charDisplayName)}</span>
-                    </div>
-                    <div class="p-header-controls">
-                        <span class="pelican-toggle" onclick="toggleWebHudCollapse('${profileId}')" title="ย่อ/ขยาย">−</span>
-                        <span class="pelican-close-btn" onclick="closeWebBotHUD('${profileId}')" title="ปิดหน้าต่าง">✕</span>
-                    </div>
-                </div>
-                <div class="p-header-badges">
-                    ${isCentral ? `
-                    <span id="p-central-online-pill" style="font-size: 10px; background: rgba(250, 204, 21, 0.22); border: 1px solid rgba(250, 204, 21, 0.5); color: #fef08a; padding: 2px 8px; border-radius: 10px; font-weight: bold;">🖥️ คุมพร้อมกัน ${onlineCount} จอ (ส่งเฉพาะค่าที่คุณกดปรับ)</span>
-                    ` : `
-                    <span id="p-quick-zeny" style="font-size: 10px; background: rgba(250, 204, 21, 0.2); border: 1px solid rgba(250, 204, 21, 0.4); color: #facc15; padding: 1px 7px; border-radius: 10px; font-weight: bold;" title="เงินในตัว (Zeny)">💰 ${typeof clientData?.state?.zeny === 'number' ? clientData.state.zeny.toLocaleString() + ' z' : '-- z'}</span>
-                    <span id="p-quick-ammo" style="font-size: 10px; background: rgba(34, 197, 94, 0.2); border: 1px solid rgba(34, 197, 94, 0.4); color: #22c55e; padding: 1px 7px; border-radius: 10px; font-weight: bold;">🏹 ${clientData?.currentAmmo ?? 0}</span>
-                    <span id="p-quick-weight" style="font-size: 10px; background: rgba(56, 189, 248, 0.2); border: 1px solid rgba(56, 189, 248, 0.4); color: #38bdf8; padding: 1px 7px; border-radius: 10px; font-weight: bold; cursor: pointer;" title="คลิกเพื่อจัดเรียงกระเป๋าและอัปเดตน้ำหนัก">⚖️ ${escapeHTML(clientData?.state?.weight || '--%')}</span>
-                    <button type="button" class="p-copy-cfg-btn" onclick="openConfigCopyDialog('${profileId}')" title="คัดลอกการตั้งค่าบอททั้งหมดของจอนี้ไปจออื่น (ยกเว้น ID / รหัสผ่าน / ชื่อตัวละคร)">📋 คัดลอกไปจออื่น</button>
-                    `}
-                </div>
-            </div>
-
-            <div class="p-body" id="pelican-content">
-                ${isCentral ? `
-                <div style="background: rgba(250, 204, 21, 0.12); border: 1px solid rgba(250, 204, 21, 0.35); color: #fde68a; padding: 6px 8px; border-radius: 6px; font-size: 10px; line-height: 1.45; margin: 6px 10px 2px 10px;">
-                  💡 <b>โหมดเมนูส่วนกลาง:</b> การเปิดหน้าต่างนี้หรือสลับแท็บ<b>จะไม่ทับค่าใดๆ</b> ของแต่ละจอ จนกว่าคุณจะกดปุ่มหรือติ๊กปรับตัวเลือกตัวนั้น ระบบจึงจะส่ง<b>เฉพาะคำสั่งนั้น</b>ไปทุกจอทันที
-                </div>
-                ` : `
-                <div id="p-weight-alert-banner" style="display: none; background: rgba(239, 68, 68, 0.25); border: 1px solid #ef4444; color: #fca5a5; padding: 4px 8px; border-radius: 6px; font-weight: bold; font-size: 10px; text-align: center; margin: 4px 10px 0 10px;">⚠️ น้ำหนักเกินเกณฑ์!</div>
-                <div class="p-status-strip">
-                    <span>แมพ: <b id="p-cur-map-display" style="color:#38bdf8;">รอระบุแมพ...</b></span>
-                    <span>สถานะ: <b id="p-char-state" style="color:#22c55e;">ปกติ</b></span>
-                </div>
-                <div class="p-status-strip" style="border-top:none; padding-top:0;">
-                    <span>Status: <b id="pelican-status-text" style="color:#22c55e;">Online</b></span>
-                    <span>Pos: <b id="p-cur-pos" style="color:#00ffcc;">รอ Minimap...</b></span>
-                </div>
-                `}
-
-                <div class="p-tabs">
-                    <button class="p-tab-btn active" data-tab="farm">🚀 ฟาร์ม</button>
-                    <button class="p-tab-btn" data-tab="ammo">🏹 ธนู</button>
-                    <button class="p-tab-btn" data-tab="potion">🧪 ยาบัพ</button>
-                    <button class="p-tab-btn" data-tab="sell">💰 ขายของ</button>
-                    <button class="p-tab-btn" data-tab="market">🛒 ตลาด</button>
-                    <button class="p-tab-btn" data-tab="system">⚙️ ตั้งค่า</button>
-                </div>
-
-                <!-- TAB 1: FARM -->
-                <div class="p-tab-pane active" id="p-tab-farm">
-                    ${isCentral ? `
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 6px;">
-                      <button type="button" class="p-btn" id="p-btn-central-start-bot" style="margin: 0; font-size: 11.5px; padding: 8px 6px; font-weight: bold; border-radius: 6px; background: linear-gradient(135deg, #16a34a, #15803d); color: #fff; border: 1px solid #4ade80;" title="สั่งเริ่มบอททุกจอที่ออนไลน์ (จอที่บอททำงานอยู่แล้วจะทำงานต่อไป ไม่สลับหยุด)">▶️ เริ่มบอททุกจอ</button>
-                      <button type="button" class="p-btn" id="p-btn-central-stop-bot" style="margin: 0; font-size: 11.5px; padding: 8px 6px; font-weight: bold; border-radius: 6px; background: linear-gradient(135deg, #dc2626, #b91c1c); color: #fff; border: 1px solid #f87171;" title="สั่งหยุดบอททุกจอที่ออนไลน์ (จอที่หยุดอยู่แล้วจะหยุดต่อไป ไม่สลับเปิด)">⏹️ หยุดบอททุกจอ</button>
-                    </div>
-                    ` : `
-                    <button class="p-btn" id="p-btn-toggle-bot" style="font-size: 12.5px; padding: 8px 10px; font-weight: bold; border-radius: 6px; transition: all 0.2s ease;">▶️ START BOT (เริ่มทำงาน)</button>
-                    `}
-
-                    <div class="p-card">
-                        <div class="p-card-title" style="font-size: 10.5px; font-weight: bold; color: #e2e8f0; margin-bottom: 4px;">⚙️ โหมดการทำงาน</div>
-                        <label class="p-check-box" style="color: #4ade80;">
-                            <input type="checkbox" id="p-auto-loop" ${clientData?.autoLoopEnabled ? "checked" : ""}>
-                            <span><b>ลูป 24 ชม.</b> <small style="color:#94a3b8;">(ตาย → ชุบ → กลับแมพฟาร์มอัตโนมัติ)</small></span>
-                        </label>
-                        <label class="p-check-box" style="color: #c084fc; margin-top: 3px;">
-                            <input type="checkbox" id="p-plan-script-enabled" ${clientData?.planScriptEnabled ? "checked" : ""}>
-                            <span><b>📜 Plan Script</b> <small style="color:#94a3b8;">แผน: <span id="p-plan-name-display" style="color: #38bdf8; font-weight: bold;">${escapeHTML(planName)}</span></small></span>
-                        </label>
-                    </div>
-
-                    <div class="p-card">
-                        <div class="p-card-title" style="font-size: 10.5px; font-weight: bold; color: #e2e8f0; margin-bottom: 4px;">🗺️ แมพฟาร์มเป้าหมาย</div>
-                        <select id="p-target-map-select" class="p-select">
-                            <optgroup label="🏰 เขตเมือง & พื้นที่ปลอดภัย">
-                                <option value="เมืองหลวงโซลเฮเวน">เมืองหลวงโซลเฮเวน (ปลอดภัย)</option>
-                                <option value="ตลาดคาราวาน">ตลาดคาราวาน (ปลอดภัย)</option>
-                            </optgroup>
-                            <optgroup label="🌱 แมพระดับเริ่มต้น (Lv. 1-12)">
-                                <option value="สวนนักผจญภัยมือใหม่">สวนนักผจญภัยมือใหม่ (Lv. 1-3)</option>
-                                <option value="ทุ่งโคลเวอร์">ทุ่งโคลเวอร์ (Lv. 1-5)</option>
-                                <option value="ทุ่งหญ้าตะวันออก">ทุ่งหญ้าตะวันออก (Lv. 1-5)</option>
-                                <option value="ไร่ซันเกรน">ไร่ซันเกรน (Lv. 1-6)</option>
-                                <option value="ถนนต้นหลิว">ถนนต้นหลิว (Lv. 6-12)</option>
-                            </optgroup>
-                            <optgroup label="⚔️ แมพยอดนิยมระดับกลาง (Lv. 12-35)">
-                                <option value="ทะเลสาบอาซูร์">ทะเลสาบอาซูร์ (Lv. 12-20)</option>
-                                <option value="ป่ามูนลีฟ">ป่ามูนลีฟ (Lv. 14-22)</option>
-                                <option value="เส้นทางก็อบลิน">เส้นทางก็อบลิน (Lv. 16-20)</option>
-                                <option value="เหมืองคริสตัลเก่า">เหมืองคริสตัลเก่า (Lv. 18-28)</option>
-                                <option value="ค่ายออร์ค">ค่ายออร์ค (Lv. 22-32)</option>
-                                <option value="ถ้ำเอมเบอร์">ถ้ำเอมเบอร์ (Lv. 22-32)</option>
-                                <option value="ที่ราบสูงเกล">ที่ราบสูงเกล (Lv. 25-35)</option>
-                            </optgroup>
-                            <optgroup label="🏔️ แมพระดับกลางสูง (Lv. 30-60)">
-                                <option value="แอ่งเวอร์แดนท์">แอ่งเวอร์แดนท์ (Lv. 30-40)</option>
-                                <option value="ช่องเขาฟรอสต์พีค">ช่องเขาฟรอสต์พีค (Lv. 35-45)</option>
-                                <option value="ชายฝั่งปะการัง">ชายฝั่งปะการัง (Lv. 40-50)</option>
-                                <option value="ซากโบราณสถาน">ซากโบราณสถาน (Lv. 45-55)</option>
-                                <option value="สุสานเงา">สุสานเงา (Lv. 50-60)</option>
-                            </optgroup>
-                            <optgroup label="🔥 แมพระดับสูง & แดนอันตราย (Lv. 60-150)">
-                                <option value="หนองพิษ">หนองพิษ (Lv. 60-70)</option>
-                                <option value="โบสถ์อเวจี">โบสถ์อเวจี (Lv. 80-95)</option>
-                                <option value="บึงรากเน่า">บึงรากเน่า (Lv. 90-105)</option>
-                                <option value="เนินทรายแผดเผา">เนินทรายแผดเผา (Lv. 100-115)</option>
-                                <option value="บัลลังก์ราชาลิช">บัลลังก์ราชาลิช (Lv. 105-120)</option>
-                                <option value="พีระมิดจมทราย">พีระมิดจมทราย (Lv. 115-130)</option>
-                                <option value="สุสานฟาโรห์">สุสานฟาโรห์ (Lv. 130-145)</option>
-                                <option value="แกนลาวา">แกนลาวา (Lv. 135-150)</option>
-                            </optgroup>
-                            <optgroup label="❄️ ดินแดนรูน - โลกที่ 2 (Lv. 150-200)">
-                                <option value="ดินแดนน้ำแข็ง">ดินแดนน้ำแข็ง (Lv. 150-160)</option>
-                                <option value="ทะเลสาบกระจกรูน">ทะเลสาบกระจกรูน (Lv. 150-160 ⭐)</option>
-                                <option value="ป่ารูนใต้">ป่ารูนใต้ (Lv. 152-157 ⭐)</option>
-                                <option value="ที่ราบศิลา">ที่ราบศิลา (Lv. 155-165)</option>
-                                <option value="ผาลอยรูนฟ้า">ผาลอยรูนฟ้า (Lv. 160-170 ⭐)</option>
-                                <option value="สุสานรูนโบราณ">สุสานรูนโบราณ (Lv. 165-175)</option>
-                                <option value="คุกใต้ดินรูน">คุกใต้ดินรูน (Lv. 170-190)</option>
-                                <option value="พฤกษารูนโลก">พฤกษารูนโลก (Lv. 170-180 ⭐)</option>
-                                <option value="ป่ารูนเรืองแสง">ป่ารูนเรืองแสง (Lv. 175-185 ⭐)</option>
-                                <option value="หุบสุสานมังกรรูน">หุบสุสานมังกรรูน (Lv. 180-190 ⭐)</option>
-                                <option value="รากรูนโลก">รากรูนโลก (Lv. 190-200 ⭐)</option>
-                            </optgroup>
-                        </select>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 5px;">
-                            <button class="p-btn p-btn-loop" id="p-btn-walk-map">🚀 เดินกลับแมพ</button>
-                            <button class="p-btn p-btn-map" id="p-btn-open-map">🗺️ แผนที่โลก</button>
-                        </div>
-                        <div class="p-row" title="ถ้าเงินต่ำกว่าจำนวนนี้ บอทจะไม่จ่ายค่าวาร์ปที่ NPC Alice แต่จะเปิดแผนที่โลกแล้วเดินไปเอง (0 = ปิด)" style="margin-top: 6px; gap: 6px;">
-                            <span style="font-size: 10px; color: #e2e8f0;">💸 เงินต่ำกว่า</span>
-                            <input type="number" id="p-warp-min-zeny" min="0" step="1000" value="${Number(travel.minZenyForWarp) || 0}" style="width: 84px; background: #0f172a; border: 1px solid #38bdf8; color: #fff; text-align: center; border-radius: 4px; font-size: 10.5px; padding: 2px;">
-                            <span style="font-size: 10px; color: #e2e8f0;">z ไม่วาร์ป เดินแทน</span>
-                        </div>
-                        <div style="font-size: 9px; color: #94a3b8; margin-top: 2px;">0 = วาร์ปตามปกติ · ถ้าเดินไปจากจุดนั้นไม่ได้ จะยังวาร์ปให้</div>
-                    </div>
-
-                    <!-- CARD: IN-GAME AUTO-BOT COMBAT SETTINGS -->
-                    <div class="p-card" style="border-color: rgba(250, 204, 21, 0.35); background: rgba(15, 23, 42, 0.7);">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-                            <div style="font-size: 10.5px; font-weight: bold; color: #fde047;">⚔️ ตั้งค่าต่อสู้อัตโนมัติในเกม (Auto-Bot)</div>
-                            <button type="button" id="p-btn-sync-ingame-auto" style="background: rgba(234, 179, 8, 0.2); color: #fde047; border: 1px solid rgba(250, 204, 21, 0.45); border-radius: 4px; font-size: 9px; font-weight: bold; padding: 2px 6px; cursor: pointer;" title="${isCentral ? 'ส่งค่าตั้งค่าต่อสู้อัตโนมัติในการ์ดนี้ไปทุกจอที่ออนไลน์ทันที' : 'ส่งค่าตั้งค่าต่อสู้อัตโนมัติชุดนี้เข้าจอเกมทันที'}">${isCentral ? '🔄 ส่งทุกค่าไปทุกจอ' : '🔄 ซิงก์เข้าเกม'}</button>
-                        </div>
-
-                        <label class="p-check-box" style="color: #f8fafc; margin-bottom: 4px;">
-                            <input type="checkbox" id="p-ig-auto-basic-attack" ${igAuto.basicAttack !== false ? 'checked' : ''}>
-                            <span><b>ตีปกติ</b> <small style="color:#94a3b8; display:block;">ตีปกติระหว่างรอสกิลคูลดาวน์ (ปิด = ใช้แต่สกิลโจมตีที่เลือกไว้)</small></span>
-                        </label>
-
-                        <div style="background: rgba(2, 6, 23, 0.55); border: 1px solid rgba(250, 204, 21, 0.25); border-radius: 6px; padding: 5px 7px; margin: 4px 0 6px 0;">
-                            <div style="display: flex; justify-content: space-between; align-items: center;">
-                                <button type="button" id="p-ig-auto-priority-toggle" style="background: none; border: none; color: #fde047; font-size: 10px; font-weight: bold; cursor: pointer; padding: 0; text-align: left;">
-                                    <span id="p-ig-auto-priority-arrow">▸</span> ลำดับการตี (ข้อ 1 ทำก่อน)
-                                </button>
-                                <span style="font-size: 8.5px; color: #94a3b8;">แตะเพื่อปรับลำดับ</span>
-                            </div>
-                            <div id="p-ig-auto-priority-summary" style="margin-top: 3px; font-size: 9.5px; color: #cbd5e1; line-height: 1.45; cursor: pointer;">
-                                <span id="p-ig-auto-priority-summary-text">${igPrio.summaryHtml}</span>
-                            </div>
-                            <div id="p-ig-auto-priority-body" style="display: none; margin-top: 5px; padding-top: 4px; border-top: 1px dashed rgba(148, 163, 184, 0.2);">
-                                <div id="p-ig-auto-priority-rows">${igPrio.rowsHtml}</div>
-                                <button type="button" id="p-ig-auto-priority-reset" style="margin-top: 5px; width: 100%; background: #1e293b; color: #cbd5e1; border: 1px solid #475569; border-radius: 4px; font-size: 9px; padding: 3px; cursor: pointer;">↺ คืนค่าลำดับการตีเริ่มต้น</button>
-                            </div>
-                        </div>
-
-                        <label class="p-check-box" style="color: #4ade80; margin-bottom: 3px;">
-                            <input type="checkbox" id="p-ig-auto-buff-party" ${igAuto.buffParty !== false ? 'checked' : ''}>
-                            <span><b>บัพเพื่อนในปาร์ตี้</b> <small style="color:#94a3b8; display:block;">ร่ายสกิลบัพที่เลือกไว้ใส่เพื่อนในปาร์ตี้ที่อยู่ในระยะเมื่อบัพหมด</small></span>
-                        </label>
-
-                        <label class="p-check-box" style="color: #38bdf8; margin-bottom: 3px;">
-                            <input type="checkbox" id="p-ig-auto-accept-party" ${igAuto.acceptParty ? 'checked' : ''}>
-                            <span><b>รับปาร์ตี้อัตโนมัติ</b> <small style="color:#94a3b8; display:block;">ระหว่างเปิด AUTO มีคนชวนเข้าปาร์ตี้ จะกดรับเข้าให้ทันที</small></span>
-                        </label>
-
-                        <label class="p-check-box" style="color: #fb923c; margin-bottom: 3px;">
-                            <input type="checkbox" id="p-ig-auto-join-others" ${igAuto.joinOthers ? 'checked' : ''}>
-                            <span><b>แจมผู้เล่นอื่น</b> <small style="color:#94a3b8; display:block;">ไม่มีมอนว่างแล้ว ไปช่วยตีมอนที่คนอื่นกำลังตีอยู่ (ปิด = ไม่ตีมอนคนอื่น)</small></span>
-                        </label>
-
-                        <label class="p-check-box" style="color: #c084fc; margin-bottom: 3px;">
-                            <input type="checkbox" id="p-ig-auto-quiver" ${igAuto.autoQuiver ? 'checked' : ''}>
-                            <span><b>เปิดซองธนูอัตโนมัติ <span style="background: rgba(234, 179, 8, 0.2); color: #facc15; border: 1px solid rgba(250, 204, 21, 0.45); border-radius: 3px; font-size: 8px; padding: 0 4px;">Premium</span></b> <small style="color:#94a3b8; display:block;">ลูกธนูที่ติดตั้งหมด จะเปิดซองธนูชนิดเดียวกันในกระเป๋าให้เอง</small></span>
-                        </label>
-
-                        <label class="p-check-box" style="color: #f43f5e; margin-bottom: 3px;">
-                            <input type="checkbox" id="p-ig-auto-revive" ${igAuto.autoRevive ? 'checked' : ''}>
-                            <span><b>ตายแล้วฟื้นที่เดิม</b> <small style="color:#94a3b8; display:block;">ใช้ Rebirth Feather ฟื้นตรงนั้นแล้ว AUTO ต่อ (ปิด = ตายแล้วหยุด)</small></span>
-                        </label>
-                        <div id="p-ig-auto-revive-row" class="p-row" style="display: ${igAuto.autoRevive ? 'flex' : 'none'}; margin: 2px 0 4px 18px; gap: 5px;">
-                            <span style="font-size: 9.5px; color: #cbd5e1;">ใช้สูงสุดต่อรอบ:</span>
-                            <button type="button" id="p-ig-auto-revive-dec" style="background:#1e293b; color:#fff; border:1px solid #475569; border-radius:4px; width:20px; height:20px; cursor:pointer; font-size:11px; line-height:1;">−</button>
-                            <input type="number" id="p-ig-auto-revive-max" min="1" max="99" value="${Number(igAuto.autoReviveMax) || 10}" style="width: 44px; background: #0f172a; border: 1px solid #f43f5e; color: #fff; text-align: center; border-radius: 4px; font-size: 10.5px; padding: 1px 3px;">
-                            <button type="button" id="p-ig-auto-revive-inc" style="background:#1e293b; color:#fff; border:1px solid #475569; border-radius:4px; width:20px; height:20px; cursor:pointer; font-size:11px; line-height:1;">+</button>
-                            <span style="font-size: 9.5px; color: #94a3b8;">ครั้ง</span>
-                        </div>
-
-                        <label class="p-check-box" style="color: #2dd4bf; margin-top: 2px;">
-                            <input type="checkbox" id="p-ig-auto-pickup-loot" ${igAuto.pickupLoot !== false ? 'checked' : ''}>
-                            <span><b>เก็บของดรอปอัตโนมัติ</b> <small style="color:#94a3b8; display:block;">เดินไปเก็บของดรอปในวงล่า (มอนมาตีระหว่างทาง = สู้ก่อน)</small></span>
-                        </label>
-                        <div id="p-ig-auto-loot-when-row" style="display: ${igAuto.pickupLoot !== false ? 'grid' : 'none'}; grid-template-columns: 1fr 1fr; gap: 5px; margin: 4px 0 2px 0;">
-                            <label id="p-ig-auto-loot-when-first-lbl" style="display: flex; align-items: center; gap: 5px; padding: 5px 6px; border-radius: 6px; cursor: pointer; font-size: 9.5px; line-height: 1.3; border: 1px solid ${igAuto.lootWhen !== 'clear' ? '#eab308' : '#334155'}; background: ${igAuto.lootWhen !== 'clear' ? 'rgba(234, 179, 8, 0.14)' : 'rgba(15, 23, 42, 0.6)'}; color: ${igAuto.lootWhen !== 'clear' ? '#fef08a' : '#cbd5e1'}; font-weight: ${igAuto.lootWhen !== 'clear' ? 'bold' : 'normal'};">
-                                <input type="radio" name="p-ig-auto-loot-when-${profileId}" id="p-ig-auto-loot-when-first" value="first" ${igAuto.lootWhen !== 'clear' ? 'checked' : ''} style="accent-color: #eab308; margin: 0; flex-shrink: 0;">
-                                <span>เก็บก่อน แล้วค่อยตีตัวถัดไป</span>
-                            </label>
-                            <label id="p-ig-auto-loot-when-clear-lbl" style="display: flex; align-items: center; gap: 5px; padding: 5px 6px; border-radius: 6px; cursor: pointer; font-size: 9.5px; line-height: 1.3; border: 1px solid ${igAuto.lootWhen === 'clear' ? '#eab308' : '#334155'}; background: ${igAuto.lootWhen === 'clear' ? 'rgba(234, 179, 8, 0.14)' : 'rgba(15, 23, 42, 0.6)'}; color: ${igAuto.lootWhen === 'clear' ? '#fef08a' : '#cbd5e1'}; font-weight: ${igAuto.lootWhen === 'clear' ? 'bold' : 'normal'};">
-                                <input type="radio" name="p-ig-auto-loot-when-${profileId}" id="p-ig-auto-loot-when-clear" value="clear" ${igAuto.lootWhen === 'clear' ? 'checked' : ''} style="accent-color: #eab308; margin: 0; flex-shrink: 0;">
-                                <span>ตีให้หมดก่อน ไม่มีมอนแล้วค่อยเก็บ</span>
-                            </label>
-                        </div>
-                        <label style="display:none;">
-                        </label>
-                    </div>
-
-                    <!-- CARD: SECURITY & HUMANIZE -->
-                    <div class="p-card" style="border-color: rgba(56, 189, 248, 0.35); background: rgba(15, 23, 42, 0.65);">
-                        <div style="font-size: 10.5px; font-weight: bold; color: #38bdf8; margin-bottom: 4px;">🛡️ ความปลอดภัย & พฤติกรรมเสมือนคน (Humanize)</div>
-                        <label class="p-check-box" style="color: #38bdf8;">
-                            <input type="checkbox" id="p-unexpected-town-guard" ${clientData?.unexpectedTownGuardEnabled !== false ? 'checked' : ''}>
-                            <span><b>ตรวจจับกลับเมืองผิดปกติ</b> <small style="color:#94a3b8; display:block;">ไม่ตาย ไม่กดวิง แต่ตกค้างในเมือง → สุ่มพักรอ 5-15 นาที</small></span>
-                        </label>
-                        <div id="p-unexpected-town-box" style="display: ${clientData?.unexpectedTownWaiting ? 'block' : 'none'}; margin-top: 6px; padding: 6px 8px; background: rgba(239, 68, 68, 0.15); border: 1px dashed #ef4444; border-radius: 6px;">
-                            <div style="font-size: 11px; color: #fca5a5; display: flex; justify-content: space-between; align-items: center;">
-                                <span>⏳ พักรอนิรภัย: <b id="p-unexpected-countdown" style="color: #fef08a;">${escapeHTML(clientData?.unexpectedTownCountdown || '--:--')}</b></span>
-                                <button id="p-btn-skip-unexpected-wait" style="background: #ef4444; color: #fff; border: none; border-radius: 4px; font-size: 10px; font-weight: bold; cursor: pointer; padding: 2px 7px;">⏩ ข้ามเวลารอ</button>
-                            </div>
-                        </div>
-
-                        <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.08);">
-                            <label class="p-check-box" style="color: #a78bfa;">
-                                <input type="checkbox" id="p-humanize-enabled" ${humanize.enabled !== false ? 'checked' : ''}>
-                                <span><b>🎭 จำลองพฤติกรรมคน (Humanize)</b> <small style="color:#94a3b8; display:block;">สุ่มทำกิจกรรมตอนกลับเมือง ก่อนกลับไปฟาร์ม</small></span>
-                            </label>
-                            <div class="p-row" style="margin-top: 5px; gap: 6px;">
-                                <span style="font-size: 10px; color: #cbd5e1;">🎲 โอกาสทำ:</span>
-                                <input type="number" id="p-humanize-chance" min="10" max="100" step="5" value="${Number(humanize.chance) || 70}" style="width: 55px; background: #0f172a; border: 1px solid #a78bfa; color: #fff; text-align: center; border-radius: 4px; font-size: 10.5px; padding: 2px;">
-                                <span style="font-size: 10px; color: #cbd5e1;">%</span>
-                                <button id="p-btn-test-humanize" style="margin-left: auto; background: #6366f1; color: #fff; border: none; border-radius: 4px; font-size: 9px; cursor: pointer; padding: 2px 6px;">🧪 ทดสอบ</button>
-                            </div>
-                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 6px;">
-                                <label class="p-check-box" style="margin: 0; font-size: 9.5px; color: #cbd5e1;">
-                                    <input type="checkbox" id="p-humanize-blacksmith" ${humanize.buyBlacksmith !== false ? 'checked' : ''}>
-                                    <span>⚒️ ซื้อหินแล้วขาย</span>
-                                </label>
-                                <label class="p-check-box" style="margin: 0; font-size: 9.5px; color: #cbd5e1;">
-                                    <input type="checkbox" id="p-humanize-sundries" ${humanize.buySundries !== false ? 'checked' : ''}>
-                                    <span>🧪 ซื้อยาแล้วขาย</span>
-                                </label>
-                                <label class="p-check-box" style="margin: 0; font-size: 9.5px; color: #cbd5e1;">
-                                    <input type="checkbox" id="p-humanize-walk" ${humanize.randomWalk !== false ? 'checked' : ''}>
-                                    <span>🚶 เดินสำรวจลาน</span>
-                                </label>
-                                <label class="p-check-box" style="margin: 0; font-size: 9.5px; color: #cbd5e1;">
-                                    <input type="checkbox" id="p-humanize-storage" ${humanize.storeDeposit !== false ? 'checked' : ''}>
-                                    <span>📦 เก็บ Whitelist</span>
-                                </label>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- TAB 2: HUNTER / AMMO -->
-                <div class="p-tab-pane" id="p-tab-ammo">
-                    <div class="p-card" style="border-color: rgba(34, 197, 94, 0.3); background: rgba(34, 197, 94, 0.08);">
-                        <div class="p-row">
-                            <span>ลูกธนูคงเหลือ (Server):</span>
-                            <b id="p-ammo-count" style="color: #22c55e; font-size: 13px;">${clientData?.currentAmmo ?? 0} ดอก</b>
-                            <div style="display: flex; gap: 3px;">
-                                <button id="p-btn-sync-ammo" style="background: #0284c7; color: #fff; border: none; border-radius: 3px; font-size: 9px; cursor: pointer; padding: 2px 6px;">🔄 ซิงก์</button>
-                                <button id="p-btn-zero-ammo" style="background: #e11d48; color: #fff; border: none; border-radius: 3px; font-size: 9px; cursor: pointer; padding: 2px 6px;">ตั้งเป็น 0</button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <label class="p-check-box" style="color: #c084fc;">
-                        <input type="checkbox" id="p-archer-req" ${archer.requireArrow ? "checked" : ""}>
-                        <b>Require Arrow (เช็ค & ซื้ออัตโนมัติ)</b>
-                    </label>
-
-                    <label class="p-check-box" style="color: #34d399;">
-                        <input type="checkbox" id="p-archer-smart" ${archer.smartArrow ? "checked" : ""}>
-                        <b>🧠 Smart Arrow (เลือกธนูตามธาตุมอน & ทิ้งธนูเก่า)</b>
-                    </label>
-
-                    <div>
-                        <span style="font-size: 10px; color: #94a3b8;">ชนิดลูกธนู:</span>
-                        <select id="p-archer-type" class="p-select">
-                            <option value="90030" ${parseInt(archer.arrowType || 90030) === 90030 ? "selected" : ""}>Arrow (ธรรมดา - 1z)</option>
-                            <option value="90031" ${parseInt(archer.arrowType || 90030) === 90031 ? "selected" : ""}>Fire Arrow (ไฟ - 3z)</option>
-                            <option value="90032" ${parseInt(archer.arrowType || 90030) === 90032 ? "selected" : ""}>Crystal Arrow (น้ำ - 3z)</option>
-                            <option value="90033" ${parseInt(archer.arrowType || 90030) === 90033 ? "selected" : ""}>Stone Arrow (ดิน - 3z)</option>
-                            <option value="90034" ${parseInt(archer.arrowType || 90030) === 90034 ? "selected" : ""}>Arrow of Wind (ลม - 3z)</option>
-                            <option value="90035" ${parseInt(archer.arrowType || 90030) === 90035 ? "selected" : ""}>Poison Arrow (พิษ - 3z)</option>
-                            <option value="90036" ${parseInt(archer.arrowType || 90030) === 90036 ? "selected" : ""}>Silver Arrow (ศักดิ์สิทธิ์ - 3z)</option>
-                            <option value="90037" ${parseInt(archer.arrowType || 90030) === 90037 ? "selected" : ""}>Shadow Arrow (เงา - 3z)</option>
-                        </select>
-                    </div>
-
-                    <div class="p-row">
-                        <span>ตั้งเป้าพกลูกธนู (ซื้อเติมให้ครบ):</span>
-                        <input type="number" id="p-archer-qty" value="${archer.arrowBuyQty || 5000}" style="width: 65px; background: #0f172a; border: 1px solid #c084fc; color: #fff; text-align: center; border-radius: 4px; font-size: 11px; padding: 2px;">
-                    </div>
-
-                    <div class="p-row">
-                        <span>วาร์ปซื้อเมื่อเหลือ <= (ดอก):</span>
-                        <input type="number" id="p-archer-threshold" value="${archer.ammoThreshold || 50}" style="width: 55px; background: #0f172a; border: 1px solid #c084fc; color: #fff; text-align: center; border-radius: 4px; font-size: 11px; padding: 2px;">
-                    </div>
-
-                    <div class="p-card" style="border-color: rgba(56, 189, 248, 0.3);">
-                        <label class="p-check-box" style="color: #38bdf8;">
-                            <input type="checkbox" id="p-archer-bwing" ${archer.useBwing ? "checked" : ""}>
-                            <b>ใช้วาร์ปกลับเมือง (Butterfly Wing)</b>
-                        </label>
-                        <div class="p-row" style="margin-top: 3px;">
-                            <span>ซื้อ Bwing ติดตัว (ใบ):</span>
-                            <input type="number" id="p-archer-bwing-qty" value="${archer.bwingBuyQty || 5}" style="width: 55px; background: #0f172a; border: 1px solid #38bdf8; color: #fff; text-align: center; border-radius: 4px; font-size: 11px; padding: 2px;">
-                        </div>
-                        <div style="font-size: 9.5px; color: #94a3b8; margin-top: 3px;">
-                            มีในกระเป๋า: <b id="p-bwing-count" style="color: #38bdf8;">${clientData?.bwingCount ?? 0}</b> ใบ (ซื้อเติมส่วนต่างให้ครบ)
-                        </div>
-                    </div>
-
-                    <div class="p-card" style="border-color: rgba(234, 179, 8, 0.4); background: rgba(234, 179, 8, 0.05);">
-                        <span style="font-size: 10px; font-weight: bold; color: #eab308;">🎯 ตรวจสอบ & ดักจับการสวมใส่ (Equip Inspector)</span>
-                        <div style="font-size: 9.5px; color: #94a3b8; margin: 2px 0 4px 0; line-height: 1.3;">
-                            กดปุ่มด้านล่าง แล้วดับเบิลคลิกสวมใส่ "ลูกธนู" ในเกม เพื่อจับ Packet ของแท้
-                        </div>
-                        <button class="p-btn" id="p-btn-sniff-equip" style="background: #eab308; color: #000; font-size: 10px; padding: 4px;">🎯 เริ่มดักจับ Packet สวมใส่ (Sniff)</button>
-                        <div id="p-sniffer-result" style="display: none; margin-top: 4px; padding: 4px; background: rgba(0,0,0,0.5); border-radius: 4px; border: 1px dashed rgba(234, 179, 8, 0.4);"></div>
-
-                        <button class="p-btn" id="p-btn-equip-bow-arrow" style="background: #10b981; color: #fff; font-size: 11px; padding: 6px; margin-top: 6px; font-weight: bold; border-radius: 4px; border: 1px solid #059669; width: 100%; cursor: pointer;">🏹 สวมใส่คันธนู & ลูกธนูทันที (Equip Bow & Arrow)</button>
-
-                        <label class="p-check-box" style="color: #94a3b8; margin-top: 5px;">
-                            <input type="checkbox" id="p-archer-auto-equip" ${archer.autoEquipArrow ? "checked" : ""}>
-                            <span style="font-size: 9.5px;">สวมใส่คันธนู & ลูกธนูอัตโนมัติ (Auto-Equip Bow & Arrow)</span>
-                        </label>
-                    </div>
-                </div>
-
-                <!-- TAB 3: BUFF POTIONS -->
-                <div class="p-tab-pane" id="p-tab-potion">
-                    <div class="p-card" style="border-color: rgba(245, 158, 11, 0.3); background: rgba(245, 158, 11, 0.06); padding: 8px;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                            <span style="font-weight: bold; color: #fbbf24; font-size: 11px;">🧪 ตั้งค่ายาบัพ (Buff Potions)</span>
-                            <button class="p-btn-sync-potion-game" id="p-btn-sync-potion-game" style="background: linear-gradient(135deg, #10b981, #059669); color: #fff; border: 1px solid #34d399; border-radius: 4px; font-size: 9.5px; cursor: pointer; padding: 2px 7px; font-weight: bold;">🔄 ซิงก์เข้าเกม</button>
-                        </div>
-                        <div style="font-size: 9.5px; color: #94a3b8; line-height: 1.3;">
-                            ติ๊กถูกเพื่อเปิดใช้ในระบบต่อสู้อัตโนมัติ และกำหนดจำนวนพกติดตัวเพื่อซื้อเติมเมื่อเข้าเมือง
-                        </div>
-                    </div>
-
-                    <!-- Concentration Potion (90306) -->
-                    <div class="p-card" style="border-color: rgba(234, 179, 8, 0.3); background: rgba(15, 23, 42, 0.6); padding: 6px 8px;">
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <span style="font-size: 20px;">🧪</span>
-                            <div style="flex: 1;">
-                                <div style="display: flex; justify-content: space-between; align-items: center;">
-                                    <span style="font-weight: bold; color: #facc15; font-size: 11px;">Concentration Potion</span>
-                                    <span style="font-size: 9px; color: #94a3b8;">Lv.1+ (ASPD +)</span>
-                                </div>
-                                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 2px;">
-                                    <span style="font-size: 9.5px; color: #94a3b8;">มีในกระเป๋า: <b id="p-potion-count-90306" style="color: #22c55e;">${potionCounts[90306] ?? 0}</b> ขวด</span>
-                                    <span style="font-size: 9px; color: #64748b;">ID: 90306</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px; padding-top: 4px; border-top: 1px dashed rgba(255,255,255,0.08);">
-                            <label class="p-check-box" style="color: #cbd5e1; margin: 0; font-size: 10px;">
-                                <input type="checkbox" id="p-potion-enable-90306" ${clientData?.buffPotionConfig?.[90306]?.enabled ? 'checked' : ''}>
-                                <b>เปิดใช้ต่อสู้อัตโนมัติ & ซื้อเติม</b>
-                            </label>
-                            <div style="display: flex; align-items: center; gap: 4px;">
-                                <span style="font-size: 9.5px; color: #94a3b8;">พกติดตัว:</span>
-                                <input type="number" id="p-potion-qty-90306" min="0" max="999" value="${clientData?.buffPotionConfig?.[90306]?.targetQty ?? 10}" style="width: 48px; background: #0f172a; border: 1px solid #eab308; color: #fff; text-align: center; border-radius: 4px; font-size: 11px; padding: 2px;">
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Awakening Potion (90307) -->
-                    <div class="p-card" style="border-color: rgba(249, 115, 22, 0.3); background: rgba(15, 23, 42, 0.6); padding: 6px 8px;">
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <span style="font-size: 20px;">🧪</span>
-                            <div style="flex: 1;">
-                                <div style="display: flex; justify-content: space-between; align-items: center;">
-                                    <span style="font-weight: bold; color: #fb923c; font-size: 11px;">Awakening Potion</span>
-                                    <span style="font-size: 9px; color: #94a3b8;">Lv.40+ (ASPD ++)</span>
-                                </div>
-                                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 2px;">
-                                    <span style="font-size: 9.5px; color: #94a3b8;">มีในกระเป๋า: <b id="p-potion-count-90307" style="color: #22c55e;">${potionCounts[90307] ?? 0}</b> ขวด</span>
-                                    <span style="font-size: 9px; color: #64748b;">ID: 90307</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px; padding-top: 4px; border-top: 1px dashed rgba(255,255,255,0.08);">
-                            <label class="p-check-box" style="color: #cbd5e1; margin: 0; font-size: 10px;">
-                                <input type="checkbox" id="p-potion-enable-90307" ${clientData?.buffPotionConfig?.[90307]?.enabled ? 'checked' : ''}>
-                                <b>เปิดใช้ต่อสู้อัตโนมัติ & ซื้อเติม</b>
-                            </label>
-                            <div style="display: flex; align-items: center; gap: 4px;">
-                                <span style="font-size: 9.5px; color: #94a3b8;">พกติดตัว:</span>
-                                <input type="number" id="p-potion-qty-90307" min="0" max="999" value="${clientData?.buffPotionConfig?.[90307]?.targetQty ?? 10}" style="width: 48px; background: #0f172a; border: 1px solid #f97316; color: #fff; text-align: center; border-radius: 4px; font-size: 11px; padding: 2px;">
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Berserk Potion (90308) -->
-                    <div class="p-card" style="border-color: rgba(239, 68, 68, 0.3); background: rgba(15, 23, 42, 0.6); padding: 6px 8px;">
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <span style="font-size: 20px;">🧪</span>
-                            <div style="flex: 1;">
-                                <div style="display: flex; justify-content: space-between; align-items: center;">
-                                    <span style="font-weight: bold; color: #f87171; font-size: 11px;">Berserk Potion</span>
-                                    <span style="font-size: 9px; color: #94a3b8;">Lv.85+ (ASPD +++)</span>
-                                </div>
-                                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 2px;">
-                                    <span style="font-size: 9.5px; color: #94a3b8;">มีในกระเป๋า: <b id="p-potion-count-90308" style="color: #22c55e;">${potionCounts[90308] ?? 0}</b> ขวด</span>
-                                    <span style="font-size: 9px; color: #64748b;">ID: 90308</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px; padding-top: 4px; border-top: 1px dashed rgba(255,255,255,0.08);">
-                            <label class="p-check-box" style="color: #cbd5e1; margin: 0; font-size: 10px;">
-                                <input type="checkbox" id="p-potion-enable-90308" ${clientData?.buffPotionConfig?.[90308]?.enabled ? 'checked' : ''}>
-                                <b>เปิดใช้ต่อสู้อัตโนมัติ & ซื้อเติม</b>
-                            </label>
-                            <div style="display: flex; align-items: center; gap: 4px;">
-                                <span style="font-size: 9.5px; color: #94a3b8;">พกติดตัว:</span>
-                                <input type="number" id="p-potion-qty-90308" min="0" max="999" value="${clientData?.buffPotionConfig?.[90308]?.targetQty ?? 10}" style="width: 48px; background: #0f172a; border: 1px solid #ef4444; color: #fff; text-align: center; border-radius: 4px; font-size: 11px; padding: 2px;">
-                            </div>
-                        </div>
-                    </div>
-
-                    <div style="display: flex; gap: 4px; margin-top: 4px;">
-                        <button class="p-btn p-btn-buy-potion-now" id="p-btn-buy-potion-now" style="background: linear-gradient(135deg, #0284c7, #0369a1); color: #fff; font-size: 10px; padding: 5px; font-weight: bold; border-radius: 4px; border: 1px solid #38bdf8; width: 100%; cursor: pointer;">🛒 ทดสอบซื้อเติมยาบัพทันที (เมื่ออยู่ในร้านค้า)</button>
-                    </div>
-
-                    <div style="font-size: 9px; color: #64748b; line-height: 1.3; margin-top: 2px; text-align: center;">
-                        💡 ทุกครั้งที่ตัวละครกลับมาซื้อลูกธนูในเมือง บอทจะตรวจนับยาในกระเป๋าและซื้อเติมส่วนต่างให้อัตโนมัติ
-                    </div>
-                </div>
-
-                <!-- TAB 4: AUTO-SELL & WHITELIST -->
-                <div class="p-tab-pane" id="p-tab-sell">
-                    <!-- Weight Check Card -->
-                    <div class="p-card" style="border-color: rgba(245, 158, 11, 0.4); background: rgba(245, 158, 11, 0.05); margin-bottom: 6px;">
-                        <label class="p-check-box" style="color: #f59e0b;">
-                            <input type="checkbox" id="p-weight-check-enabled" ${sell.weightCheckEnabled ? 'checked' : ''}>
-                            <b>⚖️ ตรวจสอบน้ำหนักเกิน (Weight Return)</b>
-                        </label>
-                        <div class="p-row" style="margin-top: 4px;">
-                            <span style="font-size: 10px; color: #cbd5e1;">วาร์ปกลับไปขายเมื่อเกิน (%):</span>
-                            <div style="display: flex; align-items: center; gap: 4px;">
-                                <input type="number" id="p-weight-threshold" min="10" max="95" value="${sell.weightThreshold || 80}" style="width: 48px; background: #0f172a; border: 1px solid #f59e0b; color: #fff; text-align: center; border-radius: 4px; font-size: 11px; padding: 2px;">
-                                <span style="font-size: 10px; color: #94a3b8;">%</span>
-                            </div>
-                        </div>
-                        <div id="p-weight-hud-display" style="font-size: 9.5px; color: #94a3b8; margin-top: 3px; display: flex; justify-content: space-between; align-items: center;">
-                            <span>น้ำหนัก: <span id="p-cur-weight-val" style="color: #00ffcc; font-weight: bold;">${escapeHTML(clientData?.state?.weight || '-- / --')}</span></span>
-                            <button id="p-btn-refresh-weight" style="background: #0284c7; color: white; border: none; padding: 2px 7px; border-radius: 4px; font-size: 9px; cursor: pointer; font-weight: bold; transition: all 0.2s ease;">🔄 จัดเรียง & อัปเดต</button>
-                        </div>
-                    </div>
-
-                    <!-- Shortcut to Market Auto-Sell -->
-                    <div style="background: rgba(168, 85, 247, 0.1); border: 1px solid rgba(168, 85, 247, 0.35); border-radius: 6px; padding: 5px 8px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center;">
-                        <div>
-                            <div style="font-size: 10px; font-weight: bold; color: #c084fc;">🏷️ ต้องการตั้งขายที่ตลาดกลาง (Market)?</div>
-                            <div style="font-size: 8.5px; color: #94a3b8;">แท็บนี้สำหรับขายขยะ NPC</div>
-                        </div>
-                        <button type="button" id="p-btn-goto-market-autosell" style="background: linear-gradient(135deg, #7c3aed, #9333ea); color: #fff; border: 1px solid #c084fc; padding: 3px 8px; border-radius: 4px; font-size: 9.5px; font-weight: bold; cursor: pointer; white-space: nowrap;">
-                            ไปที่ Auto Sell ตลาด ➔
-                        </button>
-                    </div>
-
-                    <label class="p-check-box" style="color: #facc15;">
-                        <input type="checkbox" id="p-sell-enabled" ${sell.enabled ? "checked" : ""}>
-                        <b>เปิดระบบ Auto-Sell คัดกรองอัตโนมัติ (ขายขยะ NPC)</b>
-                    </label>
-
-                    <!-- Category Rarity Card -->
-                    <div class="p-card" style="border-color: rgba(56, 189, 248, 0.35); background: rgba(15, 23, 42, 0.7); padding: 6px; display: flex; flex-direction: column; gap: 4px;">
-                        <div style="font-size: 10px; font-weight: bold; color: #38bdf8; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(56, 189, 248, 0.2); padding-bottom: 3px; margin-bottom: 1px;">
-                            <span>🗂️ แยกขายตามระดับและประเภท</span>
-                            <span style="font-size: 8.5px; color: #94a3b8; font-weight: normal;">ระดับไม่เกินที่เลือก</span>
-                        </div>
-
-                        <!-- 1. อาวุธ -->
-                        <div class="p-row">
-                            <span style="font-size: 10px; color: #e2e8f0; font-weight: 500;">⚔️ อาวุธ:</span>
-                            <select id="p-sell-rarity-weap" class="p-select" style="width: 142px; padding: 2px 4px; font-size: 9.5px; background: #0b1329; border: 1px solid rgba(56, 189, 248, 0.35);">
-                                <option value="none" ${(sell.weaponRarity || 'rare') === 'none' ? "selected" : ""}>❌ ไม่ขาย</option>
-                                <option value="normal" ${(sell.weaponRarity || 'rare') === 'normal' ? "selected" : ""}>⚪ ขาวเท่านั้น (0 Opt)</option>
-                                <option value="good" ${(sell.weaponRarity || 'rare') === 'good' ? "selected" : ""}>🟢 ดี (เขียวลงไป)</option>
-                                <option value="rare" ${(sell.weaponRarity || 'rare') === 'rare' ? "selected" : ""}>🔵 หายาก (ฟ้าลงไป)</option>
-                                <option value="epic" ${(sell.weaponRarity || 'rare') === 'epic' ? "selected" : ""}>🟣 มหากาพย์ (ม่วงลงไป)</option>
-                            </select>
-                        </div>
-
-                        <!-- 2. ชุดเกราะ -->
-                        <div class="p-row">
-                            <span style="font-size: 10px; color: #e2e8f0; font-weight: 500;">🛡️ ชุดเกราะ:</span>
-                            <select id="p-sell-rarity-armor" class="p-select" style="width: 142px; padding: 2px 4px; font-size: 9.5px; background: #0b1329; border: 1px solid rgba(56, 189, 248, 0.35);">
-                                <option value="none" ${(sell.armorRarity || 'good') === 'none' ? "selected" : ""}>❌ ไม่ขาย</option>
-                                <option value="normal" ${(sell.armorRarity || 'good') === 'normal' ? "selected" : ""}>⚪ ขาวเท่านั้น (0 Opt)</option>
-                                <option value="good" ${(sell.armorRarity || 'good') === 'good' ? "selected" : ""}>🟢 ดี (เขียวลงไป)</option>
-                                <option value="rare" ${(sell.armorRarity || 'good') === 'rare' ? "selected" : ""}>🔵 หายาก (ฟ้าลงไป)</option>
-                                <option value="epic" ${(sell.armorRarity || 'good') === 'epic' ? "selected" : ""}>🟣 มหากาพย์ (ม่วงลงไป)</option>
-                            </select>
-                        </div>
-
-                        <!-- 3. ประดับ/เจม -->
-                        <div class="p-row">
-                            <span style="font-size: 10px; color: #e2e8f0; font-weight: 500;">💍 ประดับ/เจม:</span>
-                            <select id="p-sell-rarity-acc" class="p-select" style="width: 142px; padding: 2px 4px; font-size: 9.5px; background: #0b1329; border: 1px solid rgba(56, 189, 248, 0.35);">
-                                <option value="none" ${sell.accRarity === 'none' ? 'selected' : ''}>❌ ไม่ขาย</option>
-                                <option value="normal" ${sell.accRarity === 'normal' ? 'selected' : ''}>⚪ ขาวเท่านั้น (0 Opt)</option>
-                                <option value="good" ${sell.accRarity === 'good' ? 'selected' : ''}>🟢 ดี (เขียวลงไป)</option>
-                                <option value="rare" ${sell.accRarity === 'rare' ? 'selected' : ''}>🔵 หายาก (ฟ้าลงไป)</option>
-                                <option value="epic" ${sell.accRarity === 'epic' ? 'selected' : ''}>🟣 มหากาพย์ (ม่วงลงไป)</option>
-                            </select>
-                        </div>
-
-                        <!-- 4. วัตถุดิบ -->
-                        <div class="p-row">
-                            <span style="font-size: 10px; color: #e2e8f0; font-weight: 500;">🌿 วัตถุดิบ:</span>
-                            <select id="p-sell-rarity-mat" class="p-select" style="width: 142px; padding: 2px 4px; font-size: 9.5px; background: #0b1329; border: 1px solid rgba(56, 189, 248, 0.35);">
-                                <option value="all" ${sell.sellMaterials && sell.materialMode !== 'common' ? 'selected' : ''}>🧺 ขายขยะทั้งหมด (รวมหายาก)</option>
-                                <option value="common" ${sell.sellMaterials && sell.materialMode === 'common' ? 'selected' : ''}>🧺 เฉพาะขยะธรรมดา</option>
-                                <option value="none" ${!sell.sellMaterials ? 'selected' : ''}>❌ ไม่ขาย</option>
-                            </select>
-                        </div>
-
-                        <!-- 5. แร่ตีบวก -->
-                        <div class="p-row" title="Phracon / Elunium / Oridecon ฯลฯ — ถ้าเลือกขาย จะขายเฉพาะชนิดที่ไม่ได้อยู่ใน Whitelist">
-                            <span style="font-size: 10px; color: #e2e8f0; font-weight: 500;">⛏️ แร่ตีบวก:</span>
-                            <select id="p-sell-refine-ores" class="p-select" style="width: 142px; padding: 2px 4px; font-size: 9.5px; background: #0b1329; border: 1px solid rgba(56, 189, 248, 0.35);">
-                                <option value="keep" ${!sell.sellRefineOres ? 'selected' : ''}>🔒 เก็บทั้งหมด</option>
-                                <option value="unlisted" ${sell.sellRefineOres ? 'selected' : ''}>💰 ขายที่ไม่อยู่ใน Whitelist</option>
-                            </select>
-                        </div>
-
-                        <!-- 6. ของใช้ / ขวดยา -->
-                        <div class="p-row" title="ขวดยา / ของใช้ในแท็บใช้ได้ — ยกเว้น Butterfly Wing, Fly Wing, ยาบัพที่เปิดใช้ และรายการใน Whitelist">
-                            <span style="font-size: 10px; color: #e2e8f0; font-weight: 500;">🧪 ของใช้ / ขวดยา:</span>
-                            <select id="p-sell-consumables" class="p-select" style="width: 142px; padding: 2px 4px; font-size: 9.5px; background: #0b1329; border: 1px solid rgba(56, 189, 248, 0.35);">
-                                <option value="keep" ${!sell.sellConsumables ? 'selected' : ''}>🔒 เก็บทั้งหมด</option>
-                                <option value="unlisted" ${sell.sellConsumables ? 'selected' : ''}>💰 ขายที่ไม่อยู่ใน Whitelist</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <!-- Safety Locks Card -->
-                    <div class="p-card" style="border-color: rgba(239, 68, 68, 0.35); background: rgba(15, 23, 42, 0.65); padding: 5px; display: flex; flex-direction: column; gap: 4px;">
-                        <div style="font-size: 10px; font-weight: bold; color: #f87171; border-bottom: 1px solid rgba(239, 68, 68, 0.2); padding-bottom: 2px;">
-                            🔒 ล็อกความปลอดภัย (ห้ามขายเด็ดขาด)
-                        </div>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px;">
-                            <label class="p-check-box" style="color: #ef4444;" title="ห้ามขายของที่ผ่านการตีบวก (+1 ขึ้นไป)">
-                                <input type="checkbox" id="p-sell-keep-refined" ${sell.keepRefined !== false ? "checked" : ""}>
-                                <span>🔨 ล็อกของตีบวก</span>
-                            </label>
-                            <label class="p-check-box" style="color: #c084fc;" title="ห้ามขายของที่มี Option สุ่ม">
-                                <input type="checkbox" id="p-sell-keep-special" ${sell.keepSpecial ? "checked" : ""}>
-                                <span>🔒 ล็อกของมี Option</span>
-                            </label>
-                        </div>
-                        <label class="p-check-box" style="color: #38bdf8;" title="ห้ามขายของที่มีรูใส่การ์ด [1-4]">
-                            <input type="checkbox" id="p-sell-keep-sockets" ${sell.keepSockets ? "checked" : ""}>
-                            <span>🕳️ ล็อกของมีรูการ์ด [1-4]</span>
-                        </label>
-                    </div>
-
-                    <!-- Force Sell NPC List Card -->
-                    <div style="background: rgba(249, 115, 22, 0.07); border: 1px solid rgba(249, 115, 22, 0.35); border-radius: 6px; padding: 5px 6px;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px; gap: 4px;">
-                            <span style="font-size: 10px; color: #fb923c; font-weight: 700;">💰 บังคับขาย NPC ทันที ไม่สนหมวดหมู่ (คั่นด้วย ,):</span>
-                            ${!isCentral ? `<button type="button" id="p-btn-open-fs-modal" style="background: rgba(168, 85, 247, 0.22); border: 1px solid rgba(168, 85, 247, 0.5); color: #e9d5ff; border-radius: 4px; font-size: 9px; padding: 1px 6px; cursor: pointer; font-weight: 600;" title="เปิดหน้าต่างจัดการรายการบังคับขาย NPC และคัดลอกไปยังจออื่น (Copy to)">📋 Copy to / จัดการ</button>` : ''}
-                        </div>
-                        <textarea id="p-sell-force-list" placeholder="เช่น Orange Potion, Blue Potion, Carrot (ใส่ชื่อแล้วขายลง NPC ทันที แม้หมวดนั้นตั้งเป็นเก็บทั้งหมด)" style="width: 100%; box-sizing: border-box; background: #0f172a; border: 1px solid rgba(249, 115, 22, 0.45); color: #fed7aa; border-radius: 4px; font-size: 9.5px; height: 36px; resize: vertical; padding: 3px;">${escapeHTML(sell.forceSellList || "")}</textarea>
-                    </div>
-
-                    <!-- Whitelist Card -->
-                    <div>
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px; gap: 4px;">
-                            <span style="font-size: 10px; color: #94a3b8;">🛡️ Whitelist ห้ามขาย (ชื่อไอเทมคั่นด้วย ,):</span>
-                            ${!isCentral ? `<button type="button" id="p-btn-open-wl-modal" style="background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.4); color: #bae6fd; border-radius: 4px; font-size: 9px; padding: 1px 6px; cursor: pointer; font-weight: 600;" title="เปิดหน้าต่างจัดการ Whitelist และคัดลอกไปยังจออื่น (Copy to)">📋 Copy to / จัดการ</button>` : ''}
-                        </div>
-                        <textarea id="p-sell-whitelist" style="width: 100%; box-sizing: border-box; background: #0f172a; border: 1px solid rgba(234, 179, 8, 0.4); color: #fff; border-radius: 4px; font-size: 9.5px; height: 34px; resize: vertical; padding: 3px;">${escapeHTML(sell.whitelist || "")}</textarea>
-                    </div>
-
-                    <!-- Smart Stat & Affix Filter Card (Whitelist Sub-Filter) -->
-                    <div class="p-card" id="p-sell-stats-filter-card" style="border-color: rgba(168, 85, 247, 0.45); background: rgba(15, 23, 42, 0.75); padding: 6px; margin-top: 5px; display: flex; flex-direction: column; gap: 5px;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(168, 85, 247, 0.25); padding-bottom: 3px;">
-                            <label class="p-check-box" style="color: #c084fc; font-size: 10px; margin: 0; font-weight: bold;" title="คัดกรองออฟชั่นสุ่มของไอเทมใน Whitelist เก็บเฉพาะชิ้นที่ออฟชั่นสวย">
-                                <input type="checkbox" id="p-statfilter-toggle" ${(sell.statsFilter?.enabled) ? 'checked' : ''}>
-                                <span>⚙️ กรองออฟชั่น Whitelist (Stat Filter)</span>
-                            </label>
-                            <span style="font-size: 8.5px; color: #a855f7; font-weight: 500;">เฉพาะ Random Options</span>
-                        </div>
-
-                        <!-- Target Equipment Types & Gem Protection -->
-                        <div style="display: flex; flex-direction: column; gap: 3px; background: rgba(0,0,0,0.25); padding: 4px 6px; border-radius: 4px;">
-                            <span style="font-size: 9px; color: #94a3b8; font-weight: 600;">หมวดที่ใช้ตัวกรองนี้:</span>
-                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px;">
-                                <label class="p-check-box" style="font-size: 9px; color: #e2e8f0; margin: 0;">
-                                    <input type="checkbox" id="p-statfilter-weap" ${(sell.statsFilter?.filterWeapons !== false) ? 'checked' : ''}>
-                                    <span>⚔️ อาวุธ</span>
-                                </label>
-                                <label class="p-check-box" style="font-size: 9px; color: #e2e8f0; margin: 0;">
-                                    <input type="checkbox" id="p-statfilter-armor" ${(sell.statsFilter?.filterArmors !== false) ? 'checked' : ''}>
-                                    <span>🛡️ ชุดเกราะ</span>
-                                </label>
-                                <label class="p-check-box" style="font-size: 9px; color: #e2e8f0; margin: 0;">
-                                    <input type="checkbox" id="p-statfilter-acc" ${(sell.statsFilter?.filterAccessories !== false) ? 'checked' : ''}>
-                                    <span>💍 เครื่องประดับ</span>
-                                </label>
-                                <label class="p-check-box" style="font-size: 9px; color: #38bdf8; margin: 0; font-weight: 600;" title="ล็อกคุ้มครองเจมสกิลทุกเม็ด ไม่ให้ถูกขายทิ้งเด็ดขาด">
-                                    <input type="checkbox" id="p-statfilter-protect-gems" ${(sell.statsFilter?.protectGems !== false) ? 'checked' : ''}>
-                                    <span>💎 ล็อกเจมสกิล (ห้ามขาย)</span>
-                                </label>
-                            </div>
-                        </div>
-
-                        <!-- Options Count Required -->
-                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 0 2px;">
-                            <span style="font-size: 9.5px; color: #cbd5e1; font-weight: 500;">🎯 Stats Require (ขั้นต่ำ):</span>
-                            <div style="display: flex; align-items: center; gap: 4px;">
-                                <input type="number" id="p-statfilter-min-opts" min="1" max="5" value="${sell.statsFilter?.minOptions || 2}" style="width: 42px; background: #0b1329; border: 1px solid rgba(168, 85, 247, 0.4); color: #fff; border-radius: 3px; font-size: 10px; padding: 1px 3px; text-align: center;">
-                                <span style="font-size: 9px; color: #94a3b8;">ออฟขึ้นไป</span>
-                            </div>
-                        </div>
-
-                        <!-- Main Stats List -->
-                        <div style="background: rgba(56, 189, 248, 0.05); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 4px; padding: 4px;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px;">
-                                <span style="font-size: 9.5px; color: #38bdf8; font-weight: bold;">🔹 Main Stats (STR, AGI, VIT, INT, DEX, LUK)</span>
-                                <button type="button" class="p-btn-add-mainstat" style="background: #0284c7; color: #fff; border: none; border-radius: 3px; font-size: 8.5px; font-weight: bold; padding: 2px 7px; cursor: pointer;">+ เพิ่ม</button>
-                            </div>
-                            <div class="p-statfilter-main-list" style="display: flex; flex-direction: column; gap: 3px;"></div>
-                        </div>
-
-                        <!-- Sub Stats List -->
-                        <div style="background: rgba(234, 179, 8, 0.05); border: 1px solid rgba(234, 179, 8, 0.25); border-radius: 4px; padding: 4px;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px;">
-                                <span style="font-size: 9.5px; color: #facc15; font-weight: bold;">🔸 Sub Stats (ATK%, MATK%, CRIT, ASPD, ฯลฯ)</span>
-                                <button type="button" class="p-btn-add-substat" style="background: #d97706; color: #fff; border: none; border-radius: 3px; font-size: 8.5px; font-weight: bold; padding: 2px 7px; cursor: pointer;">+ เพิ่ม</button>
-                            </div>
-                            <div class="p-statfilter-sub-list" style="display: flex; flex-direction: column; gap: 3px;"></div>
-                        </div>
-                    </div>
-
-                    <!-- Storage deposit Card -->
-                    <div class="p-card" id="p-store-card" style="border-color: rgba(56, 189, 248, 0.4); background: rgba(15, 23, 42, 0.75); padding: 6px; margin-top: 5px; display: flex; flex-direction: column; gap: 4px;">
-                        <label class="p-check-box" style="color: #38bdf8; font-weight: bold; margin: 0;" title="หลังขายของในเมือง ฝากของที่ไม่ได้ขาย และไม่อยู่ใน Whitelist เข้าคลังเก็บของของบัญชี">
-                            <input type="checkbox" id="p-store-enabled" ${sell.storeEnabled ? 'checked' : ''}>
-                            <span>📦 ฝากของเข้าคลังหลังขาย (ที่ไม่อยู่ใน Whitelist)</span>
-                        </label>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px;">
-                            <label class="p-check-box" style="font-size: 9.5px; margin: 0;"><input type="checkbox" id="p-store-weapon" ${sell.storeWeapon !== false ? 'checked' : ''}><span>⚔️ อาวุธ</span></label>
-                            <label class="p-check-box" style="font-size: 9.5px; margin: 0;"><input type="checkbox" id="p-store-armor" ${sell.storeArmor !== false ? 'checked' : ''}><span>🛡️ ชุดเกราะ</span></label>
-                            <label class="p-check-box" style="font-size: 9.5px; margin: 0;"><input type="checkbox" id="p-store-acc" ${sell.storeAcc !== false ? 'checked' : ''}><span>💍 ประดับ/เจม</span></label>
-                            <label class="p-check-box" style="font-size: 9.5px; margin: 0;"><input type="checkbox" id="p-store-refine" ${sell.storeRefine !== false ? 'checked' : ''}><span>💎 แร่ตีบวก</span></label>
-                        </div>
-                        <label class="p-check-box" style="font-size: 9.5px; color: #fbbf24; margin: 0;" title="ของที่กดล็อคในกระเป๋าไว้ จะเก็บติดตัวไว้ ไม่ฝาก">
-                            <input type="checkbox" id="p-store-skip-locked" ${sell.storeSkipLocked !== false ? 'checked' : ''}>
-                            <span>🔐 ไม่ฝากของที่ล็อคไว้</span>
-                        </label>
-                        <span class="p-hint" style="font-size: 8.5px; color: #94a3b8;">ไม่ฝาก: ของใช้, ลูกธนู, ของใน Whitelist, ของที่เซ็ตอุปกรณ์ยังต้องใช้ · คลังใช้ร่วมกันทั้งบัญชี · มีค่าเปิดคลังตามเกม</span>
-                        <button type="button" class="p-btn" id="p-btn-store-now" style="background: #0369a1; color: #fff; font-weight: bold;">📦 ฝากเข้าคลังตอนนี้ (ต้องอยู่ในเมืองหลวง)</button>
-                    </div>
-
-                    <button class="p-btn" id="p-btn-test-sell-only" style="background: #ca8a04; color: #fff; font-weight: bold; margin-top: 2px;">🧺 ทดสอบขายของในร้านค้า (Sell Test)</button>
-                </div>
-
-                <!-- TAB 4: MARKET & STAT SNIPER -->
-                <div class="p-tab-pane" id="p-tab-market">
-                    <!-- Sub-Navigation: Auto Sell vs Sniper -->
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-bottom: 6px; background: rgba(0,0,0,0.4); padding: 2px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.08);">
-                        <button id="p-subtab-btn-autosell" onclick="window.switchMarketSubTab('autosell')"
-                            style="padding: 4px; border-radius: 4px; font-size: 10px; font-weight: bold; cursor: pointer; border: none; background: #9333ea; color: #fff; transition: all 0.2s;">
-                            🏷️ Auto Sell ตั้งขาย (<span id="p-subtab-autosell-count">${(autosell.rules || []).length}</span>)
-                        </button>
-                        <button id="p-subtab-btn-sniper" onclick="window.switchMarketSubTab('sniper')"
-                            style="padding: 4px; border-radius: 4px; font-size: 10px; font-weight: bold; cursor: pointer; border: none; background: transparent; color: #94a3b8; transition: all 0.2s;">
-                            🎯 Sniper ค้นหาซื้อ
-                        </button>
-                    </div>
-
-                    <!-- VIEW 1: AUTO SELL TO MARKET -->
-                    <div id="p-market-view-autosell" style="display: block;">
-                        <!-- Auto Sell Main Card -->
-                        <div class="p-card" style="border-color: rgba(168, 85, 247, 0.45); background: rgba(168, 85, 247, 0.08); padding: 6px; margin-bottom: 5px;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(168, 85, 247, 0.25); padding-bottom: 3px; margin-bottom: 4px;">
-                                <label class="p-check-box" style="color: #c084fc; margin: 0; font-size: 10.5px;">
-                                    <input type="checkbox" id="p-autosell-toggle-hud" ${autosell.enabled ? "checked" : ""} onchange="window.toggleAutoMarketSell(this.checked)">
-                                    <b>เปิดใช้งาน Auto Sell</b>
-                                </label>
-                                <span id="p-autosell-quota-badge-hud" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 0 4px; border-radius: 3px; font-size: 9px; font-weight: bold;">
-                                    โควตา: ${clientData?.myMarketActiveCount ?? 0}/${clientData?.hasPremium ? 20 : 3}
-                                </span>
-                            </div>
-                            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 8.5px; color: #d8b4fe; margin-bottom: 4px;">
-                                <span>⚖️ กลยุทธ์: <b>ราคากลางสมดุล (Market Median)</b></span>
-                            </div>
-                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px;">
-                                <button onclick="window.addAutoMarketSellRule();" style="background: linear-gradient(135deg, #10b981, #059669); color: #fff; border: 1px solid #34d399; padding: 4px; border-radius: 4px; font-size: 10px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 3px;">
-                                    <span>➕</span> <span>เพิ่มรายการลงขาย</span>
-                                </button>
-                                <button onclick="window.runAutoMarketSellCycle(true);" style="background: #0284c7; color: #fff; border: none; padding: 4px; border-radius: 4px; font-size: 10px; font-weight: bold; cursor: pointer;" title="ตรวจสอบกระเป๋าและประเมินราคาทันที">
-                                    ⚡ ตรวจสอบทันที
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Rules List in HUD -->
-                        <div id="p-autosell-hud-rules-container" style="max-height: 250px; overflow-y: auto;">
-                            ${(typeof window.renderAutoSellHudRulesHtml === 'function') ? window.renderAutoSellHudRulesHtml() : ''}
-                        </div>
-
-                        <!-- Open Full Modal Button -->
-                        <div style="margin-top: 5px;">
-                            <button onclick="window.showDataViewerModal('market');" style="width: 100%; background: #1e293b; color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.4); padding: 4px; border-radius: 4px; font-size: 9.5px; font-weight: bold; cursor: pointer;">
-                                🔎 จัดการรายการแบบตารางเต็มจอ (Data Hub)
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- VIEW 2: SNIPER & SEARCH (Original) -->
-                    <div id="p-market-view-sniper" style="display: none;">
-                        <!-- Quick Search Card -->
-                        <div class="p-card" style="border-color: rgba(56, 189, 248, 0.4); background: rgba(56, 189, 248, 0.05);">
-                            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(56, 189, 248, 0.2); padding-bottom: 2px; margin-bottom: 3px;">
-                                <span style="font-size: 10px; font-weight: bold; color: #38bdf8;">🔍 ค้นหาไอเทมตลาดกลาง</span>
-                                <span id="p-mk-server-count-badge" style="font-size: 8.5px; color: #94a3b8;">Server Sync</span>
-                            </div>
-                            <div>
-                                <input type="text" id="p-mk-search-query" value="${marketFilter.q || ''}" placeholder="ค้นหาชื่อไอเทม (เช่น Bow, Ring, Dagger)..." style="width: 100%; box-sizing: border-box; background: #0f172a; border: 1px solid rgba(56, 189, 248, 0.35); color: #fff; border-radius: 4px; font-size: 10.5px; padding: 2px 6px;">
-                            </div>
-                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 3px;">
-                                <select id="p-mk-cat-select" class="p-select" style="font-size: 10px; padding: 2px 4px;">
-                                    <option value="" ${marketFilter.category === '' ? 'selected' : ''}>ทุกหมวดหมู่</option>
-                                    <option value="Weapon" ${marketFilter.category === 'Weapon' ? 'selected' : ''}>⚔️ อาวุธ</option>
-                                    <option value="Armor" ${marketFilter.category === 'Armor' ? 'selected' : ''}>🛡️ ชุดเกราะ</option>
-                                    <option value="Accessory" ${marketFilter.category === 'Accessory' ? 'selected' : ''}>💍 ประดับ/เจม</option>
-                                    <option value="Card" ${marketFilter.category === 'Card' ? 'selected' : ''}>🎴 การ์ด</option>
-                                    <option value="Ammo" ${marketFilter.category === 'Ammo' ? 'selected' : ''}>🏹 ลูกธนู</option>
-                                </select>
-                                <select id="p-mk-kind-select" class="p-select" style="font-size: 10px; padding: 2px 4px;">
-                                    <option value="" ${marketFilter.kind === '' ? 'selected' : ''}>ทุกประเภท</option>
-                                    <option value="bow" ${marketFilter.kind === 'bow' ? 'selected' : ''}>ธนู (Bow)</option>
-                                    <option value="dagger" ${marketFilter.kind === 'dagger' ? 'selected' : ''}>มีด (Dagger)</option>
-                                    <option value="sword" ${marketFilter.kind === 'sword' ? 'selected' : ''}>ดาบ (Sword)</option>
-                                    <option value="spear" ${marketFilter.kind === 'spear' ? 'selected' : ''}>หอก (Spear)</option>
-                                    <option value="axe" ${marketFilter.kind === 'axe' ? 'selected' : ''}>ขวาน (Axe)</option>
-                                    <option value="staff" ${marketFilter.kind === 'staff' ? 'selected' : ''}>คทา (Staff)</option>
-                                    <option value="shield" ${marketFilter.kind === 'shield' ? 'selected' : ''}>โล่ (Shield)</option>
-                                    <option value="armor" ${marketFilter.kind === 'armor' ? 'selected' : ''}>ชุดเกราะ (Armor)</option>
-                                    <option value="boot" ${marketFilter.kind === 'boot' ? 'selected' : ''}>รองเท้า (Boots)</option>
-                                    <option value="cape" ${marketFilter.kind === 'cape' ? 'selected' : ''}>ผ้าคลุม (Cape)</option>
-                                    <option value="ring" ${marketFilter.kind === 'ring' ? 'selected' : ''}>แหวน (Ring)</option>
-                                </select>
-                            </div>
-                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 3px;">
-                                <div class="p-row">
-                                    <span style="font-size: 9.5px; color: #cbd5e1;">ตีบวก ≥:</span>
-                                    <input type="number" id="p-mk-min-refine" min="0" max="15" value="${marketFilter.minRefine || 0}" style="width: 42px; background: #0f172a; border: 1px solid #c084fc; color: #fff; text-align: center; border-radius: 4px; font-size: 10px; padding: 1px;">
-                                </div>
-                                <div class="p-row">
-                                    <span style="font-size: 9.5px; color: #cbd5e1;">งบสูงสุด:</span>
-                                    <input type="number" id="p-mk-max-price" value="${marketFilter.maxPrice || 0}" placeholder="0=ไม่จำกัด" style="width: 58px; background: #0f172a; border: 1px solid #00ffcc; color: #00ffcc; text-align: right; border-radius: 4px; font-size: 10px; padding: 1px;">
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Deep Stat & Affix Filter Card -->
-                        <div class="p-card" style="border-color: rgba(234, 179, 8, 0.4); background: rgba(234, 179, 8, 0.05);">
-                            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(234, 179, 8, 0.2); padding-bottom: 2px;">
-                                <span style="font-size: 10px; font-weight: bold; color: #f59e0b;">💎 ตัวกรอง Option (Stat Filter)</span>
-                                <span style="font-size: 8.5px; color: #94a3b8;">ลึกถึง Option สุ่ม</span>
-                            </div>
-                            <!-- Option 1 -->
-                            <div class="p-row" style="margin-top: 2px;">
-                                <span style="font-size: 9.5px; color: #fde047;">Opt 1:</span>
-                                <select id="p-mk-stat1-type" class="p-select" style="width: 120px; font-size: 9.5px; padding: 1px 3px;">
-                                    
-                                </select>
-                                <input type="number" id="p-mk-stat1-min" value="${marketFilter.statMinVal1 || 1}" min="1" style="width: 38px; background: #0f172a; border: 1px solid #f59e0b; color: #fff; text-align: center; border-radius: 4px; font-size: 10px; padding: 1px;">
-                            </div>
-                            <!-- Option 2 -->
-                            <div class="p-row">
-                                <span style="font-size: 9.5px; color: #c084fc;">Opt 2:</span>
-                                <select id="p-mk-stat2-type" class="p-select" style="width: 120px; font-size: 9.5px; padding: 1px 3px;">
-                                    
-                                </select>
-                                <input type="number" id="p-mk-stat2-min" value="${marketFilter.statMinVal2 || 1}" min="1" style="width: 38px; background: #0f172a; border: 1px solid #c084fc; color: #fff; text-align: center; border-radius: 4px; font-size: 10px; padding: 1px;">
-                            </div>
-                            <div class="p-row">
-                                <span style="font-size: 9px; color: #94a3b8;">เงื่อนไข:</span>
-                                <select id="p-mk-stat-mode" class="p-select" style="width: 90px; font-size: 9px; padding: 1px 3px;">
-                                    <option value="AND" ${marketFilter.statMatchMode === 'AND' ? 'selected' : ''}>AND (ครบทุก Opt)</option>
-                                    <option value="OR" ${marketFilter.statMatchMode === 'OR' ? 'selected' : ''}>OR (อย่างน้อย 1 Opt)</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <!-- Sniper & Auto-Buy Card -->
-                        <div class="p-card" style="border-color: rgba(168, 85, 247, 0.35); background: rgba(168, 85, 247, 0.05);">
-                            <label class="p-check-box" style="color: #f59e0b;">
-                                <input type="checkbox" id="p-mk-sniper-alert" ${marketFilter.sniperAlert ? 'checked' : ''}>
-                                <b>🎯 เสียงเตือนเมื่อพบของตรงสเปค</b>
-                            </label>
-                            <label class="p-check-box" style="color: #4ade80; margin-top: 2px;">
-                                <input type="checkbox" id="p-mk-auto-buy" ${marketFilter.autoBuy ? 'checked' : ''}>
-                                <b>⚡ Auto-Buy Sniper (ซื้อทันทีเมื่อพบ)</b>
-                            </label>
-                        </div>
-
-                        <!-- Action Buttons -->
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px;">
-                            <button class="p-btn" id="p-btn-mk-search" style="background: #0284c7; color: #fff; font-size: 10.5px; padding: 5px;">🔍 ค้นหาตลาด</button>
-                            <button class="p-btn" id="p-btn-mk-scan" style="background: #9333ea; color: #fff; font-size: 10.5px; padding: 5px;">⚡ สแกนทุกหน้า</button>
-                        </div>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px;">
-                            <button class="p-btn" id="p-btn-mk-open-modal" style="background: #0d9488; color: #fff; font-size: 10px; padding: 4px;">🔎 ตลาดเต็มจอ</button>
-                            <button class="p-btn" id="p-btn-mk-copy-json" style="background: #334155; color: #38bdf8; font-size: 10px; padding: 4px; border: 1px solid rgba(56,189,248,0.3);">📋 Dump JSON</button>
-                        </div>
-
-                        <!-- Live Results Section -->
-                        <div style="border-top: 1px solid rgba(255, 255, 255, 0.1); padding-top: 4px;">
-                            <div style="font-size: 10px; color: #38bdf8; font-weight: bold; display: flex; justify-content: space-between; margin-bottom: 4px;">
-                                <span>📦 รายการตรงสเปค (<span id="p-mk-result-count" style="color: #00ffcc;">0</span>)</span>
-                                <span style="font-size: 9px; color: #94a3b8;">1-Click Buy</span>
-                            </div>
-                            <div id="p-mk-hud-results" style="max-height: 180px; overflow-y: auto; display: flex; flex-direction: column; gap: 3px;">
-                                <div style="text-align: center; color: #64748b; padding: 12px 6px; font-size: 10px;">
-                                    ยังไม่มีผลการค้นหา<br/><span style="color: #475569;">กดปุ่ม '🔍 ค้นหาตลาด' เพื่อเริ่ม</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- TAB 5: SYSTEM & TOOLS -->
-                <div class="p-tab-pane" id="p-tab-system">
-                    <!-- Auto-Login & Account Card -->
-                    <div class="p-card" style="border-color: rgba(168, 85, 247, 0.4); background: rgba(168, 85, 247, 0.06); margin-bottom: 6px;">
-                        <label class="p-check-box" style="color: #c084fc;">
-                            <input type="checkbox" id="p-auth-enabled" ${auth.enabled ? "checked" : ""}>
-                            <b>🔐 เปิดระบบ Auto-Login (เข้าเกมอัตโนมัติ)</b>
-                        </label>
-                        <div style="font-size: 9.5px; color: #94a3b8; margin: 3px 0 6px 0; line-height: 1.3;">
-                            เมื่อเกมหลุดหรือเด้งไปหน้า Login บอทจะกรอก ID/PS และเข้าเกมให้อัตโนมัติ
-                        </div>
-
-                        <div style="display: flex; flex-direction: column; gap: 4px;">
-                            <div class="p-row">
-                                <span style="font-size: 10px; color: #cbd5e1;">ชื่อผู้ใช้ (ID):</span>
-                                <input type="text" id="p-auth-user" value="${escapeHTML(auth.username || "")}" placeholder="ชื่อผู้ใช้ / ID" style="width: 130px; background: #0f172a; border: 1px solid rgba(192, 132, 252, 0.5); color: #fff; border-radius: 4px; font-size: 10.5px; padding: 2px 6px;">
-                            </div>
-                            <div class="p-row">
-                                <span style="font-size: 10px; color: #cbd5e1;">รหัสผ่าน (PS):</span>
-                                <div style="display: flex; align-items: center; gap: 3px;">
-                                    <input type="password" id="p-auth-pass" value="" placeholder="${auth.hasPassword ? '•••••• (มีแล้ว)' : 'รหัสผ่าน'}" autocomplete="new-password" style="width: 105px; background: #0f172a; border: 1px solid rgba(192, 132, 252, 0.5); color: #fff; border-radius: 4px; font-size: 10.5px; padding: 2px 6px;">
-                                    <button type="button" id="p-auth-toggle-pass" style="background: rgba(15, 23, 42, 0.8); border: 1px solid #64748b; color: #94a3b8; border-radius: 3px; font-size: 9px; padding: 2px 4px; cursor: pointer;" title="แสดง/ซ่อนรหัสผ่าน">👁️</button>
-                                </div>
-                            </div>
-                            <div class="p-row">
-                                <span style="font-size: 10px; color: #cbd5e1;">เลือกตัวละคร (Char):</span>
-                                <input type="text" id="p-auth-char" value="${escapeHTML(auth.charName || "")}" placeholder="ชื่อตัวละคร (เว้นว่าง = ตัวแรก)" style="width: 130px; background: #0f172a; border: 1px solid rgba(192, 132, 252, 0.5); color: #fff; border-radius: 4px; font-size: 10.5px; padding: 2px 6px;">
-                            </div>
-                        </div>
-
-                        <label class="p-check-box" style="color: #4ade80; margin-top: 6px;">
-                            <input type="checkbox" id="p-auth-resume" ${auth.autoResumeBot ? "checked" : ""}>
-                            <span style="font-size: 9.5px;">เริ่มทำงานบอทต่อทันทีเมื่อ Login สำเร็จ (Auto-Resume)</span>
-                        </label>
-
-                        <button class="p-btn" id="p-btn-test-login" style="background: #9333ea; color: #fff; font-size: 10.5px; padding: 5px; margin-top: 6px; font-weight: bold; border-radius: 4px; border: 1px solid #a855f7; width: 100%; cursor: pointer;">🔑 ทดสอบเข้าสู่ระบบทันที (Test Login)</button>
-                    </div>
-
-                    <div class="p-card" style="border-color: rgba(56, 189, 248, 0.3);">
-                        <label class="p-check-box" style="color: #38bdf8;">
-                            <input type="checkbox" id="p-shop-enabled" ${shop.enabled ? "checked" : ""}>
-                            <b>เปิดระบบ Auto-Shop</b>
-                        </label>
-                        <div class="p-row" style="margin-top: 3px;">
-                            <span>NPC Key:</span>
-                            <input type="text" id="p-shop-npckey" value="${escapeHTML(shop.npcKey || "tools")}" style="width: 55px; background: #0f172a; border: 1px solid #38bdf8; color: #fff; text-align: center; border-radius: 4px; font-size: 11px; padding: 2px;">
-                        </div>
-                        <button class="p-btn" id="p-btn-test-shop" style="background: #f59e0b; color: #000; font-weight: bold; margin-top: 4px;">🛍️ ทดสอบ Routine ร้านค้า (Shop Routine)</button>
-                    </div>
-
-                    <div class="p-card" style="border-color: rgba(34, 197, 94, 0.45); background: rgba(34, 197, 94, 0.06);">
-                        <div style="font-size: 10.5px; font-weight: bold; color: #4ade80; margin-bottom: 4px;">⚡ ประหยัดทรัพยากรขั้นสุด (Ultra-Low Spec)</div>
-                        <label class="p-check-box" style="color: #86efac;">
-                            <input type="checkbox" id="p-ultra-low-spec" ${clientData?.ultraLowSpecEnabled !== false ? "checked" : ""}>
-                            <span><b>เปิดโหมดประหยัด GPU / RAM ขั้นสุด</b></span>
-                        </label>
-                        <div style="font-size: 9px; color: #94a3b8; margin-top: 3px; line-height: 1.35;">
-                            • ตัดเอฟเฟกต์สกิล, พาร์ติเคิล, เงา, สไปรต์มอนสเตอร์/พื้นหลังแมพ และตัวเลขดาเมจลอย<br>
-                            • ปิดแอนิเมชัน CSS ทั้งหน้าเกม (ลดภาระ GPU Compositor)<br>
-                            • <b>ไม่ล็อก FPS และไม่พับจอ</b> (ป้องกันการ์ดจอไดรเวอร์ค้าง/หลุดฟาร์ม)
-                        </div>
-                    </div>
-
-                    <div class="p-card" style="border-color: rgba(250, 204, 21, 0.35); background: rgba(250, 204, 21, 0.05);">
-                        <div style="font-size: 10.5px; font-weight: bold; color: #facc15; margin-bottom: 4px;">🎮 ตั้งค่าอัตโนมัติใน Plan Script (Auto-Battle & Display)</div>
-                        <label class="p-check-box" style="color: #fde047;">
-                            <input type="checkbox" id="p-auto-config-char" ${clientData?.autoConfigCharEnabled !== false ? "checked" : ""}>
-                            <span>ตั้งระยะล่า <b>ทั้งแมพ</b> + ติ๊ก Auto สกิล (เฉพาะตอนเปิด Plan Script)</span>
-                        </label>
-                        <label class="p-check-box" style="color: #fde047; margin-top: 4px;">
-                            <input type="checkbox" id="p-auto-mute-display" ${clientData?.autoMuteDisplayEnabled !== false ? "checked" : ""}>
-                            <span>ปิดประกาศบนจอ & ปิดหน้าต่างข่าวสาร (เฉพาะตอนเปิด Plan Script)</span>
-                        </label>
-                        <button class="p-btn" id="p-btn-apply-autoconfig" style="background: linear-gradient(135deg, #ca8a04, #eab308); color: #000; font-size: 10px; font-weight: bold; padding: 5px; margin-top: 6px;">⚡ สั่งตั้งค่าระยะล่า + สกิล + ปิดประกาศเดี๋ยวนี้</button>
-                    </div>
-                    
-                    <div class="p-card" style="border-color: rgba(168, 85, 247, 0.35); background: rgba(168, 85, 247, 0.05);">
-                        <span style="font-size: 10.5px; font-weight: bold; color: #c084fc;">💾 สำรอง & ถ่ายโอนการตั้งค่า (Settings & Config)</span>
-                        <div style="font-size: 9px; color: #94a3b8; margin: 2px 0 5px 0;">
-                            ส่งออกหรือนำเข้าการตั้งค่าทั้งหมด (ยกเว้น ID / Password เพื่อความปลอดภัย)
-                        </div>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px;">
-                            <button class="p-btn" id="p-btn-export-cfg" style="background: linear-gradient(135deg, #7c3aed, #9333ea); color: #fff; font-size: 10px; font-weight: bold; padding: 5px;">📤 Export Config (JSON)</button>
-                            <button class="p-btn" id="p-btn-import-cfg" style="background: #0284c7; color: #fff; font-size: 10px; font-weight: bold; padding: 5px;">📥 Import Config (นำเข้า)</button>
-                        </div>
-                    </div>
-                    <div class="p-card" style="border-color: rgba(34, 197, 94, 0.3);">
-                        <span style="font-size: 10.5px; font-weight: bold; color: #22c55e;">📥 Data Dumper (ดึง/ส่งออกข้อมูล)</span>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 2px;">
-                            <button class="p-btn" id="p-btn-dump-map" style="background: #0284c7; color: #fff; padding: 4px; font-size: 10px;">🗺️ Dump แมพ (25 โซน)</button>
-                            <button class="p-btn" id="p-btn-dump-item" style="background: #7c3aed; color: #fff; padding: 4px; font-size: 10px;">📦 Dump ไอเทม</button>
-                        </div>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 3px;">
-                            <button class="p-btn" id="p-btn-dump-packets" style="background: #e11d48; color: #fff; padding: 4px; font-size: 10px;">📜 Dump Packet</button>
-                            <button class="p-btn" id="p-btn-dump-state" style="background: #059669; color: #fff; padding: 4px; font-size: 10px;">🕹️ Dump State</button>
-                        </div>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 3px;">
-                            <button class="p-btn" id="p-btn-dump-market" style="background: #ec4899; color: #fff; font-weight: bold; padding: 4px; font-size: 10px;">🛒 Dump ตลาดกลาง</button>
-                            <button class="p-btn" id="p-btn-dump-weight" style="background: #f59e0b; color: #000; font-weight: bold; padding: 4px; font-size: 10px;">⚖️ Dump น้ำหนัก DOM & กระเป๋า</button>
-                        </div>
-                        <button class="p-btn" id="p-btn-dump-npc" style="background: #8b5cf6; color: #fff; font-weight: bold; padding: 5px; font-size: 10.5px; margin-top: 3px;">👥 Dump NPC (รายชื่อ, Key & พิกัดทั้งหมด)</button>
-                    </div>
-
-                    <button class="p-btn p-btn-copy-out" id="p-btn-copy-out" style="margin-top: 2px;">📋 คัดลอก Packet ขาออก (Hex เต็ม)</button>
-                </div>
-            </div>
-        `;
+<div class="p-header" id="pelican-drag-handle" style="flex-direction: column; align-items: stretch; gap: 5px; ${isCentral ? 'background: linear-gradient(135deg, #78350f 0%, #451a03 100%); border-bottom: 1px solid rgba(250, 204, 21, 0.45);' : 'background: linear-gradient(135deg, rgba(14, 116, 144, 0.45), rgba(15, 23, 42, 0.95));'}">
+  <div class="p-header-top" style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
+    <div class="p-header-name" style="display:flex; align-items:center; gap:6px; min-width:0;">
+      <span style="font-size: 13px;">${isCentral ? '🎛️' : '🌙'}</span>
+      <span class="p-header-title" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; ${isCentral ? 'color: #fde047;' : 'color:#e0f2fe;'}">${escapeHTML(charDisplayName)}</span>
+    </div>
+    <div class="p-header-controls" style="display:flex; align-items:center; gap:6px;">
+      <span class="pelican-toggle" onclick="toggleWebHudCollapse('${profileId}')" title="ย่อ/ขยาย" style="cursor:pointer; padding:0 4px;">−</span>
+      <span class="pelican-close-btn" onclick="closeWebBotHUD('${profileId}')" title="ปิดหน้าต่าง" style="cursor:pointer; padding:0 4px;">✕</span>
+    </div>
+  </div>
+  <div class="p-header-badges" style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+    <span id="p-nc-online-pill" style="font-size: 10px; background: ${isOnline ? 'rgba(16, 185, 129, 0.22)' : 'rgba(148, 163, 184, 0.16)'}; border: 1px solid ${isOnline ? 'rgba(52, 211, 153, 0.5)' : 'rgba(148, 163, 184, 0.35)'}; color: ${isOnline ? '#6ee7b7' : '#cbd5e1'}; padding: 1px 8px; border-radius: 999px; font-weight: 700;">${isCentral ? `ออนไลน์ ${onlineCount}/${currentProfiles.length} จอ` : (isOnline ? '🟢 ออนไลน์' : '⚫ ออฟไลน์')}</span>
+    <span id="p-nc-lv-pill" style="font-size: 10px; background: rgba(56, 189, 248, 0.16); border: 1px solid rgba(56, 189, 248, 0.4); color: #7dd3fc; padding: 1px 8px; border-radius: 999px; font-weight: 700;">${escapeHTML(lvLine)}</span>
+  </div>
+</div>
+
+<div class="p-body" id="pelican-content" style="display:flex; flex-direction:column; gap:8px; padding:10px; max-height:76vh; overflow-y:auto;">
+  ${isCentral ? `
+  <div style="background: rgba(250, 204, 21, 0.12); border: 1px solid rgba(250, 204, 21, 0.35); color: #fde68a; padding: 6px 8px; border-radius: 6px; font-size: 10px; line-height: 1.45;">
+    🎛️ <b>เมนูส่วนกลาง Nightcamp:</b> สั่งเริ่ม/หยุดบอท พักกราฟิกทุกจอ หรือ Inspect Runtime ได้จากหน้าต่างนี้
+  </div>
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+    <button type="button" class="p-btn" id="p-btn-central-start-bot" style="margin: 0; font-size: 11px; padding: 8px 6px; font-weight: bold; border-radius: 6px; background: linear-gradient(135deg, #16a34a, #15803d); color: #fff; border: 1px solid #4ade80; cursor: pointer;">▶️ เริ่มบอททุกจอ</button>
+    <button type="button" class="p-btn" id="p-btn-central-stop-bot" style="margin: 0; font-size: 11px; padding: 8px 6px; font-weight: bold; border-radius: 6px; background: linear-gradient(135deg, #dc2626, #b91c1c); color: #fff; border: 1px solid #f87171; cursor: pointer;">⏹️ หยุดบอททุกจอ</button>
+  </div>
+  <button type="button" class="p-btn" id="p-btn-central-zero-render" style="margin: 0; width: 100%; font-size: 11px; padding: 7px 8px; font-weight: bold; border-radius: 6px; background: rgba(56, 189, 248, 0.16); color: #7dd3fc; border: 1px solid rgba(56, 189, 248, 0.45); cursor: pointer;">⚡ สลับพักกราฟิกทุกจอ (Zero-Render)</button>
+  ` : `
+  <div style="background: rgba(2, 6, 23, 0.55); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 7px; padding: 7px 9px; display:flex; flex-direction:column; gap:4px; font-size:10.5px;">
+    <div style="display:flex; justify-content:space-between; gap:6px;">
+      <span style="color:#94a3b8;">อาชีพ/เลเวล:</span>
+      <b id="p-nc-class-lv" style="color:#7dd3fc;">${escapeHTML(lvLine)}</b>
+    </div>
+    <div style="display:flex; justify-content:space-between; gap:6px;">
+      <span style="color:#94a3b8;">สถานะบอท:</span>
+      <b id="p-char-state" style="color:${isBotRunning ? '#4ade80' : '#facc15'};">${escapeHTML(state?.botStatus || (isOnline ? (isBotRunning ? '⚔️ บอทกำลังทำงาน' : '⏸️ ยืนรอ / แสตนด์บาย') : '⚫ ออฟไลน์'))}</b>
+    </div>
+    <div style="display:flex; justify-content:space-between; gap:6px; border-top:1px solid rgba(255,255,255,0.06); padding-top:4px;">
+      <span style="color:#fca5a5;">HP: <b id="p-nc-hp">${escapeHTML(hpText)}</b></span>
+      <span style="color:#93c5fd;">SP: <b id="p-nc-sp">${escapeHTML(spText)}</b></span>
+    </div>
+  </div>
+
+  <button type="button" class="p-btn" id="p-btn-toggle-bot" ${isOnline ? '' : 'disabled'} style="width: 100%; font-size: 12px; padding: 8px 10px; font-weight: bold; border-radius: 6px; cursor: ${isOnline ? 'pointer' : 'not-allowed'}; opacity: ${isOnline ? '1' : '0.55'};">${isBotRunning ? '⏹️ STOP BOT (หยุดทำงาน)' : '▶️ START BOT (เริ่มทำงาน)'}</button>
+
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+    <button type="button" class="p-btn" id="p-btn-nc-zerorender" style="margin:0; font-size:10.5px; padding:6px; border-radius:6px; background:rgba(34,197,94,0.14); border:1px solid rgba(52,211,153,0.4); color:#6ee7b7; font-weight:700; cursor:pointer;">${isZeroRender ? '🖥️ แสดงภาพปกติ' : '⚡ พักกราฟิก'}</button>
+    <button type="button" class="p-btn" id="p-btn-nc-focus" style="margin:0; font-size:10.5px; padding:6px; border-radius:6px; background:rgba(56,189,248,0.14); border:1px solid rgba(56,189,248,0.4); color:#7dd3fc; font-weight:700; cursor:pointer;">🔝 ดึงจอขึ้นบนสุด</button>
+    <button type="button" class="p-btn" id="p-btn-nc-reload" style="margin:0; font-size:10.5px; padding:6px; border-radius:6px; background:rgba(245,158,11,0.14); border:1px solid rgba(251,191,36,0.4); color:#fde68a; font-weight:700; cursor:pointer;">🔄 รีเฟรชจอเกม</button>
+    <button type="button" class="p-btn" id="p-btn-nc-edit" style="margin:0; font-size:10.5px; padding:6px; border-radius:6px; background:rgba(148,163,184,0.14); border:1px solid rgba(148,163,184,0.35); color:#e2e8f0; font-weight:700; cursor:pointer;">⚙️ แก้ไขโปรไฟล์</button>
+  </div>
+
+  <div class="p-card" style="border: 1px solid rgba(168, 85, 247, 0.35); background: rgba(15, 23, 42, 0.72); border-radius: 7px; padding: 8px; display:flex; flex-direction:column; gap:6px;">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <span style="font-size:10.5px; font-weight:700; color:#d8b4fe;">🔐 Auto-Login ประจำจอ</span>
+      <label style="display:flex; align-items:center; gap:4px; font-size:10px; color:#cbd5e1; cursor:pointer;">
+        <input type="checkbox" id="p-auth-enabled" ${auth.enabled !== false ? 'checked' : ''}>
+        <span>ใช้งาน</span>
+      </label>
+    </div>
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:6px;">
+      <span style="font-size:10px; color:#94a3b8; white-space:nowrap;">ID / Email:</span>
+      <input type="text" id="p-auth-user" value="${escapeHTML(savedUser)}" placeholder="ไอดีหรืออีเมล" autocomplete="off" style="flex:1; min-width:0; background:#020617; border:1px solid rgba(192,132,252,0.45); color:#fff; border-radius:4px; font-size:10.5px; padding:4px 6px;">
+    </div>
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:6px;">
+      <span style="font-size:10px; color:#94a3b8; white-space:nowrap;">Password:</span>
+      <div style="display:flex; align-items:center; gap:3px; flex:1; min-width:0;">
+        <input type="text" id="p-auth-pass" value="${escapeHTML(savedPass)}" placeholder="เว้นว่าง = ไม่มีรหัส" autocomplete="off" style="flex:1; min-width:0; background:#020617; border:1px solid rgba(192,132,252,0.45); color:#fff; border-radius:4px; font-size:10.5px; padding:4px 6px;">
+        <button type="button" id="p-auth-toggle-pass" style="background:rgba(15,23,42,0.9); border:1px solid #475569; color:#cbd5e1; border-radius:4px; font-size:10px; padding:3px 6px; cursor:pointer;" title="แสดง/ซ่อนรหัสผ่าน">👁</button>
+      </div>
+    </div>
+    <button type="button" class="p-btn" id="p-btn-nc-save-auth" style="width:100%; margin-top:2px; background:linear-gradient(135deg,#7c3aed,#6d28d9); border:1px solid #a855f7; color:#fff; font-size:10.5px; font-weight:700; padding:6px; border-radius:5px; cursor:pointer;">💾 บันทึก ID / Password ประจำจอ</button>
+  </div>
+  `}
+
+  <div class="p-card" style="border: 1px solid rgba(56, 189, 248, 0.32); background: rgba(2, 6, 23, 0.65); border-radius: 7px; padding: 8px; display:flex; flex-direction:column; gap:6px;">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <span style="font-size:10.5px; font-weight:700; color:#7dd3fc;">🔍 Nightcamp Runtime Debug</span>
+    </div>
+    <button type="button" class="p-btn" id="p-btn-nc-inspect" style="width:100%; background:#0284c7; border:1px solid #38bdf8; color:#fff; font-size:10.5px; font-weight:700; padding:6px; border-radius:5px; cursor:pointer;">🔍 Inspect Runtime ในจอเกม</button>
+    <pre id="p-nc-inspect-out" style="margin:0; padding:6px; background:#060a14; border:1px solid rgba(148,163,184,0.2); border-radius:5px; color:#cbd5e1; font-family:var(--font-mono,monospace); font-size:9.5px; line-height:1.35; max-height:140px; overflow:auto; white-space:pre-wrap; word-break:break-word;">กดปุ่มด้านบนเพื่อดูโครงสร้าง WebSocket / Canvas / UI ของจอเกม</pre>
+  </div>
+</div>
+`;
 }
-
-const MANAGER_MAIN_STATS = [
-  { value: 'DEX', label: 'DEX (ความแม่นยำ/ระยะไกล)' },
-  { value: 'STR', label: 'STR (พลังโจมตีประชิด/แบกน้ำหนัก)' },
-  { value: 'AGI', label: 'AGI (ความเร็วโจมตี/หลบหลีก)' },
-  { value: 'VIT', label: 'VIT (พลังป้องกัน/HP)' },
-  { value: 'INT', label: 'INT (พลังเวท/มานา)' },
-  { value: 'LUK', label: 'LUK (คริติคอล/โชคลาภ)' }
-];
-
-const MANAGER_SUB_STATS = [
-  { value: 'ATK_PERCENT', label: 'ATK% (พลังโจมตีกายภาพ %)' },
-  { value: 'ATK_FLAT', label: 'ATK (พลังโจมตีกายภาพ หน่วยตรง)' },
-  { value: 'RANGED_DAMAGE_PERCENT', label: 'RANGED DMG% (ความแรงระยะไกล %)' },
-  { value: 'RANGE_ATTACK', label: 'RANGE ATK (พลังโจมตีระยะไกล หน่วยตรง)' },
-  { value: 'MELEE_DAMAGE_PERCENT', label: 'MELEE DMG% (ความแรงประชิด %)' },
-  { value: 'MELEE_ATTACK', label: 'MELEE ATK (พลังโจมตีประชิด หน่วยตรง)' },
-  { value: 'MATK_PERCENT', label: 'MATK% (พลังโจมตีเวท %)' },
-  { value: 'MATK_FLAT', label: 'MATK (พลังโจมตีเวท หน่วยตรง)' },
-  { value: 'MAGIC_DAMAGE_PERCENT', label: 'MAGIC DMG% (ความแรงเวท %)' },
-  { value: 'MAGIC_ATTACK', label: 'MAGIC ATK (พลังโจมตีเวท หน่วยตรง)' },
-  { value: 'CRIT', label: 'CRIT (อัตราคริติคอล)' },
-  { value: 'CRIT_DAMAGE', label: 'CRIT DMG% (ความแรงคริ %)' },
-  { value: 'ASPD', label: 'ASPD (ความเร็วโจมตี หน่วยตรง)' },
-  { value: 'ASPD_PERCENT', label: 'ASPD% (ความเร็วโจมตี %)' },
-  { value: 'HIT', label: 'HIT (ความแม่นยำ)' },
-  { value: 'FLEE', label: 'FLEE (การหลบหลีก)' },
-  { value: 'MOVE_SPEED', label: 'MOVE SPEED (ความเร็วเดิน)' },
-  { value: 'CAST_TIME_REDUCTION', label: 'CAST RED% (ลดเวลาร่าย %)' },
-  { value: 'DEF', label: 'DEF (พลังป้องกันกายภาพ)' },
-  { value: 'MDEF', label: 'MDEF (พลังป้องกันเวท)' },
-  { value: 'DAMAGE_REDUCTION', label: 'DMG RED% (ลดดาเมจที่ได้รับ %)' },
-  { value: 'BLOCK_CHANCE', label: 'BLOCK% (โอกาสบล็อก %)' },
-  { value: 'MAXHP_PERCENT', label: 'Max HP% (เลือดสูงสุด %)' },
-  { value: 'MAXHP', label: 'Max HP (เลือดสูงสุด หน่วยตรง)' },
-  { value: 'MAXSP_PERCENT', label: 'Max SP% (มานาสูงสุด %)' },
-  { value: 'MAXSP', label: 'Max SP (มานาสูงสุด หน่วยตรง)' },
-  { value: 'HP_REGEN', label: 'HP REGEN (ฟื้นฟูเลือด)' },
-  { value: 'SP_REGEN', label: 'SP REGEN (ฟื้นฟูมานา)' },
-  { value: 'HEAL_POWER', label: 'HEAL% (พลังการฮีล %)' }
-];
 
 function openCentralBotHUD() {
   return openWebBotHUD('__central__');
@@ -9193,11 +8077,10 @@ if (document.readyState !== 'loading') {
 async function openWebBotHUD(profileId) {
   const isCentral = (profileId === '__central__');
   const profile = isCentral
-    ? { id: '__central__', name: 'เมนูส่วนกลาง (Master Control)' }
+    ? { id: '__central__', name: 'เมนูส่วนกลาง (Nightcamp)' }
     : currentProfiles.find(p => p.id === profileId);
   if (!profile) return;
 
-  // Bring to top if already exists
   if (activeWebHuds[profileId]) {
     const existing = activeWebHuds[profileId].el;
     existing.style.zIndex = ++topHudZIndex;
@@ -9205,29 +8088,19 @@ async function openWebBotHUD(profileId) {
     return;
   }
 
-  // Fetch initial client data (for __central__, read-only snapshot from first online client or saved draft — NEVER writes to any client!)
   let clientData = null;
-  if (isCentral) {
-    try {
-      const firstOnline = currentProfiles.find(p => p.isRunning);
-      if (firstOnline) {
-        const res = await fetch(API_BASE + '/api/profiles/' + firstOnline.id + '/client-data');
-        const json = await res.json();
-        if (json.success) clientData = json.data;
-      }
-    } catch (e) {}
-  } else {
+  if (!isCentral && profile.isRunning) {
     try {
       const res = await fetch(API_BASE + '/api/profiles/' + profileId + '/client-data');
       const json = await res.json();
       if (json.success) clientData = json.data;
-    } catch (e) {}
+    } catch (_) {}
   }
 
   const container = document.getElementById("web-huds-container") || document.body;
   const hudCount = Object.keys(activeWebHuds).length;
-  const topPos = Math.min(window.innerHeight - 450, 100 + (hudCount * 30) % 250);
-  const leftPos = Math.min(window.innerWidth - 320, 60 + (hudCount * 35) % 400);
+  const topPos = Math.max(40, Math.min(window.innerHeight - 450, 100 + (hudCount * 30) % 250));
+  const leftPos = Math.max(20, Math.min(window.innerWidth - 320, 60 + (hudCount * 35) % 400));
 
   const hudEl = document.createElement("div");
   hudEl.className = "pelican-hud-web" + (isCentral ? " is-central-hud" : "");
@@ -9240,64 +8113,51 @@ async function openWebBotHUD(profileId) {
     hudEl.style.boxShadow = "0 20px 50px rgba(0, 0, 0, 0.75), 0 0 24px rgba(245, 158, 11, 0.3)";
   }
 
-  hudEl.innerHTML = getGitHubHudTemplate(profileId, clientData, profile);
+  hudEl.innerHTML = getNightcampHudTemplate(profileId, clientData, profile);
   container.appendChild(hudEl);
 
-  // Store active reference
   activeWebHuds[profileId] = {
     el: hudEl,
-    activeTab: 'farm',
+    activeTab: 'nightcamp',
     data: clientData,
     profile: profile,
     isCentral: isCentral
   };
 
-  // Wire Tab Switching directly within this HUD window (switching tabs NEVER sends any action to clients)
-  const tabBtns = hudEl.querySelectorAll('.p-tab-btn');
-  const tabPanes = hudEl.querySelectorAll('.p-tab-pane');
-  tabBtns.forEach(btn => {
-    btn.onclick = () => {
-      const targetTab = btn.getAttribute('data-tab');
-      tabBtns.forEach(b => b.classList.remove('active'));
-      tabPanes.forEach(p => p.classList.remove('active'));
-      btn.classList.add('active');
-      const activePane = hudEl.querySelector('#p-tab-' + targetTab);
-      if (activePane) activePane.classList.add('active');
-      activeWebHuds[profileId].activeTab = targetTab;
-    };
-  });
+  // Central actions
+  const centralStartBtn = hudEl.querySelector('#p-btn-central-start-bot');
+  if (centralStartBtn) centralStartBtn.onclick = () => setBotOnAllClients(true, centralStartBtn);
 
-  // Wire Market subtabs
-  const btnAuto = hudEl.querySelector('#p-subtab-btn-autosell');
-  const btnSniper = hudEl.querySelector('#p-subtab-btn-sniper');
-  const viewAuto = hudEl.querySelector('#p-market-view-autosell');
-  const viewSniper = hudEl.querySelector('#p-market-view-sniper');
-  if (btnAuto && btnSniper) {
-    btnAuto.onclick = () => {
-      if (viewAuto) viewAuto.style.display = 'block';
-      if (viewSniper) viewSniper.style.display = 'none';
-      btnAuto.style.background = '#9333ea'; btnAuto.style.color = '#fff';
-      btnSniper.style.background = 'transparent'; btnSniper.style.color = '#94a3b8';
-    };
-    btnSniper.onclick = () => {
-      if (viewAuto) viewAuto.style.display = 'none';
-      if (viewSniper) viewSniper.style.display = 'block';
-      btnAuto.style.background = 'transparent'; btnAuto.style.color = '#94a3b8';
-      btnSniper.style.background = '#0284c7'; btnSniper.style.color = '#fff';
+  const centralStopBtn = hudEl.querySelector('#p-btn-central-stop-bot');
+  if (centralStopBtn) centralStopBtn.onclick = () => setBotOnAllClients(false, centralStopBtn);
+
+  const centralZeroBtn = hudEl.querySelector('#p-btn-central-zero-render');
+  if (centralZeroBtn && typeof toggleAllClientWindows === 'function') {
+    centralZeroBtn.onclick = () => toggleAllClientWindows();
+  }
+
+  // Single screen actions
+  const toggleBotBtn = hudEl.querySelector('#p-btn-toggle-bot');
+  if (toggleBotBtn) {
+    toggleBotBtn.onclick = () => {
+      const curProf = currentProfiles.find(x => x.id === profileId) || profile;
+      const isRunning = Boolean(activeWebHuds[profileId]?.data?.isBotRunning ?? curProf?.liveState?.isBotRunning);
+      toggleBotExecution(profileId, !isRunning);
     };
   }
 
-  // Shortcut button from Sell tab -> Market AutoSell subtab
-  const gotoMarketAutoSellBtn = hudEl.querySelector('#p-btn-goto-market-autosell');
-  if (gotoMarketAutoSellBtn) {
-    gotoMarketAutoSellBtn.onclick = () => {
-      const marketTabBtn = hudEl.querySelector('.p-tab-btn[data-tab="market"]');
-      if (marketTabBtn) marketTabBtn.click();
-      if (btnAuto) btnAuto.click();
-    };
-  }
+  const zeroBtn = hudEl.querySelector('#p-btn-nc-zerorender');
+  if (zeroBtn) zeroBtn.onclick = () => toggleClientWindow(profileId);
 
-  // Password toggle
+  const focusBtn = hudEl.querySelector('#p-btn-nc-focus');
+  if (focusBtn) focusBtn.onclick = () => focusClientWindow(profileId, focusBtn);
+
+  const reloadBtn = hudEl.querySelector('#p-btn-nc-reload');
+  if (reloadBtn) reloadBtn.onclick = () => reloadClientPage(profileId, null, reloadBtn);
+
+  const editBtn = hudEl.querySelector('#p-btn-nc-edit');
+  if (editBtn) editBtn.onclick = () => openEditModal(profileId);
+
   const passToggle = hudEl.querySelector('#p-auth-toggle-pass');
   const passInp = hudEl.querySelector('#p-auth-pass');
   if (passToggle && passInp) {
@@ -9306,693 +8166,77 @@ async function openWebBotHUD(profileId) {
     };
   }
 
-  // Auto Sell ตั้งขาย list (web version)
-  wireWebAutoSell(profileId, hudEl);
-
-  // Action Buttons Wiring (Idempotent Start All / Stop All for Central Menu)
-  const centralStartBtn = hudEl.querySelector('#p-btn-central-start-bot');
-  if (centralStartBtn) {
-    centralStartBtn.onclick = () => setBotOnAllClients(true, centralStartBtn);
-  }
-  const centralStopBtn = hudEl.querySelector('#p-btn-central-stop-bot');
-  if (centralStopBtn) {
-    centralStopBtn.onclick = () => setBotOnAllClients(false, centralStopBtn);
-  }
-
-  const toggleBotBtn = hudEl.querySelector('#p-btn-toggle-bot');
-  if (toggleBotBtn) {
-    toggleBotBtn.onclick = () => {
-      const isRunning = Boolean(activeWebHuds[profileId]?.data?.isBotRunning);
-      toggleBotExecution(profileId, !isRunning);
-    };
-  }
-
-  const autoLoopCb = hudEl.querySelector('#p-auto-loop');
-  if (autoLoopCb) {
-    autoLoopCb.onchange = (e) => {
-      sendWebHudAction(profileId, { type: 'toggle-auto-loop', enabled: e.target.checked });
-    };
-  }
-
-  const planScriptCb = hudEl.querySelector('#p-plan-script-enabled');
-  if (planScriptCb) {
-    planScriptCb.onchange = (e) => {
-      sendWebHudAction(profileId, { type: 'toggle-plan-script', enabled: e.target.checked });
-    };
-  }
-
-  const mapSelect = hudEl.querySelector('#p-target-map-select');
-  if (mapSelect) {
-    mapSelect.onchange = (e) => {
-      sendWebHudAction(profileId, { type: 'set-farm-map', map: e.target.value });
-    };
-  }
-
-  const walkMapBtn = hudEl.querySelector('#p-btn-walk-map');
-  if (walkMapBtn) {
-    walkMapBtn.onclick = () => sendWebHudAction(profileId, { type: 'walk-to-map' });
-  }
-
-  const openMapBtn = hudEl.querySelector('#p-btn-open-map');
-  if (openMapBtn) {
-    openMapBtn.onclick = () => sendWebHudAction(profileId, { type: 'open-world-map' });
-  }
-
-  const warpMinZenyInp = hudEl.querySelector('#p-warp-min-zeny');
-  if (warpMinZenyInp) {
-    warpMinZenyInp.onchange = (e) => {
-      const minZ = Math.max(0, parseInt(e.target.value, 10) || 0);
-      sendWebHudAction(profileId, { type: 'update-travel', minZenyForWarp: minZ, config: { minZenyForWarp: minZ } });
-    };
-  }
-
-  // In-Game Auto-Bot Combat Settings listeners (each control sends ONLY its own key)
-  let currentIgTargetOrder = normalizeWebInGameAutoOrder(clientData?.inGameAutoConfig?.targetOrder);
-  const refreshIgPriorityDom = () => {
-    const prio = renderWebInGameAutoPriorityHtml(currentIgTargetOrder);
-    const sumEl = hudEl.querySelector('#p-ig-auto-priority-summary-text');
-    if (sumEl) sumEl.innerHTML = prio.summaryHtml;
-    const rowsEl = hudEl.querySelector('#p-ig-auto-priority-rows');
-    if (rowsEl) rowsEl.innerHTML = prio.rowsHtml;
-  };
-
-  const bindIgAutoField = (sel, key) => {
-    const el = hudEl.querySelector(sel);
-    if (!el) return;
-    el.onchange = () => {
-      const checked = !!el.checked;
-      if (key === 'autoRevive') {
-        const revRow = hudEl.querySelector('#p-ig-auto-revive-row');
-        if (revRow) revRow.style.display = checked ? 'flex' : 'none';
-      }
-      if (key === 'pickupLoot') {
-        const lootWhenRow = hudEl.querySelector('#p-ig-auto-loot-when-row');
-        if (lootWhenRow) lootWhenRow.style.display = checked ? 'grid' : 'none';
-      }
-      sendWebHudAction(profileId, { type: 'update-ingame-auto-config', config: { [key]: checked } });
-    };
-  };
-  bindIgAutoField('#p-ig-auto-basic-attack', 'basicAttack');
-  bindIgAutoField('#p-ig-auto-buff-party', 'buffParty');
-  bindIgAutoField('#p-ig-auto-accept-party', 'acceptParty');
-  bindIgAutoField('#p-ig-auto-join-others', 'joinOthers');
-  bindIgAutoField('#p-ig-auto-quiver', 'autoQuiver');
-  bindIgAutoField('#p-ig-auto-revive', 'autoRevive');
-  bindIgAutoField('#p-ig-auto-pickup-loot', 'pickupLoot');
-
-  const applyIgLootWhenStyle = (val) => {
-    const isClear = val === 'clear';
-    const firstLbl = hudEl.querySelector('#p-ig-auto-loot-when-first-lbl');
-    const clearLbl = hudEl.querySelector('#p-ig-auto-loot-when-clear-lbl');
-    if (firstLbl) {
-      firstLbl.style.borderColor = !isClear ? '#eab308' : '#334155';
-      firstLbl.style.background = !isClear ? 'rgba(234, 179, 8, 0.14)' : 'rgba(15, 23, 42, 0.6)';
-      firstLbl.style.color = !isClear ? '#fef08a' : '#cbd5e1';
-      firstLbl.style.fontWeight = !isClear ? 'bold' : 'normal';
-    }
-    if (clearLbl) {
-      clearLbl.style.borderColor = isClear ? '#eab308' : '#334155';
-      clearLbl.style.background = isClear ? 'rgba(234, 179, 8, 0.14)' : 'rgba(15, 23, 42, 0.6)';
-      clearLbl.style.color = isClear ? '#fef08a' : '#cbd5e1';
-      clearLbl.style.fontWeight = isClear ? 'bold' : 'normal';
-    }
-  };
-  const bindIgLootWhenRadio = (sel, val) => {
-    const rad = hudEl.querySelector(sel);
-    if (!rad) return;
-    rad.onchange = () => {
-      if (!rad.checked) return;
-      applyIgLootWhenStyle(val);
-      sendWebHudAction(profileId, { type: 'update-ingame-auto-config', config: { lootWhen: val } });
-    };
-  };
-  bindIgLootWhenRadio('#p-ig-auto-loot-when-first', 'first');
-  bindIgLootWhenRadio('#p-ig-auto-loot-when-clear', 'clear');
-
-  const igRevMaxInp = hudEl.querySelector('#p-ig-auto-revive-max');
-  const sendIgReviveMax = (val) => {
-    const clamped = Math.max(1, Math.min(99, Math.round(Number(val) || 10)));
-    if (igRevMaxInp) igRevMaxInp.value = String(clamped);
-    sendWebHudAction(profileId, { type: 'update-ingame-auto-config', config: { autoReviveMax: clamped } });
-  };
-  if (igRevMaxInp) {
-    igRevMaxInp.onchange = (e) => sendIgReviveMax(e.target.value);
-  }
-  const igRevDec = hudEl.querySelector('#p-ig-auto-revive-dec');
-  if (igRevDec) {
-    igRevDec.onclick = () => {
-      const cur = Number(igRevMaxInp ? igRevMaxInp.value : 10) || 10;
-      sendIgReviveMax(cur - 1);
-    };
-  }
-  const igRevInc = hudEl.querySelector('#p-ig-auto-revive-inc');
-  if (igRevInc) {
-    igRevInc.onclick = () => {
-      const cur = Number(igRevMaxInp ? igRevMaxInp.value : 10) || 10;
-      sendIgReviveMax(cur + 1);
-    };
-  }
-
-  const igPrioToggle = hudEl.querySelector('#p-ig-auto-priority-toggle');
-  const igPrioSummary = hudEl.querySelector('#p-ig-auto-priority-summary');
-  const igPrioBody = hudEl.querySelector('#p-ig-auto-priority-body');
-  const igPrioArrow = hudEl.querySelector('#p-ig-auto-priority-arrow');
-  const toggleIgPrioFold = () => {
-    if (!igPrioBody) return;
-    const isHidden = igPrioBody.style.display === 'none';
-    igPrioBody.style.display = isHidden ? 'block' : 'none';
-    if (igPrioArrow) igPrioArrow.innerText = isHidden ? '▾' : '▸';
-  };
-  if (igPrioToggle) igPrioToggle.onclick = toggleIgPrioFold;
-  if (igPrioSummary) igPrioSummary.onclick = toggleIgPrioFold;
-
-  const igPrioRows = hudEl.querySelector('#p-ig-auto-priority-rows');
-  if (igPrioRows) {
-    igPrioRows.addEventListener('click', (e) => {
-      const btn = e.target.closest('.p-ig-prio-move');
-      if (!btn || btn.disabled) return;
-      const idx = parseInt(btn.getAttribute('data-prio-idx'), 10);
-      const dir = parseInt(btn.getAttribute('data-prio-dir'), 10);
-      if (Array.isArray(activeWebHuds[profileId]?.data?.inGameAutoConfig?.targetOrder)) {
-        currentIgTargetOrder = normalizeWebInGameAutoOrder(activeWebHuds[profileId].data.inGameAutoConfig.targetOrder);
-      }
-      if (idx + dir >= 0 && idx + dir < currentIgTargetOrder.length) {
-        const tmp = currentIgTargetOrder[idx];
-        currentIgTargetOrder[idx] = currentIgTargetOrder[idx + dir];
-        currentIgTargetOrder[idx + dir] = tmp;
-        if (activeWebHuds[profileId]?.data?.inGameAutoConfig) {
-          activeWebHuds[profileId].data.inGameAutoConfig.targetOrder = currentIgTargetOrder.slice();
+  const saveAuthBtn = hudEl.querySelector('#p-btn-nc-save-auth');
+  if (saveAuthBtn) {
+    saveAuthBtn.onclick = async () => {
+      const curProf = currentProfiles.find(x => x.id === profileId) || profile;
+      const en = Boolean(hudEl.querySelector('#p-auth-enabled')?.checked);
+      const userVal = String(hudEl.querySelector('#p-auth-user')?.value || '').trim();
+      const passVal = String(hudEl.querySelector('#p-auth-pass')?.value || '').trim();
+      saveAuthBtn.disabled = true;
+      const origTxt = saveAuthBtn.innerText;
+      saveAuthBtn.innerText = '⏳ กำลังบันทึก...';
+      try {
+        const res = await fetch(`${API_BASE}/api/profiles/${profileId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: curProf.name,
+            account: userVal,
+            loginPassword: passVal,
+            debugPort: curProf.debugPort,
+            autoRegister: !userVal && !passVal
+          })
+        });
+        const j = await res.json().catch(() => ({}));
+        if (!res.ok || j.success === false) {
+          showToast('❌ ' + (j.error || 'บันทึก ID / Password ไม่สำเร็จ'), 'error');
+        } else {
+          if (curProf.isRunning) {
+            await sendWebHudAction(profileId, {
+              type: 'update-auth',
+              config: { enabled: en, username: userVal, password: passVal, clearPassword: !passVal }
+            });
+          }
+          if (typeof fetchProfiles === 'function') await fetchProfiles();
+          showToast('✅ บันทึก ID / Password ประจำจอเรียบร้อย', 'success');
         }
-        refreshIgPriorityDom();
-        sendWebHudAction(profileId, { type: 'update-ingame-auto-config', config: { targetOrder: currentIgTargetOrder.slice() } });
-      }
-    });
-  }
-
-  const igPrioReset = hudEl.querySelector('#p-ig-auto-priority-reset');
-  if (igPrioReset) {
-    igPrioReset.onclick = () => {
-      currentIgTargetOrder = DEFAULT_WEB_INGAME_AUTO_ORDER.slice();
-      if (activeWebHuds[profileId]?.data?.inGameAutoConfig) {
-        activeWebHuds[profileId].data.inGameAutoConfig.targetOrder = currentIgTargetOrder.slice();
-      }
-      refreshIgPriorityDom();
-      sendWebHudAction(profileId, { type: 'update-ingame-auto-config', config: { targetOrder: currentIgTargetOrder.slice() } });
-    };
-  }
-
-  const igSyncBtn = hudEl.querySelector('#p-btn-sync-ingame-auto');
-  if (igSyncBtn) {
-    igSyncBtn.onclick = async () => {
-      const fullCfg = {
-        basicAttack: !!hudEl.querySelector('#p-ig-auto-basic-attack')?.checked,
-        targetOrder: currentIgTargetOrder.slice(),
-        buffParty: !!hudEl.querySelector('#p-ig-auto-buff-party')?.checked,
-        acceptParty: !!hudEl.querySelector('#p-ig-auto-accept-party')?.checked,
-        joinOthers: !!hudEl.querySelector('#p-ig-auto-join-others')?.checked,
-        autoQuiver: !!hudEl.querySelector('#p-ig-auto-quiver')?.checked,
-        autoRevive: !!hudEl.querySelector('#p-ig-auto-revive')?.checked,
-        autoReviveMax: Math.max(1, Math.min(99, parseInt(hudEl.querySelector('#p-ig-auto-revive-max')?.value || '10', 10) || 10)),
-        pickupLoot: !!hudEl.querySelector('#p-ig-auto-pickup-loot')?.checked,
-        lootWhen: hudEl.querySelector('#p-ig-auto-loot-when-clear')?.checked ? 'clear' : 'first'
-      };
-      const r = await sendWebHudAction(profileId, { type: 'update-ingame-auto-config', config: fullCfg });
-      if (profileId !== '__central__') {
-        showToast(r && r.success !== false ? '⚔️ ซิงก์ตั้งค่าต่อสู้อัตโนมัติเข้าจอเกมแล้ว' : '❌ สั่งงานจอเกมไม่สำเร็จ', r && r.success !== false ? 'success' : 'error');
+      } catch (err) {
+        showToast('❌ ' + err.message, 'error');
+      } finally {
+        saveAuthBtn.disabled = false;
+        saveAuthBtn.innerText = origTxt;
       }
     };
   }
 
-  // Security & Humanize listeners (each control sends ONLY its own key)
-  const unexpGuardCb = hudEl.querySelector('#p-unexpected-town-guard');
-  if (unexpGuardCb) {
-    unexpGuardCb.onchange = (e) => {
-      sendWebHudAction(profileId, { type: 'toggle-unexpected-town-guard', enabled: e.target.checked });
-    };
-  }
-
-  const skipUnexpBtn = hudEl.querySelector('#p-btn-skip-unexpected-wait');
-  if (skipUnexpBtn) {
-    skipUnexpBtn.onclick = () => {
-      sendWebHudAction(profileId, { type: 'skip-unexpected-wait' });
-    };
-  }
-
-  const bindHumanizeField = (sel, buildPatch) => {
-    const el = hudEl.querySelector(sel);
-    if (!el) return;
-    el.onchange = () => {
-      sendWebHudAction(profileId, { type: 'update-humanize', config: buildPatch(el) });
-    };
-  };
-  bindHumanizeField('#p-humanize-enabled', el => ({ enabled: !!el.checked }));
-  bindHumanizeField('#p-humanize-chance', el => {
-    const v = Math.max(0, Math.min(100, parseInt(el.value, 10) || 0));
-    return { chance: v, chancePercent: v };
-  });
-  bindHumanizeField('#p-humanize-blacksmith', el => ({ buyBlacksmith: !!el.checked, visitBlacksmith: !!el.checked }));
-  bindHumanizeField('#p-humanize-sundries', el => ({ buySundries: !!el.checked, visitSundries: !!el.checked }));
-  bindHumanizeField('#p-humanize-walk', el => ({ randomWalk: !!el.checked }));
-  bindHumanizeField('#p-humanize-storage', el => ({ storeDeposit: !!el.checked, openStorage: !!el.checked }));
-
-  const testHumanizeBtn = hudEl.querySelector('#p-btn-test-humanize');
-  if (testHumanizeBtn) {
-    testHumanizeBtn.onclick = async () => {
-      const r = await sendWebHudAction(profileId, { type: 'test-humanize' });
-      showToast(r && r.success !== false ? '🎭 สั่งทดสอบกิจกรรม Humanize ในจอเกมแล้ว' : '❌ สั่งงานจอเกมไม่สำเร็จ', r && r.success !== false ? 'success' : 'error');
-    };
-  }
-
-  // Archer event listeners (each control sends ONLY its own key)
-  const bindArcherField = (sel, buildPatch) => {
-    const el = hudEl.querySelector(sel);
-    if (!el) return;
-    el.onchange = () => {
-      sendWebHudAction(profileId, { type: 'update-archer', config: buildPatch(el) });
-    };
-  };
-  bindArcherField('#p-archer-req', el => ({ requireArrow: !!el.checked }));
-  bindArcherField('#p-archer-smart', el => ({ smartArrow: !!el.checked }));
-  bindArcherField('#p-archer-type', el => ({ arrowType: parseInt(el.value || '90030', 10) }));
-  bindArcherField('#p-archer-qty', el => ({ arrowBuyQty: parseInt(el.value || '5000', 10) }));
-  bindArcherField('#p-archer-threshold', el => ({ ammoThreshold: parseInt(el.value || '50', 10) }));
-  bindArcherField('#p-archer-bwing', el => ({ useBwing: !!el.checked }));
-  bindArcherField('#p-archer-bwing-qty', el => ({ bwingBuyQty: parseInt(el.value || '2', 10) }));
-  bindArcherField('#p-archer-auto-equip', el => ({ autoEquipArrow: !!el.checked }));
-
-  const syncAmmoBtn = hudEl.querySelector('#p-btn-sync-ammo');
-  if (syncAmmoBtn) syncAmmoBtn.onclick = () => sendWebHudAction(profileId, { type: 'sync-ammo' });
-
-  const zeroAmmoBtn = hudEl.querySelector('#p-btn-zero-ammo');
-  if (zeroAmmoBtn) zeroAmmoBtn.onclick = () => sendWebHudAction(profileId, { type: 'zero-ammo' });
-
-  // Buff Potion event listeners (each control sends ONLY its own potion & property)
-  ['90306', '90307', '90308'].forEach(id => {
-    const cb = hudEl.querySelector(`#p-potion-enable-${id}`);
-    if (cb) {
-      cb.onchange = () => {
-        sendWebHudAction(profileId, { type: 'update-buff-potions', config: { [id]: { enabled: !!cb.checked } } });
-      };
-    }
-    const qty = hudEl.querySelector(`#p-potion-qty-${id}`);
-    if (qty) {
-      qty.onchange = () => {
-        sendWebHudAction(profileId, { type: 'update-buff-potions', config: { [id]: { targetQty: parseInt(qty.value || '10', 10) } } });
-      };
-    }
-  });
-
-  const syncPotionBtn = hudEl.querySelector('.p-btn-sync-potion-game');
-  if (syncPotionBtn) syncPotionBtn.onclick = () => sendWebHudAction(profileId, { type: 'sync-buff-potions' });
-
-  const buyPotionBtn = hudEl.querySelector('.p-btn-buy-potion-now');
-  if (buyPotionBtn) buyPotionBtn.onclick = () => sendWebHudAction(profileId, { type: 'buy-buff-potions' });
-
-  // Sell & Stat Filter State & Listeners (each control sends ONLY the property that changed!)
-  let currentStatsFilter = Object.assign({
-    enabled: false,
-    filterWeapons: true,
-    filterArmors: true,
-    filterAccessories: true,
-    protectGems: true,
-    minOptions: 2,
-    mainStats: [],
-    subStats: []
-  }, clientData?.sellConfig?.statsFilter || {});
-
-  const sendStatsFilterPatch = (patch) => {
-    Object.assign(currentStatsFilter, patch);
-    sendWebHudAction(profileId, { type: 'update-sell', config: { statsFilterPatch: patch } });
-  };
-
-  const renderWebHudStatsFilter = () => {
-    const mainList = hudEl.querySelector('.p-statfilter-main-list');
-    const subList = hudEl.querySelector('.p-statfilter-sub-list');
-    if (!mainList || !subList) return;
-
-    // Header controls
-    const toggleEl = hudEl.querySelector('#p-statfilter-toggle');
-    if (toggleEl && document.activeElement !== toggleEl) toggleEl.checked = !!currentStatsFilter.enabled;
-    const weapEl = hudEl.querySelector('#p-statfilter-weap');
-    if (weapEl && document.activeElement !== weapEl) weapEl.checked = currentStatsFilter.filterWeapons !== false;
-    const armorEl = hudEl.querySelector('#p-statfilter-armor');
-    if (armorEl && document.activeElement !== armorEl) armorEl.checked = currentStatsFilter.filterArmors !== false;
-    const accEl = hudEl.querySelector('#p-statfilter-acc');
-    if (accEl && document.activeElement !== accEl) accEl.checked = currentStatsFilter.filterAccessories !== false;
-    const gemEl = hudEl.querySelector('#p-statfilter-protect-gems');
-    if (gemEl && document.activeElement !== gemEl) gemEl.checked = currentStatsFilter.protectGems !== false;
-    const minOptsEl = hudEl.querySelector('#p-statfilter-min-opts');
-    if (minOptsEl && document.activeElement !== minOptsEl) minOptsEl.value = currentStatsFilter.minOptions || 2;
-
-    // Main Stats
-    const mStats = Array.isArray(currentStatsFilter.mainStats) ? currentStatsFilter.mainStats : [];
-    if (mStats.length === 0) {
-      mainList.innerHTML = `<div style="font-size: 8.5px; color: #64748b; text-align: center; padding: 2px;">(ไม่มีเงื่อนไข Main Stats - คลิก + เพื่อเพิ่ม)</div>`;
-    } else {
-      mainList.innerHTML = mStats.map((item, idx) => `
-        <div style="display: flex; align-items: center; justify-content: space-between; gap: 4px; background: rgba(0,0,0,0.3); padding: 2px 4px; border-radius: 3px; border: 1px solid rgba(56, 189, 248, 0.2);">
-          <select class="p-sf-main-select" data-index="${idx}" style="flex: 1; min-width: 0; background: #0f172a; border: 1px solid rgba(56, 189, 248, 0.35); color: #fff; border-radius: 3px; font-size: 9px; padding: 1px 3px;">
-            ${MANAGER_MAIN_STATS.map(opt => `<option value="${opt.value}" ${opt.value === item.stat ? 'selected' : ''}>${opt.label}</option>`).join('')}
-          </select>
-          <label class="p-check-box" style="margin: 0; font-size: 8px; color: #38bdf8; display: flex; align-items: center; gap: 2px; white-space: nowrap;">
-            <input type="checkbox" class="p-sf-main-must" data-index="${idx}" ${item.mustHave ? 'checked' : ''}>
-            <span>Must Have</span>
-          </label>
-          <button type="button" class="p-sf-main-del" data-index="${idx}" style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 3px; font-size: 8.5px; cursor: pointer; padding: 0 4px; line-height: 14px;">✕</button>
-        </div>
-      `).join('');
-    }
-
-    // Sub Stats
-    const sStats = Array.isArray(currentStatsFilter.subStats) ? currentStatsFilter.subStats : [];
-    if (sStats.length === 0) {
-      subList.innerHTML = `<div style="font-size: 8.5px; color: #64748b; text-align: center; padding: 2px;">(ไม่มีเงื่อนไข Sub Stats - คลิก + เพื่อเพิ่ม)</div>`;
-    } else {
-      subList.innerHTML = sStats.map((item, idx) => `
-        <div style="display: flex; align-items: center; justify-content: space-between; gap: 4px; background: rgba(0,0,0,0.3); padding: 2px 4px; border-radius: 3px; border: 1px solid rgba(234, 179, 8, 0.2);">
-          <select class="p-sf-sub-select" data-index="${idx}" style="flex: 1; min-width: 0; background: #0f172a; border: 1px solid rgba(234, 179, 8, 0.35); color: #fff; border-radius: 3px; font-size: 9px; padding: 1px 3px;">
-            ${MANAGER_SUB_STATS.map(opt => `<option value="${opt.value}" ${opt.value === item.stat ? 'selected' : ''}>${opt.label}</option>`).join('')}
-          </select>
-          <label class="p-check-box" style="margin: 0; font-size: 8px; color: #facc15; display: flex; align-items: center; gap: 2px; white-space: nowrap;">
-            <input type="checkbox" class="p-sf-sub-must" data-index="${idx}" ${item.mustHave ? 'checked' : ''}>
-            <span>Must Have</span>
-          </label>
-          <button type="button" class="p-sf-sub-del" data-index="${idx}" style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 3px; font-size: 8.5px; cursor: pointer; padding: 0 4px; line-height: 14px;">✕</button>
-        </div>
-      `).join('');
-    }
-
-    // Row event listeners
-    mainList.querySelectorAll('.p-sf-main-select').forEach(sel => {
-      sel.onchange = (e) => {
-        const i = parseInt(e.target.dataset.index);
-        if (currentStatsFilter.mainStats?.[i]) {
-          currentStatsFilter.mainStats[i].stat = e.target.value;
-          sendStatsFilterPatch({ mainStats: currentStatsFilter.mainStats });
-        }
-      };
-    });
-    mainList.querySelectorAll('.p-sf-main-must').forEach(cb => {
-      cb.onchange = (e) => {
-        const i = parseInt(e.target.dataset.index);
-        if (currentStatsFilter.mainStats?.[i]) {
-          currentStatsFilter.mainStats[i].mustHave = e.target.checked;
-          sendStatsFilterPatch({ mainStats: currentStatsFilter.mainStats });
-        }
-      };
-    });
-    mainList.querySelectorAll('.p-sf-main-del').forEach(btn => {
-      btn.onclick = (e) => {
-        const i = parseInt(e.target.dataset.index);
-        currentStatsFilter.mainStats.splice(i, 1);
-        renderWebHudStatsFilter();
-        sendStatsFilterPatch({ mainStats: currentStatsFilter.mainStats });
-      };
-    });
-
-    subList.querySelectorAll('.p-sf-sub-select').forEach(sel => {
-      sel.onchange = (e) => {
-        const i = parseInt(e.target.dataset.index);
-        if (currentStatsFilter.subStats?.[i]) {
-          currentStatsFilter.subStats[i].stat = e.target.value;
-          sendStatsFilterPatch({ subStats: currentStatsFilter.subStats });
-        }
-      };
-    });
-    subList.querySelectorAll('.p-sf-sub-must').forEach(cb => {
-      cb.onchange = (e) => {
-        const i = parseInt(e.target.dataset.index);
-        if (currentStatsFilter.subStats?.[i]) {
-          currentStatsFilter.subStats[i].mustHave = e.target.checked;
-          sendStatsFilterPatch({ subStats: currentStatsFilter.subStats });
-        }
-      };
-    });
-    subList.querySelectorAll('.p-sf-sub-del').forEach(btn => {
-      btn.onclick = (e) => {
-        const i = parseInt(e.target.dataset.index);
-        currentStatsFilter.subStats.splice(i, 1);
-        renderWebHudStatsFilter();
-        sendStatsFilterPatch({ subStats: currentStatsFilter.subStats });
-      };
-    });
-  };
-
-  const bindSellField = (sel, buildPatch) => {
-    const el = hudEl.querySelector(sel);
-    if (!el) return;
-    el.onchange = () => {
-      const patch = buildPatch(el);
-      if (patch && Object.keys(patch).length > 0) {
-        sendWebHudAction(profileId, { type: 'update-sell', config: patch });
-      }
-    };
-  };
-  bindSellField('#p-sell-enabled', el => ({ enabled: !!el.checked }));
-  bindSellField('#p-weight-check-enabled', el => ({ weightCheckEnabled: !!el.checked }));
-  bindSellField('#p-weight-threshold', el => {
-    const wPct = parseInt(el.value, 10);
-    return (wPct >= 10 && wPct <= 95) ? { weightThreshold: wPct } : {};
-  });
-  bindSellField('#p-sell-rarity-weap', el => ({ weaponRarity: el.value }));
-  bindSellField('#p-sell-rarity-armor', el => ({ armorRarity: el.value }));
-  bindSellField('#p-sell-rarity-acc', el => ({ accRarity: el.value }));
-  bindSellField('#p-sell-rarity-mat', el => ({ sellMaterials: el.value !== 'none', materialMode: el.value === 'common' ? 'common' : 'all' }));
-  bindSellField('#p-sell-refine-ores', el => ({ sellRefineOres: el.value === 'unlisted' }));
-  bindSellField('#p-sell-consumables', el => ({ sellConsumables: el.value === 'unlisted' }));
-  bindSellField('#p-sell-keep-refined', el => ({ keepRefined: !!el.checked }));
-  bindSellField('#p-sell-keep-special', el => ({ keepSpecial: !!el.checked }));
-  bindSellField('#p-sell-keep-sockets', el => ({ keepSockets: !!el.checked }));
-  bindSellField('#p-sell-whitelist', el => ({ whitelist: el.value || '' }));
-  bindSellField('#p-sell-force-list', el => ({ forceSellList: el.value || '' }));
-  const openFsModalBtn = hudEl.querySelector('#p-btn-open-fs-modal');
-  if (openFsModalBtn) {
-    openFsModalBtn.onclick = () => openCardWhitelistModal(profileId, 'forceSell', true);
-  }
-  const openWlModalBtn = hudEl.querySelector('#p-btn-open-wl-modal');
-  if (openWlModalBtn) {
-    openWlModalBtn.onclick = () => openCardWhitelistModal(profileId, 'whitelist', true);
-  }
-  [
-    ['#p-store-enabled', 'storeEnabled'],
-    ['#p-store-weapon', 'storeWeapon'],
-    ['#p-store-armor', 'storeArmor'],
-    ['#p-store-acc', 'storeAcc'],
-    ['#p-store-refine', 'storeRefine'],
-    ['#p-store-skip-locked', 'storeSkipLocked']
-  ].forEach(([sel, key]) => {
-    bindSellField(sel, el => ({ [key]: !!el.checked }));
-  });
-
-  // Stat Filter Header Controls (each sends only its own statsFilterPatch)
-  const addMainBtn = hudEl.querySelector('.p-btn-add-mainstat');
-  if (addMainBtn) {
-    addMainBtn.onclick = () => {
-      if (!Array.isArray(currentStatsFilter.mainStats)) currentStatsFilter.mainStats = [];
-      currentStatsFilter.mainStats.push({ stat: 'DEX', mustHave: false });
-      renderWebHudStatsFilter();
-      sendStatsFilterPatch({ mainStats: currentStatsFilter.mainStats });
-    };
-  }
-  const addSubBtn = hudEl.querySelector('.p-btn-add-substat');
-  if (addSubBtn) {
-    addSubBtn.onclick = () => {
-      if (!Array.isArray(currentStatsFilter.subStats)) currentStatsFilter.subStats = [];
-      currentStatsFilter.subStats.push({ stat: 'ATK_PERCENT', mustHave: false });
-      renderWebHudStatsFilter();
-      sendStatsFilterPatch({ subStats: currentStatsFilter.subStats });
-    };
-  }
-
-  [
-    ['#p-statfilter-toggle', el => ({ enabled: !!el.checked })],
-    ['#p-statfilter-weap', el => ({ filterWeapons: !!el.checked })],
-    ['#p-statfilter-armor', el => ({ filterArmors: !!el.checked })],
-    ['#p-statfilter-acc', el => ({ filterAccessories: !!el.checked })],
-    ['#p-statfilter-protect-gems', el => ({ protectGems: !!el.checked })],
-    ['#p-statfilter-min-opts', el => ({ minOptions: Math.max(1, parseInt(el.value, 10) || 2) })]
-  ].forEach(([sel, fn]) => {
-    const el = hudEl.querySelector(sel);
-    if (el) {
-      el.onchange = () => {
-        sendStatsFilterPatch(fn(el));
-      };
-    }
-  });
-
-  if (activeWebHuds[profileId]) {
-    activeWebHuds[profileId].currentStatsFilter = currentStatsFilter;
-    activeWebHuds[profileId].renderStatsFilter = renderWebHudStatsFilter;
-  }
-  renderWebHudStatsFilter();
-
-  const refreshInvBtn = hudEl.querySelector('#p-btn-sort-inv') || hudEl.querySelector('#p-quick-weight');
-  if (refreshInvBtn) refreshInvBtn.onclick = () => sendWebHudAction(profileId, { type: 'sort-inventory' });
-
-  const testSellBtn = hudEl.querySelector('#p-btn-test-sell-only');
-  if (testSellBtn) testSellBtn.onclick = () => sendWebHudAction(profileId, { type: 'test-sell' });
-
-  // Shop (NPC trip) settings (each control sends only its own key)
-  const shopEnEl = hudEl.querySelector('#p-shop-enabled');
-  if (shopEnEl) {
-    shopEnEl.onchange = () => {
-      const en = !!shopEnEl.checked;
-      sendWebHudAction(profileId, { type: 'eval', code: `(() => {
-        window.__shopConfig = Object.assign(window.__shopConfig || {}, { enabled: ${JSON.stringify(en)} });
-        try { localStorage.setItem('pelican_shop_cfg', JSON.stringify(window.__shopConfig)); } catch (e) {}
-        const a = document.getElementById('p-shop-enabled'); if (a) a.checked = !!window.__shopConfig.enabled;
-        return { success: true };
-      })()` });
-    };
-  }
-  const shopKeyEl = hudEl.querySelector('#p-shop-npckey');
-  if (shopKeyEl) {
-    shopKeyEl.onchange = () => {
-      const key = (shopKeyEl.value || '').trim();
-      if (!key) return;
-      sendWebHudAction(profileId, { type: 'eval', code: `(() => {
-        window.__shopConfig = Object.assign(window.__shopConfig || {}, { npcKey: ${JSON.stringify(key)} });
-        try { localStorage.setItem('pelican_shop_cfg', JSON.stringify(window.__shopConfig)); } catch (e) {}
-        const b = document.getElementById('p-shop-npckey'); if (b) b.value = window.__shopConfig.npcKey || '';
-        return { success: true };
-      })()` });
-    };
-  }
-
-  // Ultra-Low Spec & Auto-Config Char / Mute Display (each checkbox sends only its own key)
-  const ultraLowSpecCb = hudEl.querySelector('#p-ultra-low-spec');
-  if (ultraLowSpecCb) {
-    ultraLowSpecCb.onchange = (e) => {
-      sendWebHudAction(profileId, { type: 'toggle-ultra-low-spec', enabled: e.target.checked });
-    };
-  }
-
-  const autoCfgCharEl = hudEl.querySelector('#p-auto-config-char');
-  if (autoCfgCharEl) {
-    autoCfgCharEl.onchange = () => {
-      sendWebHudAction(profileId, { type: 'update-auto-config', config: { autoConfigCharEnabled: !!autoCfgCharEl.checked } });
-    };
-  }
-  const autoMuteDispEl = hudEl.querySelector('#p-auto-mute-display');
-  if (autoMuteDispEl) {
-    autoMuteDispEl.onchange = () => {
-      sendWebHudAction(profileId, { type: 'update-auto-config', config: { autoMuteDisplayEnabled: !!autoMuteDispEl.checked } });
-    };
-  }
-
-  const applyAutoConfigBtn = hudEl.querySelector('#p-btn-apply-autoconfig');
-  if (applyAutoConfigBtn) {
-    applyAutoConfigBtn.onclick = async () => {
-      const r = await sendWebHudAction(profileId, { type: 'apply-autoconfig-now' });
-      showToast(r && r.success !== false ? '⚡ สั่งตั้งค่าระยะล่า + สกิล + ปิดประกาศแล้ว' : '❌ สั่งงานจอเกมไม่สำเร็จ', r && r.success !== false ? 'success' : 'error');
-    };
-  }
-
-  // Market sniper filter (each control sends only its own key)
-  const MK_FIELDS = [['#p-mk-search-query', 'q', 'text'], ['#p-mk-cat-select', 'category', 'text'], ['#p-mk-kind-select', 'kind', 'text'],
-    ['#p-mk-min-refine', 'minRefine', 'int'], ['#p-mk-max-price', 'maxPrice', 'int'], ['#p-mk-stat1-type', 'statType1', 'text'],
-    ['#p-mk-stat1-min', 'statMinVal1', 'int1'], ['#p-mk-stat2-type', 'statType2', 'text'], ['#p-mk-stat2-min', 'statMinVal2', 'int1'],
-    ['#p-mk-stat-mode', 'statMatchMode', 'text'], ['#p-mk-sniper-alert', 'sniperAlert', 'bool'], ['#p-mk-auto-buy', 'autoBuy', 'bool']];
-  MK_FIELDS.forEach(([sel, key, kind]) => {
-    const el = hudEl.querySelector(sel);
-    if (!el) return;
-    el.onchange = () => {
-      const val = kind === 'bool' ? el.checked : kind === 'int' ? (parseInt(el.value, 10) || 0) : kind === 'int1' ? (parseInt(el.value, 10) || 1) : el.value;
-      const mk = { [key]: val };
-      sendWebHudAction(profileId, { type: 'eval', code: `(() => {
-        window.__marketFilterConfig = Object.assign(window.__marketFilterConfig || {}, ${JSON.stringify(mk)});
-        try { localStorage.setItem('pelican_market_filter_cfg', JSON.stringify(window.__marketFilterConfig)); } catch (e) {}
-        const domEl = document.querySelector(${JSON.stringify(sel)});
-        if (domEl) {
-          if (${JSON.stringify(kind === 'bool')}) domEl.checked = ${JSON.stringify(Boolean(val))};
-          else domEl.value = ${JSON.stringify(String(val ?? ''))};
-        }
-        if (typeof window.applyMarketFilters === 'function') { try { window.applyMarketFilters(); } catch (e) {} }
-        return { success: true };
-      })()` });
-    };
-  });
-
-  // Buttons that called functions which only exist inside the game window
-  const gameCall = (sel, code, confirmText) => {
-    const btn = hudEl.querySelector(sel);
-    if (!btn) return;
-    btn.onclick = async () => {
-      if (confirmText && !confirm(confirmText)) return;
-      const r = await sendWebHudAction(profileId, { type: 'eval', code });
-      showToast(r && r.success !== false ? '✅ ส่งคำสั่งเข้าจอเกมแล้ว' : '❌ สั่งงานจอเกมไม่สำเร็จ', r && r.success !== false ? 'success' : 'error');
-    };
-  };
-  gameCall('#p-btn-equip-bow-arrow', `(typeof window.equipArrowAndBow === 'function' && window.equipArrowAndBow(), true)`);
-  gameCall('#p-btn-refresh-weight', `(typeof window.refreshInventoryAndWeight === 'function' && window.refreshInventoryAndWeight(), true)`);
-  gameCall('#p-btn-test-login', `(typeof window.executeAutoLogin === 'function' && window.executeAutoLogin(true), true)`);
-  gameCall('#p-btn-mk-scan', `(window.__isMarketScanning ? (typeof window.stopMarketScan === 'function' && window.stopMarketScan()) : (typeof window.startMarketMultiPageScan === 'function' && window.startMarketMultiPageScan('all')), true)`);
-  gameCall('#p-btn-store-now', `(typeof window.runAutoStorageDeposit === 'function' && window.runAutoStorageDeposit({ manual: true }), true)`);
-  gameCall('#p-btn-test-shop', `(typeof window.executeAutoShopRoutine === 'function' && window.executeAutoShopRoutine(true), true)`,
-    'ส่งตัวละครกลับเมืองไปขาย/ซื้อของตามตั้งค่าตอนนี้เลยใช่ไหม?');
-  ['#p-btn-sniff-equip', '#p-btn-mk-open-modal', '#p-btn-mk-copy-json', '#p-btn-dump-map', '#p-btn-dump-item', '#p-btn-dump-packets',
-    '#p-btn-dump-state', '#p-btn-dump-market', '#p-btn-dump-weight', '#p-btn-dump-npc', '#p-btn-copy-out'].forEach(sel => {
-    const btn = hudEl.querySelector(sel);
-    if (btn) btn.onclick = () => showToast('ปุ่มนี้เป็นเครื่องมือดูข้อมูล ใช้ได้ในหน้าต่างเกมเท่านั้น', 'warning');
-  });
-
-  // Auth event listeners (each control sends only its own key)
-  const bindAuthField = (sel, buildPatch) => {
-    const el = hudEl.querySelector(sel);
-    if (!el) return;
-    el.onchange = () => {
-      const patch = buildPatch(el);
-      if (patch && Object.keys(patch).length > 0) {
-        sendWebHudAction(profileId, { type: 'update-auth', config: patch });
-      }
-    };
-  };
-  bindAuthField('#p-auth-enabled', el => ({ enabled: !!el.checked }));
-  bindAuthField('#p-auth-user', el => ({ username: el.value || '' }));
-  bindAuthField('#p-auth-pass', el => (el.value ? { password: el.value } : {}));
-  bindAuthField('#p-auth-char', el => ({ charName: el.value || '' }));
-  bindAuthField('#p-auth-resume', el => ({ autoResumeBot: !!el.checked }));
-
-  // Config Export / Import
-  const exportBtn = hudEl.querySelector('#p-btn-export-cfg');
-  if (exportBtn) {
-    exportBtn.onclick = async () => {
+  const inspectBtn = hudEl.querySelector('#p-btn-nc-inspect');
+  const inspectOut = hudEl.querySelector('#p-nc-inspect-out');
+  if (inspectBtn && inspectOut) {
+    inspectBtn.onclick = async () => {
       const targetId = isCentral ? (currentProfiles.find(p => p.isRunning)?.id || '') : profileId;
-      if (!targetId) {
-        alert('❌ ไม่มีจอเกมที่ออนไลน์ให้ดึงตั้งค่า');
+      if (!targetId || !(currentProfiles.find(p => p.id === targetId)?.isRunning)) {
+        inspectOut.textContent = '⚠️ กรุณาเปิดจอเกมก่อนกด Inspect Runtime';
         return;
       }
-      const res = await sendWebHudAction(targetId, { type: 'export-config' });
-      const jsonStr = res?.result?.result?.json || res?.result?.json;
-      if (!jsonStr) {
-        alert('❌ ส่งออกไม่สำเร็จ: ' + (res?.error || res?.result?.error || 'จอเกมไม่ตอบกลับ (ต้องเปิดจอเกมนี้ไว้)'));
-        return;
+      inspectBtn.disabled = true;
+      inspectBtn.innerText = '⏳ กำลังสแกน Runtime...';
+      try {
+        const code = `(typeof window.__inspectNightcampRuntime === 'function' ? window.__inspectNightcampRuntime() : { url: location.href, title: document.title, canvases: document.querySelectorAll('canvas').length, buttons: document.querySelectorAll('button').length })`;
+        const res = await sendWebHudAction(targetId, { type: 'eval', code });
+        const summary = res?.result?.result || res?.result || res;
+        inspectOut.textContent = JSON.stringify(summary, null, 2);
+      } catch (err) {
+        inspectOut.textContent = '❌ Inspect ล้มเหลว: ' + err.message;
+      } finally {
+        inspectBtn.disabled = false;
+        inspectBtn.innerText = '🔍 Inspect Runtime ในจอเกม';
       }
-      openWebConfigModal(profileId, 'export', jsonStr);
     };
   }
 
-  const importBtn = hudEl.querySelector('#p-btn-import-cfg');
-  if (importBtn) {
-    importBtn.onclick = () => {
-      openWebConfigModal(profileId, 'import');
-    };
-  }
-
-  // Market Search
-  const mkSearchBtn = hudEl.querySelector('#p-btn-mk-search');
-  if (mkSearchBtn) {
-    mkSearchBtn.onclick = () => {
-      const kw = hudEl.querySelector('#p-mk-keyword')?.value || '';
-      sendWebHudAction(profileId, { type: 'market-search', keyword: kw });
-    };
-  }
-
-  // Draggable
   makeElementDraggable(hudEl, hudEl.querySelector('#pelican-drag-handle'));
-
-  // Initial Populate
-  populateWebHudData(profileId, clientData);
+  populateWebHudData(profileId, clientData || { state: profile?.liveState || {} });
 }
 
 function makeElementDraggable(elmnt, dragHandle) {
@@ -10049,198 +8293,78 @@ function toggleWebHudCollapse(profileId) {
   }
 }
 
-// "🏷️ Auto Sell ตั้งขาย" list in the web bot menu. The HUD copy called the game's own functions
-// (renderAutoSellHudRulesHtml / addAutoMarketSellRule ...), which only exist inside the game window, so the
-// list was always empty here. Drawn from client-data; every change is sent as update-autosell { rules }.
-const escAttr = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-function webAutoSellRules(profileId) {
-  const d = activeWebHuds[profileId]?.data;
-  return ((d && d.autoMarketSellConfig && d.autoMarketSellConfig.rules) || []).map(r => ({ ...r }));
-}
-function renderWebAutoSellRules(profileId, force) {
-  const hud = activeWebHuds[profileId]?.el;
-  const box = hud && hud.querySelector('#p-autosell-hud-rules-container');
-  if (!box) return;
-  if (!force && ((window.PmUiGuard && window.PmUiGuard.isInteracting(box)) || box.contains(document.activeElement))) return;   // don't redraw under the user's cursor or open select
-  const rules = webAutoSellRules(profileId);
-  const sig = JSON.stringify(rules);
-  if (!force && box.dataset.sig === sig) return;
-  box.dataset.sig = sig;
-  const badge = hud.querySelector('#p-subtab-autosell-count');
-  if (badge) badge.innerText = rules.length;
-  if (!rules.length) {
-    box.innerHTML = `<div style="background: rgba(15, 23, 42, 0.6); border: 1px dashed rgba(168, 85, 247, 0.35); border-radius: 6px; padding: 10px 8px; text-align: center; color: #94a3b8; font-size: 10px; margin: 4px 0;">
-      💡 ยังไม่มีรายการตั้งขายอัตโนมัติ<br><span style="color: #cbd5e1; font-size: 9px;">กดปุ่ม <b style="color: #4ade80;">[➕ เพิ่มรายการลงขาย]</b> ด้านบน แล้วใส่ชื่อไอเทมและจำนวนขั้นต่ำ</span></div>`;
-    return;
-  }
-  box.innerHTML = rules.map((r, i) => `
-    <div class="p-card ws-rule" data-rule-id="${escAttr(r.id)}" style="border-color: rgba(168, 85, 247, 0.35); background: rgba(15, 23, 42, 0.7); padding: 5px; margin-bottom: 4px; ${r.enabled === false ? 'opacity: .55;' : ''}">
-      <div style="display: flex; align-items: center; gap: 4px;">
-        <span style="color: #a855f7; font-weight: bold; font-size: 10px; font-family: monospace;">#${i + 1}</span>
-        <input type="checkbox" class="ws-en" ${r.enabled === false ? '' : 'checked'} title="เปิด/ปิดรายการนี้">
-        <input type="text" class="ws-name" value="${escAttr(r.itemName)}" placeholder="ชื่อไอเทม (ตรงตัว)..." style="flex: 1; min-width: 0; background: #020617; border: 1px solid #475569; color: #fff; padding: 2px 5px; border-radius: 4px; font-size: 10px; font-weight: bold;">
-        <button type="button" class="ws-del" title="ลบรายการนี้" style="background: #ef4444; color: #fff; border: none; width: 20px; height: 20px; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer; flex-shrink: 0;">➖</button>
-      </div>
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 3px; gap: 4px; font-size: 9.5px; color: #cbd5e1;">
-        <span>ครบ ≥ <input type="number" class="ws-min" min="1" value="${Number(r.minQty) || 20}" style="width: 48px; background: #020617; border: 1px solid #475569; color: #38bdf8; padding: 1px 3px; border-radius: 3px; font-size: 10px; text-align: center; font-weight: bold;"> ชิ้น</span>
-        <select class="ws-mode" style="background: #020617; border: 1px solid #475569; color: #c084fc; padding: 1px 4px; border-radius: 3px; font-size: 9.5px;">
-          <option value="all" ${r.sellMode !== 'min' ? 'selected' : ''}>ขายหมดในตัว</option>
-          <option value="min" ${r.sellMode === 'min' ? 'selected' : ''}>ทีละ ${Number(r.minQty) || 20} ชิ้น</option>
-        </select>
-      </div>
-    </div>`).join('');
-}
-function readWebAutoSellRules(box) {
-  return Array.from(box.querySelectorAll('.ws-rule')).map(row => ({
-    id: row.dataset.ruleId,
-    itemName: row.querySelector('.ws-name').value.trim(),
-    minQty: Math.max(1, parseInt(row.querySelector('.ws-min').value) || 1),
-    sellMode: row.querySelector('.ws-mode').value,
-    enabled: row.querySelector('.ws-en').checked
-  }));
-}
-async function saveWebAutoSellRules(profileId, rules) {
-  const d = activeWebHuds[profileId]?.data;
-  if (d) d.autoMarketSellConfig = Object.assign({}, d.autoMarketSellConfig, { rules });
-  const r = await sendWebHudAction(profileId, { type: 'update-autosell', config: { rules } });
-  if (!r || r.success === false) showToast('❌ บันทึกรายการตั้งขายไม่สำเร็จ: ' + ((r && r.error) || 'จอเกมไม่ตอบ'), 'error');
-}
-function wireWebAutoSell(profileId, hudEl) {
-  const box = hudEl.querySelector('#p-autosell-hud-rules-container');
-  if (!box) return;
-  let typing = null;
-  const saveNow = () => saveWebAutoSellRules(profileId, readWebAutoSellRules(box));
-  box.addEventListener('input', e => {
-    if (!e.target.matches('.ws-name, .ws-min')) return;
-    if (e.target.matches('.ws-min')) {
-      const row = e.target.closest('.ws-rule');
-      const minOpt = row && row.querySelector('.ws-mode option[value="min"]');
-      if (minOpt) minOpt.textContent = `ทีละ ${Math.max(1, parseInt(e.target.value, 10) || 1)} ชิ้น`;
-    }
-    clearTimeout(typing);
-    typing = setTimeout(saveNow, 700);
-  });
-  box.addEventListener('change', e => {
-    if (!e.target.matches('.ws-mode, .ws-en, .ws-name, .ws-min')) return;
-    if (e.target.matches('.ws-min')) {
-      const row = e.target.closest('.ws-rule');
-      const minOpt = row && row.querySelector('.ws-mode option[value="min"]');
-      if (minOpt) minOpt.textContent = `ทีละ ${Math.max(1, parseInt(e.target.value, 10) || 1)} ชิ้น`;
-    }
-    clearTimeout(typing);
-    saveNow();
-    if (e.target.matches('.ws-en')) e.target.closest('.ws-rule').style.opacity = e.target.checked ? '' : '.55';
-  });
-  box.addEventListener('click', e => {
-    const del = e.target.closest('.ws-del');
-    if (!del) return;
-    const row = del.closest('.ws-rule');
-    const rules = readWebAutoSellRules(box).filter(r => r.id !== row.dataset.ruleId);
-    saveWebAutoSellRules(profileId, rules);
-    renderWebAutoSellRules(profileId, true);
-  });
-  // buttons of the HUD copy that pointed at in-game functions
-  hudEl.querySelectorAll('button').forEach(btn => {
-    const on = btn.getAttribute('onclick') || '';
-    if (on.includes('addAutoMarketSellRule')) {
-      btn.onclick = () => {
-        const rules = box.querySelector('.ws-rule') ? readWebAutoSellRules(box) : webAutoSellRules(profileId);
-        rules.push({ id: 'rule_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6), itemName: '', minQty: 20, sellMode: 'all', enabled: true });
-        saveWebAutoSellRules(profileId, rules);
-        renderWebAutoSellRules(profileId, true);
-        const names = box.querySelectorAll('.ws-name');
-        if (names.length) names[names.length - 1].focus();
-      };
-    } else if (on.includes('runAutoMarketSellCycle')) {
-      btn.onclick = async () => {
-        const r = await sendWebHudAction(profileId, { type: 'trigger-autosell-now' });
-        showToast(r && r.success !== false ? '⚡ สั่งตรวจสอบกระเป๋าและลงขายแล้ว (ดูผลในจอเกม)' : '❌ สั่งงานจอเกมไม่สำเร็จ', r && r.success !== false ? 'success' : 'error');
-      };
-    } else if (on.includes("showDataViewerModal('market')")) {
-      btn.onclick = () => showToast('ตารางเต็มจอ (Data Hub) เปิดได้ในหน้าต่างเกม — รายการด้านบนแก้ได้จากหน้านี้เลย', 'warning');
-    }
-  });
-  const toggle = hudEl.querySelector('#p-autosell-toggle-hud');
-  if (toggle) toggle.onchange = e => sendWebHudAction(profileId, { type: 'update-autosell', config: { enabled: e.target.checked } });
-  renderWebAutoSellRules(profileId, true);
-}
-
 function populateWebHudData(profileId, data) {
   if (!data) return;
-  const hud = activeWebHuds[profileId]?.el;
+  const hudObj = activeWebHuds[profileId];
+  const hud = hudObj?.el;
   if (!hud) return;
   const isCentral = (profileId === '__central__');
-  renderWebAutoSellRules(profileId);
-  const autoTog = hud.querySelector('#p-autosell-toggle-hud');
-  if (autoTog && document.activeElement !== autoTog && data.autoMarketSellConfig) autoTog.checked = !!data.autoMarketSellConfig.enabled;
+  const prof = currentProfiles.find(p => p.id === profileId) || hudObj.profile || {};
+  const onlineCount = currentProfiles.filter(p => p.isRunning).length;
+  const runningBots = currentProfiles.filter(p => p.isRunning && p.liveState?.isBotRunning).length;
 
-  // Title: Only character / profile name (NO Pmhee), or Central Menu header
   const titleEl = hud.querySelector('.p-header-title');
+  const onlinePill = hud.querySelector('#p-nc-online-pill');
+  const lvPill = hud.querySelector('#p-nc-lv-pill');
+
   if (isCentral) {
-    const onlineCount = currentProfiles.filter(p => p.isRunning).length;
-    if (titleEl) titleEl.innerText = `🎛️ เมนูส่วนกลาง (${onlineCount} จอออนไลน์)`;
-    const onlinePill = hud.querySelector('#p-central-online-pill');
+    if (titleEl) titleEl.innerText = `เมนูส่วนกลาง (${onlineCount} จอออนไลน์)`;
     if (onlinePill) onlinePill.innerText = `ออนไลน์ ${onlineCount}/${currentProfiles.length} จอ`;
-  } else {
-    const charName = data.state?.charName || activeWebHuds[profileId]?.profile?.name;
-    if (titleEl && charName) titleEl.innerText = charName;
+    if (lvPill) lvPill.innerText = `บอททำงาน ${runningBots}/${onlineCount} จอ`;
+    return;
   }
 
-  // Header quick badges
-  const quickZeny = hud.querySelector('#p-quick-zeny');
-  if (quickZeny) {
-    if (isCentral) {
-      const totalZ = currentProfiles.reduce((acc, p) => acc + (typeof p.liveState?.zeny === 'number' ? p.liveState.zeny : 0), 0);
-      quickZeny.innerText = '💰 รวม ' + totalZ.toLocaleString() + ' z';
-    } else {
-      const z = data.state?.zeny;
-      quickZeny.innerText = '💰 ' + (typeof z === 'number' ? z.toLocaleString() + ' z' : '-- z');
-    }
-  }
+  const st = data.state || prof.liveState || {};
+  const isOnline = Boolean(prof.isRunning);
+  const isBotRunning = Boolean(data.isBotRunning ?? st.isBotRunning);
+  const isZeroRender = Boolean(st.zeroRender ?? prof.windowState?.isHidden);
 
-  const quickAmmo = hud.querySelector('#p-quick-ammo');
-  if (quickAmmo) {
-    if (isCentral) {
-      const runningBots = currentProfiles.filter(p => p.isRunning && p.liveState?.isBotRunning).length;
-      quickAmmo.innerText = `🤖 บอทวิ่ง ${runningBots} จอ`;
-    } else {
-      quickAmmo.innerText = '🏹 ' + (data.currentAmmo ?? '--');
-    }
+  if (titleEl) titleEl.innerText = st.charName || prof.name || 'จอเกม Nightcamp';
+  if (onlinePill) {
+    onlinePill.innerText = isOnline ? '🟢 ออนไลน์' : '⚫ ออฟไลน์';
+    onlinePill.style.background = isOnline ? 'rgba(16, 185, 129, 0.22)' : 'rgba(148, 163, 184, 0.16)';
+    onlinePill.style.borderColor = isOnline ? 'rgba(52, 211, 153, 0.5)' : 'rgba(148, 163, 184, 0.35)';
+    onlinePill.style.color = isOnline ? '#6ee7b7' : '#cbd5e1';
   }
+  const lvLine = formatNightcampLevelLine(st, prof);
+  if (lvPill) lvPill.innerText = lvLine;
 
-  const quickWeight = hud.querySelector('#p-quick-weight');
-  if (quickWeight) {
-    if (isCentral) {
-      const premCount = currentProfiles.filter(p => isProfilePremium(p)).length;
-      quickWeight.innerText = `👑 VIP ${premCount} จอ`;
-    } else {
-      quickWeight.innerText = '⚖️ ' + (data.state?.weight ?? '--%');
-    }
-  }
-
-  // Status strip
-  const mapEl = hud.querySelector('#p-cur-map-display');
-  if (mapEl) mapEl.innerText = data.state?.map || data.targetFarmMap || 'รอระบุแมพ...';
+  const classLvEl = hud.querySelector('#p-nc-class-lv');
+  if (classLvEl) classLvEl.innerText = lvLine;
 
   const charStateEl = hud.querySelector('#p-char-state');
   if (charStateEl) {
-    if (data.state?.botStatus) {
-      charStateEl.innerText = data.state.botStatus;
-    } else if (data.isBotRunning) {
-      charStateEl.innerText = '⚔️ Auto-Farm ทำงาน';
+    if (!isOnline) {
+      charStateEl.innerText = '⚫ ออฟไลน์';
+      charStateEl.style.color = '#94a3b8';
+    } else if (st.botStatus) {
+      charStateEl.innerText = st.botStatus;
+      charStateEl.style.color = isBotRunning ? '#4ade80' : '#facc15';
     } else {
-      charStateEl.innerText = '⏸️ หยุดทำงาน';
+      charStateEl.innerText = isBotRunning ? '⚔️ บอทกำลังทำงาน' : '⏸️ ยืนรอ / แสตนด์บาย';
+      charStateEl.style.color = isBotRunning ? '#4ade80' : '#facc15';
     }
   }
 
-  const posEl = hud.querySelector('#p-cur-pos');
-  if (posEl) posEl.innerText = data.state?.coords || 'รอ Minimap...';
+  const hpEl = hud.querySelector('#p-nc-hp');
+  if (hpEl) {
+    hpEl.innerText = (typeof st.hp === 'number')
+      ? `${st.hp.toLocaleString()} / ${(st.hpMax || st.maxHp || st.hp).toLocaleString()}`
+      : '-- / --';
+  }
+  const spEl = hud.querySelector('#p-nc-sp');
+  if (spEl) {
+    spEl.innerText = (typeof st.sp === 'number')
+      ? `${st.sp.toLocaleString()} / ${(st.spMax || st.sp).toLocaleString()}`
+      : '-- / --';
+  }
 
-  // Toggle Bot Button (Exact in-game styling)
   const btn = hud.querySelector('#p-btn-toggle-bot');
   if (btn) {
-    const isRunning = Boolean(data.isBotRunning);
-    if (isRunning) {
+    btn.disabled = !isOnline;
+    btn.style.opacity = isOnline ? '1' : '0.55';
+    btn.style.cursor = isOnline ? 'pointer' : 'not-allowed';
+    if (isBotRunning) {
       btn.innerHTML = '⏹️ STOP BOT (หยุดทำงาน)';
       btn.style.background = 'linear-gradient(135deg, #ef4444, #dc2626)';
       btn.style.boxShadow = '0 0 14px rgba(239, 68, 68, 0.55)';
@@ -10255,294 +8379,16 @@ function populateWebHudData(profileId, data) {
     }
   }
 
-  // Auto Loop & Plan Script Checkbox
-  const autoLoopCb = hud.querySelector('#p-auto-loop');
-  if (autoLoopCb && document.activeElement !== autoLoopCb) autoLoopCb.checked = !!data.autoLoopEnabled;
+  const zeroBtn = hud.querySelector('#p-btn-nc-zerorender');
+  if (zeroBtn) zeroBtn.innerText = isZeroRender ? '🖥️ แสดงภาพปกติ' : '⚡ พักกราฟิก';
 
-  const planScriptCb = hud.querySelector('#p-plan-script-enabled');
-  if (planScriptCb && document.activeElement !== planScriptCb) planScriptCb.checked = !!data.planScriptEnabled;
-
-  const planNameEl = hud.querySelector('#p-plan-name-display');
-  if (planNameEl && data.currentPlanName !== undefined) {
-    planNameEl.innerText = data.currentPlanName || '(ยังไม่เลือกแผน)';
-  }
-
-  // Farm Map Select & Travel Config
-  const isCtrlBusy = (el) => {
-    if (!el) return true;
-    if (el.tagName === 'SELECT') return window.PmUiGuard ? window.PmUiGuard.isSelectBusy(el) : (document.activeElement === el);
-    return document.activeElement === el;
-  };
-  const isBoxBusy = (el) => {
-    if (!el) return false;
-    return window.PmUiGuard ? window.PmUiGuard.isInteracting(el) : el.contains(document.activeElement);
-  };
-
-  const mapSelect = hud.querySelector('#p-target-map-select');
-  if (mapSelect && data.targetFarmMap && !isCtrlBusy(mapSelect)) mapSelect.value = data.targetFarmMap;
-
-  const warpMinZenyInp = hud.querySelector('#p-warp-min-zeny');
-  if (warpMinZenyInp && data.travelConfig && !isCtrlBusy(warpMinZenyInp)) {
-    warpMinZenyInp.value = Number(data.travelConfig.minZenyForWarp) || 0;
-  }
-
-  // In-Game Auto-Bot Combat Settings
-  if (data.inGameAutoConfig && typeof data.inGameAutoConfig === 'object') {
-    const ig = data.inGameAutoConfig;
-    const setIgCb = (sel, v) => {
-      const el = hud.querySelector(sel);
-      if (el && v !== undefined && document.activeElement !== el) el.checked = !!v;
-    };
-    setIgCb('#p-ig-auto-basic-attack', ig.basicAttack);
-    setIgCb('#p-ig-auto-buff-party', ig.buffParty);
-    setIgCb('#p-ig-auto-accept-party', ig.acceptParty);
-    setIgCb('#p-ig-auto-join-others', ig.joinOthers);
-    setIgCb('#p-ig-auto-quiver', ig.autoQuiver);
-    setIgCb('#p-ig-auto-revive', ig.autoRevive);
-    setIgCb('#p-ig-auto-pickup-loot', ig.pickupLoot);
-    const lootWhenRow = hud.querySelector('#p-ig-auto-loot-when-row');
-    if (lootWhenRow && ig.pickupLoot !== undefined) {
-      lootWhenRow.style.display = ig.pickupLoot ? 'grid' : 'none';
-    }
-    if (ig.lootWhen === 'clear' || ig.lootWhen === 'first') {
-      const isClear = ig.lootWhen === 'clear';
-      const firstRad = hud.querySelector('#p-ig-auto-loot-when-first');
-      const clearRad = hud.querySelector('#p-ig-auto-loot-when-clear');
-      if (firstRad && document.activeElement !== firstRad) firstRad.checked = !isClear;
-      if (clearRad && document.activeElement !== clearRad) clearRad.checked = isClear;
-      const firstLbl = hud.querySelector('#p-ig-auto-loot-when-first-lbl');
-      const clearLbl = hud.querySelector('#p-ig-auto-loot-when-clear-lbl');
-      if (firstLbl) {
-        firstLbl.style.borderColor = !isClear ? '#eab308' : '#334155';
-        firstLbl.style.background = !isClear ? 'rgba(234, 179, 8, 0.14)' : 'rgba(15, 23, 42, 0.6)';
-        firstLbl.style.color = !isClear ? '#fef08a' : '#cbd5e1';
-        firstLbl.style.fontWeight = !isClear ? 'bold' : 'normal';
-      }
-      if (clearLbl) {
-        clearLbl.style.borderColor = isClear ? '#eab308' : '#334155';
-        clearLbl.style.background = isClear ? 'rgba(234, 179, 8, 0.14)' : 'rgba(15, 23, 42, 0.6)';
-        clearLbl.style.color = isClear ? '#fef08a' : '#cbd5e1';
-        clearLbl.style.fontWeight = isClear ? 'bold' : 'normal';
-      }
-    }
-    const revRow = hud.querySelector('#p-ig-auto-revive-row');
-    if (revRow && ig.autoRevive !== undefined) {
-      revRow.style.display = ig.autoRevive ? 'flex' : 'none';
-    }
-    const revMax = hud.querySelector('#p-ig-auto-revive-max');
-    if (revMax && ig.autoReviveMax !== undefined && !isCtrlBusy(revMax)) {
-      revMax.value = String(Number(ig.autoReviveMax) || 10);
-    }
-    if (Array.isArray(ig.targetOrder) && ig.targetOrder.length > 0) {
-      const prio = renderWebInGameAutoPriorityHtml(ig.targetOrder);
-      const sumEl = hud.querySelector('#p-ig-auto-priority-summary-text');
-      if (sumEl) sumEl.innerHTML = prio.summaryHtml;
-      const rowsEl = hud.querySelector('#p-ig-auto-priority-rows');
-      if (rowsEl && !isBoxBusy(rowsEl)) {
-        if (window.PmUiGuard) window.PmUiGuard.setHtmlIfChanged(rowsEl, prio.rowsHtml);
-        else rowsEl.innerHTML = prio.rowsHtml;
-      }
-    }
-  }
-
-  // Security & Humanize
-  const unexpGuardCb = hud.querySelector('#p-unexpected-town-guard');
-  if (unexpGuardCb && data.unexpectedTownGuardEnabled !== undefined && document.activeElement !== unexpGuardCb) {
-    unexpGuardCb.checked = !!data.unexpectedTownGuardEnabled;
-  }
-  const unexpBox = hud.querySelector('#p-unexpected-town-box');
-  if (unexpBox) unexpBox.style.display = data.unexpectedTownWaiting ? 'block' : 'none';
-  const unexpCd = hud.querySelector('#p-unexpected-countdown');
-  if (unexpCd && data.unexpectedTownCountdown) unexpCd.innerText = data.unexpectedTownCountdown;
-
-  const humanize = data.humanizeConfig || {};
-  const syncCb = (sel, val) => {
-    const el = hud.querySelector(sel);
-    if (el && val !== undefined && document.activeElement !== el) el.checked = !!val;
-  };
-  syncCb('#p-humanize-enabled', humanize.enabled);
-  const humChance = hud.querySelector('#p-humanize-chance');
-  const humChanceVal = humanize.chancePercent !== undefined ? humanize.chancePercent : humanize.chance;
-  if (humChance && humChanceVal !== undefined && !isCtrlBusy(humChance)) {
-    humChance.value = humChanceVal;
-  }
-  syncCb('#p-humanize-blacksmith', humanize.visitBlacksmith !== undefined ? humanize.visitBlacksmith : humanize.buyBlacksmith);
-  syncCb('#p-humanize-sundries', humanize.visitSundries !== undefined ? humanize.visitSundries : humanize.buySundries);
-  syncCb('#p-humanize-walk', humanize.randomWalk);
-  syncCb('#p-humanize-storage', humanize.openStorage !== undefined ? humanize.openStorage : humanize.storeDeposit);
-
-  // Archer
-  const archer = data.archerConfig || {};
-  const ammoCount = hud.querySelector('#p-ammo-count');
-  if (ammoCount) ammoCount.innerText = (data.currentAmmo ?? 0) + ' ดอก';
-
-  const reqArrow = hud.querySelector('#p-archer-req');
-  if (reqArrow && document.activeElement !== reqArrow) reqArrow.checked = !!archer.requireArrow;
-
-  const smartArrow = hud.querySelector('#p-archer-smart');
-  if (smartArrow && archer.smartArrow !== undefined && document.activeElement !== smartArrow) {
-    smartArrow.checked = !!archer.smartArrow;
-  }
-
-  const autoEquipArrow = hud.querySelector('#p-archer-auto-equip');
-  if (autoEquipArrow && archer.autoEquipArrow !== undefined && document.activeElement !== autoEquipArrow) {
-    autoEquipArrow.checked = !!archer.autoEquipArrow;
-  }
-
-  const arrowType = hud.querySelector('#p-archer-type');
-  if (arrowType && archer.arrowType && !isCtrlBusy(arrowType)) arrowType.value = String(archer.arrowType);
-
-  const arrowQty = hud.querySelector('#p-archer-qty');
-  if (arrowQty && !isCtrlBusy(arrowQty)) arrowQty.value = archer.arrowBuyQty || 5000;
-
-  const arrowThresh = hud.querySelector('#p-archer-threshold');
-  if (arrowThresh && !isCtrlBusy(arrowThresh)) arrowThresh.value = archer.ammoThreshold || 50;
-
-  const bwing = hud.querySelector('#p-archer-bwing');
-  if (bwing && document.activeElement !== bwing) bwing.checked = !!archer.useBwing;
-
-  const bwingQty = hud.querySelector('#p-archer-bwing-qty');
-  if (bwingQty && !isCtrlBusy(bwingQty)) bwingQty.value = archer.bwingBuyQty || 2;
-
-  const bwingCountEl = hud.querySelector('#p-bwing-count');
-  if (bwingCountEl && data.bwingCount !== undefined) {
-    bwingCountEl.innerText = data.bwingCount >= 0 ? String(data.bwingCount) : 'รอเปิดกระเป๋า';
-  }
-
-  // Buff Potions
-  const buffPotions = data.buffPotionConfig || {};
-  const potionCounts = data.potionCounts || {};
-  ['90306', '90307', '90308'].forEach(id => {
-    const pCfg = buffPotions[id];
-    if (pCfg) {
-      const cb = hud.querySelector(`#p-potion-enable-${id}`);
-      if (cb && document.activeElement !== cb) cb.checked = !!pCfg.enabled;
-      const qty = hud.querySelector(`#p-potion-qty-${id}`);
-      if (qty && !isCtrlBusy(qty) && pCfg.targetQty !== undefined) qty.value = pCfg.targetQty;
-    }
-    const cntEl = hud.querySelector(`#p-potion-count-${id}`);
-    if (cntEl && potionCounts[id] !== undefined) {
-      cntEl.innerText = potionCounts[id] >= 0 ? String(potionCounts[id]) : 'รอเปิดกระเป๋า';
-    }
-  });
-
-  // Sell
-  const sell = data.sellConfig || {};
-  const sellEn = hud.querySelector('#p-sell-enabled');
-  if (sellEn && document.activeElement !== sellEn) sellEn.checked = !!sell.enabled;
-
-  const weightCheckEn = hud.querySelector('#p-weight-check-enabled');
-  if (weightCheckEn && document.activeElement !== weightCheckEn) weightCheckEn.checked = sell.weightCheckEnabled !== false;
-
-  const weightThresh = hud.querySelector('#p-weight-threshold');
-  if (weightThresh && !isCtrlBusy(weightThresh)) weightThresh.value = sell.weightThreshold || 80;
-
-  const curWeightVal = hud.querySelector('#p-cur-weight-val');
-  if (curWeightVal) {
-    const wStr = data.state?.weight || '--%';
-    curWeightVal.innerText = wStr;
-    const wNum = parseFloat(String(wStr).replace('%', ''));
-    const wLim = Number(sell.weightThreshold) || 80;
-    const alertBanner = hud.querySelector('#p-weight-alert-banner');
-    if (Number.isFinite(wNum) && sell.weightCheckEnabled !== false && wNum >= wLim) {
-      curWeightVal.style.color = '#f87171';
-      if (alertBanner) alertBanner.style.display = 'block';
-    } else {
-      curWeightVal.style.color = '#22c55e';
-      if (alertBanner) alertBanner.style.display = 'none';
-    }
-  }
-
-  const syncSel = (id, val) => {
-    const el = hud.querySelector(id);
-    if (el && val !== undefined && !isCtrlBusy(el)) el.value = val;
-  };
-  syncSel('#p-sell-rarity-weap', sell.weaponRarity);
-  syncSel('#p-sell-rarity-armor', sell.armorRarity);
-  syncSel('#p-sell-rarity-acc', sell.accRarity);
-  syncSel('#p-sell-rarity-mat', !sell.sellMaterials ? 'none' : (sell.materialMode === 'common' ? 'common' : 'all'));
-  syncSel('#p-sell-refine-ores', sell.sellRefineOres ? 'unlisted' : 'keep');
-  syncSel('#p-sell-consumables', sell.sellConsumables ? 'unlisted' : 'keep');
-
-  const keepRef = hud.querySelector('#p-sell-keep-refined');
-  if (keepRef && document.activeElement !== keepRef) keepRef.checked = sell.keepRefined !== false;
-
-  const keepSpec = hud.querySelector('#p-sell-keep-special');
-  if (keepSpec && document.activeElement !== keepSpec) keepSpec.checked = !!sell.keepSpecial;
-
-  const keepSock = hud.querySelector('#p-sell-keep-sockets');
-  if (keepSock && document.activeElement !== keepSock) keepSock.checked = !!sell.keepSockets;
-
-  const sellWl = hud.querySelector('#p-sell-whitelist');
-  if (sellWl && !isCtrlBusy(sellWl)) sellWl.value = sell.whitelist || '';
-  const sellFs = hud.querySelector('#p-sell-force-list');
-  if (sellFs && !isCtrlBusy(sellFs)) sellFs.value = sell.forceSellList || '';
-  [['#p-store-enabled', !!sell.storeEnabled], ['#p-store-weapon', sell.storeWeapon !== false], ['#p-store-armor', sell.storeArmor !== false],
-   ['#p-store-acc', sell.storeAcc !== false], ['#p-store-refine', sell.storeRefine !== false], ['#p-store-skip-locked', sell.storeSkipLocked !== false]].forEach(([id, v]) => {
-    const el = hud.querySelector(id);
-    if (el && document.activeElement !== el) el.checked = v;
-  });
-
-  // Stat Filter sync
-  const activeHud = activeWebHuds[profileId];
-  const sfCard = hud.querySelector('#p-sell-stats-filter-card');
-  if (sell.statsFilter && activeHud && sfCard && !isBoxBusy(sfCard)) {
-    const incStr = JSON.stringify(sell.statsFilter);
-    if (JSON.stringify(activeHud.currentStatsFilter) !== incStr) {
-      activeHud.currentStatsFilter = Object.assign({}, sell.statsFilter);
-      if (typeof activeHud.renderStatsFilter === 'function') activeHud.renderStatsFilter();
-    }
-  }
-
-  // Market Sniper Filter sync
-  const mk = data.marketFilterConfig || {};
-  [
-    ['#p-mk-search-query', mk.q, 'text'],
-    ['#p-mk-cat-select', mk.category, 'text'],
-    ['#p-mk-kind-select', mk.kind, 'text'],
-    ['#p-mk-min-refine', mk.minRefine, 'int'],
-    ['#p-mk-max-price', mk.maxPrice, 'int'],
-    ['#p-mk-stat1-type', mk.statType1, 'text'],
-    ['#p-mk-stat1-min', mk.statMinVal1, 'int'],
-    ['#p-mk-stat2-type', mk.statType2, 'text'],
-    ['#p-mk-stat2-min', mk.statMinVal2, 'int'],
-    ['#p-mk-stat-mode', mk.statMatchMode, 'text'],
-    ['#p-mk-sniper-alert', mk.sniperAlert, 'bool'],
-    ['#p-mk-auto-buy', mk.autoBuy, 'bool']
-  ].forEach(([sel, val, kind]) => {
-    if (val === undefined) return;
-    const el = hud.querySelector(sel);
-    if (!el || isCtrlBusy(el)) return;
-    if (kind === 'bool') el.checked = !!val;
-    else el.value = String(val ?? '');
-  });
-
-  // Shop & System Tab
-  const shop = data.shopConfig || {};
-  syncCb('#p-shop-enabled', shop.enabled);
-  const shopKeyEl = hud.querySelector('#p-shop-npckey');
-  if (shopKeyEl && shop.npcKey !== undefined && !isCtrlBusy(shopKeyEl)) shopKeyEl.value = shop.npcKey || 'tools';
-
-  syncCb('#p-ultra-low-spec', data.ultraLowSpecEnabled !== false);
-  syncCb('#p-auto-config-char', data.autoConfigCharEnabled !== false);
-  syncCb('#p-auto-mute-display', data.autoMuteDisplayEnabled !== false);
-
-  // Auth
   const auth = data.authConfig || {};
   const authEn = hud.querySelector('#p-auth-enabled');
-  if (authEn && document.activeElement !== authEn) authEn.checked = !!auth.enabled;
-
+  if (authEn && document.activeElement !== authEn && auth.enabled !== undefined) authEn.checked = !!auth.enabled;
   const authUs = hud.querySelector('#p-auth-user');
-  if (authUs && document.activeElement !== authUs) authUs.value = auth.username || '';
-
+  if (authUs && document.activeElement !== authUs) authUs.value = auth.username || prof.account || '';
   const authPs = hud.querySelector('#p-auth-pass');
-  if (authPs && document.activeElement !== authPs) authPs.placeholder = auth.hasPassword ? '•••••• (มีแล้ว)' : 'รหัสผ่าน';
-
-  const authCh = hud.querySelector('#p-auth-char');
-  if (authCh && document.activeElement !== authCh) authCh.value = auth.charName || '';
-
-  const authRes = hud.querySelector('#p-auth-resume');
-  if (authRes && document.activeElement !== authRes) authRes.checked = !!auth.autoResumeBot;
+  if (authPs && document.activeElement !== authPs) authPs.value = auth.password || prof.loginPassword || '';
 }
 
 async function sendWebHudAction(profileId, payload) {
@@ -10567,20 +8413,7 @@ async function sendWebHudAction(profileId, payload) {
         setTimeout(() => { updateActiveWebHuds(); }, 250);
         return { success: okCount > 0, updatedCount: okCount, totalOnline: total };
       }
-      // Fallback if server was not restarted yet
-      const results = await Promise.allSettled(online.map(async (p) => {
-        const r = await fetch(API_BASE + '/api/profiles/' + p.id + '/client-action', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        const rj = await r.json().catch(() => ({}));
-        return Boolean(r.ok && rj.success !== false);
-      }));
-      const okCount = results.filter(r => r.status === 'fulfilled' && r.value).length;
-      showToast(`🎛️ เมนูส่วนกลาง: อัปเดตไปยัง ${okCount}/${online.length} จอเรียบร้อย`, okCount > 0 ? 'success' : 'error');
-      setTimeout(() => { updateActiveWebHuds(); }, 250);
-      return { success: okCount > 0, updatedCount: okCount, totalOnline: online.length };
+      return { success: false, error: j.error || 'สั่งงานไม่สำเร็จ' };
     }
 
     const resp = await fetch(API_BASE + '/api/profiles/' + profileId + '/client-action', {
@@ -10590,17 +8423,18 @@ async function sendWebHudAction(profileId, payload) {
     });
     let out;
     try { out = await resp.json(); } catch (e) { out = { success: false, error: 'HTTP ' + resp.status }; }
-    // Immediately pull refreshed data
     setTimeout(async () => {
-      const res = await fetch(API_BASE + '/api/profiles/' + profileId + '/client-data');
-      const json = await res.json();
-      if (json.success && json.data) {
-        if (activeWebHuds[profileId]) activeWebHuds[profileId].data = json.data;
-        populateWebHudData(profileId, json.data);
-      }
+      try {
+        const res = await fetch(API_BASE + '/api/profiles/' + profileId + '/client-data');
+        const json = await res.json();
+        if (json.success && json.data && activeWebHuds[profileId]) {
+          activeWebHuds[profileId].data = json.data;
+          populateWebHudData(profileId, json.data);
+        }
+      } catch (_) {}
     }, 250);
     return out;
-  } catch(e) {
+  } catch (e) {
     console.error("sendWebHudAction error:", e);
     return { success: false, error: e.message };
   }
@@ -10610,39 +8444,22 @@ async function updateActiveWebHuds() {
   const openIds = Object.keys(activeWebHuds);
   for (const id of openIds) {
     if (id === '__central__') {
-      const hud = activeWebHuds[id]?.el;
-      if (hud) {
-        const onlineCount = currentProfiles.filter(p => p.isRunning).length;
-        const titleEl = hud.querySelector('.p-header-title');
-        if (titleEl) titleEl.innerText = `🎛️ เมนูส่วนกลาง (${onlineCount} จอออนไลน์)`;
-        const onlinePill = hud.querySelector('#p-central-online-pill');
-        if (onlinePill) onlinePill.innerText = `ออนไลน์ ${onlineCount}/${currentProfiles.length} จอ`;
-        const quickZeny = hud.querySelector('#p-quick-zeny');
-        if (quickZeny) {
-          const totalZ = currentProfiles.reduce((acc, p) => acc + (typeof p.liveState?.zeny === 'number' ? p.liveState.zeny : 0), 0);
-          quickZeny.innerText = '💰 รวม ' + totalZ.toLocaleString() + ' z';
-        }
-        const quickAmmo = hud.querySelector('#p-quick-ammo');
-        if (quickAmmo) {
-          const runningBots = currentProfiles.filter(p => p.isRunning && p.liveState?.isBotRunning).length;
-          quickAmmo.innerText = `🤖 บอทวิ่ง ${runningBots} จอ`;
-        }
-        const quickWeight = hud.querySelector('#p-quick-weight');
-        if (quickWeight) {
-          const premCount = currentProfiles.filter(p => isProfilePremium(p)).length;
-          quickWeight.innerText = `👑 VIP ${premCount} จอ`;
-        }
-      }
+      populateWebHudData(id, {});
+      continue;
+    }
+    const prof = currentProfiles.find(p => p.id === id);
+    if (!prof || !prof.isRunning) {
+      populateWebHudData(id, { state: {} });
       continue;
     }
     try {
       const res = await fetch(API_BASE + '/api/profiles/' + id + '/client-data');
       const json = await res.json();
-      if (json.success && json.data) {
+      if (json.success && json.data && activeWebHuds[id]) {
         activeWebHuds[id].data = json.data;
         populateWebHudData(id, json.data);
       }
-    } catch(e) {}
+    } catch (_) {}
   }
 }
 
@@ -12271,14 +10088,18 @@ function openAddModal() {
   const resetRow = document.getElementById("form-reset-autoreg-row");
   if (resetRow) resetRow.style.display = "none";
   if (formCount) formCount.value = 1;
-  formName.value = `Client ${currentProfiles.length + 1}`;
+  formName.value = `จอที่ ${currentProfiles.length + 1}`;
   formAccount.value = "";
-  formClass.value = "Hunter";
-  formMap.value = "ถนนต้นหลิว";
+  formClass.value = "Traveler";
+  formMap.value = "";
   const maxPort = Math.max(48875, ...currentProfiles.map(p => p.debugPort || 48876));
   formPort.value = maxPort + 1;
   formNotes.value = "";
-  if (formPassword) { formPassword.value = ""; formPassword.placeholder = "เว้นว่าง = สมัครบัญชีใหม่ให้"; }
+  if (formPassword) {
+    formPassword.type = "text";
+    formPassword.value = "";
+    formPassword.placeholder = "เว้นว่าง = สมัครบัญชีใหม่ให้";
+  }
   modalTitle.innerText = "➕ เพิ่มโปรไฟล์จอเกมใหม่";
   refreshCountUi();
   modalEl.classList.add("active");
@@ -12293,13 +10114,14 @@ function openEditModal(id) {
   if (resetRow) resetRow.style.display = "";
   formName.value = profile.name;
   formAccount.value = profile.account || "";
-  formClass.value = profile.charClass || "Hunter";
-  formMap.value = profile.targetMap || "ถนนต้นหลิว";
+  formClass.value = (profile.charClass && profile.charClass !== "Hunter") ? profile.charClass : "Traveler";
+  formMap.value = (profile.targetMap && profile.targetMap !== "ถนนต้นหลิว") ? profile.targetMap : "";
   formPort.value = profile.debugPort || 48876;
   formNotes.value = profile.notes || "";
   if (formPassword) {
-    formPassword.value = "";
-    formPassword.placeholder = profile.hasLoginPassword ? "•••••• (มีรหัสแล้ว — เว้นว่าง = ไม่เปลี่ยน / ลบ ID เพื่อสมัครใหม่)" : (profile.autoRegister ? "กำลังรอสมัครบัญชีอัตโนมัติ" : "เว้นว่าง = สมัครบัญชีใหม่ให้");
+    formPassword.type = "text";
+    formPassword.value = profile.loginPassword || "";
+    formPassword.placeholder = profile.autoRegister ? "กำลังรอสมัครบัญชีอัตโนมัติ" : "เว้นว่าง = สมัครบัญชีใหม่ให้";
   }
   modalTitle.innerText = `⚙️ แก้ไขโปรไฟล์: ${profile.name}`;
   refreshCountUi();

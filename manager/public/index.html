@@ -7,19 +7,30 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=4.63.11">
-  <link rel="stylesheet" href="inventory_market.css?v=4.55.0">
-  <link rel="stylesheet" href="bot_update.css?v=44002">
-  <link rel="stylesheet" href="plan_editor.css?v=4.45.0">
-  <link rel="stylesheet" href="party_manager.css?v=4.49.0">
-  <link rel="stylesheet" href="premium_manager.css?v=4.56.2">
-  <link rel="stylesheet" href="card_manager.css?v=4.49.10">
-  <link rel="stylesheet" href="market_overview.css?v=4.49.3">
-  <link rel="stylesheet" href="guild_manager.css?v=4.49.0">
-  <link rel="stylesheet" href="jail_manager.css?v=4.51.9">
-  <link rel="stylesheet" href="device_manager.css?v=4.63.14">
-  <link rel="stylesheet" href="fleet_dashboard.css?v=4.63.8">
-  <link rel="stylesheet" href="support_chat.css?v=4.60.0.1">
+  <link rel="stylesheet" href="style.css?v=nc1.0.2">
+  <link rel="stylesheet" href="inventory_market.css?v=nc1.0.2">
+  <link rel="stylesheet" href="bot_update.css?v=nc1.0.2">
+  <link rel="stylesheet" href="plan_editor.css?v=nc1.0.2">
+  <link rel="stylesheet" href="party_manager.css?v=nc1.0.2">
+  <link rel="stylesheet" href="premium_manager.css?v=nc1.0.2">
+  <link rel="stylesheet" href="card_manager.css?v=nc1.0.2">
+  <link rel="stylesheet" href="market_overview.css?v=nc1.0.2">
+  <link rel="stylesheet" href="guild_manager.css?v=nc1.0.2">
+  <link rel="stylesheet" href="jail_manager.css?v=nc1.0.2">
+  <link rel="stylesheet" href="device_manager.css?v=nc1.0.2">
+  <link rel="stylesheet" href="fleet_dashboard.css?v=nc1.0.2">
+  <link rel="stylesheet" href="support_chat.css?v=nc1.0.2">
+  <style id="nc-cleanup-overrides">
+    #hw-tab, #hw-scrim, #hw-drawer,
+    #pm-tab, #pm-scrim, #pm-drawer,
+    #cd-tab, #cd-scrim, #cd-drawer,
+    #gd-tab, #gd-scrim, #gd-drawer,
+    #tw-launcher, #tw-backdrop, #tw-drawer,
+    #jl-tab, #jl-backdrop, #jl-drawer,
+    .nc-aetheria-only {
+      display: none !important;
+    }
+  </style>
   <style id="pm-boot-splash-style">
     #pm-boot-splash {
       position: fixed;
@@ -424,7 +435,7 @@
               <span>👤</span>
               <span id="header-account-auth-text">เข้าสู่ระบบ / สมัคร ID</span>
             </button>
-            <button type="button" id="btn-anti-ban-guide" class="read-alert-btn" title="คลิกเพื่ออ่านคำแนะนำสำคัญ: วิธีหลีกเลี่ยงการโดนแบนและสาเหตุการติดคุก">
+            <button type="button" id="btn-anti-ban-guide" class="read-alert-btn nc-aetheria-only" title="คลิกเพื่ออ่านคำแนะนำสำคัญ: วิธีหลีกเลี่ยงการโดนแบนและสาเหตุการติดคุก">
               <span class="read-alert-dot"></span>
               <span>อ่าน !!</span>
             </button>
@@ -435,7 +446,7 @@
 
       <div class="header-actions">
         <!-- CAPTCHA SOLVED COUNTER BADGE (CLICKABLE) -->
-        <div id="captcha-solved-pill" class="captcha-solved-badge" role="button" tabindex="0" title="คลิกเพื่อดูประวัติการแก้ Captcha รายวัน">
+        <div id="captcha-solved-pill" class="captcha-solved-badge nc-aetheria-only" role="button" tabindex="0" title="คลิกเพื่อดูประวัติการแก้ Captcha รายวัน">
           <span class="captcha-icon">🤖</span>
           <span class="captcha-label">แก้ Captcha:</span>
           <span id="captcha-solved-count" class="captcha-count">0</span>
@@ -503,12 +514,12 @@
       <div class="metric-card">
         <div class="metric-icon" style="--h: 175;">⚔️</div>
         <div class="metric-body">
-          <div class="metric-label">กำลัง Auto-Farm</div>
+          <div class="metric-label">บอทกำลังทำงาน</div>
           <div class="metric-val text-cyan"><span id="metric-farming-profiles">0</span><small class="metric-of" id="metric-farming-of">/ 0</small></div>
           <div class="metric-bar"><div class="metric-bar-fill cyan" id="metric-farming-bar"></div></div>
         </div>
       </div>
-      <div class="metric-card metric-zeny">
+      <div class="metric-card metric-zeny nc-aetheria-only">
         <div class="metric-icon" id="btn-secret-market-sniper" style="--h: 45; cursor: pointer; position: relative;">💰</div>
         <div class="metric-body">
           <div class="metric-label">ยอดเงินรวมทุกตัว (Total Zeny)</div>
@@ -528,10 +539,10 @@
             <button type="button" class="tab-btn" data-tab="fleet" id="tab-btn-fleet" role="tab">
               <span class="icon">🖥️</span> เครื่องทั้งหมด <span class="tab-count" id="tab-count-fleet">0</span>
             </button>
-            <button type="button" class="tab-btn" data-tab="zeny" role="tab">
+            <button type="button" class="tab-btn nc-aetheria-only" data-tab="zeny" role="tab">
               <span class="icon">💰</span> ระบบรวมเงิน
             </button>
-            <button type="button" class="tab-btn" data-tab="market" id="tab-btn-market" role="tab">
+            <button type="button" class="tab-btn nc-aetheria-only" data-tab="market" id="tab-btn-market" role="tab">
               <span class="icon">🏪</span> ตลาดกลาง <span class="tab-count" id="tab-count-market">0</span><span class="tab-alert-dot" id="tab-alert-market" style="display:none;"></span>
             </button>
           </nav>
@@ -541,21 +552,18 @@
               <button type="button" class="view-mode-btn active" id="btn-view-mode-default" onclick="setCardViewMode('default')" title="แสดงการ์ดเรียงตามปกติ">
                 <span>📋</span> <span>เรียงปกติ</span>
               </button>
-              <button type="button" class="view-mode-btn" id="btn-view-mode-party" onclick="setCardViewMode('party')" title="จัดกลุ่มการ์ดตามปาร์ตี้ vs ฟาร์มเดี่ยว พร้อมเปรียบเทียบ GP/M และ GP/H">
-                <span>👑</span> <span>จัดกลุ่มตามตี้ (เทียบ GP/M)</span>
+              <button type="button" class="view-mode-btn" id="btn-view-mode-party" onclick="setCardViewMode('party')" title="จัดกลุ่มการ์ดตามปาร์ตี้ vs โซโล่">
+                <span>👑</span> <span>จัดกลุ่มตามตี้</span>
               </button>
             </div>
             <div class="view-sort-box" title="เรียงลำดับการ์ดภายในกลุ่ม">
               <span class="view-sort-lbl">เรียง:</span>
               <select id="card-sort-select" class="view-sort-select" onchange="setCardSortMode(this.value)">
                 <option value="default">ลำดับเดิม</option>
-                <option value="gpm_desc">⚡ GP/M สูง → ต่ำ</option>
-                <option value="gpm_asc">📉 GP/M ต่ำ → สูง</option>
-                <option value="zeny_desc">💰 Zeny มาก → น้อย</option>
                 <option value="level_desc">🆙 Lv สูง → ต่ำ</option>
               </select>
             </div>
-            <div class="view-sort-box" title="โหมดเช็ค Channel คนน้อยสุดหลังขายของ และดึงคนในปาร์ตี้ตามไป CH เดียวกัน">
+            <div class="view-sort-box nc-aetheria-only" title="โหมดเช็ค Channel คนน้อยสุดหลังขายของ และดึงคนในปาร์ตี้ตามไป CH เดียวกัน">
               <span class="view-sort-lbl">เช็ค CH:</span>
               <select id="channel-check-mode-select" class="view-sort-select" onchange="setChannelCheckMode(this.value)">
                 <option value="no_overlap">🔀 แยก CH ไม่ทับกันเอง: โซโล่ไม่ทับจออื่น / ตี้ไม่ทับตี้อื่น (เลือก CH คนน้อยสุด)</option>
@@ -594,7 +602,7 @@
             <button id="btn-stop-bot-all" class="btn btn-ghost btn-sm" title="กด STOP BOT ในทุกจอที่ออนไลน์อยู่">
               <span class="icon">⏹️</span> STOP BOT ทุกจอ
             </button>
-            <button id="btn-captcha-settings" class="btn btn-ghost btn-sm captcha-settings-toolbar-btn" title="ตั้งค่าเงื่อนไขการตอบคำถามอัตโนมัติ (Captcha Setting) และการแจ้งเตือนบนหน้า Manager">
+            <button id="btn-captcha-settings" class="btn btn-ghost btn-sm captcha-settings-toolbar-btn nc-aetheria-only" title="ตั้งค่าเงื่อนไขการตอบคำถามอัตโนมัติ (Captcha Setting) และการแจ้งเตือนบนหน้า Manager">
               <span class="icon">🤖</span>
               <span>Captcha Setting</span>
               <span id="captcha-settings-mode-pill" class="captcha-mode-pill is-on">เปิดปกติ</span>
@@ -608,19 +616,19 @@
             </button>
           </div>
           <div class="toolbar-group">
-            <button id="btn-open-central-bot-menu" class="btn btn-ghost btn-sm" title="เปิดเมนูส่วนกลาง (Master Bot Menu) — เปิดขึ้นมาจะยังไม่ทับค่าใดๆ จนกว่าคุณจะกดปุ่มหรือปรับตัวเลือกตัวนั้น ระบบจึงจะส่งเฉพาะคำสั่งนั้นไปทุกจอ" style="border: 1px solid rgba(250, 204, 21, 0.45); background: linear-gradient(135deg, rgba(250, 204, 21, 0.16), rgba(245, 158, 11, 0.08)); color: #fde68a; font-weight: 700;">
+            <button id="btn-open-central-bot-menu" class="btn btn-ghost btn-sm" title="เปิดเมนูส่วนกลาง (Master Bot Menu) — คุม START/STOP ทุกจอ พักกราฟิก และตรวจสอบ Runtime" style="border: 1px solid rgba(250, 204, 21, 0.45); background: linear-gradient(135deg, rgba(250, 204, 21, 0.16), rgba(245, 158, 11, 0.08)); color: #fde68a; font-weight: 700;">
               <span class="icon">🎛️</span> เมนูส่วนกลาง
             </button>
-            <button id="btn-global-plan-setup" class="btn btn-ghost btn-sm" title="ตั้งค่าแผนการเล่น (Script Plan Builder)">
+            <button id="btn-global-plan-setup" class="btn btn-ghost btn-sm nc-aetheria-only" title="ตั้งค่าแผนการเล่น (Script Plan Builder)">
               <span class="icon">📜</span> Plan Script
             </button>
-            <button id="btn-open-presets-modal" class="btn btn-ghost btn-sm" title="ระบบ Save List จัดการการตั้งค่าส่วนกลาง (Presets & Profile Library)">
+            <button id="btn-open-presets-modal" class="btn btn-ghost btn-sm nc-aetheria-only" title="ระบบ Save List จัดการการตั้งค่าส่วนกลาง (Presets & Profile Library)">
               <span class="icon">💾</span> Save List
             </button>
-            <button id="btn-import-profile-global" class="btn btn-ghost btn-sm" title="นำเข้าโปรไฟล์หรือตั้งค่า (Import Profile / Presets)">
-              <span class="icon">📥</span> Import
+            <button id="btn-import-profile-global" class="btn btn-ghost btn-sm" title="นำเข้ารหัส ID / Password (.txt) หรือโปรไฟล์สำรอง (.json)">
+              <span class="icon">📥</span> Import รหัส
             </button>
-            <button id="btn-export-profile-global" class="btn btn-ghost btn-sm" title="ส่งออกโปรไฟล์ทั้งหมด (Export All Profiles)">
+            <button id="btn-export-profile-global" class="btn btn-ghost btn-sm nc-aetheria-only" title="ส่งออกโปรไฟล์ทั้งหมด (Export All Profiles)">
               <span class="icon">📤</span> Export
             </button>
             <button id="btn-export-credentials-txt" class="btn btn-ghost btn-sm" title="ดาวน์โหลดรายการ ID / Password ของทุกโปรไฟล์เก็บเป็นไฟล์ .txt" style="border: 1px solid rgba(52, 211, 153, 0.45); background: rgba(16, 185, 129, 0.12); color: #6ee7b7; font-weight: 700;">
@@ -1210,7 +1218,7 @@
 
         <div class="form-group">
           <label>ชื่อจอ / โปรไฟล์ (Profile Name):</label>
-          <input type="text" id="form-name" required placeholder="เช่น Hunter 01, Mage Alt" class="form-input">
+          <input type="text" id="form-name" required placeholder="เช่น จอที่ 1, ตัวหลัก 01" class="form-input">
         </div>
 
         <div class="form-row">
@@ -1221,7 +1229,7 @@
           <div class="form-group">
             <label>รหัสผ่าน (Password):</label>
             <div class="pf-pass">
-              <input type="password" id="form-password" placeholder="เว้นว่าง = สมัครบัญชีใหม่ให้" class="form-input" autocomplete="new-password">
+              <input type="text" id="form-password" placeholder="เว้นว่าง = สมัครบัญชีใหม่ให้" class="form-input" autocomplete="off">
               <button type="button" class="btn btn-secondary btn-sm" id="form-password-eye" title="แสดง/ซ่อนรหัสผ่าน">👁</button>
             </div>
           </div>
@@ -1336,16 +1344,16 @@
     <div class="modal-card" style="max-width: 580px;">
       <div class="modal-header">
         <div>
-          <h3>📥 นำเข้าโปรไฟล์ / คอนฟิก (Import Profile / Presets)</h3>
-          <span style="font-size: 11px; color: #94a3b8;">รองรับทั้ง 1 โปรไฟล์ หรือหลายโปรไฟล์พร้อมกัน (Array) นำเข้าสู่ระบบ Save List ส่วนกลาง</span>
+          <h3>📥 นำเข้ารหัส / โปรไฟล์สำรอง (.txt / .json)</h3>
+          <span style="font-size: 11px; color: #94a3b8;">รองรับไฟล์รหัส .txt (รูปแบบ ID / Password) หรือไฟล์สำรองโปรไฟล์ (.json) เพื่อกู้คืนและสร้างจอเกม</span>
         </div>
         <button class="modal-close" id="import-modal-close-btn">&times;</button>
       </div>
 
       <form id="import-profile-form">
         <div class="form-group" style="margin-top: 12px;">
-          <label>ชื่อโปรไฟล์ส่วนกลาง (Preset Name):</label>
-          <input type="text" id="import-preset-name" placeholder="เช่น Archer ฟาร์มซากโบราณสถาน 24h" class="form-input" value="โปรไฟล์นำเข้าส่วนกลาง">
+          <label>ชื่อชุดนำเข้า / โปรไฟล์สำรอง:</label>
+          <input type="text" id="import-preset-name" placeholder="เช่น Nightcamp ชุดที่ 1" class="form-input" value="นำเข้าโปรไฟล์ Nightcamp">
         </div>
 
         <div class="form-group">
@@ -1356,12 +1364,12 @@
               <input type="file" id="import-file-input" accept=".json,.txt,application/json,text/plain" style="display: none;">
             </label>
           </div>
-          <textarea id="import-json-textarea" required placeholder="วางโค้ด JSON จากการ Export ที่นี่ (รองรับทั้ง Object เดี่ยว หรือ Array หลายโปรไฟล์)..." style="width: 100%; height: 200px; box-sizing: border-box; background: #0f172a; border: 1px solid #475569; border-radius: 6px; color: #38bdf8; font-family: 'JetBrains Mono', 'Consolas', monospace; font-size: 11px; padding: 10px; resize: vertical; line-height: 1.4; outline: none;"></textarea>
+          <textarea id="import-json-textarea" required placeholder="วางข้อมูล ID / Password จากไฟล์ .txt หรือโค้ด JSON สำรองที่นี่..." style="width: 100%; height: 200px; box-sizing: border-box; background: #0f172a; border: 1px solid #475569; border-radius: 6px; color: #38bdf8; font-family: 'JetBrains Mono', 'Consolas', monospace; font-size: 11px; padding: 10px; resize: vertical; line-height: 1.4; outline: none;"></textarea>
         </div>
 
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" id="import-modal-cancel-btn">ยกเลิก</button>
-          <button type="submit" class="btn btn-primary" id="import-modal-submit-btn">💾 บันทึกเข้า Save List ส่วนกลาง</button>
+          <button type="submit" class="btn btn-primary" id="import-modal-submit-btn">💾 นำเข้าข้อมูล</button>
         </div>
       </form>
     </div>
@@ -1716,28 +1724,18 @@
     </div>
   </div>
 
-  <script src="image_board_solver.js?v=4.53.35"></script>
-  <script src="app.js?v=4.63.14"></script>
-  <script src="patcher_module.js?v=4.63.11"></script>
-  <script src="builder_module.js?v=4.53.5"></script>
-  <script src="gear_builder.js?v=4.61.1"></script>
-  <script src="inventory_market.js?v=4.63.15"></script>
-  <script src="bot_update.js?v=4.56.1"></script>
-  <script src="config_copy.js?v=4.50.5"></script>
-  <script src="party_manager.js?v=4.56.1"></script>
-  <script src="premium_manager.js?v=4.62.10"></script>
-  <script src="card_manager.js?v=4.63.10"></script>
-  <script src="market_overview.js?v=4.56.1"></script>
-  <script src="market_sniper.js?v=4.62.1"></script>
-  <script src="guild_manager.js?v=4.56.1"></script>
-  <script src="jail_manager.js?v=4.56.1"></script>
-  <script src="device_manager.js?v=4.63.14"></script>
-  <script src="fleet_dashboard.js?v=4.63.8"></script>
-  <script src="fleet_zeny.js?v=4.63.13"></script>
-  <script src="support_chat.js?v=4.60.0.1"></script>
-  <script src="tower_manager.js?v=4.63.5.1"></script>
-  <script src="announcements.js?v=4.63.6.1"></script>
-  <script src="update_log.js?v=4.63.15"></script>
+  <script src="image_board_solver.js?v=nc1.0.2"></script>
+  <script src="app.js?v=nc1.0.2"></script>
+  <script src="patcher_module.js?v=nc1.0.2"></script>
+  <script src="bot_update.js?v=nc1.0.2"></script>
+  <script src="config_copy.js?v=nc1.0.2"></script>
+  <script src="party_manager.js?v=nc1.0.2"></script>
+  <script src="jail_manager.js?v=nc1.0.2"></script>
+  <script src="device_manager.js?v=nc1.0.2"></script>
+  <script src="fleet_dashboard.js?v=nc1.0.2"></script>
+  <script src="support_chat.js?v=nc1.0.2"></script>
+  <script src="announcements.js?v=nc1.0.2"></script>
+  <script src="update_log.js?v=nc1.0.2"></script>
   <!-- FLOATING IN-GAME BOT HUDS CONTAINER -->
   <div id="web-huds-container"></div>
 
