@@ -619,7 +619,7 @@
             <button id="btn-open-central-bot-menu" class="btn btn-ghost btn-sm" title="เปิดเมนูส่วนกลาง (Master Bot Menu) — คุม START/STOP ทุกจอ พักกราฟิก และตรวจสอบ Runtime" style="border: 1px solid rgba(250, 204, 21, 0.45); background: linear-gradient(135deg, rgba(250, 204, 21, 0.16), rgba(245, 158, 11, 0.08)); color: #fde68a; font-weight: 700;">
               <span class="icon">🎛️</span> เมนูส่วนกลาง
             </button>
-            <button id="btn-global-plan-setup" class="btn btn-ghost btn-sm nc-aetheria-only" title="ตั้งค่าแผนการเล่น (Script Plan Builder)">
+            <button id="btn-global-plan-setup" class="btn btn-ghost btn-sm" title="ตั้งค่าแผนการเล่น & Smart Auto-Quest (Nightcamp Plan Script Builder)" style="border: 1px solid rgba(56, 189, 248, 0.45); background: linear-gradient(135deg, rgba(56, 189, 248, 0.16), rgba(168, 85, 247, 0.1)); color: #bae6fd; font-weight: 700;">
               <span class="icon">📜</span> Plan Script
             </button>
             <button id="btn-open-presets-modal" class="btn btn-ghost btn-sm nc-aetheria-only" title="ระบบ Save List จัดการการตั้งค่าส่วนกลาง (Presets & Profile Library)">
@@ -1076,11 +1076,14 @@
 
         <div id="plan-live-status" class="pl-status"><span class="pl-muted">⏳ กำลังอ่านสถานะ Plan Script ของจอนี้...</span></div>
 
-        <!-- Toolbar: Add, Import, Export -->
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-          <div style="display: flex; gap: 8px;">
+        <!-- Toolbar: Add, Seed Example, Import, Export -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
             <button type="button" class="btn btn-primary btn-sm" id="btn-create-new-plan" style="padding: 6px 14px; font-weight: 600;">
-              <span>➕</span> เพิ่ม Plan Profile ใหม่
+              <span>➕</span> สร้าง Plan ใหม่ (ปรับแต่งเอง)
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" id="btn-seed-example-plan" style="padding: 6px 12px; font-size: 11.5px; font-weight: 600; border-color: rgba(52, 211, 153, 0.45); background: rgba(16, 185, 129, 0.14); color: #6ee7b7;" title="สร้างหรือรีเซ็ตแผนตัวอย่าง Nightcamp Lv.1-50 (Auto-Quest + เปลี่ยนอาชีพ + ย้ายแมพฟาร์ม) เพื่อใช้เป็นต้นแบบปรับแต่งต่อได้ทันที">
+              <span>🌱</span> โหลดแผนตัวอย่าง (Lv.1–50)
             </button>
           </div>
           <div style="display: flex; gap: 8px;">
@@ -1129,60 +1132,77 @@
           </div>
         </div>
 
-        <!-- Class Progression & Build Config Bar (ระบบเลือกสายอาชีพและ Build สกิล/สเตตัส) -->
-        <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 8px; padding: 10px 14px; margin-top: 10px; display: flex; flex-direction: column; gap: 8px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
-            <!-- Left: Class 1 & Class 2 Selectors -->
-            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-              <label class="pl-switch pe-autojob" title="เปิด = บอทเปลี่ยนอาชีพเองตาม Class 1/2 และ Job Lv. ที่ตั้ง · ปิด = เปลี่ยนเฉพาะตอนที่มี Action 'เปลี่ยนอาชีพ' ในเงื่อนไขเลเวล">
-                <input type="checkbox" id="plan-editor-autojob"><span></span><b>เปลี่ยนอาชีพอัตโนมัติ</b>
+        <!-- Class Progression & Build Config Bar (ระบบเลือกสายอาชีพและ Build สกิล/สเตตัส Nightcamp) -->
+        <div style="background: rgba(15, 23, 42, 0.78); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 10px; padding: 10px 14px; margin-top: 10px; display: flex; flex-direction: column; gap: 8px;">
+          <!-- Row 1: Smart Switches + Skill/Stat Builder Buttons -->
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.07);">
+            <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+              <label class="pl-switch pe-autojob" title="เปิด = บอทช่วยทำเควสหลัก (MQ) และบทเรียน (L1-L36) ให้อัตโนมัติ พร้อมแก้จุดค้างของเกม (กดข้ามการ์ตูนเนื้อเรื่อง, รับ/ส่งเควสทันที, ซื้อยา/ขายของ/ตีบวก/ทำอาหาร/นั่งกองไฟ/อัปสเตตัสตามบทเรียน)">
+                <input type="checkbox" id="plan-editor-autoquest" checked><span></span><b style="color:#6ee7b7;">🧭 Smart Auto-Quest (แก้เควสค้างอัตโนมัติ)</b>
               </label>
-              <label class="pl-switch pe-autojob" title="ถ้าในกระเป๋ามีเจมชื่อเดียวกับที่ใส่อยู่แต่ % สูงกว่า (เช่น Mana Gem (Skill) 3% → 5%) บอทจะเปลี่ยนให้เอง">
+              <label class="pl-switch pe-autojob" title="เปิด = บอทเปลี่ยนอาชีพเองทันทีเมื่อถึง Job Lv. ที่ตั้ง (Class 1 ที่ Job 10, Class 2 ที่ Job 50 และ Class 3 ที่ Base 80 / Job 50)">
+                <input type="checkbox" id="plan-editor-autojob" checked><span></span><b style="color:#7dd3fc;">⚔️ เปลี่ยนอาชีพอัตโนมัติ</b>
+              </label>
+              <label class="pl-switch pe-autojob" title="เปิด = บอทอัป Stat และ Skill (พร้อมใส่ช่องสกิลอัตโนมัติ) ตามลำดับที่ตั้งไว้ในปุ่มจัดการสกิล/สเตตัสด้านขวา">
+                <input type="checkbox" id="plan-editor-autostat" checked><span></span><b style="color:#d8b4fe;">⚡ อัป Stat/Skill อัตโนมัติ</b>
+              </label>
+              <label class="pl-switch pe-autojob" style="display:none;">
                 <input type="checkbox" id="plan-editor-autogem"><span></span><b>อัปเกรดเจมอัตโนมัติ</b>
               </label>
-              <label class="pl-switch pe-autojob" title="ถึง Base Lv.15 บอทจะกลับเมืองไปรับไข่สัตว์เลี้ยงจาก Event Lily แล้วกดใช้ให้ (ครั้งเดียวต่อตัวละคร)">
+              <label class="pl-switch pe-autojob" style="display:none;">
                 <input type="checkbox" id="plan-editor-eventpet"><span></span><b>รับสัตว์เลี้ยง Event (Lv.15)</b>
               </label>
-              <div style="display: flex; align-items: center; gap: 6px;">
-                <span style="font-size: 11px; font-weight: 700; color: #38bdf8;">🏹 Class 1:</span>
-                <select id="plan-editor-class1" class="form-select" style="font-size: 11.5px; padding: 4px 8px; width: auto; font-weight: 600;">
-                  <option value="archer">Archer (นักธนู)</option>
-                  <option value="swordsman">Swordsman (นักดาบ)</option>
-                  <option value="mage">Mage (นักเวท)</option>
-                  <option value="thief">Thief (โจร)</option>
-                  <option value="acolyte">Acolyte (นักบวชฝึกหัด)</option>
-                  <option value="merchant">Merchant (พ่อค้า)</option>
-                </select>
-                <label class="pe-joblv" title="Novice จะเปลี่ยนเป็น Class 1 เมื่อ Job Lv. ถึงค่านี้ (และเกมเปิดให้เปลี่ยนแล้ว)">เปลี่ยนที่ Job Lv.<input type="number" id="plan-editor-class1-job" min="1" max="99" value="10"></label>
-              </div>
-
-              <span style="color: #64748b; font-size: 12px;">➔</span>
-
-              <div style="display: flex; align-items: center; gap: 6px;">
-                <span style="font-size: 11px; font-weight: 700; color: #a855f7;">👑 Class 2:</span>
-                <select id="plan-editor-class2" class="form-select" style="font-size: 11.5px; padding: 4px 8px; width: auto; font-weight: 600;">
-                  <!-- Dynamic options populated in app.js -->
-                </select>
-                <label class="pe-joblv" title="เกมให้เปลี่ยน Class 2 ได้ตั้งแต่ Job 40 แต่รอถึง Job 50 จะได้แต้มสกิลเพิ่มอีก 10 แต้ม">เปลี่ยนที่ Job Lv.<input type="number" id="plan-editor-class2-job" min="1" max="99" value="50"></label>
-              </div>
             </div>
 
             <!-- Right: Open Skill & Stat Builder Buttons -->
-            <div style="display: flex; align-items: center; gap: 8px;">
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
               <button type="button" class="btn btn-secondary btn-sm" id="btn-open-skill-builder" style="padding: 5px 12px; font-size: 11.5px; font-weight: 600; border-color: rgba(168, 85, 247, 0.4); background: rgba(168, 85, 247, 0.12); color: #d8b4fe;">
                 <span>⚡</span> จัดการสกิล (Skill Build)
                 <span id="plan-skill-count-badge" class="badge" style="background: rgba(168, 85, 247, 0.3); color: #fff; font-size: 10px; margin-left: 4px;">0 แต้ม</span>
               </button>
               <button type="button" class="btn btn-secondary btn-sm" id="btn-open-stat-builder" style="padding: 5px 12px; font-size: 11.5px; font-weight: 600; border-color: rgba(56, 189, 248, 0.4); background: rgba(56, 189, 248, 0.12); color: #7dd3fc;">
                 <span>📊</span> จัดการสเตตัส (Stat Build)
-                <span id="plan-stat-summary-badge" class="badge" style="background: rgba(56, 189, 248, 0.3); color: #fff; font-size: 10px; margin-left: 4px;">Default</span>
+                <span id="plan-stat-summary-badge" style="background: rgba(56, 189, 248, 0.3); color: #fff; font-size: 10px; padding: 2px 6px; border-radius: 5px; margin-left: 4px;">Default</span>
               </button>
-              <button type="button" class="btn btn-secondary btn-sm" id="btn-open-gear-builder" style="padding: 5px 12px; font-size: 11.5px; font-weight: 600; border-color: rgba(34, 197, 94, 0.45); background: rgba(34, 197, 94, 0.12); color: #86efac;" title="เซ็ตอุปกรณ์ที่บอทจะซื้อ / สวม / ตีบวกตามลำดับเมื่อเงินถึง">
+              <button type="button" class="btn btn-secondary btn-sm" id="btn-open-gear-builder" style="display: none; padding: 5px 12px; font-size: 11.5px; font-weight: 600;">
                 <span>🛡️</span> เซ็ตอุปกรณ์ (Gear)
-                <span id="plan-gear-count-badge" class="badge" style="background: rgba(34, 197, 94, 0.18); color: #fff; font-size: 10px; margin-left: 4px;">0 รายการ</span>
+                <span id="plan-gear-count-badge" class="badge">0 รายการ</span>
               </button>
             </div>
           </div>
+
+          <!-- Row 2: Class 1 -> Class 2 -> Class 3 Selectors -->
+          <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span style="font-size: 11.5px; font-weight: 700; color: #38bdf8;">⚔️ Class 1:</span>
+              <select id="plan-editor-class1" class="form-select" style="font-size: 11.5px; padding: 4px 8px; width: auto; font-weight: 600;">
+                <option value="archer">🏹 นักธนู (Archer)</option>
+                <option value="knight">🛡️ อัศวิน (Knight)</option>
+                <option value="mage">🔮 จอมเวท (Mage)</option>
+                <option value="rogue">🗡️ โจร (Rogue)</option>
+                <option value="priest">✨ พระ (Priest)</option>
+              </select>
+              <label class="pe-joblv" title="นักเดินทาง (Traveler) จะเปลี่ยนเป็น Class 1 เมื่อ Job Lv. ถึงค่านี้ (ค่ามาตรฐานของเกมคือ Job Lv.10 / เควส MQ08)">Job Lv.<input type="number" id="plan-editor-class1-job" min="1" max="50" value="10"></label>
+            </div>
+
+            <span style="color: #64748b; font-size: 12px;">➔</span>
+
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span style="font-size: 11.5px; font-weight: 700; color: #a855f7;">👑 Class 2:</span>
+              <select id="plan-editor-class2" class="form-select" style="font-size: 11.5px; padding: 4px 8px; width: auto; font-weight: 600;">
+                <!-- Dynamic options populated in builder_module.js -->
+              </select>
+              <label class="pe-joblv" title="Class 1 จะเลื่อนขั้นเป็น Class 2 เมื่อถึง Job Lv.50">Job Lv.<input type="number" id="plan-editor-class2-job" min="1" max="50" value="50"></label>
+            </div>
+
+            <span style="color: #64748b; font-size: 12px;">➔</span>
+
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span style="font-size: 11px; font-weight: 700; color: #fbbf24;">🌟 Class 3 (Lv.80/Job 50):</span>
+              <span id="plan-editor-class3-badge" style="font-size: 11px; font-weight: 700; color: #fde68a; background: rgba(245, 158, 11, 0.16); border: 1px solid rgba(251, 191, 36, 0.35); border-radius: 6px; padding: 3px 8px;">พรานจันทร์เงียบ (Moonsniper)</span>
+            </div>
+          </div>
+
           <div style="font-size: 10.5px; color: #94a3b8; display: flex; align-items: center; gap: 6px;">
             <span id="plan-autojob-hint"></span>
           </div>
@@ -1740,18 +1760,19 @@
     </div>
   </div>
 
-  <script src="image_board_solver.js?v=nc1.1.1"></script>
-  <script src="app.js?v=nc1.1.1"></script>
-  <script src="patcher_module.js?v=nc1.1.1"></script>
-  <script src="bot_update.js?v=nc1.1.1"></script>
-  <script src="config_copy.js?v=nc1.1.1"></script>
-  <script src="party_manager.js?v=nc1.1.1"></script>
-  <script src="jail_manager.js?v=nc1.1.1"></script>
-  <script src="device_manager.js?v=nc1.1.1"></script>
-  <script src="fleet_dashboard.js?v=nc1.1.1"></script>
-  <script src="support_chat.js?v=nc1.1.1"></script>
-  <script src="announcements.js?v=nc1.1.1"></script>
-  <script src="update_log.js?v=nc1.1.1"></script>
+  <script src="image_board_solver.js?v=nc1.2.0"></script>
+  <script src="app.js?v=nc1.2.0"></script>
+  <script src="builder_module.js?v=nc1.2.0"></script>
+  <script src="patcher_module.js?v=nc1.2.0"></script>
+  <script src="bot_update.js?v=nc1.2.0"></script>
+  <script src="config_copy.js?v=nc1.2.0"></script>
+  <script src="party_manager.js?v=nc1.2.0"></script>
+  <script src="jail_manager.js?v=nc1.2.0"></script>
+  <script src="device_manager.js?v=nc1.2.0"></script>
+  <script src="fleet_dashboard.js?v=nc1.2.0"></script>
+  <script src="support_chat.js?v=nc1.2.0"></script>
+  <script src="announcements.js?v=nc1.2.0"></script>
+  <script src="update_log.js?v=nc1.2.0"></script>
   <!-- FLOATING IN-GAME BOT HUDS CONTAINER -->
   <div id="web-huds-container"></div>
 

@@ -1826,6 +1826,10 @@ function buildProfileCard(p) {
                   <span class="cm-icon">🎮</span>
                   <span>เปิดเมนูบอท Nightcamp</span>
                 </button>
+                <button type="button" class="card-menu-item" onclick="closeCardMenu(); openScriptPlanModal('${p.id}')">
+                  <span class="cm-icon">📜</span>
+                  <span>ตั้งค่า Plan Script & Auto-Quest</span>
+                </button>
                 <button type="button" class="card-menu-item" onclick="closeCardMenu(); openEditModal('${p.id}')">
                   <span class="cm-icon">⚙️</span>
                   <span>แก้ไขการตั้งค่าโปรไฟล์</span>
@@ -1982,6 +1986,9 @@ function buildProfileCard(p) {
           </button>`}
           <button class="btn btn-sm btn-bot-menu" onclick="openWebBotHUD('${p.id}')" title="เปิดหน้าต่างเมนูบอท (หน้าตาเหมือนในเกม) สำหรับ Session นี้">
             <span>🎮</span> เมนูบอท
+          </button>
+          <button class="btn btn-sm btn-ghost" onclick="openScriptPlanModal('${p.id}')" title="ตั้งค่า Plan Script & Smart Auto-Quest ของจอนี้" style="border: 1px solid rgba(56, 189, 248, 0.38); background: rgba(56, 189, 248, 0.1); color: #7dd3fc; font-weight: 700; padding: 5px 8px;">
+            <span>📜</span> Plan
           </button>
         </div>
       </div>
@@ -8054,6 +8061,23 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
       <button type="button" class="p-btn" id="p-btn-nc-reload" style="margin:0; font-size:10.5px; padding:6px; border-radius:6px; background:rgba(245,158,11,0.14); border:1px solid rgba(251,191,36,0.4); color:#fde68a; font-weight:700; cursor:pointer;">🔄 รีเฟรชจอเกม</button>
       <button type="button" class="p-btn" id="p-btn-nc-edit" style="margin:0; font-size:10.5px; padding:6px; border-radius:6px; background:rgba(148,163,184,0.14); border:1px solid rgba(148,163,184,0.35); color:#e2e8f0; font-weight:700; cursor:pointer;">⚙️ แก้ไขโปรไฟล์</button>
     </div>
+
+    <div class="p-card" style="border: 1px solid rgba(168, 85, 247, 0.42); background: linear-gradient(145deg, rgba(30, 17, 56, 0.65), rgba(15, 23, 42, 0.85)); border-radius: 7px; padding: 8px; display:flex; flex-direction:column; gap:5px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
+        <label style="display:flex; align-items:center; gap:5px; font-size:10.5px; font-weight:700; color:#e9d5ff; cursor:pointer;">
+          <input type="checkbox" id="p-nc-plan-enabled" ${state?.planScriptEnabled !== false ? 'checked' : ''} style="accent-color:#a855f7;">
+          <span>📜 Plan Script & Smart Auto-Quest</span>
+        </label>
+        <button type="button" id="p-btn-nc-open-plan" style="padding:3px 8px; font-size:10px; font-weight:700; border-radius:5px; border:1px solid rgba(56,189,248,0.45); background:rgba(14,165,233,0.22); color:#7dd3fc; cursor:pointer;">✏️ จัดการแผน</button>
+      </div>
+      <div style="font-size:10px; color:#cbd5e1; display:flex; justify-content:space-between; gap:6px;">
+        <span>แผนที่ใช้:</span>
+        <b id="p-nc-plan-name" style="color:#38bdf8; max-width:170px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHTML(state?.planName || '🌱 แผนตัวอย่าง Lv.1–50')}</b>
+      </div>
+      <div id="p-nc-plan-task" style="font-size:9.5px; color:#6ee7b7; background:rgba(2,6,23,0.55); border:1px solid rgba(255,255,255,0.07); border-radius:5px; padding:4px 6px;">
+        ${escapeHTML(state?.planTask || '🧭 พร้อมทำเควสหลัก + เปลี่ยนอาชีพ + ย้ายแมพตามแผนเมื่อกด START BOT')}
+      </div>
+    </div>
     `}
 
     <div class="p-card" style="border: 1px solid rgba(56, 189, 248, 0.32); background: rgba(2, 6, 23, 0.65); border-radius: 7px; padding: 8px; display:flex; flex-direction:column; gap:6px;">
@@ -8396,6 +8420,22 @@ async function openWebBotHUD(profileId) {
   const editBtn = hudEl.querySelector('#p-btn-nc-edit');
   if (editBtn) editBtn.onclick = () => openEditModal(profileId);
 
+  const openPlanBtn = hudEl.querySelector('#p-btn-nc-open-plan');
+  if (openPlanBtn) openPlanBtn.onclick = () => openScriptPlanModal(profileId);
+
+  const planEnableCb = hudEl.querySelector('#p-nc-plan-enabled');
+  if (planEnableCb) {
+    planEnableCb.onchange = async () => {
+      try {
+        await fetch(`${API_BASE}/api/profiles/${encodeURIComponent(profileId)}/plan-enabled`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ enabled: planEnableCb.checked })
+        });
+      } catch (_) {}
+    };
+  }
+
   const passToggle = hudEl.querySelector('#p-auth-toggle-pass');
   const passInp = hudEl.querySelector('#p-auth-pass');
   if (passToggle && passInp) {
@@ -8568,6 +8608,15 @@ function populateWebHudData(profileId, data) {
       : '-- / --';
   }
 
+  const planNameEl = hud.querySelector('#p-nc-plan-name');
+  if (planNameEl && st.planName) planNameEl.innerText = st.planName;
+  const planTaskEl = hud.querySelector('#p-nc-plan-task');
+  if (planTaskEl && st.planTask) planTaskEl.innerText = st.planTask;
+  const planEnableCb = hud.querySelector('#p-nc-plan-enabled');
+  if (planEnableCb && typeof st.planScriptEnabled === 'boolean' && document.activeElement !== planEnableCb) {
+    planEnableCb.checked = st.planScriptEnabled;
+  }
+
   const btn = hud.querySelector('#p-btn-toggle-bot');
   if (btn) {
     btn.disabled = !isOnline;
@@ -8693,284 +8742,403 @@ async function updateActiveWebHuds() {
 }
 
 // ==========================================
-// SCRIPT PLAN WORKFLOW BUILDER (n8n-style)
+// NIGHTCAMP SCRIPT PLAN WORKFLOW BUILDER (n8n-style)
 // ==========================================
 let currentPlanProfiles = [];
 let currentPlanAssignments = {};
 let activePlanClientProfileId = null;
 let activeEditingPlan = null;
 
-// Same map values as the in-game HUD select (the bot walks by these names)
+// Real Nightcamp maps (value = mapId in NC.MAPS, label = Thai name + level range)
 const PLAN_MAP_OPTIONS = [
   {
-    "group": "🏰 เขตเมือง & พื้นที่ปลอดภัย",
-    "maps": [
-      {
-        "value": "เมืองหลวงโซลเฮเวน",
-        "label": "เมืองหลวงโซลเฮเวน (ปลอดภัย)"
-      },
-      {
-        "value": "ตลาดคาราวาน",
-        "label": "ตลาดคาราวาน (ปลอดภัย)"
-      }
+    group: "🏕️ เขตค่าย & พื้นที่ปลอดภัย (Safe Zone)",
+    maps: [
+      { value: "camp", label: "ค่ายกลางป่า (Camp · ปลอดภัย)" },
+      { value: "homefarm", label: "ฟาร์มหิ่งห้อย (Homefarm · ปลูกผัก/คราฟต์)" }
     ]
   },
   {
-    "group": "🌱 แมพระดับเริ่มต้น (Lv. 1-12)",
-    "maps": [
-      {
-        "value": "สวนนักผจญภัยมือใหม่",
-        "label": "สวนนักผจญภัยมือใหม่ (Lv. 1-3)"
-      },
-      {
-        "value": "ทุ่งโคลเวอร์",
-        "label": "ทุ่งโคลเวอร์ (Lv. 1-5)"
-      },
-      {
-        "value": "ทุ่งหญ้าตะวันออก",
-        "label": "ทุ่งหญ้าตะวันออก (Lv. 1-5)"
-      },
-      {
-        "value": "ไร่ซันเกรน",
-        "label": "ไร่ซันเกรน (Lv. 1-6)"
-      },
-      {
-        "value": "ถนนต้นหลิว",
-        "label": "ถนนต้นหลิว (Lv. 6-12)"
-      }
+    group: "🌱 แมพระดับเริ่มต้น (Lv. 1–20)",
+    maps: [
+      { value: "farm", label: "ไร่ฟักทอง (Lv. 1–10) [farm]" },
+      { value: "melonfield", label: "ไร่แตงโมใต้จันทร์ (Lv. 3–10) [melonfield]" },
+      { value: "windpump", label: "ลานกังหันสูบน้ำ (Lv. 3–10) [windpump]" },
+      { value: "quarry1", label: "เหมืองหินริมทุ่ง ชั้น 1 (Lv. 5–12) [quarry1]" },
+      { value: "meadow", label: "ทุ่งหญ้าแสงจันทร์ (Lv. 8–18) [meadow]" },
+      { value: "batcave", label: "ถ้ำค้างคาวริมทุ่ง (Lv. 8–16) [batcave]" },
+      { value: "farm2", label: "ไร่ร้างหลังเขา (Lv. 10–18) [farm2]" },
+      { value: "cornmaze", label: "เขาวงกตข้าวโพด (Lv. 10–18) [cornmaze]" },
+      { value: "quarry2", label: "เหมืองหินริมทุ่ง ชั้น 2 (Lv. 12–18) [quarry2]" },
+      { value: "marsh", label: "บึงกบลำธารใส (Lv. 12–24) [marsh]" },
+      { value: "meadow2", label: "เนินดอกไม้กลางคืน (Lv. 14–22) [meadow2]" },
+      { value: "antmine1", label: "เหมืองมด ชั้น B1 (Lv. 15–25) [antmine1]" },
+      { value: "batnest", label: "รังราชาค้างคาว (Lv. 16–22) [batnest]" }
     ]
   },
   {
-    "group": "⚔️ แมพยอดนิยมระดับกลาง (Lv. 12-35)",
-    "maps": [
-      {
-        "value": "ทะเลสาบอาซูร์",
-        "label": "ทะเลสาบอาซูร์ (Lv. 12-20)"
-      },
-      {
-        "value": "ป่ามูนลีฟ",
-        "label": "ป่ามูนลีฟ (Lv. 14-22)"
-      },
-      {
-        "value": "เส้นทางก็อบลิน",
-        "label": "เส้นทางก็อบลิน (Lv. 16-20)"
-      },
-      {
-        "value": "เหมืองคริสตัลเก่า",
-        "label": "เหมืองคริสตัลเก่า (Lv. 18-28)"
-      },
-      {
-        "value": "ค่ายออร์ค",
-        "label": "ค่ายออร์ค (Lv. 22-32)"
-      },
-      {
-        "value": "ถ้ำเอมเบอร์",
-        "label": "ถ้ำเอมเบอร์ (Lv. 22-32)"
-      },
-      {
-        "value": "ที่ราบสูงเกล",
-        "label": "ที่ราบสูงเกล (Lv. 25-35)"
-      }
+    group: "🌲 แมพช่วงต้น-กลาง (Lv. 18–45)",
+    maps: [
+      { value: "graveyard", label: "เนินสุสานโบสถ์ร้าง (Lv. 18–30) [graveyard]" },
+      { value: "quarry3", label: "เหมืองหินริมทุ่ง ชั้น 3 (Lv. 18–25) [quarry3]" },
+      { value: "marsh2", label: "ต้นลำธาร (Lv. 20–28) [marsh2]" },
+      { value: "woods", label: "ป่าเห็ดเรืองแสง (Lv. 25–40) [woods]" },
+      { value: "antmine2", label: "เหมืองมด ชั้น B2 (Lv. 25–38) [antmine2]" },
+      { value: "marsh3", label: "น้ำตกหิ่งห้อย (Lv. 26–34) [marsh3]" },
+      { value: "graveyard2", label: "สุสานเก่าหลังเนิน (Lv. 28–38) [graveyard2]" },
+      { value: "road", label: "ถนนผู้อพยพ (Lv. 32–42) [road]" },
+      { value: "crypt1", label: "สุสานใต้ดิน ชั้น 1 (Lv. 34–44) [crypt1]" },
+      { value: "burnt", label: "ป่าไหม้ถ่านคุ (Lv. 35–45) [burnt]" },
+      { value: "salt", label: "ด่านสะพานเกลือ (Lv. 36–48) [salt]" },
+      { value: "woods2", label: "ป่าเห็ดชั้นใน (Lv. 36–46) [woods2]" },
+      { value: "antmine3", label: "เหมืองมด ชั้น B3 (Lv. 38–50) [antmine3]" }
     ]
   },
   {
-    "group": "🏔️ แมพระดับกลางสูง (Lv. 30-60)",
-    "maps": [
-      {
-        "value": "แอ่งเวอร์แดนท์",
-        "label": "แอ่งเวอร์แดนท์ (Lv. 30-40)"
-      },
-      {
-        "value": "ช่องเขาฟรอสต์พีค",
-        "label": "ช่องเขาฟรอสต์พีค (Lv. 35-45)"
-      },
-      {
-        "value": "ชายฝั่งปะการัง",
-        "label": "ชายฝั่งปะการัง (Lv. 40-50)"
-      },
-      {
-        "value": "ซากโบราณสถาน",
-        "label": "ซากโบราณสถาน (Lv. 45-55)"
-      },
-      {
-        "value": "สุสานเงา",
-        "label": "สุสานเงา (Lv. 50-60)"
-      }
+    group: "⛰️ แมพช่วงกลาง-สูง (Lv. 42–70)",
+    maps: [
+      { value: "wind", label: "ทุ่งลมหวีดหน้าผา (Lv. 42–52) [wind]" },
+      { value: "crypt2", label: "สุสานใต้ดิน ชั้น 2 (Lv. 44–52) [crypt2]" },
+      { value: "wind2", label: "เกาะหินลอยลม (Lv. 44–54) [wind2]" },
+      { value: "peak", label: "ยอดเขาหมอกเหนือ (Lv. 46–58) [peak]" },
+      { value: "swamp", label: "หนองพิษป่าชายเลน (Lv. 50–62) [swamp]" },
+      { value: "owl1", label: "หอดูดาวนกฮูก ชั้น 1 (Lv. 50–54) [owl1]" },
+      { value: "owl2", label: "หอดูดาวนกฮูก ชั้น 2 (Lv. 53–56) [owl2]" },
+      { value: "owl3", label: "หอดูดาวนกฮูก ชั้น 3 (Lv. 55–58) [owl3]" },
+      { value: "silver1", label: "ปล่องเงินลึก ชั้น B4 (Lv. 50–56) [silver1]" },
+      { value: "silver2", label: "ปล่องเงินลึก ชั้น B5 (Lv. 56–62) [silver2]" },
+      { value: "swamp2", label: "รากต้นแม่พิษ (Lv. 56–66) [swamp2]" },
+      { value: "canyon", label: "ผาหินแดง (Lv. 60–72) [canyon]" },
+      { value: "nroad", label: "เส้นทางขึ้นเหนือ (Lv. 60–72) [nroad]" },
+      { value: "meteor1", label: "ปล่องดาวตก ชั้น 1 (Lv. 60–66) [meteor1]" },
+      { value: "canyon2", label: "เหมืองลึกผลึกส้ม (Lv. 62–72) [canyon2]" },
+      { value: "roots1", label: "ถ้ำรากแม่พิษ B1 (Lv. 62–68) [roots1]" }
     ]
   },
   {
-    "group": "🔥 แมพระดับสูง & แดนอันตราย (Lv. 60-150)",
-    "maps": [
-      {
-        "value": "หนองพิษ",
-        "label": "หนองพิษ (Lv. 60-70)"
-      },
-      {
-        "value": "โบสถ์อเวจี",
-        "label": "โบสถ์อเวจี (Lv. 80-95)"
-      },
-      {
-        "value": "บึงรากเน่า",
-        "label": "บึงรากเน่า (Lv. 90-105)"
-      },
-      {
-        "value": "เนินทรายแผดเผา",
-        "label": "เนินทรายแผดเผา (Lv. 100-115)"
-      },
-      {
-        "value": "พีระมิดจมทราย",
-        "label": "พีระมิดจมทราย (Lv. 115-130)"
-      },
-      {
-        "value": "แกนลาวา",
-        "label": "แกนลาวา (Lv. 135-150)"
-      }
-    ]
-  },
-  {
-    "group": "❄️ ดินแดนรูน - โลกที่ 2 (Lv. 150-200)",
-    "maps": [
-      {
-        "value": "ดินแดนน้ำแข็ง",
-        "label": "ดินแดนน้ำแข็ง (Lv. 150-160)"
-      },
-      {
-        "value": "ทะเลสาบกระจกรูน",
-        "label": "ทะเลสาบกระจกรูน (Lv. 150-160 ⭐)"
-      },
-      {
-        "value": "ป่ารูนใต้",
-        "label": "ป่ารูนใต้ (Lv. 152-157 ⭐)"
-      },
-      {
-        "value": "ที่ราบศิลา",
-        "label": "ที่ราบศิลา (Lv. 155-165)"
-      },
-      {
-        "value": "ผาลอยรูนฟ้า",
-        "label": "ผาลอยรูนฟ้า (Lv. 160-170 ⭐)"
-      },
-      {
-        "value": "สุสานรูนโบราณ",
-        "label": "สุสานรูนโบราณ (Lv. 165-175)"
-      },
-      {
-        "value": "คุกใต้ดินรูน",
-        "label": "คุกใต้ดินรูน (Lv. 170-190)"
-      },
-      {
-        "value": "พฤกษารูนโลก",
-        "label": "พฤกษารูนโลก (Lv. 170-180 ⭐)"
-      },
-      {
-        "value": "ป่ารูนเรืองแสง",
-        "label": "ป่ารูนเรืองแสง (Lv. 175-185 ⭐)"
-      },
-      {
-        "value": "หุบสุสานมังกรรูน",
-        "label": "หุบสุสานมังกรรูน (Lv. 180-190 ⭐)"
-      },
-      {
-        "value": "รากรูนโลก",
-        "label": "รากรูนโลก (Lv. 190-200 ⭐)"
-      }
+    group: "🌋 แมพระดับสูง (Lv. 66–99)",
+    maps: [
+      { value: "meteor2", label: "ปล่องดาวตก ชั้น 2 (Lv. 66–72) [meteor2]" },
+      { value: "outer", label: "ย่านนอกกำแพง (Lv. 68–82) [outer]" },
+      { value: "volcano", label: "ภูเขาไฟหลับ (Lv. 70–82) [volcano]" },
+      { value: "canyon3", label: "ใจกลางหุบผา (Lv. 70–80) [canyon3]" },
+      { value: "raiderfort", label: "ป้อมโจรทะเลทรายร้าง (Lv. 70–80) [raiderfort]" },
+      { value: "meteor3", label: "ปล่องดาวตก ชั้น 3 (Lv. 72–78) [meteor3]" },
+      { value: "canal", label: "ย่านริมคลอง (Lv. 74–86) [canal]" },
+      { value: "lake", label: "ทะเลสาบหมอกเงา (Lv. 78–90) [lake]" },
+      { value: "ledger1", label: "หอบัญชีใต้วิหาร ชั้น 1 (Lv. 78–83) [ledger1]" },
+      { value: "meteor4", label: "ปล่องดาวตก ชั้น 4 (Lv. 78–84) [meteor4]" },
+      { value: "lavavent1", label: "ปล่องภูเขาไฟ ชั้น 1 (Lv. 80–90) [lavavent1]" },
+      { value: "ledger2", label: "หอบัญชีใต้วิหาร ชั้น 2 (Lv. 82–88) [ledger2]" },
+      { value: "meteor5", label: "ปล่องดาวตก ชั้น 5 (Lv. 84–90) [meteor5]" },
+      { value: "isle", label: "เกาะกลางทะเลสาบ (Lv. 84–92) [isle]" },
+      { value: "dark", label: "ป่าใต้ที่มืดสนิท (Lv. 86–96) [dark]" },
+      { value: "prime", label: "ป่าดึกดำบรรพ์ (Lv. 88–99) [prime]" },
+      { value: "lavavent2", label: "ปล่องภูเขาไฟ ชั้น 2 (Lv. 90–99) [lavavent2]" },
+      { value: "meteor6", label: "ปล่องดาวตก ชั้น 6 (Lv. 90–95) [meteor6]" },
+      { value: "cathedral", label: "ย่านวิหาร (Lv. 92–99) [cathedral]" },
+      { value: "meteor7", label: "ปล่องดาวตก ชั้น 7 (Lv. 95–99) [meteor7]" }
     ]
   }
 ];
 
-// Class ids as the game uses them (lowercase)
 const PLAN_CLASS_OPTIONS = [
-  {
-    "value": "novice",
-    "label": "Novice (โนวิซ)"
-  },
-  {
-    "value": "archer",
-    "label": "Archer (นักธนู)"
-  },
-  {
-    "value": "swordsman",
-    "label": "Swordsman (นักดาบ)"
-  },
-  {
-    "value": "mage",
-    "label": "Mage (นักเวท)"
-  },
-  {
-    "value": "thief",
-    "label": "Thief (โจร)"
-  },
-  {
-    "value": "acolyte",
-    "label": "Acolyte (นักบวชฝึกหัด)"
-  },
-  {
-    "value": "merchant",
-    "label": "Merchant (พ่อค้า)"
-  },
-  {
-    "value": "hunter",
-    "label": "Hunter (นักล่า)"
-  },
-  {
-    "value": "bard",
-    "label": "Bard (กวี)"
-  },
-  {
-    "value": "dancer",
-    "label": "Dancer (นักเต้น)"
-  },
-  {
-    "value": "knight",
-    "label": "Knight (อัศวิน)"
-  },
-  {
-    "value": "crusader",
-    "label": "Crusader (ครูเซเดอร์)"
-  },
-  {
-    "value": "wizard",
-    "label": "Wizard (จอมเวท)"
-  },
-  {
-    "value": "sage",
-    "label": "Sage (นักปราชญ์)"
-  },
-  {
-    "value": "assassin",
-    "label": "Assassin (นักฆ่า)"
-  },
-  {
-    "value": "rogue",
-    "label": "Rogue (โร้ก)"
-  },
-  {
-    "value": "priest",
-    "label": "Priest (พรีสต์)"
-  },
-  {
-    "value": "monk",
-    "label": "Monk (มองค์)"
-  },
-  {
-    "value": "blacksmith",
-    "label": "Blacksmith (ช่างตีเหล็ก)"
-  },
-  {
-    "value": "alchemist",
-    "label": "Alchemist (นักเล่นแร่แปรธาตุ)"
-  }
+  { value: "traveler", label: "🎒 นักเดินทาง (Traveler · เริ่มต้น)" },
+  { value: "novice", label: "🎒 นักเดินทาง (Traveler · เริ่มต้น)" },
+  // Class 1 (Job Lv.10)
+  { value: "archer", label: "🏹 [Class 1] นักธนู (Archer)" },
+  { value: "knight", label: "🛡️ [Class 1] อัศวิน (Knight)" },
+  { value: "mage", label: "🔮 [Class 1] จอมเวท (Mage)" },
+  { value: "rogue", label: "🗡️ [Class 1] โจร (Rogue)" },
+  { value: "priest", label: "✨ [Class 1] พระ (Priest)" },
+  // Class 2 - Archer (Job Lv.50)
+  { value: "ranger", label: "🏹 [Class 2] เรนเจอร์ (Ranger)" },
+  { value: "wolfhunter", label: "🐺 [Class 2] นักล่าหมาป่า (Wolf Hunter)" },
+  { value: "bard", label: "🎵 [Class 2] นักกวี (Bard)" },
+  { value: "gunslinger", label: "🔫 [Class 2] มือปืน (Gunslinger)" },
+  // Class 2 - Knight (Job Lv.50)
+  { value: "paladin", label: "🛡️ [Class 2] พาลาดิน (Paladin)" },
+  { value: "dragonknight", label: "🐉 [Class 2] อัศวินมังกร (Dragon Knight)" },
+  { value: "swordmaster", label: "⚔️ [Class 2] นักดาบ (Swordmaster)" },
+  { value: "berserker", label: "🩸 [Class 2] เบอร์เซิร์กเกอร์ (Berserker)" },
+  // Class 2 - Mage (Job Lv.50)
+  { value: "archmage", label: "🔮 [Class 2] อาร์คเมจ (Archmage)" },
+  { value: "warlock", label: "🏮 [Class 2] วอร์ล็อกตะเกียง (Warlock)" },
+  { value: "firemage", label: "🔥 [Class 2] จอมเวทไฟ (Fire Mage)" },
+  { value: "icemage", label: "❄️ [Class 2] จอมเวทน้ำแข็ง (Ice Mage)" },
+  // Class 2 - Rogue (Job Lv.50)
+  { value: "assassin", label: "🗡️ [Class 2] นักฆ่า (Assassin)" },
+  { value: "shinobi", label: "🥷 [Class 2] นินจา (Shinobi)" },
+  { value: "reaper", label: "🌙 [Class 2] ยมทูต (Reaper)" },
+  { value: "puppeteer", label: "🎎 [Class 2] นักเชิดหุ่น (Puppeteer)" },
+  // Class 2 - Priest (Job Lv.50)
+  { value: "bishop", label: "✨ [Class 2] บิชอป (Bishop)" },
+  { value: "monk", label: "👊 [Class 2] นักพรต (Monk)" },
+  { value: "lightkeeper", label: "🕯️ [Class 2] ผู้จุดตะเกียง (Lightkeeper)" },
+  { value: "wisp", label: "🧚 [Class 2] ผู้เลี้ยงดวงไฟ (Wisp)" },
+  // Class 3 (Base Lv.80 / Job Lv.50)
+  { value: "moonsniper", label: "🌟 [Class 3] พรานจันทร์เงียบ (Moonsniper)" },
+  { value: "packalpha", label: "🌟 [Class 3] จ่าฝูงจันทร์เต็มดวง (Pack Alpha)" },
+  { value: "maestro", label: "🌟 [Class 3] วาทยกรแห่งป่า (Maestro)" },
+  { value: "outlaw", label: "🌟 [Class 3] มือปืนเที่ยงคืน (Outlaw)" },
+  { value: "dawnwarden", label: "🌟 [Class 3] ผู้พิทักษ์รุ่งสาง (Dawn Warden)" },
+  { value: "dragonbound", label: "🌟 [Class 3] อัศวินผสานมังกร (Dragonbound)" },
+  { value: "starblade", label: "🌟 [Class 3] นักดาบกลุ่มดาว (Starblade)" },
+  { value: "bloodmoon", label: "🌟 [Class 3] จอมคลั่งจันทร์เลือด (Bloodmoon)" },
+  { value: "astral", label: "🌟 [Class 3] จอมเวทดาราจักร (Astral)" },
+  { value: "hexlord", label: "🌟 [Class 3] จ้าวคืนเดือนดับ (Hexlord)" },
+  { value: "starcore", label: "🌟 [Class 3] จอมเวทดาวฤกษ์ (Starcore)" },
+  { value: "winterlord", label: "🌟 [Class 3] จ้าวเหมันต์ (Winterlord)" },
+  { value: "eclipse", label: "🌟 [Class 3] นักฆ่าจันทรคราส (Eclipse)" },
+  { value: "shadowlord", label: "🌟 [Class 3] จ้าวเงาร้อยร่าง (Shadowlord)" },
+  { value: "harvester", label: "🌟 [Class 3] ผู้เก็บเกี่ยวจันทรา (Harvester)" },
+  { value: "showmaster", label: "🌟 [Class 3] จ้าวโรงหุ่นราตรี (Showmaster)" },
+  { value: "starsaint", label: "🌟 [Class 3] นักบุญแสงดาว (Starsaint)" },
+  { value: "meteorfist", label: "🌟 [Class 3] ปรมาจารย์หมัดดาวตก (Meteorfist)" },
+  { value: "beacon", label: "🌟 [Class 3] ผู้เฝ้าประภาคาร (Beacon)" },
+  { value: "starshepherd", label: "🌟 [Class 3] ผู้เลี้ยงดวงดาว (Starshepherd)" }
 ];
+
+const PLAN_LIFE_ITEM_OPTIONS = [
+  { job: 'wood', value: 'lf_birch', label: '🪵 ไม้เบิร์ช (Birch Wood)' },
+  { job: 'wood', value: 'lf_oak', label: '🪵 ไม้โอ๊ค (Oak Wood)' },
+  { job: 'wood', value: 'lf_pine', label: '🪵 ไม้สน (Pine Wood)' },
+  { job: 'wood', value: 'lf_ash', label: '🪵 ไม้แอช (Ash Wood)' },
+  { job: 'mine', value: 'lf_copper', label: '⛏️ แร่ทองแดง (Copper Ore)' },
+  { job: 'mine', value: 'lf_iron', label: '⛏️ แร่เหล็ก (Iron Ore)' },
+  { job: 'mine', value: 'lf_coal', label: '⛏️ ถ่านหิน (Coal)' },
+  { job: 'mine', value: 'lf_silver', label: '⛏️ แร่เงิน (Silver Ore)' },
+  { job: 'mine', value: 'lf_mithril', label: '⛏️ แร่มิธริล (Mithril Ore)' },
+  { job: 'farm', value: 'lf_carrot', label: '🥕 แครอท (Carrot)' },
+  { job: 'farm', value: 'lf_potato', label: '🥔 มันฝรั่ง (Potato)' },
+  { job: 'farm', value: 'lf_pumpkin', label: '🎃 ฟักทอง (Pumpkin)' },
+  { job: 'farm', value: 'lf_wheat', label: '🌾 ข้าวสาลี (Wheat)' }
+];
+
+const PLAN_QUEST_CHECKPOINTS = [
+  { value: 'MQ08', label: 'MQ08 · เส้นทางของตัวเอง (เปลี่ยนอาชีพ Class 1 ที่ Job Lv.10)' },
+  { value: 'MQ15', label: 'MQ15 · จบช่วงทุ่งหญ้าแสงจันทร์ & บึงกบ (ประมาณ Lv.15)' },
+  { value: 'MQ25', label: 'MQ25 · จบช่วงเนินสุสานโบสถ์ร้าง (ประมาณ Lv.25)' },
+  { value: 'MQ34', label: 'MQ34 · จบช่วงป่าเห็ดเรืองแสง & ป่าไหม้ (ประมาณ Lv.35)' },
+  { value: 'MQ50', label: 'MQ50 · จบช่วงยอดเขาหมอกเหนือ & เปลี่ยน Class 2 (ประมาณ Lv.50)' },
+  { value: 'ALL', label: 'ทำเควสหลัก (MQ) และบทเรียน (L1–L36) ต่อเนื่องทั้งหมด' }
+];
+
+function buildNightcampExamplePlanPayload() {
+  const now = Date.now();
+  return {
+    name: "🐺 [ตัวอย่างแนะนำ] นักธนู ➔ นักล่าหมาป่า (สายยิงรัว+เหยี่ยว+หมาป่า 0 มานา Lv.1–50+)",
+    description: "ฟาร์มง่ายที่สุด ไม่ใช้มานา: ยิงปกติติดยิงเบิ้ล + เหยี่ยวโฉบฟรีไม่สน DEF + หมาป่าช่วยแทงค์และกัดรัว อัป Stat ตามเพดานเลเวล (30+0.55×Lv) ได้ผล 100%",
+    autoQuestEnabled: true,
+    autoJobChange: true,
+    autoStatSkillEnabled: true,
+    class1Target: "archer",
+    class1JobLevel: 10,
+    class2Target: "wolfhunter",
+    class2JobLevel: 50,
+    class3Target: "packalpha",
+    statBuild: {
+      queue: [
+        { stat: "DEX", to: 30 },
+        { stat: "AGI", to: 30 },
+        { stat: "LUK", to: 24 },
+        { stat: "DEX", to: 45 },
+        { stat: "AGI", to: 45 },
+        { stat: "LUK", to: 36 },
+        { stat: "VIT", to: 20 },
+        { stat: "DEX", to: 60 },
+        { stat: "AGI", to: 60 },
+        { stat: "LUK", to: 48 },
+        { stat: "DEX", to: 80 },
+        { stat: "AGI", to: 80 },
+        { stat: "LUK", to: 60 },
+        { stat: "VIT", to: 40 }
+      ],
+      targets: { STR: 1, AGI: 80, VIT: 40, INT: 1, DEX: 80, LUK: 60 },
+      priorityOrder: ["DEX", "AGI", "LUK", "VIT", "INT", "STR"]
+    },
+    skillBuild: {
+      skillPointQueue: [
+        // Traveler (9 pts): ชำนาญอาวุธ 5 + ร่างกายแข็งแกร่ง 4 (เพิ่ม ATK ถาวร +20 และ HP/Regen ไม่เปลือง SP)
+        "mastery", "mastery", "mastery", "mastery", "mastery",
+        "body", "body", "body", "body",
+        // Class 1 Archer (49 pts): สายยิงรัว (rapid) เต็มพิกัดเพื่อเอา Resonance +30% ส่งต่อให้สายเหยี่ยว
+        "ar_bowmastery", "ar_bowmastery", "ar_bowmastery", "ar_bowmastery", "ar_bowmastery",
+        "ar_doubleshot", "ar_doubleshot", "ar_doubleshot", "ar_doubleshot", "ar_doubleshot",
+        "ar_bowmastery", "ar_bowmastery", "ar_bowmastery", "ar_bowmastery", "ar_bowmastery",
+        "ar_doubleshot", "ar_doubleshot", "ar_doubleshot", "ar_doubleshot", "ar_doubleshot",
+        "ar_owl", "ar_owl", "ar_owl", "ar_owl", "ar_owl", "ar_owl", "ar_owl", "ar_owl", "ar_owl", "ar_owl",
+        "ar_concentrate", "ar_concentrate", "ar_concentrate", "ar_concentrate", "ar_concentrate",
+        "mastery", "mastery", "mastery", "mastery", "mastery",
+        "body", "body", "body", "body", "body", "body",
+        "double", "double", "double",
+        // Class 2 Wolf Hunter (49 pts): เหยี่ยวโฉบอัตโนมัติ (0 SP) + หมาป่าคู่ใจ + สายใยสัตว์ป่า (+80% Pet Dmg, +10% ATK)
+        "wh_blitz", "wh_blitz",
+        "wh_autoblitz", "wh_autoblitz", "wh_autoblitz", "wh_autoblitz", "wh_autoblitz",
+        "wh_steelcrow", "wh_steelcrow", "wh_steelcrow", "wh_steelcrow", "wh_steelcrow",
+        "wh_autoblitz", "wh_autoblitz", "wh_autoblitz", "wh_autoblitz", "wh_autoblitz",
+        "wh_wolf", "wh_wolf", "wh_wolf", "wh_wolf",
+        "wh_alpha", "wh_alpha", "wh_alpha", "wh_alpha", "wh_alpha",
+        "wh_bond", "wh_bond", "wh_bond", "wh_bond", "wh_bond", "wh_bond", "wh_bond", "wh_bond", "wh_bond", "wh_bond",
+        "wh_wolfrush", "wh_wolfrush", "wh_wolfrush", "wh_wolfrush", "wh_wolfrush",
+        "wh_wolf", "wh_wolf", "wh_wolf", "wh_wolf", "wh_wolf",
+        "wh_howl", "wh_howl", "wh_howl"
+      ],
+      plannedLevels: {
+        mastery: 10, body: 10,
+        ar_bowmastery: 10, ar_doubleshot: 10, ar_owl: 10, ar_concentrate: 5, double: 3,
+        wh_blitz: 2, wh_autoblitz: 10, wh_steelcrow: 5, wh_wolf: 9, wh_alpha: 5, wh_bond: 10, wh_wolfrush: 5, wh_howl: 3
+      },
+      facets: {}
+    },
+    triggers: [
+      {
+        id: "trig_nc_lv1_" + now,
+        type: "base_level",
+        targetLevel: 1,
+        actions: [
+          {
+            id: "act_nc_aq1_" + now,
+            type: "auto_quest",
+            questMode: "until_level",
+            untilLevel: 12,
+            untilQuest: "MQ08"
+          },
+          {
+            id: "act_nc_eq1_" + now,
+            type: "equip_best",
+            itemName: ""
+          }
+        ]
+      },
+      {
+        id: "trig_nc_job10_" + now,
+        type: "job_level",
+        classId: "traveler",
+        targetLevel: 10,
+        actions: [
+          {
+            id: "act_nc_c1_" + now,
+            type: "change_class",
+            targetClass: "archer"
+          },
+          {
+            id: "act_nc_eq2_" + now,
+            type: "equip_best",
+            itemName: ""
+          }
+        ]
+      },
+      {
+        id: "trig_nc_lv12_" + now,
+        type: "base_level",
+        targetLevel: 12,
+        actions: [
+          {
+            id: "act_nc_sell12_" + now,
+            type: "sell_trip",
+            sellMaterials: true,
+            redQty: 30,
+            blueQty: 10
+          },
+          {
+            id: "act_nc_aq12_" + now,
+            type: "auto_quest",
+            questMode: "until_level",
+            untilLevel: 25,
+            untilQuest: "MQ25"
+          }
+        ]
+      },
+      {
+        id: "trig_nc_lv25_" + now,
+        type: "base_level",
+        targetLevel: 25,
+        actions: [
+          {
+            id: "act_nc_map25_" + now,
+            type: "change_map",
+            targetMap: "woods",
+            targetMonster: ""
+          },
+          {
+            id: "act_nc_eq25_" + now,
+            type: "equip_best",
+            itemName: ""
+          }
+        ]
+      },
+      {
+        id: "trig_nc_lv35_" + now,
+        type: "base_level",
+        targetLevel: 35,
+        actions: [
+          {
+            id: "act_nc_sell35_" + now,
+            type: "sell_trip",
+            sellMaterials: true,
+            redQty: 50,
+            blueQty: 15
+          },
+          {
+            id: "act_nc_map35_" + now,
+            type: "change_map",
+            targetMap: "burnt",
+            targetMonster: ""
+          }
+        ]
+      },
+      {
+        id: "trig_nc_job50_c1_" + now,
+        type: "job_level",
+        classId: "archer",
+        targetLevel: 50,
+        actions: [
+          {
+            id: "act_nc_c2_" + now,
+            type: "change_class",
+            targetClass: "wolfhunter"
+          },
+          {
+            id: "act_nc_eq_c2_" + now,
+            type: "equip_best",
+            itemName: ""
+          }
+        ]
+      },
+      {
+        id: "trig_nc_lv46_" + now,
+        type: "base_level",
+        targetLevel: 46,
+        actions: [
+          {
+            id: "act_nc_map46_" + now,
+            type: "change_map",
+            targetMap: "peak",
+            targetMonster: ""
+          },
+          {
+            id: "act_nc_aq46_" + now,
+            type: "auto_quest",
+            questMode: "all",
+            untilLevel: 70,
+            untilQuest: "ALL"
+          }
+        ]
+      }
+    ]
+  };
+}
 
 // Open Plan Modal
 async function openScriptPlanModal(profileId) {
-  activePlanClientProfileId = profileId;
-  const clientProfile = currentProfiles.find(p => p.id === profileId);
+  activePlanClientProfileId = profileId || (currentProfiles.find(p => p.isRunning) || currentProfiles[0])?.id || null;
+  const clientProfile = currentProfiles.find(p => p.id === activePlanClientProfileId);
 
   const targetNameEl = document.getElementById("plan-target-client-name");
   const targetIdInput = document.getElementById("plan-target-client-id");
-  if (targetNameEl) targetNameEl.innerText = clientProfile ? `${clientProfile.name} (Port: ${clientProfile.debugPort || '--'})` : profileId;
-  if (targetIdInput) targetIdInput.value = profileId;
+  if (targetNameEl) targetNameEl.innerText = clientProfile ? `${clientProfile.name} (Port: ${clientProfile.debugPort || '--'})` : (activePlanClientProfileId || 'ทุกจอ');
+  if (targetIdInput) targetIdInput.value = activePlanClientProfileId || '';
 
   switchPlanModalView('list');
 
@@ -9043,7 +9211,7 @@ function renderPlanProfilesList() {
       <div style="text-align: center; color: #94a3b8; padding: 30px; font-size: 13px;">
         <span style="font-size: 28px; opacity: 0.6; display: block; margin-bottom: 8px;">📜</span>
         ยังไม่มี Plan Profile ในระบบ<br>
-        คลิกปุ่ม <b>"➕ เพิ่ม Plan Profile ใหม่"</b> ด้านบนเพื่อเริ่มสร้างแผนแรกของคุณ
+        คลิกปุ่ม <b>"🌱 โหลดแผนตัวอย่าง (Lv.1–50)"</b> หรือ <b>"➕ สร้าง Plan ใหม่"</b> ด้านบนเพื่อเริ่มต้น
       </div>
     `;
     return;
@@ -9054,54 +9222,56 @@ function renderPlanProfilesList() {
     const triggersCount = (plan.triggers || []).length;
     let actionsCount = 0;
     (plan.triggers || []).forEach(t => actionsCount += (t.actions || []).length);
+    const c1Label = planClassLabel(plan.class1Target || 'archer').replace(/^\[Class \d\]\s*/, '');
+    const c2Label = planClassLabel(plan.class2Target || 'ranger').replace(/^\[Class \d\]\s*/, '');
 
     return `
       <div class="plan-profile-item ${isAssigned ? 'active-assigned' : ''}">
-        <div style="display: flex; flex-direction: column; gap: 4px; flex: 1;">
-          <div style="display: flex; align-items: center; gap: 8px;">
+        <div style="display: flex; flex-direction: column; gap: 5px; flex: 1;">
+          <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
             <span style="font-size: 14px; font-weight: 700; color: #f8fafc;">${escapeHTML(plan.name)}</span>
-            <span class="badge" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.35); font-size: 10px; padding: 1px 6px;">
-              🏹 ${escapeHTML(plan.class1Target || 'Archer')} ➔ 👑 ${escapeHTML(plan.class2Target || 'Hunter')} <small style="opacity: 0.75;">(Job ${plan.class2JobLevel || 50})</small>
+            <span class="badge" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.35); font-size: 10px; padding: 2px 7px;">
+              ${escapeHTML(c1Label)} (Job ${plan.class1JobLevel || 10}) ➔ ${escapeHTML(c2Label)} (Job ${plan.class2JobLevel || 50})
             </span>
+            ${plan.autoQuestEnabled !== false ? `
+              <span class="badge" style="background: rgba(16, 185, 129, 0.16); color: #6ee7b7; border: 1px solid rgba(52, 211, 153, 0.35); font-size: 10px; padding: 2px 7px;">
+                🧭 Smart Auto-Quest
+              </span>
+            ` : ''}
             ${(plan.skillBuild?.skillPointQueue?.length > 0) ? `
-              <span class="badge" style="background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.35); font-size: 10px; padding: 1px 6px;">
-                ⚡ ${plan.skillBuild.skillPointQueue.length} แต้ม
+              <span class="badge" style="background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.35); font-size: 10px; padding: 2px 7px;">
+                ⚡ สกิล ${plan.skillBuild.skillPointQueue.length} แต้ม
               </span>
             ` : ''}
             ${plan.statBuild ? `
-              <span class="badge" style="background: rgba(34, 197, 94, 0.15); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.35); font-size: 10px; padding: 1px 6px;">
+              <span class="badge" style="background: rgba(34, 197, 94, 0.15); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.35); font-size: 10px; padding: 2px 7px;">
                 📊 Stat Build
               </span>
             ` : ''}
-            ${(plan.gearPlan?.steps?.length > 0) ? `
-              <span class="badge" style="background: rgba(34, 197, 94, 0.15); color: #86efac; border: 1px solid rgba(34, 197, 94, 0.35); font-size: 10px; padding: 1px 6px;">
-                🛡️ เซ็ต ${plan.gearPlan.steps.length} รายการ
-              </span>
-            ` : ''}
             ${isAssigned ? `
-              <span class="badge" style="background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.4); font-size: 10px; padding: 1px 6px; border-radius: 4px;">
+              <span class="badge" style="background: rgba(34, 197, 94, 0.22); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.45); font-size: 10px; padding: 2px 7px; border-radius: 4px;">
                 ⚡ กำลังใช้งานกับจอนี้
               </span>
             ` : ''}
           </div>
-          <div style="display: flex; align-items: center; gap: 12px; font-size: 11.5px; color: #94a3b8;">
-            <span>🎯 <b>${triggersCount}</b> ระดับเลเวล</span>
+          <div style="display: flex; align-items: center; gap: 12px; font-size: 11.5px; color: #94a3b8; flex-wrap: wrap;">
+            <span>🎯 <b>${triggersCount}</b> เงื่อนไขเลเวล/Job</span>
             <span>⚡ <b>${actionsCount}</b> การทำงาน (Actions)</span>
-            <span style="opacity: 0.8;">${escapeHTML(plan.description || '')}</span>
+            <span style="opacity: 0.85;">${escapeHTML(plan.description || '')}</span>
           </div>
         </div>
 
         <div style="display: flex; gap: 6px; align-items: center;">
-          <button type="button" class="btn btn-primary btn-sm" onclick="openPlanWorkflowEditor('${plan.id}')" title="เปิดหน้าต่างแก้ไขแผนสไตล์ n8n">
-            <span>✏️</span> Edit
+          <button type="button" class="btn btn-primary btn-sm" onclick="openPlanWorkflowEditor('${plan.id}')" title="เปิดหน้าต่างแก้ไขแผน & เลือกอาชีพ Class 1 / Class 2">
+            <span>✏️</span> ปรับแต่ง
           </button>
           <button type="button" class="btn ${isAssigned ? 'btn-secondary' : 'btn-success'} btn-sm" onclick="openPlanAssignPicker('${plan.id}')" title="เลือกจอเกมที่จะใช้แผนนี้">
             <span>⚡</span> ${isAssigned ? 'ซิงค์ซ้ำ' : 'ใช้งาน'}
           </button>
-          <button type="button" class="btn btn-secondary btn-sm btn-icon" onclick="exportPlanProfiles(['${plan.id}'])" title="ส่งออกแผนนี้เป็นไฟล์ (Export)">
+          <button type="button" class="btn btn-secondary btn-sm btn-icon" onclick="exportPlanProfiles(['${plan.id}'])" title="ส่งออกแผนนี้เป็นไฟล์ (.json)">
             <span>📤</span>
           </button>
-          <button type="button" class="btn btn-secondary btn-sm btn-icon" onclick="duplicatePlanProfile('${plan.id}')" title="ทำสำเนาแผนนี้">
+          <button type="button" class="btn btn-secondary btn-sm btn-icon" onclick="duplicatePlanProfile('${plan.id}')" title="ทำสำเนาแผนนี้เพื่อปรับแต่งแยกสายอาชีพ">
             <span>📋</span>
           </button>
           <button type="button" class="btn btn-danger btn-sm btn-icon" onclick="deletePlanProfile('${plan.id}')" title="ลบแผนนี้">
@@ -9113,31 +9283,64 @@ function renderPlanProfilesList() {
   }).join('');
 }
 
-// Create new Plan Profile
+// Seed or Reset the Nightcamp Example Plan
+async function seedNightcampExamplePlan() {
+  try {
+    const payload = buildNightcampExamplePlanPayload();
+    const res = await fetch(`${API_BASE}/api/plan-profiles`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const result = await res.json();
+    if (result.success && result.profile) {
+      await fetchAndRenderPlanProfiles();
+      openPlanWorkflowEditor(result.profile.id);
+      if (typeof showToast === 'function') showToast('🌱 โหลดแผนตัวอย่าง Nightcamp Lv.1–50 แล้ว สามารถปรับแต่งอาชีพ/แมพได้ทันที!', 'success');
+    }
+  } catch (e) {
+    alert('เกิดข้อผิดพลาดในการสร้างแผนตัวอย่าง');
+  }
+}
+
+// Create new customizable Plan Profile
 async function createNewPlanProfile() {
-  const name = prompt("ตั้งชื่อ Plan Profile ใหม่:", "แผนเก็บเลเวล Archer " + (currentPlanProfiles.length + 1));
+  const name = prompt("ตั้งชื่อ Plan Profile ใหม่:", "แผนปั้นตัว Nightcamp #" + (currentPlanProfiles.length + 1));
   if (!name || !name.trim()) return;
 
   try {
+    const now = Date.now();
     const res = await fetch(`${API_BASE}/api/plan-profiles`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         name: name.trim(),
-        description: "สร้างเมื่อ " + new Date().toLocaleDateString('th-TH'),
+        description: "สร้างเมื่อ " + new Date().toLocaleDateString('th-TH') + " (ปรับแต่งได้เอง)",
+        autoQuestEnabled: true,
+        autoJobChange: true,
+        autoStatSkillEnabled: true,
+        class1Target: "archer",
+        class1JobLevel: 10,
+        class2Target: "ranger",
+        class2JobLevel: 50,
+        class3Target: "moonsniper",
         triggers: [
           {
-            id: "trig_" + Date.now(),
+            id: "trig_" + now,
             type: "base_level",
-            targetLevel: 8,
+            targetLevel: 1,
             actions: [
               {
-                id: "act_" + Date.now(),
-                type: "equip_item",
-                itemName: "Gakkung Bow",
-                optionFilter: "",
-                buyFromMarket: true,
-                maxPrice: 100000
+                id: "act_" + now,
+                type: "auto_quest",
+                questMode: "until_level",
+                untilLevel: 15,
+                untilQuest: "MQ15"
+              },
+              {
+                id: "act_eq_" + now,
+                type: "equip_best",
+                itemName: ""
               }
             ]
           }
@@ -9180,7 +9383,13 @@ async function duplicatePlanProfile(planId) {
     const res = await fetch(`${API_BASE}/api/plan-profiles`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(Object.assign(JSON.parse(JSON.stringify(plan)), { id: undefined, name: plan.name + " (Copy)", autoJobChange: planAutoJobChangeOf(plan) }))
+      body: JSON.stringify(Object.assign(JSON.parse(JSON.stringify(plan)), {
+        id: undefined,
+        name: plan.name + " (Copy)",
+        autoJobChange: planAutoJobChangeOf(plan),
+        autoQuestEnabled: plan.autoQuestEnabled !== false,
+        autoStatSkillEnabled: plan.autoStatSkillEnabled !== false
+      }))
     });
     const result = await res.json();
     if (result.success) {
@@ -9308,16 +9517,21 @@ function openPlanWorkflowEditor(planId) {
 
   activeEditingPlan = JSON.parse(JSON.stringify(plan));
   if (!activeEditingPlan.class1Target) activeEditingPlan.class1Target = 'archer';
-  if (!activeEditingPlan.class2Target) activeEditingPlan.class2Target = 'hunter';
+  if (!activeEditingPlan.class2Target) activeEditingPlan.class2Target = 'ranger';
+  if (activeEditingPlan.autoQuestEnabled === undefined) activeEditingPlan.autoQuestEnabled = true;
+  if (activeEditingPlan.autoStatSkillEnabled === undefined) activeEditingPlan.autoStatSkillEnabled = true;
   if (!activeEditingPlan.skillBuild) activeEditingPlan.skillBuild = { skillPointQueue: [], plannedLevels: {} };
-  if (!activeEditingPlan.statBuild) activeEditingPlan.statBuild = { targets: { STR: 1, AGI: 50, VIT: 1, INT: 1, DEX: 99, LUK: 30 }, priorityOrder: ['DEX', 'AGI', 'LUK', 'VIT', 'INT', 'STR'] };
+  if (!activeEditingPlan.statBuild) activeEditingPlan.statBuild = {
+    queue: [{ stat: 'DEX', to: 30 }, { stat: 'AGI', to: 30 }, { stat: 'DEX', to: 60 }, { stat: 'AGI', to: 60 }, { stat: 'DEX', to: 99 }, { stat: 'AGI', to: 99 }],
+    targets: { STR: 1, AGI: 99, VIT: 1, INT: 1, DEX: 99, LUK: 1 },
+    priorityOrder: ['DEX', 'AGI', 'LUK', 'VIT', 'INT', 'STR']
+  };
 
   const titleInput = document.getElementById("plan-editor-title");
   const descInput = document.getElementById("plan-editor-desc");
   if (titleInput) titleInput.value = activeEditingPlan.name || "Untitled Plan";
   if (descInput) descInput.value = activeEditingPlan.description || "";
 
-  // Initialize Class Selectors and Badges
   if (typeof updateClassDropdownsInEditor === 'function') {
     updateClassDropdownsInEditor();
   }
@@ -9353,95 +9567,72 @@ function planMapLabel(value) {
   return value || '-';
 }
 
-// Same arrow list as the in-game HUD (ธนู tab)
-const PLAN_ARROW_OPTIONS = [
-  { value: 0, label: '🧠 Smart Arrow (เลือกธนูชนะธาตุตามแมพ + ทิ้งธนูเก่า)' },
-  { value: 90030, label: 'Arrow (ธรรมดา - 1z)' },
-  { value: 90031, label: 'Fire Arrow (ไฟ - 3z)' },
-  { value: 90032, label: 'Crystal Arrow (น้ำ - 3z)' },
-  { value: 90033, label: 'Stone Arrow (ดิน - 3z)' },
-  { value: 90034, label: 'Arrow of Wind (ลม - 3z)' },
-  { value: 90035, label: 'Poison Arrow (พิษ - 3z)' },
-  { value: 90036, label: 'Silver Arrow (ศักดิ์สิทธิ์ - 3z)' },
-  { value: 90037, label: 'Shadow Arrow (เงา - 3z)' }
-];
-function planArrowLabel(value) {
-  if (Number(value) === 0) return 'Smart Arrow (ตามธาตุมอน)';
-  const a = PLAN_ARROW_OPTIONS.find(x => x.value === Number(value));
-  return a ? a.label : 'Arrow';
-}
-
 function planClassLabel(value) {
   const c = PLAN_CLASS_OPTIONS.find(x => x.value === String(value || '').toLowerCase());
   return c ? c.label : (value || '-');
 }
 
-function isPlanGemItemName(name) {
-  const s = String(name || '').trim();
-  return /\bgem\b/i.test(s) && /\d+(?:\.\d+)?\s*%?$/.test(s);
-}
-
-let _planEquipDatalistLoaded = false;
-function ensurePlanEquipItemDatalist() {
-  if (_planEquipDatalistLoaded) return;
-  _planEquipDatalistLoaded = true;
-  let dl = document.getElementById('pe-equip-item-datalist');
-  if (!dl) {
-    dl = document.createElement('datalist');
-    dl.id = 'pe-equip-item-datalist';
-    document.body.appendChild(dl);
-  }
-  fetch('/api/game-items').then(r => r.json()).then(d => {
-    const names = new Set([
-      'Mana Gem (Skill) 3%', 'Mana Gem (Skill) 4%', 'Mana Gem (Skill) 5%', 'Mana Gem (Skill) 7%', 'Mana Gem (Skill) 8%', 'Mana Gem (Skill) 9%', 'Mana Gem (Skill) 10%',
-      'Mana Gem (Attack) 3%', 'Mana Gem (Attack) 4%', 'Mana Gem (Attack) 5%', 'Mana Gem (Attack) 7%', 'Mana Gem (Attack) 8%', 'Mana Gem (Attack) 9%', 'Mana Gem (Attack) 10%',
-      'Lifesteal Gem (Skill) 3%', 'Lifesteal Gem (Skill) 4%', 'Lifesteal Gem (Skill) 5%', 'Lifesteal Gem (Skill) 7%', 'Lifesteal Gem (Skill) 8%', 'Lifesteal Gem (Skill) 9%', 'Lifesteal Gem (Skill) 10%',
-      'Lifesteal Gem (Attack) 3%', 'Lifesteal Gem (Attack) 4%', 'Lifesteal Gem (Attack) 5%', 'Lifesteal Gem (Attack) 7%', 'Lifesteal Gem (Attack) 8%', 'Lifesteal Gem (Attack) 9%', 'Lifesteal Gem (Attack) 10%'
-    ]);
-    for (const it of (d.items || [])) {
-      if (it && it.name) names.add(it.name);
-    }
-    dl.innerHTML = [...names].sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).map(n => `<option value="${escapeHTML(n)}">`).join('');
-  }).catch(() => {});
+function planLifeItemLabel(itemId) {
+  const it = PLAN_LIFE_ITEM_OPTIONS.find(x => x.value === itemId);
+  return it ? it.label : (itemId || '-');
 }
 
 // Short chips shown in the trigger header so the whole plan reads at a glance
 function planActionSummary(act) {
-  if (act.type === 'equip_item') {
-    const isGem = isPlanGemItemName(act.itemName);
-    return `${isGem ? '💎' : '🛡️'} ${act.itemName || '(ยังไม่ใส่ชื่อ)'}${isGem ? ' (ถ้า % สูงกว่าถูกกว่าซื้ออันสูงกว่า)' : ''}${act.optionFilter ? ` [${act.optionFilter}]` : ''}`;
+  if (act.type === 'auto_quest') {
+    if (act.questMode === 'until_level') return `🧭 Smart Auto-Quest (ทำถึง Base Lv.${act.untilLevel || 15})`;
+    if (act.questMode === 'until_quest') return `🧭 Smart Auto-Quest (ทำถึงเควส ${act.untilQuest || 'MQ08'})`;
+    return '🧭 Smart Auto-Quest (ทำเควสหลัก & บทเรียนต่อเนื่อง)';
   }
-  if (act.type === 'change_map') return `🗺️ ${planMapLabel(act.targetMap)}`;
-  if (act.type === 'change_class') return `🏹 ${planClassLabel(act.targetClass)}`;
-  if (act.type === 'sell_trip') return '🛒 กลับเมืองขายของ';
-  if (act.type === 'weight_scroll') return `📦 Weight Scroll x${act.qty || 10}`;
-  if (act.type === 'set_arrow') return act.requireArrow === false ? '🎯 ลูกธนู: ปิด' : `🎯 ลูกธนู ${planArrowLabel(act.arrowType).split(' (')[0]} x${act.arrowBuyQty || 200}`;
+  if (act.type === 'change_map') {
+    const mon = act.targetMonster ? ` · ตีเฉพาะ: ${act.targetMonster}` : '';
+    return `🗺️ ย้ายแมพ: ${planMapLabel(act.targetMap)}${mon}`;
+  }
+  if (act.type === 'change_class') {
+    return `⚔️ เปลี่ยนอาชีพ: ${planClassLabel(act.targetClass)}`;
+  }
+  if (act.type === 'life_gather') {
+    const jobName = act.lifeJob === 'mine' ? 'ขุดแร่' : act.lifeJob === 'farm' ? 'ปลูกผัก' : 'ตัดไม้';
+    return `🪓 ${jobName}: ${planLifeItemLabel(act.itemId)} x${act.qty || 10}`;
+  }
+  if (act.type === 'sell_trip') {
+    return `🛒 กลับค่ายขายของ & ซื้อยา (แดง ${act.redQty ?? 30} / ฟ้า ${act.blueQty ?? 15})`;
+  }
+  if (act.type === 'equip_best') {
+    return act.itemName ? `🛡️ สวมใส่: ${act.itemName}` : '🛡️ สวมใส่อุปกรณ์ที่ดีที่สุดในกระเป๋า';
+  }
+  if (act.type === 'equip_item') {
+    return `🛡️ สวมใส่: ${act.itemName || 'อุปกรณ์ที่ดีที่สุด'}`;
+  }
   return act.type;
 }
 
-// "เปลี่ยนอาชีพอัตโนมัติ": plans without the setting are automatic unless they already have a
-// "เปลี่ยนอาชีพ" action (same rule as the bot)
 function planHasClassAction(plan) {
-  return (plan.triggers || []).some(t => (t.actions || []).some(a => a.type === 'change_class'));
+  return (plan?.triggers || []).some(t => (t.actions || []).some(a => a.type === 'change_class'));
 }
 function planAutoJobChangeOf(plan) {
-  if (!plan) return false;
-  return typeof plan.autoJobChange === 'boolean' ? plan.autoJobChange : !planHasClassAction(plan);
+  if (!plan) return true;
+  return typeof plan.autoJobChange === 'boolean' ? plan.autoJobChange : true;
 }
 function refreshAutoJobUi() {
   const on = planAutoJobChangeOf(activeEditingPlan);
+  const aqOn = activeEditingPlan ? (activeEditingPlan.autoQuestEnabled !== false) : true;
+  const stOn = activeEditingPlan ? (activeEditingPlan.autoStatSkillEnabled !== false) : true;
   document.querySelectorAll('.pe-joblv').forEach(el => { el.style.display = on ? '' : 'none'; });
   const hint = document.getElementById('plan-autojob-hint');
-  if (hint) hint.innerHTML = on
-    ? 'ℹ️ <b>เปลี่ยนอาชีพอัตโนมัติ:</b> เมื่อถึง Job Lv. ที่ตั้งไว้และเกมเปิดให้เปลี่ยน บอทจะใช้แต้มสกิลตามคิวให้หมดก่อน แล้วไปคุยกับ Valkyrie เปลี่ยนอาชีพให้เอง'
-    : 'ℹ️ <b>เปลี่ยนอาชีพเอง:</b> บอทจะเปลี่ยนอาชีพเฉพาะตอนที่ถึงเงื่อนไขที่มี Action <b>🏹 เปลี่ยนอาชีพ</b> เช่น <b>Job Lv.10 (โนวิซ)</b> → เปลี่ยนอาชีพ → สวมใส่ Bow (Action ในเงื่อนไขทำตามลำดับจากบนลงล่าง) · Class 1/2 ด้านบนใช้กับหน้าจัดการสกิล';
+  if (hint) {
+    const parts = [];
+    if (aqOn) parts.push('🧭 <b>Smart Auto-Quest:</b> บอททำเควสหลัก (MQ) + บทเรียน (L1–L36) และแก้จุดค้างทุกจุดให้อัตโนมัติ');
+    if (on) parts.push('⚔️ <b>เปลี่ยนอาชีพอัตโนมัติ:</b> เปลี่ยน Class 1 ที่ Job 10, Class 2 ที่ Job 50 และ Class 3 ที่ Base 80 / Job 50 ตามที่เลือกด้านบน');
+    if (stOn) parts.push('⚡ <b>อัป Stat/Skill อัตโนมัติ:</b> อัปสเตตัสและสกิลพร้อมใส่ช่องสกิลให้อัตโนมัติ');
+    hint.innerHTML = parts.length ? parts.join(' · ') : 'ℹ️ ปรับแต่งการทำงานผ่านรายการเงื่อนไข (Triggers) ด้านล่างได้เลย';
+  }
 }
 
-// Job Lv. starts at 1 again with every class -> job triggers say which class they belong to
 function planClassTier(cls) {
   const c = String(cls || '').toLowerCase();
   if (!c) return 9;
-  if (c === 'novice') return 0;
+  if (c === 'novice' || c === 'traveler') return 0;
   if (typeof CLASS_TREE_MAP !== 'undefined' && CLASS_TREE_MAP[c]) return 1;
   return 2;
 }
@@ -9455,28 +9646,14 @@ function planTriggerOrder(a, b) {
     || (parseInt(a.targetLevel, 10) || 0) - (parseInt(b.targetLevel, 10) || 0);
 }
 function planTriggerLabel(t) {
-  if (t.type === 'zeny') return `เงิน ≥ ${(Number(t.targetZeny) || 0).toLocaleString()} z`;
+  if (t.type === 'zeny') return `เงิน ≥ ${(Number(t.targetZeny) || 0).toLocaleString()} Gold`;
   if (t.type !== 'job_level') return `Base Lv.${t.targetLevel}`;
   return `Job Lv.${t.targetLevel} (${t.classId ? planClassLabel(t.classId) : 'ทุกอาชีพ'})`;
 }
 function jobClassChoices(trig) {
   const p = activeEditingPlan || {};
-  const ids = ['novice', p.class1Target, p.class2Target, trig.classId].filter(Boolean).map(x => String(x).toLowerCase());
+  const ids = ['traveler', p.class1Target, p.class2Target, trig.classId].filter(Boolean).map(x => String(x).toLowerCase());
   return [...new Set(ids)];
-}
-function updateTriggerZeny(trigIdx, val) {
-  if (!activeEditingPlan || !activeEditingPlan.triggers) return;
-  activeEditingPlan.triggers[trigIdx].targetZeny = Math.max(1, parseInt(String(val).replace(/[^0-9]/g, ''), 10) || 1);
-  sortPlanTriggers();
-  markPlanDirty();
-  renderPlanWorkflowCanvas();
-}
-function updateTriggerClass(trigIdx, cls) {
-  if (!activeEditingPlan || !activeEditingPlan.triggers) return;
-  activeEditingPlan.triggers[trigIdx].classId = cls;
-  sortPlanTriggers();
-  markPlanDirty();
-  renderPlanWorkflowCanvas();
 }
 function sortPlanTriggers() {
   const t = activeEditingPlan && activeEditingPlan.triggers;
@@ -9485,9 +9662,6 @@ function sortPlanTriggers() {
 }
 
 // ---------- Plan editor: summary timeline + "เพิ่ม/แก้ไขเงื่อนไข" dialog ----------
-// The plan page lists each condition as one readable card ("Base Lv.30 → 1. ขายของ 2. ย้ายแมพ").
-// Adding or editing happens in a dialog: ① when (Base / Job + class / money) ② what to do (in order).
-// The dialog edits a draft (trigIdx -1 in the action editors) that is only put into the plan on "ส่งลงแผน".
 let planDraft = null;
 let planDraftIdx = -1;
 
@@ -9500,7 +9674,7 @@ function planRerender(trigIdx) {
   else renderPlanWorkflowCanvas();
 }
 function planWhenText(t) {
-  if (t.type === 'zeny') return `💰 เงิน ≥ ${(Number(t.targetZeny) || 0).toLocaleString()} z`;
+  if (t.type === 'zeny') return `💰 เงิน ≥ ${(Number(t.targetZeny) || 0).toLocaleString()} Gold`;
   if (t.type === 'job_level') return `Job Lv.${parseInt(t.targetLevel, 10) || 1} · ${t.classId ? planClassLabel(t.classId).split(' (')[0] : 'ทุกอาชีพ'}`;
   return `Base Lv.${parseInt(t.targetLevel, 10) || 1}`;
 }
@@ -9516,7 +9690,7 @@ function renderPlanWorkflowCanvas() {
       <div class="pe-empty">
         <div class="pe-empty-icon">🎯</div>
         <b>ยังไม่มีเงื่อนไขในแผนนี้</b>
-        <span>กด <b>"➕ เพิ่มเงื่อนไข"</b> แล้วเลือกว่า <b>เมื่อไหร่</b> (เลเวล / Job / เงิน) และ <b>ทำอะไร</b> เช่น Base Lv.8 → สวม Gakkung Bow → ย้ายไปทะเลสาบอาซูร์</span>
+        <span>กด <b>"➕ เพิ่มเงื่อนไข"</b> แล้วเลือกว่า <b>เมื่อไหร่</b> (Base Lv. / Job Lv. / เงิน) และ <b>ทำอะไร</b> เช่น Base Lv.1 → ทำเควสอัตโนมัติ (Smart Auto-Quest) → ย้ายแมพฟาร์ม</span>
       </div>`;
     return;
   }
@@ -9545,7 +9719,6 @@ function renderPlanWorkflowCanvas() {
   }).join('')}</div>`;
 }
 
-// Scroll to a condition and make it flash so the eye finds it
 function focusPlanTrigger(id) {
   const node = document.querySelector(`.pe-node[data-trigger-id="${CSS.escape(String(id || ''))}"]`);
   if (!node) return;
@@ -9555,14 +9728,14 @@ function focusPlanTrigger(id) {
   node.classList.add('pe-flash');
 }
 
-// ---- dialog ----
+// ---- Customizable Nightcamp Action Tiles ----
 const PLAN_ACTION_TILES = [
-  { type: 'change_class', icon: '🏹', title: 'เปลี่ยนอาชีพ', desc: 'ไปคุยกับ Valkyrie เปลี่ยนอาชีพ' },
-  { type: 'equip_item', icon: '🛡️', title: 'สวมใส่ของ', desc: 'ใส่จากกระเป๋า หรือซื้อจากตลาด' },
-  { type: 'change_map', icon: '🗺️', title: 'ย้ายแมพฟาร์ม', desc: 'เปลี่ยนแมพที่ไปฟาร์ม' },
-  { type: 'set_arrow', icon: '🎯', title: 'ลูกธนู', desc: 'เปิด/ปิด เลือกชนิด จำนวน' },
-  { type: 'sell_trip', icon: '🛒', title: 'กลับไปขายของ', desc: 'กลับเมืองขาย/ซื้อของ 1 รอบ' },
-  { type: 'weight_scroll', icon: '📦', title: 'เพิ่มน้ำหนัก', desc: 'ซื้อ+ใช้ Weight Limit Scroll ให้ครบ' }
+  { type: 'auto_quest', icon: '🧭', title: 'ทำเควสอัตโนมัติ', desc: 'Smart Auto-Quest (เควสหลัก MQ + บทเรียน)' },
+  { type: 'change_map', icon: '🗺️', title: 'ย้ายแมพฟาร์ม', desc: 'เดินไปแมพที่เลือก & เปิด Auto-Farm' },
+  { type: 'change_class', icon: '⚔️', title: 'เปลี่ยนอาชีพ', desc: 'เปลี่ยนเป็น Class 1 / Class 2 / Class 3' },
+  { type: 'life_gather', icon: '🪓', title: 'อาชีพเสริม (Life)', desc: 'ตัดไม้ / ขุดแร่ / ปลูกผักตามจำนวน' },
+  { type: 'sell_trip', icon: '🛒', title: 'กลับค่ายขายของ/ซื้อยา', desc: 'ขายขยะ & ซื้อยาแดง/ยาฟ้าที่ลุงโกโก้' },
+  { type: 'equip_best', icon: '🛡️', title: 'สวมใส่อุปกรณ์ที่ดีที่สุด', desc: 'เช็คกระเป๋า & ใส่อาวุธ/เกราะที่แรงสุด' }
 ];
 
 function openTriggerDialog(trigIdx) {
@@ -9574,7 +9747,7 @@ function openTriggerDialog(trigIdx) {
   } else {
     planDraftIdx = -1;
     const baseLevels = activeEditingPlan.triggers.filter(t => t.type === 'base_level' || !t.type).map(t => parseInt(t.targetLevel, 10) || 0);
-    planDraft = { id: "trig_" + Date.now(), type: "base_level", targetLevel: baseLevels.length ? Math.max(...baseLevels) + 5 : 8, actions: [] };
+    planDraft = { id: "trig_" + Date.now(), type: "base_level", targetLevel: baseLevels.length ? Math.max(...baseLevels) + 10 : 1, actions: [] };
   }
   let dlg = document.getElementById('pe-trigger-dialog');
   if (!dlg) {
@@ -9600,9 +9773,9 @@ function draftSet(field, val) {
   if (!planDraft) return;
   if (field === 'type') {
     planDraft.type = val;
-    if (val === 'job_level' && planDraft.classId === undefined) planDraft.classId = 'novice';
+    if (val === 'job_level' && planDraft.classId === undefined) planDraft.classId = 'traveler';
     if (val !== 'job_level') delete planDraft.classId;
-    if (val === 'zeny' && !(Number(planDraft.targetZeny) > 0)) planDraft.targetZeny = 20000;
+    if (val === 'zeny' && !(Number(planDraft.targetZeny) > 0)) planDraft.targetZeny = 5000;
     if (val !== 'zeny' && !(parseInt(planDraft.targetLevel, 10) > 0)) planDraft.targetLevel = 10;
     renderTriggerDialog();
     return;
@@ -9636,22 +9809,22 @@ function renderTriggerDialog() {
     <div class="modal-card pe-dlg-card">
       <div class="pe-dlg-head">
         <div>
-          <h3>${planDraftIdx >= 0 ? '✏️ แก้ไขเงื่อนไข' : '➕ เพิ่มเงื่อนไขใหม่'}</h3>
+          <h3>${planDraftIdx >= 0 ? '✏️ แก้ไขเงื่อนไข (Trigger & Actions)' : '➕ เพิ่มเงื่อนไขใหม่ (ปรับแต่งได้อิสระ)'}</h3>
           <p class="pe-dlg-when-text">${escapeHTML(planWhenText(t))}</p>
         </div>
         <button type="button" class="pp-x" onclick="closeTriggerDialog()" title="ปิด (Esc)">✕</button>
       </div>
       <div class="pe-dlg-body">
         <section class="pe-dlg-step">
-          <div class="pe-dlg-step-title"><span>1</span> ทำเมื่อไหร่</div>
+          <div class="pe-dlg-step-title"><span>1</span> ทำเมื่อไหร่ (Trigger)</div>
           <div class="pe-dlg-kinds">
             <button type="button" class="${isBase ? 'on' : ''}" onclick="draftSet('type', 'base_level')"><b>Base Lv.</b><small>เลเวลตัวละคร</small></button>
             <button type="button" class="${isJob ? 'on' : ''}" onclick="draftSet('type', 'job_level')"><b>Job Lv.</b><small>เลเวลอาชีพ</small></button>
-            <button type="button" class="${isZeny ? 'on' : ''}" onclick="draftSet('type', 'zeny')"><b>💰 เงิน</b><small>เมื่อเงินถึงจำนวน</small></button>
+            <button type="button" class="${isZeny ? 'on' : ''}" onclick="draftSet('type', 'zeny')"><b>💰 เงิน (Gold)</b><small>เมื่อเงินถึงจำนวน</small></button>
           </div>
           <div class="pe-dlg-when">
             ${isZeny ? `
-              <label>เมื่อมีเงิน ≥ <input type="number" class="form-input" min="1" step="1000" value="${Number(t.targetZeny) || 20000}" oninput="draftSet('targetZeny', this.value)"> z</label>
+              <label>เมื่อมีเงิน ≥ <input type="number" class="form-input" min="1" step="500" value="${Number(t.targetZeny) || 5000}" oninput="draftSet('targetZeny', this.value)"> Gold</label>
             ` : `
               <label>ถึง ${isJob ? 'Job' : 'Base'} Lv. <input type="number" class="form-input" min="1" max="200" value="${parseInt(t.targetLevel, 10) || 1}" oninput="draftSet('targetLevel', this.value)"></label>
               ${isJob ? `
@@ -9663,15 +9836,15 @@ function renderTriggerDialog() {
               </label>` : ''}
             `}
           </div>
-          <small class="pe-hint">${isZeny ? 'ทำครั้งเดียวเมื่อเงินถึงจำนวนนี้' : isJob ? 'Job Lv. เริ่มนับ 1 ใหม่ทุกครั้งที่เปลี่ยนอาชีพ จึงต้องเลือกว่าเป็น Job ของอาชีพไหน' : 'ทำครั้งเดียวเมื่อเลเวลตัวละครถึงค่านี้'}</small>
+          <small class="pe-hint">${isZeny ? 'ทำครั้งเดียวเมื่อเงินในตัวถึงจำนวนนี้' : isJob ? 'Job Lv. เริ่มนับ 1 ใหม่เมื่อเปลี่ยนอาชีพ เลือกอาชีพต้นทางที่ต้องการเช็ค Job Lv.' : 'ทำตามลำดับเมื่อ Base Lv. ของตัวละครถึงค่าที่กำหนด'}</small>
         </section>
 
         <section class="pe-dlg-step">
-          <div class="pe-dlg-step-title"><span>2</span> ทำอะไร <small>(ทำตามลำดับจากบนลงล่าง)</small></div>
+          <div class="pe-dlg-step-title"><span>2</span> ทำอะไรบ้าง <small>(คลิกปุ่มด้านล่างเพื่อเพิ่ม Action · เรียงลำดับจากบนลงล่าง)</small></div>
           <div class="pe-dlg-actions">
             ${(t.actions || []).length
               ? t.actions.map((a, i) => `<div class="pe-dlg-act"><div class="pe-dlg-act-no">${i + 1}</div>${renderActionNodeHtml(-1, i, a)}</div>`).join('')
-              : '<div class="pe-dlg-noact">ยังไม่มี Action — เลือกจากปุ่มด้านล่าง</div>'}
+              : '<div class="pe-dlg-noact">ยังไม่มี Action — คลิกเลือกจากปุ่มด้านล่างได้เลย</div>'}
           </div>
           <div class="pe-dlg-tiles">
             ${PLAN_ACTION_TILES.map(x => `<button type="button" onclick="addActionToTrigger(-1, '${x.type}')"><span>${x.icon}</span><b>${x.title}</b><small>${x.desc}</small></button>`).join('')}
@@ -9691,13 +9864,9 @@ function renderTriggerDialog() {
 function submitTriggerDialog() {
   const t = planDraft;
   if (!t || !activeEditingPlan) return;
-  // inputs commit on change: make sure the focused one is in
   if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
   const err = [];
   if (!(t.actions || []).length) err.push('เพิ่ม Action อย่างน้อย 1 อย่าง');
-  (t.actions || []).forEach((a, i) => {
-    if (a.type === 'equip_item' && !String(a.itemName || '').trim()) err.push(`Action ${i + 1}: ยังไม่ได้ใส่ชื่อไอเทม`);
-  });
   if (t.type === 'zeny' && !(Number(t.targetZeny) > 0)) err.push('ใส่จำนวนเงิน');
   if (err.length) {
     const box = document.getElementById('pe-dlg-err');
@@ -9723,118 +9892,146 @@ function renderActionNodeHtml(trigIdx, actIdx, act) {
     <button type="button" class="pe-icon-btn sm" onclick="moveAction(${trigIdx}, ${actIdx}, -1)" ${actIdx === 0 ? 'disabled' : ''} title="ย้ายขึ้น">↑</button>
     <button type="button" class="pe-icon-btn sm" onclick="moveAction(${trigIdx}, ${actIdx}, 1)" ${actIdx >= count - 1 ? 'disabled' : ''} title="ย้ายลง">↓</button>`;
   const del = `<span class="pe-act-btns">${moves}<button type="button" class="pe-icon-btn danger sm" onclick="removeAction(${trigIdx}, ${actIdx})" title="ลบ Action นี้">✕</button></span>`;
-  if (act.type === 'equip_item') {
-    ensurePlanEquipItemDatalist();
-    const isGem = isPlanGemItemName(act.itemName);
+
+  if (act.type === 'auto_quest') {
+    const mode = act.questMode || 'until_level';
     return `
-      <div class="pe-action equip_item">
-        <div class="pe-act-icon">${isGem ? '💎' : '🛡️'}</div>
+      <div class="pe-action auto_quest">
+        <div class="pe-act-icon">🧭</div>
         <div class="pe-act-main">
-          <div class="pe-act-title"><b>สวมใส่อุปกรณ์ / เจม (Gem)</b>${del}</div>
+          <div class="pe-act-title"><b>ทำเควสอัตโนมัติ (Smart Auto-Quest)</b>${del}</div>
           <div class="pe-fields">
-            <label>ชื่อไอเทม หรือ เจม (เช่น Gakkung Bow, Mana Gem (Skill) 3%)
-              <input type="text" class="form-input" list="pe-equip-item-datalist" placeholder="เช่น Gakkung Bow หรือ Mana Gem (Skill) 3%" value="${escapeHTML(act.itemName || '')}" onchange="updateActionField(${trigIdx}, ${actIdx}, 'itemName', this.value.trim())">
+            <label>โหมดการทำเควส
+              <select class="form-select" onchange="updateActionField(${trigIdx}, ${actIdx}, 'questMode', this.value); planRerender(${trigIdx});">
+                <option value="until_level" ${mode === 'until_level' ? 'selected' : ''}>🎯 ทำเควสหลัก & บทเรียนจนถึง Base Lv. ที่กำหนด</option>
+                <option value="until_quest" ${mode === 'until_quest' ? 'selected' : ''}>📜 ทำเควสจนจบเควสหลัก (MQ) ที่ระบุ</option>
+                <option value="all" ${mode === 'all' ? 'selected' : ''}>♾️ ทำเควสหลัก (MQ) & บทเรียน (L1–L36) ต่อเนื่องทั้งหมด</option>
+              </select>
             </label>
-            <label>ออปชั่นที่ต้องมี (ว่าง = ไม่กรอง)
-              <input type="text" class="form-input" placeholder="เช่น dex>=3, luk, melee dmg" title="ออปชั่นสุ่มที่ต้องมี คั่นด้วย , ใส่ค่าขั้นต่ำได้ เช่น dex>=3" value="${escapeHTML(act.optionFilter || '')}" onchange="updateActionField(${trigIdx}, ${actIdx}, 'optionFilter', this.value.trim())">
+            ${mode === 'until_level' ? `
+            <label>ทำเควสจนถึง Base Lv.
+              <input type="number" class="form-input" min="1" max="99" value="${act.untilLevel || 15}" onchange="updateActionField(${trigIdx}, ${actIdx}, 'untilLevel', Math.max(1, parseInt(this.value, 10) || 15))">
             </label>
+            ` : mode === 'until_quest' ? `
+            <label>ทำจนจบเควส
+              <select class="form-select" onchange="updateActionField(${trigIdx}, ${actIdx}, 'untilQuest', this.value)">
+                ${PLAN_QUEST_CHECKPOINTS.map(q => `<option value="${q.value}" ${(act.untilQuest || 'MQ08') === q.value ? 'selected' : ''}>${escapeHTML(q.label)}</option>`).join('')}
+              </select>
+            </label>
+            ` : ''}
           </div>
-          <div style="font-size:11.5px; color:#7dd3fc; background:rgba(56,189,248,0.08); border:1px solid rgba(56,189,248,0.22); border-radius:6px; padding:5px 8px; margin-bottom:6px;">
-            💎 <b>รองรับเจมยืดหยุ่น:</b> ถ้าใส่เจมที่มี % (เช่น <b>Mana Gem (Skill) 3%</b>) แล้วในตลาดมีเจมชนิดเดียวกันที่ <b>% สูงกว่า (4%–10%) ราคาถูกกว่าหรือเท่ากัน</b> บอทจะซื้ออัน % สูงกว่าให้อัตโนมัติ
-          </div>
-          <div class="pe-inline">
-            <label class="pe-check">
-              <input type="checkbox" ${act.buyFromMarket !== false ? 'checked' : ''} onchange="updateActionField(${trigIdx}, ${actIdx}, 'buyFromMarket', this.checked)">
-              ถ้าไม่มีในตัว/กระเป๋า ให้ซื้อจากตลาด
-            </label>
-            <label class="pe-budget">งบสูงสุด
-              <input type="number" class="form-input" min="0" value="${Number(act.maxPrice) || 100000}" onchange="updateActionField(${trigIdx}, ${actIdx}, 'maxPrice', parseInt(this.value, 10) || 0)"> z
-            </label>
-          </div>
+          <small class="pe-hint">บอทจะขับเคลื่อนเควสหลักและบทเรียน พร้อมกดข้ามเนื้อเรื่อง/รับส่งเควส/นั่งกองไฟ/ตีบวก/ทำอาหาร/เปลี่ยนอาชีพตามเควสให้อัตโนมัติโดยไม่ค้าง</small>
         </div>
       </div>`;
   }
+
   if (act.type === 'change_map') {
     return `
       <div class="pe-action change_map">
         <div class="pe-act-icon">🗺️</div>
         <div class="pe-act-main">
-          <div class="pe-act-title"><b>เปลี่ยนแมพฟาร์ม</b>${del}</div>
-          <select class="form-select" onchange="updateActionField(${trigIdx}, ${actIdx}, 'targetMap', this.value)">
-            ${PLAN_MAP_OPTIONS.map(grp => `
-              <optgroup label="${escapeHTML(grp.group)}">
-                ${grp.maps.map(m => `<option value="${escapeHTML(m.value)}" ${act.targetMap === m.value ? 'selected' : ''}>${escapeHTML(m.label)}</option>`).join('')}
-              </optgroup>`).join('')}
-          </select>
+          <div class="pe-act-title"><b>ย้ายแมพฟาร์ม (Auto-Farm)</b>${del}</div>
+          <div class="pe-fields">
+            <label>เลือกแมพ Nightcamp ที่จะไปฟาร์ม
+              <select class="form-select" onchange="updateActionField(${trigIdx}, ${actIdx}, 'targetMap', this.value)">
+                ${PLAN_MAP_OPTIONS.map(grp => `
+                  <optgroup label="${escapeHTML(grp.group)}">
+                    ${grp.maps.map(m => `<option value="${escapeHTML(m.value)}" ${act.targetMap === m.value ? 'selected' : ''}>${escapeHTML(m.label)}</option>`).join('')}
+                  </optgroup>`).join('')}
+              </select>
+            </label>
+            <label>ตีเฉพาะมอนสเตอร์ (เว้นว่าง = ตีทุกตัวในแมพ)
+              <input type="text" class="form-input" placeholder="เช่น เห็ดสปอร์, หมาป่า, โครงกระดูก (เว้นว่าง = ตีทุกตัว)" value="${escapeHTML(act.targetMonster || '')}" onchange="updateActionField(${trigIdx}, ${actIdx}, 'targetMonster', this.value.trim())">
+            </label>
+          </div>
+          <small class="pe-hint">บอทจะเดินทางไปยังแมพที่เลือกและเปิดระบบ Auto-Farm ตีมอนสเตอร์ในแมพนั้นทันที</small>
         </div>
       </div>`;
   }
+
   if (act.type === 'change_class') {
     return `
       <div class="pe-action change_class">
-        <div class="pe-act-icon">🏹</div>
+        <div class="pe-act-icon">⚔️</div>
         <div class="pe-act-main">
-          <div class="pe-act-title"><b>เปลี่ยนอาชีพ</b>${del}</div>
+          <div class="pe-act-title"><b>เปลี่ยนอาชีพ (Change Class)</b>${del}</div>
           <select class="form-select" onchange="updateActionField(${trigIdx}, ${actIdx}, 'targetClass', this.value)">
             ${PLAN_CLASS_OPTIONS.map(cls => `<option value="${cls.value}" ${String(act.targetClass || '').toLowerCase() === cls.value ? 'selected' : ''}>${cls.label}</option>`).join('')}
           </select>
-          <small class="pe-hint">บอทจะเปลี่ยนเมื่อเกมเปิดให้เปลี่ยนอาชีพนี้ได้ (คุยกับ Valkyrie ในเมืองหลวงให้เอง)</small>
+          <small class="pe-hint">เมื่อถึง Job Lv. ที่เปลี่ยนอาชีพได้ (Class 1 = Job 10, Class 2 = Job 50, Class 3 = Base 80 / Job 50) บอทจะเปลี่ยนเป็นอาชีพนี้และใส่อาวุธประจำอาชีพให้อัตโนมัติ</small>
         </div>
       </div>`;
   }
-  if (act.type === 'weight_scroll') {
+
+  if (act.type === 'life_gather') {
+    const job = act.lifeJob || 'wood';
+    const items = PLAN_LIFE_ITEM_OPTIONS.filter(x => x.job === job);
     return `
-      <div class="pe-action weight_scroll">
-        <div class="pe-act-icon">📦</div>
+      <div class="pe-action life_gather">
+        <div class="pe-act-icon">🪓</div>
         <div class="pe-act-main">
-          <div class="pe-act-title"><b>ซื้อ + ใช้ Weight Limit Scroll</b>${del}</div>
-          <div class="pe-fields">
-            <label>ใช้ให้ครบ (ครั้ง ต่อตัวละคร)
-              <input type="number" class="form-input" min="1" max="10" value="${act.qty || 10}" onchange="updateActionField(${trigIdx}, ${actIdx}, 'qty', Math.max(1, Math.min(10, parseInt(this.value, 10) || 10)))">
+          <div class="pe-act-title"><b>อาชีพเสริมอัตโนมัติ (ตัดไม้ / ขุดแร่ / ปลูกผัก)</b>${del}</div>
+          <div class="pe-fields pe-fields-3">
+            <label>สายอาชีพเสริม
+              <select class="form-select" onchange="updateActionField(${trigIdx}, ${actIdx}, 'lifeJob', this.value); const first = PLAN_LIFE_ITEM_OPTIONS.find(x => x.job === this.value); if (first) updateActionField(${trigIdx}, ${actIdx}, 'itemId', first.value); planRerender(${trigIdx});">
+                <option value="wood" ${job === 'wood' ? 'selected' : ''}>🪵 ตัดไม้ (Woodcutting)</option>
+                <option value="mine" ${job === 'mine' ? 'selected' : ''}>⛏️ ขุดแร่ (Mining)</option>
+                <option value="farm" ${job === 'farm' ? 'selected' : ''}>🌾 ปลูกผัก (Farming)</option>
+              </select>
             </label>
-            <label>งบสูงสุดรวม (0 = ไม่จำกัด)
-              <input type="number" class="form-input" min="0" step="1000" value="${Number(act.maxPrice) || 0}" onchange="updateActionField(${trigIdx}, ${actIdx}, 'maxPrice', Math.max(0, parseInt(this.value, 10) || 0))">
+            <label>วัตถุดิบเป้าหมาย
+              <select class="form-select" onchange="updateActionField(${trigIdx}, ${actIdx}, 'itemId', this.value)">
+                ${items.map(it => `<option value="${it.value}" ${act.itemId === it.value ? 'selected' : ''}>${escapeHTML(it.label)}</option>`).join('')}
+              </select>
+            </label>
+            <label>เก็บให้ครบ (ชิ้น)
+              <input type="number" class="form-input" min="1" max="500" value="${act.qty || 10}" onchange="updateActionField(${trigIdx}, ${actIdx}, 'qty', Math.max(1, parseInt(this.value, 10) || 10))">
             </label>
           </div>
-          <small class="pe-hint">บอทจะใช้ที่มีในกระเป๋าก่อน ถ้าไม่พอจะกลับเมืองไปซื้อจากร้าน NPC ที่ขาย (เช็คเงินก่อนซื้อ) แล้วกดใช้ทีละอันจนครบ — จำไว้กับตัวละครนี้ ใช้ครบแล้วจะไม่ซื้ออีก</small>
+          <small class="pe-hint">บอทจะเดินไปจุดตัดไม้/ขุดแร่/แปลงเกษตร และเก็บวัตถุดิบจนครบจำนวนในกระเป๋าแล้วทำ Action ถัดไป</small>
         </div>
       </div>`;
   }
+
   if (act.type === 'sell_trip') {
     return `
       <div class="pe-action sell_trip">
         <div class="pe-act-icon">🛒</div>
         <div class="pe-act-main">
-          <div class="pe-act-title"><b>กลับไปขายของ 1 รอบ</b>${del}</div>
-          <small class="pe-hint">บอทจะกลับเมือง ขายของตามที่ตั้งไว้ในแท็บ "ขาย" ซื้อของใช้ (ลูกธนู/ยา/ปีก) แล้วเดินกลับแมพฟาร์มเอง — เหมือนตอนกระเป๋าเต็ม</small>
-        </div>
-      </div>`;
-  }
-  if (act.type === 'set_arrow') {
-    const on = act.requireArrow !== false;
-    return `
-      <div class="pe-action set_arrow">
-        <div class="pe-act-icon">🎯</div>
-        <div class="pe-act-main">
-          <div class="pe-act-title"><b>ตั้งค่าลูกธนู (Require Arrow)</b>${del}</div>
-          <label class="pe-check"><input type="checkbox" ${on ? 'checked' : ''} onchange="updateActionField(${trigIdx}, ${actIdx}, 'requireArrow', this.checked); planRerender(${trigIdx});"> เปิดใช้ลูกธนู (เช็ค & ซื้อให้อัตโนมัติ)</label>
-          ${on ? `
+          <div class="pe-act-title"><b>กลับค่ายขายของ & ซื้อยา (ลุงโกโก้)</b>${del}</div>
           <div class="pe-fields pe-fields-3">
-            <label>ชนิดลูกธนู
-              <select class="form-select" onchange="const v = Number(this.value); updateActionField(${trigIdx}, ${actIdx}, 'smartArrow', v === 0); if (v > 0) updateActionField(${trigIdx}, ${actIdx}, 'arrowType', v);">
-                ${PLAN_ARROW_OPTIONS.map(a => `<option value="${a.value}" ${Number(act.smartArrow ? 0 : (act.arrowType || 90030)) === a.value ? 'selected' : ''}>${a.label}</option>`).join('')}
-              </select>
+            <label class="pe-check" style="align-self:center;">
+              <input type="checkbox" ${act.sellMaterials !== false ? 'checked' : ''} onchange="updateActionField(${trigIdx}, ${actIdx}, 'sellMaterials', this.checked)">
+              ขายขยะ/วัตถุดิบมอน
             </label>
-            <label>ซื้อให้ครบ (ดอก)
-              <input type="number" class="form-input" min="1" step="50" value="${act.arrowBuyQty || 200}" oninput="updateActionField(${trigIdx}, ${actIdx}, 'arrowBuyQty', Math.max(1, parseInt(this.value, 10) || 200))">
+            <label>ซื้อยาแดง (Red Potion) ให้ครบ
+              <input type="number" class="form-input" min="0" max="500" value="${act.redQty ?? 30}" onchange="updateActionField(${trigIdx}, ${actIdx}, 'redQty', Math.max(0, parseInt(this.value, 10) || 0))">
             </label>
-            <label>ซื้อเมื่อเหลือ <= (ดอก)
-              <input type="number" class="form-input" min="50" step="10" value="${act.ammoThreshold || 50}" oninput="updateActionField(${trigIdx}, ${actIdx}, 'ammoThreshold', Math.max(50, parseInt(this.value, 10) || 50))">
+            <label>ซื้อยาฟ้า (Blue Potion) ให้ครบ
+              <input type="number" class="form-input" min="0" max="500" value="${act.blueQty ?? 15}" onchange="updateActionField(${trigIdx}, ${actIdx}, 'blueQty', Math.max(0, parseInt(this.value, 10) || 0))">
             </label>
-          </div>` : '<small class="pe-hint">บอทจะเลิกเช็คและเลิกซื้อลูกธนูตั้งแต่เลเวลนี้</small>'}
+          </div>
+          <small class="pe-hint">บอทจะกลับค่ายกลางป่าไปคุยกับลุงโกโก้ ขายวัตถุดิบดรอป และซื้อยาแดง/ยาฟ้าเติมให้ครบตามจำนวน</small>
         </div>
       </div>`;
   }
+
+  if (act.type === 'equip_best' || act.type === 'equip_item') {
+    return `
+      <div class="pe-action equip_item">
+        <div class="pe-act-icon">🛡️</div>
+        <div class="pe-act-main">
+          <div class="pe-act-title"><b>สวมใส่อุปกรณ์ที่ดีที่สุดในกระเป๋า</b>${del}</div>
+          <div class="pe-fields">
+            <label>ระบุชื่อไอเทมเฉพาะเจาะจง (เว้นว่าง = เลือกชิ้นที่ค่าพลังดีที่สุดในกระเป๋าอัตโนมัติ)
+              <input type="text" class="form-input" placeholder="เว้นว่างเพื่อให้บอทเทียบใส่ชิ้นที่ดีที่สุดในกระเป๋าอัตโนมัติ" value="${escapeHTML(act.itemName || '')}" onchange="updateActionField(${trigIdx}, ${actIdx}, 'itemName', this.value.trim())">
+            </label>
+          </div>
+          <small class="pe-hint">บอทจะตรวจสอบอาวุธและชุดเกราะในกระเป๋าที่อาชีพปัจจุบันใส่ได้ แล้วสวมใส่ชิ้นที่เพิ่ม ATK/MATK/DEF สูงสุดให้อัตโนมัติ</small>
+        </div>
+      </div>`;
+  }
+
   return '';
 }
 
@@ -9858,8 +10055,8 @@ function duplicateTrigger(trigIdx) {
   if (!src) return;
   const copy = JSON.parse(JSON.stringify(src));
   copy.id = "trig_" + Date.now();
-  if (copy.type === 'zeny') copy.targetZeny = (Number(src.targetZeny) || 0) + 10000;
-  else copy.targetLevel = (parseInt(src.targetLevel, 10) || 1) + 1;
+  if (copy.type === 'zeny') copy.targetZeny = (Number(src.targetZeny) || 0) + 5000;
+  else copy.targetLevel = (parseInt(src.targetLevel, 10) || 1) + 5;
   (copy.actions || []).forEach(a => { a.id = "act_" + Date.now() + "_" + Math.floor(Math.random() * 1000); });
   activeEditingPlan.triggers.push(copy);
   sortPlanTriggers();
@@ -9868,71 +10065,31 @@ function duplicateTrigger(trigIdx) {
   setTimeout(() => focusPlanTrigger(copy.id), 60);
 }
 
-function togglePlanTriggerCollapse(trigIdx) {
-  const t = activeEditingPlan && activeEditingPlan.triggers && activeEditingPlan.triggers[trigIdx];
-  if (!t) return;
-  const key = t.id || `idx_${trigIdx}`;
-  if (planCollapsedTriggers.has(key)) planCollapsedTriggers.delete(key);
-  else planCollapsedTriggers.add(key);
-  renderPlanWorkflowCanvas();
-}
-
-function updateTriggerType(trigIdx, type) {
-  if (!activeEditingPlan || !activeEditingPlan.triggers) return;
-  const trig = activeEditingPlan.triggers[trigIdx];
-  trig.type = type;
-  if (type === 'job_level' && trig.classId === undefined) trig.classId = 'novice';
-  if (type !== 'job_level') delete trig.classId;
-  if (type === 'zeny' && !(Number(trig.targetZeny) > 0)) trig.targetZeny = 20000;
-  sortPlanTriggers();
-  markPlanDirty();
-  renderPlanWorkflowCanvas();
-}
-
-function updateTriggerLevel(trigIdx, level) {
-  if (!activeEditingPlan || !activeEditingPlan.triggers) return;
-  activeEditingPlan.triggers[trigIdx].targetLevel = Math.max(1, parseInt(level, 10) || 1);
-  sortPlanTriggers();
-  markPlanDirty();
-  renderPlanWorkflowCanvas();
-}
-
-function stepTriggerLevel(trigIdx, delta) {
-  const t = activeEditingPlan && activeEditingPlan.triggers && activeEditingPlan.triggers[trigIdx];
-  if (!t) return;
-  updateTriggerLevel(trigIdx, (parseInt(t.targetLevel, 10) || 1) + delta);
-}
-
 function addActionToTrigger(trigIdx, actionType) {
   if (!activeEditingPlan) return;
   const trig = planTrigger(trigIdx);
   if (!trig) return;
   if (!Array.isArray(trig.actions)) trig.actions = [];
   const newAction = { id: "act_" + Date.now() + "_" + Math.floor(Math.random() * 100), type: actionType };
-  if (actionType === 'equip_item') {
-    Object.assign(newAction, { itemName: "", optionFilter: "", buyFromMarket: true, maxPrice: 100000 });
+  if (actionType === 'auto_quest') {
+    Object.assign(newAction, { questMode: 'until_level', untilLevel: Math.max(10, (parseInt(trig.targetLevel, 10) || 1) + 10), untilQuest: 'MQ08' });
   } else if (actionType === 'change_map') {
-    newAction.targetMap = "ซากโบราณสถาน";
+    Object.assign(newAction, { targetMap: 'meadow', targetMonster: '' });
   } else if (actionType === 'change_class') {
-    newAction.targetClass = trig.type === 'job_level' && String(trig.classId || '').toLowerCase() === 'novice'
-      ? (activeEditingPlan.class1Target || "archer")
-      : (trig.type === 'job_level' && trig.classId ? (activeEditingPlan.class2Target || "hunter") : (activeEditingPlan.class1Target || "archer"));
-    if (activeEditingPlan.autoJobChange !== false) {
-      activeEditingPlan.autoJobChange = false;
-      const cb = document.getElementById('plan-editor-autojob');
-      if (cb) cb.checked = false;
-      refreshAutoJobUi();
-    }
-  } else if (actionType === 'set_arrow') {
-    Object.assign(newAction, { requireArrow: true, smartArrow: false, arrowType: 90030, arrowBuyQty: 5000, ammoThreshold: 50 });
-  } else if (actionType === 'weight_scroll') {
-    Object.assign(newAction, { qty: 10, maxPrice: 0 });
+    newAction.targetClass = (trig.type === 'job_level' && (trig.classId === 'traveler' || trig.classId === 'novice'))
+      ? (activeEditingPlan.class1Target || 'archer')
+      : (activeEditingPlan.class2Target || 'ranger');
+  } else if (actionType === 'life_gather') {
+    Object.assign(newAction, { lifeJob: 'wood', itemId: 'lf_birch', qty: 10 });
+  } else if (actionType === 'sell_trip') {
+    Object.assign(newAction, { sellMaterials: true, redQty: 30, blueQty: 15 });
+  } else if (actionType === 'equip_best') {
+    Object.assign(newAction, { itemName: '' });
   }
   trig.actions.push(newAction);
   if (trigIdx !== -1) markPlanDirty();
   planRerender(trigIdx);
   if (trigIdx === -1) {
-    // bring the new action into view inside the dialog
     setTimeout(() => {
       const acts = document.querySelectorAll('#pe-trigger-dialog .pe-dlg-act');
       if (acts.length) acts[acts.length - 1].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -9955,7 +10112,6 @@ function updateActionField(trigIdx, actIdx, field, val) {
     trig.actions[actIdx][field] = val;
     if (trigIdx === -1) return;
     markPlanDirty();
-    // Refresh the header chips (cheap) without re-rendering the inputs being edited
     const node = document.querySelector(`.pe-node[data-trigger-idx="${trigIdx}"] .pe-summary`);
     if (node) node.innerHTML = trig.actions.map(a => `<span class="pe-chip ${a.type}">${escapeHTML(planActionSummary(a))}</span>`).join('');
   }
@@ -9983,7 +10139,7 @@ async function refreshPlanLiveStatus() {
   const assigned = currentPlanProfiles.find(p => p.id === assignedId);
   const total = assigned && Array.isArray(assigned.triggers) ? assigned.triggers.length : 0;
   const syncing = assigned && st.planId !== assigned.id;
-  const pending = (st.pending || []).map(p => p.type === 'zeny' ? `เงิน ≥ ${Number(p.level).toLocaleString()} z` : `${p.type === 'job_level' ? `Job${p.cls ? ' ' + planClassLabel(p.cls).split(' ')[0] : ''}` : 'Base'} Lv.${p.level}`).join(', ');
+  const pending = (st.pending || []).map(p => p.type === 'zeny' ? `เงิน ≥ ${Number(p.level).toLocaleString()} Gold` : `${p.type === 'job_level' ? `Job${p.cls ? ' ' + planClassLabel(p.cls).split(' ')[0] : ''}` : 'Base'} Lv.${p.level}`).join(', ');
   const html = `
     <label class="pl-switch" title="เปิด/ปิด Plan Script ของจอนี้">
       <input type="checkbox" ${st.enabled ? 'checked' : ''} onchange="togglePlanScriptEnabled(this.checked)">
@@ -9992,6 +10148,7 @@ async function refreshPlanLiveStatus() {
     </label>
     <span class="pl-sep"></span>
     <span>${st.botRunning ? '🟢 บอทกำลังทำงาน' : '⏸️ บอทหยุดอยู่ <small>(แผนจะทำงานเมื่อกด START BOT)</small>'}</span>
+    ${st.task ? `<span style="color:#38bdf8;font-weight:600;">· ${escapeHTML(st.task)}</span>` : ''}
     ${syncing ? '<span class="pl-warn">⏳ กำลังส่งแผนล่าสุดไปที่จอ...</span>' : ''}
     ${st.planId && !syncing && total ? `<span>✅ ทำแล้ว <b>${Math.min((st.done || []).length, total)}/${total}</b> เงื่อนไข</span>` : ''}
     ${pending ? `<span class="pl-warn">⏳ กำลังรอทำ: ${escapeHTML(pending)}</span>` : ''}`;
@@ -10024,7 +10181,6 @@ function startPlanLiveStatus() {
   }, 5000);
 }
 
-// Sort triggers by level and list anything that would not work in the bot
 function validatePlanForSave(plan) {
   const problems = [];
   const triggers = Array.isArray(plan.triggers) ? plan.triggers : [];
@@ -10038,13 +10194,7 @@ function validatePlanForSave(plan) {
     if (seen[key]) problems.push(`มีเงื่อนไข ${label} ซ้ำกัน (รวมไว้ในอันเดียวจะอ่านง่ายกว่า)`);
     seen[key] = true;
     if (!(t.actions || []).length) problems.push(`${label} ยังไม่มี Action`);
-    (t.actions || []).forEach(a => {
-      if (a.type === 'equip_item' && !String(a.itemName || '').trim()) problems.push(`${label}: Action สวมใส่ยังไม่ได้ใส่ชื่อไอเทม`);
-      if (a.type === 'equip_item' && a.buyFromMarket !== false && !(Number(a.maxPrice) > 0)) problems.push(`${label}: ซื้อจากตลาดแต่งบสูงสุดเป็น 0`);
-    });
   });
-  if (plan.autoJobChange === false && !planHasClassAction(plan)) problems.push('ปิด "เปลี่ยนอาชีพอัตโนมัติ" แต่ยังไม่มี Action เปลี่ยนอาชีพ — ตัวละครจะไม่เปลี่ยนอาชีพเลย (เพิ่มเงื่อนไข Job Lv.10 (โนวิซ) → 🏹 เปลี่ยนอาชีพ)');
-  if (plan.autoJobChange === true && planHasClassAction(plan)) problems.push('เปิด "เปลี่ยนอาชีพอัตโนมัติ" อยู่ และมี Action เปลี่ยนอาชีพด้วย — บอทอาจเปลี่ยนอาชีพก่อนถึงเงื่อนไขที่ตั้งไว้');
   const tree = (typeof CLASS_TREE_MAP !== 'undefined') ? CLASS_TREE_MAP[plan.class1Target] : null;
   if (tree && plan.class2Target && !tree.secondClasses.some(c => c.id === plan.class2Target)) {
     problems.push(`Class 2 "${plan.class2Target}" ไม่ได้ต่อจาก Class 1 "${plan.class1Target}"`);
@@ -10065,18 +10215,23 @@ async function saveActivePlan(applyLive = false) {
   if (descInput) activeEditingPlan.description = descInput.value.trim();
   if (c1Sel) activeEditingPlan.class1Target = c1Sel.value;
   if (c2Sel) activeEditingPlan.class2Target = c2Sel.value;
+  const tree = (typeof CLASS_TREE_MAP !== 'undefined') ? CLASS_TREE_MAP[activeEditingPlan.class1Target] : null;
+  const sc = tree?.secondClasses?.find(s => s.id === activeEditingPlan.class2Target);
+  if (sc && sc.class3Id) activeEditingPlan.class3Target = sc.class3Id;
+
   const jobLv = (id, def) => {
     const n = Math.round(Number(document.getElementById(id)?.value));
     return Number.isFinite(n) && n >= 1 && n <= 99 ? n : def;
   };
   activeEditingPlan.class1JobLevel = jobLv("plan-editor-class1-job", 10);
+  activeEditingPlan.class2JobLevel = jobLv("plan-editor-class2-job", 50);
+
+  const aqCb = document.getElementById("plan-editor-autoquest");
+  if (aqCb) activeEditingPlan.autoQuestEnabled = aqCb.checked;
   const autoCb = document.getElementById("plan-editor-autojob");
   if (autoCb) activeEditingPlan.autoJobChange = autoCb.checked;
-  const gemCb = document.getElementById("plan-editor-autogem");
-  if (gemCb) activeEditingPlan.autoUpgradeGems = gemCb.checked;
-  const petCb = document.getElementById("plan-editor-eventpet");
-  if (petCb) activeEditingPlan.eventPet = petCb.checked;
-  activeEditingPlan.class2JobLevel = jobLv("plan-editor-class2-job", 50);
+  const statCb = document.getElementById("plan-editor-autostat");
+  if (statCb) activeEditingPlan.autoStatSkillEnabled = statCb.checked;
 
   const problems = validatePlanForSave(activeEditingPlan);
   if (problems.length && !confirm("พบจุดที่ควรตรวจในแผนนี้:\n\n• " + problems.join("\n• ") + "\n\nบันทึกต่อเลยไหม?")) return;
@@ -10093,7 +10248,7 @@ async function saveActivePlan(applyLive = false) {
       if (applyLive && activePlanClientProfileId) {
         await assignPlanToActiveClient(activeEditingPlan.id);
       } else {
-        alert("💾 บันทึกแผนการเล่นเรียบร้อยแล้ว!");
+        alert("💾 บันทึกแผนการเล่น Nightcamp เรียบร้อยแล้ว!");
       }
       await fetchAndRenderPlanProfiles();
       switchPlanModalView('list');
@@ -10114,7 +10269,6 @@ function handleImportPlansClick() {
   }
 }
 
-// Export the chosen plans to a .json file (the import reads { profiles: [...] })
 function exportPlanProfiles(planIds) {
   const list = currentPlanProfiles.filter(p => planIds.includes(p.id));
   if (!list.length) return;
@@ -10126,15 +10280,14 @@ function exportPlanProfiles(planIds) {
   const a = document.createElement('a');
   a.href = url;
   const safe = s => String(s || '').replace(/[\\/:*?"<>|\s]+/g, '_').slice(0, 40);
-  a.download = list.length === 1 ? `plan_${safe(list[0].name)}_${Date.now()}.json` : `aetheria_plan_scripts_${list.length}_${Date.now()}.json`;
+  a.download = list.length === 1 ? `nightcamp_plan_${safe(list[0].name)}_${Date.now()}.json` : `nightcamp_plan_scripts_${list.length}_${Date.now()}.json`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 1000);
-  showToast(`📤 ส่งออก ${list.length === 1 ? 'แผน "' + list[0].name + '"' : list.length + ' แผน'} แล้ว`, 'success');
+  if (typeof showToast === 'function') showToast(`📤 ส่งออก ${list.length === 1 ? 'แผน "' + list[0].name + '"' : list.length + ' แผน'} แล้ว`, 'success');
 }
 
-// "ส่งออก (Export)": tick the plans to put in the file
 function handleExportPlansClick() {
   if (currentPlanProfiles.length === 0) {
     alert("ไม่มี Plan Profile ในระบบให้ส่งออก");
@@ -10163,7 +10316,7 @@ function handleExportPlansClick() {
           <label style="display: flex; align-items: center; gap: 8px; padding: 6px 4px; border-radius: 6px; cursor: pointer; font-size: 12.5px;">
             <input type="checkbox" class="pe-exp-cb" value="${escapeHTML(p.id)}">
             <span style="flex: 1; color: #f1f5f9;">${escapeHTML(p.name)}</span>
-            <small style="color: #94a3b8;">${escapeHTML(p.class1Target || '')} ➔ ${escapeHTML(p.class2Target || '')}${p.gearPlan?.steps?.length ? ' · 🛡️' + p.gearPlan.steps.length : ''}</small>
+            <small style="color: #94a3b8;">${escapeHTML(p.class1Target || '')} ➔ ${escapeHTML(p.class2Target || '')}</small>
           </label>`).join('')}
       </div>
       <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px;">
@@ -10211,6 +10364,9 @@ function setupPlanModalEventListeners() {
 
   const btnCreate = document.getElementById("btn-create-new-plan");
   if (btnCreate) btnCreate.onclick = createNewPlanProfile;
+
+  const btnSeedExample = document.getElementById("btn-seed-example-plan");
+  if (btnSeedExample) btnSeedExample.onclick = seedNightcampExamplePlan;
 
   const btnAddTrigger = document.getElementById("btn-add-level-trigger");
   if (btnAddTrigger) btnAddTrigger.onclick = addLevelTrigger;

@@ -318,9 +318,161 @@ const META_PLAN_STAT_EXTENSIONS = {
   }
 };
 
+function buildDefaultNightcampWolfHunterPlan() {
+  return {
+    id: "plan_nc_wolfhunter_1_50",
+    name: "🐺 [ตัวอย่างแนะนำ] นักธนู ➔ นักล่าหมาป่า (สายยิงรัว+เหยี่ยว+หมาป่า 0 มานา Lv.1–50+)",
+    description: "ฟาร์มง่ายที่สุด ไม่ใช้มานา: ยิงปกติติดยิงเบิ้ล + เหยี่ยวโฉบฟรีไม่สน DEF + หมาป่าช่วยแทงค์และกัดรัว อัป Stat ตามเพดานเลเวล (30+0.55×Lv) ได้ผล 100%",
+    autoQuestEnabled: true,
+    autoJobChange: true,
+    autoStatSkillEnabled: true,
+    class1Target: "archer",
+    class1JobLevel: 10,
+    class2Target: "wolfhunter",
+    class2JobLevel: 50,
+    class3Target: "packalpha",
+    statBuild: {
+      queue: [
+        { stat: "DEX", to: 30 },
+        { stat: "AGI", to: 30 },
+        { stat: "LUK", to: 24 },
+        { stat: "DEX", to: 45 },
+        { stat: "AGI", to: 45 },
+        { stat: "LUK", to: 36 },
+        { stat: "VIT", to: 20 },
+        { stat: "DEX", to: 60 },
+        { stat: "AGI", to: 60 },
+        { stat: "LUK", to: 48 },
+        { stat: "DEX", to: 80 },
+        { stat: "AGI", to: 80 },
+        { stat: "LUK", to: 60 },
+        { stat: "VIT", to: 40 }
+      ],
+      targets: { STR: 1, AGI: 80, VIT: 40, INT: 1, DEX: 80, LUK: 60 },
+      priorityOrder: ["DEX", "AGI", "LUK", "VIT", "INT", "STR"]
+    },
+    skillBuild: {
+      skillPointQueue: [
+        "mastery", "mastery", "mastery", "mastery", "mastery",
+        "body", "body", "body", "body",
+        "ar_bowmastery", "ar_bowmastery", "ar_bowmastery", "ar_bowmastery", "ar_bowmastery",
+        "ar_doubleshot", "ar_doubleshot", "ar_doubleshot", "ar_doubleshot", "ar_doubleshot",
+        "ar_bowmastery", "ar_bowmastery", "ar_bowmastery", "ar_bowmastery", "ar_bowmastery",
+        "ar_doubleshot", "ar_doubleshot", "ar_doubleshot", "ar_doubleshot", "ar_doubleshot",
+        "ar_owl", "ar_owl", "ar_owl", "ar_owl", "ar_owl", "ar_owl", "ar_owl", "ar_owl", "ar_owl", "ar_owl",
+        "ar_concentrate", "ar_concentrate", "ar_concentrate", "ar_concentrate", "ar_concentrate",
+        "mastery", "mastery", "mastery", "mastery", "mastery",
+        "body", "body", "body", "body", "body", "body",
+        "double", "double", "double",
+        "wh_blitz", "wh_blitz",
+        "wh_autoblitz", "wh_autoblitz", "wh_autoblitz", "wh_autoblitz", "wh_autoblitz",
+        "wh_steelcrow", "wh_steelcrow", "wh_steelcrow", "wh_steelcrow", "wh_steelcrow",
+        "wh_autoblitz", "wh_autoblitz", "wh_autoblitz", "wh_autoblitz", "wh_autoblitz",
+        "wh_wolf", "wh_wolf", "wh_wolf", "wh_wolf",
+        "wh_alpha", "wh_alpha", "wh_alpha", "wh_alpha", "wh_alpha",
+        "wh_bond", "wh_bond", "wh_bond", "wh_bond", "wh_bond", "wh_bond", "wh_bond", "wh_bond", "wh_bond", "wh_bond",
+        "wh_wolfrush", "wh_wolfrush", "wh_wolfrush", "wh_wolfrush", "wh_wolfrush",
+        "wh_wolf", "wh_wolf", "wh_wolf", "wh_wolf", "wh_wolf",
+        "wh_howl", "wh_howl", "wh_howl"
+      ],
+      plannedLevels: {
+        mastery: 10, body: 10,
+        ar_bowmastery: 10, ar_doubleshot: 10, ar_owl: 10, ar_concentrate: 5, double: 3,
+        wh_blitz: 2, wh_autoblitz: 10, wh_steelcrow: 5, wh_wolf: 9, wh_alpha: 5, wh_bond: 10, wh_wolfrush: 5, wh_howl: 3
+      },
+      facets: {}
+    },
+    triggers: [
+      {
+        id: "trig_nc_lv1",
+        type: "base_level",
+        targetLevel: 1,
+        actions: [
+          { id: "act_nc_aq1", type: "auto_quest", questMode: "until_level", untilLevel: 12, untilQuest: "MQ08" },
+          { id: "act_nc_eq1", type: "equip_best", itemName: "" }
+        ]
+      },
+      {
+        id: "trig_nc_job10",
+        type: "job_level",
+        classId: "traveler",
+        targetLevel: 10,
+        actions: [
+          { id: "act_nc_c1", type: "change_class", targetClass: "archer" },
+          { id: "act_nc_eq2", type: "equip_best", itemName: "" }
+        ]
+      },
+      {
+        id: "trig_nc_lv12",
+        type: "base_level",
+        targetLevel: 12,
+        actions: [
+          { id: "act_nc_sell12", type: "sell_trip", sellMaterials: true, redQty: 30, blueQty: 10 },
+          { id: "act_nc_aq12", type: "auto_quest", questMode: "until_level", untilLevel: 25, untilQuest: "MQ25" }
+        ]
+      },
+      {
+        id: "trig_nc_lv25",
+        type: "base_level",
+        targetLevel: 25,
+        actions: [
+          { id: "act_nc_map25", type: "change_map", targetMap: "woods", targetMonster: "" },
+          { id: "act_nc_eq25", type: "equip_best", itemName: "" }
+        ]
+      },
+      {
+        id: "trig_nc_lv35",
+        type: "base_level",
+        targetLevel: 35,
+        actions: [
+          { id: "act_nc_sell35", type: "sell_trip", sellMaterials: true, redQty: 50, blueQty: 15 },
+          { id: "act_nc_map35", type: "change_map", targetMap: "burnt", targetMonster: "" }
+        ]
+      },
+      {
+        id: "trig_nc_job50_c1",
+        type: "job_level",
+        classId: "archer",
+        targetLevel: 50,
+        actions: [
+          { id: "act_nc_c2", type: "change_class", targetClass: "wolfhunter" },
+          { id: "act_nc_eq_c2", type: "equip_best", itemName: "" }
+        ]
+      },
+      {
+        id: "trig_nc_lv46",
+        type: "base_level",
+        targetLevel: 46,
+        actions: [
+          { id: "act_nc_map46", type: "change_map", targetMap: "peak", targetMonster: "" },
+          { id: "act_nc_aq46", type: "auto_quest", questMode: "all", untilLevel: 70, untilQuest: "ALL" }
+        ]
+      }
+    ],
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  };
+}
+
 function normalizePlansData(raw) {
   if (raw && Array.isArray(raw.profiles)) {
     let migrated = false;
+    // Migrate old Aetheria starter plan ("plan_starter_archer" with Gakkung Bow) to Nightcamp Wolf Hunter plan
+    const aetheriaIdx = raw.profiles.findIndex(p => p && p.id === "plan_starter_archer");
+    if (aetheriaIdx !== -1) {
+      const ncPlan = buildDefaultNightcampWolfHunterPlan();
+      raw.profiles[aetheriaIdx] = ncPlan;
+      if (raw.assignments) {
+        for (const k of Object.keys(raw.assignments)) {
+          if (raw.assignments[k] === "plan_starter_archer") raw.assignments[k] = ncPlan.id;
+        }
+      }
+      migrated = true;
+    }
+    if (raw.profiles.length === 0) {
+      raw.profiles.push(buildDefaultNightcampWolfHunterPlan());
+      migrated = true;
+    }
     for (const p of raw.profiles) {
       if (!p || !p.statBuild || !Array.isArray(p.statBuild.queue)) continue;
       const ext = META_PLAN_STAT_EXTENSIONS[p.id];
@@ -352,61 +504,7 @@ function normalizePlansData(raw) {
     return result;
   }
 
-  // Initial starter plan matching user specifications:
-  // Level 8: Equip Gakkung bow, Angelic Protection, Change map to ซากโบราณสถาน
-  // Job Level 10: Change class to Archer
-  const defaultProfiles = [
-    {
-      id: "plan_starter_archer",
-      name: "Archer Speedrun Lv.1-50 (ตัวอย่างเริ่มต้น)",
-      description: "Lv.8 สวมใส่ Gakkung Bow + Angelic Protection, ย้ายแมพ, Job 10 เปลี่ยนอาชีพ Archer",
-      triggers: [
-        {
-          id: "trig_1",
-          type: "base_level",
-          targetLevel: 8,
-          actions: [
-            {
-              id: "act_1",
-              type: "equip_item",
-              itemName: "Gakkung Bow",
-              optionFilter: "dex",
-              buyFromMarket: true,
-              maxPrice: 100000
-            },
-            {
-              id: "act_2",
-              type: "equip_item",
-              itemName: "Angelic Protection",
-              optionFilter: "",
-              buyFromMarket: true,
-              maxPrice: 50000
-            },
-            {
-              id: "act_3",
-              type: "change_map",
-              targetMap: "ซากโบราณสถาน"
-            }
-          ]
-        },
-        {
-          id: "trig_2",
-          type: "job_level",
-          targetLevel: 10,
-          actions: [
-            {
-              id: "act_4",
-              type: "change_class",
-              targetClass: "Archer"
-            }
-          ]
-        }
-      ],
-      createdAt: Date.now(),
-      updatedAt: Date.now()
-    }
-  ];
-
+  const defaultProfiles = [buildDefaultNightcampWolfHunterPlan()];
   const assignments = {};
   return { profiles: defaultProfiles, assignments };
 }
@@ -10975,8 +11073,8 @@ public class PmFocus {
     const targetRunning = action === "start" ? true : (action === "stop" ? false : !isRunning);
     const plansData = loadPlans();
     const assignedPlanId = plansData && plansData.assignments ? plansData.assignments[id] : null;
-    const assignedPlan = assignedPlanId ? (plansData.profiles || []).find(x => x.id === assignedPlanId) : null;
-    const planShouldEnable = Boolean(assignedPlan && plansData.pendingEnable && plansData.pendingEnable[id]);
+    const assignedPlan = (assignedPlanId ? (plansData.profiles || []).find(x => x.id === assignedPlanId) : null) || (plansData.profiles || [])[0] || null;
+    const planShouldEnable = Boolean(assignedPlan && (!plansData.userDisabled || !plansData.userDisabled[id]));
 
     const code = targetRunning ? `(() => {
       try {
@@ -11819,9 +11917,11 @@ public class PmFocus {
           name: (payload.name || "New Plan").trim(),
           description: payload.description || "",
           class1Target: payload.class1Target || "archer",
-          class2Target: payload.class2Target || "hunter",
-          // New plans: the player places "เปลี่ยนอาชีพ" actions (automatic change only when asked for)
-          autoJobChange: payload.autoJobChange === true,
+          class2Target: payload.class2Target || "wolfhunter",
+          class3Target: payload.class3Target || "packalpha",
+          autoQuestEnabled: payload.autoQuestEnabled !== false,
+          autoJobChange: payload.autoJobChange !== false,
+          autoStatSkillEnabled: payload.autoStatSkillEnabled !== false,
           autoUpgradeGems: payload.autoUpgradeGems !== false,
           eventPet: payload.eventPet !== false,
           class1JobLevel: planJobLevel(payload.class1JobLevel, 10),
@@ -11860,8 +11960,11 @@ public class PmFocus {
           name: payload.name !== undefined ? payload.name.trim() : plansData.profiles[idx].name,
           description: payload.description !== undefined ? payload.description : plansData.profiles[idx].description,
           class1Target: payload.class1Target !== undefined ? payload.class1Target : (plansData.profiles[idx].class1Target || "archer"),
-          class2Target: payload.class2Target !== undefined ? payload.class2Target : (plansData.profiles[idx].class2Target || "hunter"),
-          autoJobChange: typeof payload.autoJobChange === 'boolean' ? payload.autoJobChange : plansData.profiles[idx].autoJobChange,
+          class2Target: payload.class2Target !== undefined ? payload.class2Target : (plansData.profiles[idx].class2Target || "wolfhunter"),
+          class3Target: payload.class3Target !== undefined ? payload.class3Target : (plansData.profiles[idx].class3Target || "packalpha"),
+          autoQuestEnabled: typeof payload.autoQuestEnabled === 'boolean' ? payload.autoQuestEnabled : (plansData.profiles[idx].autoQuestEnabled !== false),
+          autoJobChange: typeof payload.autoJobChange === 'boolean' ? payload.autoJobChange : (plansData.profiles[idx].autoJobChange !== false),
+          autoStatSkillEnabled: typeof payload.autoStatSkillEnabled === 'boolean' ? payload.autoStatSkillEnabled : (plansData.profiles[idx].autoStatSkillEnabled !== false),
           autoUpgradeGems: typeof payload.autoUpgradeGems === 'boolean' ? payload.autoUpgradeGems : plansData.profiles[idx].autoUpgradeGems,
           eventPet: typeof payload.eventPet === 'boolean' ? payload.eventPet : plansData.profiles[idx].eventPet,
           class1JobLevel: planJobLevel(payload.class1JobLevel !== undefined ? payload.class1JobLevel : plansData.profiles[idx].class1JobLevel, 10),

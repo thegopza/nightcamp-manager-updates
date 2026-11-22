@@ -1,230 +1,4360 @@
 // ==========================================================================
-// PLAN SCRIPT: AUTO CLASS SELECTION, SKILL BUILDER & STAT BUILDER ENGINE
+// NIGHTCAMP PLAN SCRIPT: AUTO CLASS SELECTION, SKILL BUILDER & STAT BUILDER
 // ==========================================================================
 
 const CLASS_TREE_MAP = {
   archer: {
-    name: 'Archer (นักธนู)',
+    name: 'นักธนู (Archer)',
     secondClasses: [
-      { id: 'hunter', name: 'Hunter (นักล่า)' },
-      { id: 'bard', name: 'Bard (กวี)' },
-      { id: 'dancer', name: 'Dancer (นักเต้น)' }
+      { id: 'ranger', name: '🏹 เรนเจอร์ (Ranger)', class3Id: 'moonsniper', class3Name: 'พรานจันทร์เงียบ (Moonsniper)' },
+      { id: 'wolfhunter', name: '🐺 นักล่าหมาป่า (Wolf Hunter)', class3Id: 'packalpha', class3Name: 'จ่าฝูงจันทร์เต็มดวง (Pack Alpha)' },
+      { id: 'bard', name: '🎵 นักกวี (Bard)', class3Id: 'maestro', class3Name: 'วาทยกรแห่งป่า (Maestro)' },
+      { id: 'gunslinger', name: '🔫 มือปืน (Gunslinger)', class3Id: 'outlaw', class3Name: 'มือปืนเที่ยงคืน (Outlaw)' }
     ]
   },
-  swordsman: {
-    name: 'Swordsman (นักดาบ)',
+  knight: {
+    name: 'อัศวิน (Knight)',
     secondClasses: [
-      { id: 'knight', name: 'Knight (อัศวิน)' },
-      { id: 'crusader', name: 'Crusader (ครูเซเดอร์)' }
+      { id: 'paladin', name: '🛡️ พาลาดิน (Paladin)', class3Id: 'dawnwarden', class3Name: 'ผู้พิทักษ์รุ่งสาง (Dawn Warden)' },
+      { id: 'dragonknight', name: '🐉 อัศวินมังกร (Dragon Knight)', class3Id: 'dragonbound', class3Name: 'อัศวินผสานมังกร (Dragonbound)' },
+      { id: 'swordmaster', name: '⚔️ นักดาบ (Swordmaster)', class3Id: 'starblade', class3Name: 'นักดาบกลุ่มดาว (Starblade)' },
+      { id: 'berserker', name: '🩸 เบอร์เซิร์กเกอร์ (Berserker)', class3Id: 'bloodmoon', class3Name: 'จอมคลั่งจันทร์เลือด (Bloodmoon)' }
     ]
   },
   mage: {
-    name: 'Mage (นักเวท)',
+    name: 'จอมเวท (Mage)',
     secondClasses: [
-      { id: 'wizard', name: 'Wizard (จอมเวท)' },
-      { id: 'sage', name: 'Sage (นักปราชญ์)' }
+      { id: 'archmage', name: '🔮 อาร์คเมจ (Archmage)', class3Id: 'astral', class3Name: 'จอมเวทดาราจักร (Astral)' },
+      { id: 'warlock', name: '🏮 วอร์ล็อกตะเกียง (Warlock)', class3Id: 'hexlord', class3Name: 'จ้าวคืนเดือนดับ (Hexlord)' },
+      { id: 'firemage', name: '🔥 จอมเวทไฟ (Fire Mage)', class3Id: 'starcore', class3Name: 'จอมเวทดาวฤกษ์ (Starcore)' },
+      { id: 'icemage', name: '❄️ จอมเวทน้ำแข็ง (Ice Mage)', class3Id: 'winterlord', class3Name: 'จ้าวเหมันต์ (Winterlord)' }
     ]
   },
-  thief: {
-    name: 'Thief (โจร)',
+  rogue: {
+    name: 'โจร (Rogue)',
     secondClasses: [
-      { id: 'assassin', name: 'Assassin (นักฆ่า)' },
-      { id: 'rogue', name: 'Rogue (โร้ก)' }
+      { id: 'assassin', name: '🗡️ นักฆ่า (Assassin)', class3Id: 'eclipse', class3Name: 'นักฆ่าจันทรคราส (Eclipse)' },
+      { id: 'shinobi', name: '🥷 นินจา (Shinobi)', class3Id: 'shadowlord', class3Name: 'จ้าวเงาร้อยร่าง (Shadowlord)' },
+      { id: 'reaper', name: '🌙 ยมทูต (Reaper)', class3Id: 'harvester', class3Name: 'ผู้เก็บเกี่ยวจันทรา (Harvester)' },
+      { id: 'puppeteer', name: '🎎 นักเชิดหุ่น (Puppeteer)', class3Id: 'showmaster', class3Name: 'จ้าวโรงหุ่นราตรี (Showmaster)' }
     ]
   },
-  acolyte: {
-    name: 'Acolyte (นักบวชฝึกหัด)',
+  priest: {
+    name: 'พระ (Priest)',
     secondClasses: [
-      { id: 'priest', name: 'Priest (พรีสต์)' },
-      { id: 'monk', name: 'Monk (มองค์)' }
-    ]
-  },
-  merchant: {
-    name: 'Merchant (พ่อค้า)',
-    secondClasses: [
-      { id: 'blacksmith', name: 'Blacksmith (ช่างตีเหล็ก)' },
-      { id: 'alchemist', name: 'Alchemist (นักเล่นแร่แปรธาตุ)' }
+      { id: 'bishop', name: '✨ บิชอป (Bishop)', class3Id: 'starsaint', class3Name: 'นักบุญแสงดาว (Starsaint)' },
+      { id: 'monk', name: '👊 นักพรต (Monk)', class3Id: 'meteorfist', class3Name: 'ปรมาจารย์หมัดดาวตก (Meteorfist)' },
+      { id: 'lightkeeper', name: '🕯️ ผู้จุดตะเกียง (Lightkeeper)', class3Id: 'beacon', class3Name: 'ผู้เฝ้าประภาคาร (Beacon)' },
+      { id: 'wisp', name: '🧚 ผู้เลี้ยงดวงไฟ (Wisp)', class3Id: 'starshepherd', class3Name: 'ผู้เลี้ยงดวงดาว (Starshepherd)' }
     ]
   }
 };
 
-// Generated from the game's own skill catalog (window.__skillCatalog): names, learnable max level and
-// prerequisites match the game. Regenerate when the game adds skills.
-const SKILLS_DATABASE = { "novice": [
-    {"id":"basic-skill","name":"Adventurer's Instinct","thai":"ทักษะพื้นฐาน","maxLevel":9,"kind":"passive","desc":"ทักษะพื้นฐานของนักผจญภัย ต้องฝึกจนถึง Lv.9 จึงเปลี่ยนอาชีพได้"},
-    {"id":"first-aid","name":"Field Mend","thai":"ปฐมพยาบาล","maxLevel":1,"kind":"active","desc":"ทำแผลเบื้องต้นให้ตัวเอง ฟื้นฟู HP เล็กน้อย"}
-  ], "swordsman": [
-    {"id":"sword-mastery","name":"Blade Mastery","thai":"ชำนาญดาบ","maxLevel":10,"kind":"passive","desc":"เพิ่มพลังโจมตีเมื่อใช้ดาบ เป็นพื้นฐานของสายนักดาบ"},
-    {"id":"bash","name":"Crushing Blow","thai":"ฟันกระแทก","maxLevel":10,"kind":"active","desc":"ฟันศัตรูอย่างรุนแรง ตั้งแต่ Lv.6 มีโอกาสทำให้เป้าหมายมึนงง","facets":[{"lv":5,"opts":[{"id":"power","name":"Power","thai":"พลังทำลาย","desc":"ดาเมจ +20%"},{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"crushing-blow","name":"Crushing Blow","thai":"ทุบสะท้าน","desc":"โอกาส 14% มึน 1.5 วิ"}]},{"lv":12,"opts":[{"id":"lingering","name":"Lingering","thai":"สถานะยืดเยื้อ","desc":"เวลาสถานะที่สกิลทำ +56%"},{"id":"cleave","name":"Cleave","thai":"ฟันกวาด","desc":"ศัตรูรอบเป้าในระยะ 1 ช่อง โดน 82% ของดาเมจสกิลด้วย (ใช้กับสกิลเป้าเดียว)"},{"id":"executioner","name":"Executioner","thai":"เพชฌฆาต","desc":"ดาเมจ +566% กับเป้าที่เลือดต่ำกว่า 30%"}]},{"lv":15,"opts":[{"id":"overload","name":"Overload","thai":"ทุ่มสุดตัว","desc":"ดาเมจ +60% แต่คูลดาวน์ +50%"},{"id":"barrage","name":"Barrage","thai":"ระดมโจมตี","desc":"โดนเพิ่ม 3 ครั้ง แต่ละครั้งดาเมจ -25%"},{"id":"overkill","name":"Overkill","thai":"ดาเมจล้น","desc":"ดาเมจที่เกินตอนฆ่า 167% ไหลไปศัตรูใกล้สุดใน 5 ช่อง"}]}]},
-    {"id":"provoke","name":"Challenger's Roar","thai":"ยั่วยุ","maxLevel":10,"kind":"active","desc":"ยั่วยุศัตรูทุกตัวในรัศมี 5 ช่องรอบตัวให้หันมาสู้ (ดึงมอน) และลดพลังป้องกันของพวกมัน (ไม่มีผลกับเผ่า Undead) · สาย Crusader: มอนที่โดนยั่วยุต...","facets":[{"lv":3,"opts":[{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"focus","name":"Focus","thai":"สมาธิ","desc":"SP -35%"},{"id":"deep-curse","name":"Deep Curse","thai":"คำสาปลึก","desc":"ค่าที่ดีบัฟของสกิลนี้ลด (DEF / ATK / ความเร็ว ฯลฯ) แรงขึ้น 10%"}]},{"lv":6,"opts":[{"id":"lingering","name":"Lingering","thai":"สถานะยืดเยื้อ","desc":"เวลาสถานะที่สกิลทำ +56%"},{"id":"contagion","name":"Contagion","thai":"ดีบัฟลาม","desc":"ดีบัฟของสกิลนี้ลามไปมอนรอบเป้า 2 ช่อง 55% ของความแรงและเวลา (สูงสุด 3 ตัว ไม่รวมบอส ไม่ลามต่อ)"},{"id":"exploit","name":"Exploit","thai":"ซ้ำเติม","desc":"มอนที่ติดสถานะ / ดีบัฟจากสกิลนี้รับดาเมจจากทุกคนเพิ่ม 8% (บอสครึ่งหนึ่ง)"}]},{"lv":10,"opts":[{"id":"master","name":"Master","thai":"ชำนาญ","desc":"คูลดาวน์ -50%, เวลาร่าย -50%"},{"id":"free","name":"Effortless","thai":"ไร้แรง","desc":"SP -70%"},{"id":"long-reach","name":"Long Reach","thai":"ระยะไกล","desc":"ระยะร่าย +3 ช่อง"}]}]},
-    {"id":"hp-recovery","name":"Iron Vitality","thai":"ฟื้นฟูพลังชีวิต","maxLevel":10,"kind":"passive","desc":"เพิ่มการฟื้นฟู HP ตามธรรมชาติ"},
-    {"id":"magnum-break","name":"Inferno Burst","thai":"ระเบิดเพลิง","maxLevel":10,"kind":"active","req":"ฟันกระแทก Lv.3","prereq":[{"skill":"bash","level":3}],"desc":"ระเบิดพลังเพลิงรอบตัว ทำความเสียหายธาตุไฟต่อศัตรูรอบด้าน และผลักศัตรูที่โดนกระเด็น 2 ช่อง หลังใช้ได้รับบัพ ความเสียหายกายภาพ +10% เป็นเวลา 2...","facets":[{"lv":5,"opts":[{"id":"power","name":"Power","thai":"พลังทำลาย","desc":"ดาเมจ +20%"},{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"ignite","name":"Ignite","thai":"เพลิงลาม","desc":"ศัตรูที่โดนติดไฟ เผาไหม้ 30% ของดาเมจต่อวิ 3 วิ"}]},{"lv":12,"opts":[{"id":"vortex","name":"Vortex","thai":"วังวน","desc":"ดูดศัตรูในพื้นที่เข้าหากลางวง 1.5 ช่องก่อนโดน"},{"id":"epicenter","name":"Epicenter","thai":"จุดศูนย์กลาง","desc":"ศัตรูกลางวง 1 ช่องรับดาเมจ +184%"},{"id":"concussive","name":"Concussive","thai":"แรงกระแทก","desc":"ศัตรูที่โดนช้าลง 28% 3 วิ"}]},{"lv":15,"opts":[{"id":"overload","name":"Overload","thai":"ทุ่มสุดตัว","desc":"ดาเมจ +60% แต่คูลดาวน์ +50%"},{"id":"wider","name":"Vast","thai":"กว้างไกล","desc":"พื้นที่ +2 ช่อง แต่ดาเมจ -15%"},{"id":"aftershock","name":"Aftershock","thai":"แรงสั่นสะเทือน","desc":"พื้นสั่นซ้ำหลัง 1 วิ ทุกตัวในพื้นที่โดน 216% ของดาเมจสกิล"}]}]},
-    {"id":"endure","name":"Unbroken Will","thai":"จิตมั่นคง","maxLevel":10,"kind":"active","req":"ยั่วยุ Lv.3","prereq":[{"skill":"provoke","level":3}],"desc":"ตั้งสติต้านทานการโจมตี เพิ่มพลังป้องกันเวทชั่วคราว","facetsPending":true}
-  ], "mage": [
-    {"id":"staff-mastery","name":"Arcane Focus","thai":"ชำนาญไม้เท้า","maxLevel":10,"kind":"passive","desc":"ถือไม้เท้า MATK +3 ต่อเลเวล (Lv.10 = +30)"},
-    {"id":"sp-recovery","name":"Mana Flow","thai":"ฟื้นฟูพลังเวท","maxLevel":10,"kind":"passive","desc":"เพิ่มการฟื้นฟู SP ตามธรรมชาติ"},
-    {"id":"fire-bolt","name":"Flame Lance","thai":"ศรเพลิง","maxLevel":10,"kind":"active","desc":"ยิงศรเพลิงตามจำนวนเลเวลสกิล ธาตุไฟ","facets":[{"lv":5,"opts":[{"id":"power","name":"Power","thai":"พลังทำลาย","desc":"ดาเมจ +20%"},{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"ignite","name":"Ignite","thai":"ติดไฟ","desc":"ศัตรูที่โดนติดไฟ เผา 30% ของดาเมจต่อวิ 3 วิ"}]},{"lv":12,"opts":[{"id":"fork","name":"Fork","thai":"แตกลูก","desc":"แตก 2 ลูกไปหาศัตรูอื่นใกล้เป้า 3 ช่อง ลูกละ 101%"},{"id":"blast","name":"Blast","thai":"ระเบิดเพลิง","desc":"ระเบิดรอบเป้า 1 ช่อง 99%"},{"id":"overheat","name":"Overheat","thai":"ร้อนจัด","desc":"ดาเมจ +35% แต่คูลดาวน์ +40%"}]},{"lv":15,"opts":[{"id":"flame-spear","name":"Flame Spear","thai":"หอกเพลิง","desc":"รวมทุกลูกเป็นหอกเพลิงเล่มเดียว แรงเท่าทุกลูกรวมกัน ทะลุศัตรูด้านหลัง 4 ช่อง 112%"},{"id":"barrage","name":"Flame Barrage","thai":"ห่าเพลิง","desc":"ยิงเพิ่ม 4 ลูก แต่ละลูกดาเมจ -25%"},{"id":"phoenix-chain","name":"Phoenix Chain","thai":"เพลิงกระโดด","desc":"ไฟกระโดดต่อ 3 ตัวในระยะ 4 ช่อง ตัวละ 73%"}]}]},
-    {"id":"cold-bolt","name":"Frost Lance","thai":"ศรน้ำแข็ง","maxLevel":10,"kind":"active","desc":"ยิงศรน้ำแข็งตามจำนวนเลเวลสกิล ธาตุน้ำ","facets":[{"lv":5,"opts":[{"id":"power","name":"Power","thai":"พลังทำลาย","desc":"ดาเมจ +20%"},{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"frostbite","name":"Frostbite","thai":"เยือกแข็ง","desc":"โอกาส 5% แช่แข็ง 2 วิ"}]},{"lv":12,"opts":[{"id":"fork","name":"Fork","thai":"แตกลูก","desc":"แตก 2 ลูกไปหาศัตรูอื่นใกล้เป้า 3 ช่อง ลูกละ 101%"},{"id":"shatter","name":"Shatter","thai":"แตกละเอียด","desc":"ศัตรูที่แข็งอยู่โดนแรงขึ้น 55% แล้วหลุดแข็ง"},{"id":"lingering","name":"Lingering Cold","thai":"หนาวนาน","desc":"เวลาสถานะที่สกิลทำ +28%"}]},{"lv":15,"opts":[{"id":"glacier-lance","name":"Glacier Lance","thai":"หอกธารน้ำแข็ง","desc":"รวมทุกลูกเป็นหอกน้ำแข็งเล่มเดียว แรงเท่าทุกลูกรวมกัน โอกาสแช่แข็ง 12%"},{"id":"barrage","name":"Frost Barrage","thai":"ห่าน้ำแข็ง","desc":"ยิงเพิ่ม 4 ลูก แต่ละลูกดาเมจ -25%"},{"id":"ice-chain","name":"Ice Chain","thai":"น้ำแข็งกระโดด","desc":"น้ำแข็งกระโดดต่อ 3 ตัวในระยะ 4 ช่อง ตัวละ 73%"}]}]},
-    {"id":"lightning-bolt","name":"Thunder Lance","thai":"ศรสายฟ้า","maxLevel":10,"kind":"active","desc":"ยิงศรสายฟ้าตามจำนวนเลเวลสกิล ธาตุลม","facets":[{"lv":5,"opts":[{"id":"power","name":"Power","thai":"พลังทำลาย","desc":"ดาเมจ +20%"},{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"jolt","name":"Jolt","thai":"ช็อต","desc":"โอกาส 7% มึน 1.5 วิ"}]},{"lv":12,"opts":[{"id":"chain","name":"Chain","thai":"สายฟ้ากระโดด","desc":"สายฟ้ากระโดดต่อ 3 ตัวในระยะ 4 ช่อง ตัวละ 66%"},{"id":"static","name":"Static","thai":"ประจุไฟฟ้า","desc":"ฟ้าผ่าต่อจากตัวแรก 2 ตัวในระยะ 5 ช่อง ตัวละ 266%"},{"id":"fork","name":"Fork","thai":"แตกลูก","desc":"แตก 2 ลูกไปหาศัตรูอื่นใกล้เป้า 3 ช่อง ลูกละ 101%"}]},{"lv":15,"opts":[{"id":"thunder-spear","name":"Thunder Spear","thai":"หอกอัสนี","desc":"รวมทุกลูกเป็นสายฟ้าเส้นเดียว แรงเท่าทุกลูกรวมกัน โอกาสมึน 14%"},{"id":"barrage","name":"Bolt Storm","thai":"พายุสายฟ้า","desc":"ยิงเพิ่ม 4 ลูก แต่ละลูกดาเมจ -25%"},{"id":"storm-lance","name":"Storm Lance","thai":"หอกพายุ","desc":"ฟ้าผ่าต่อจากตัวแรก 3 ตัวในระยะ 5 ช่อง ตัวละ 305%"}]}]},
-    {"id":"soul-strike","name":"Spirit Barrage","thai":"ดวงวิญญาณพุ่งชน","maxLevel":10,"kind":"active","desc":"ปล่อยดวงวิญญาณธาตุวิญญาณ จำนวนลูกเพิ่มทุก 2 เลเวล","facets":[{"lv":5,"opts":[{"id":"power","name":"Power","thai":"พลังทำลาย","desc":"ดาเมจ +20%"},{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"focus","name":"Focus","thai":"สมาธิ","desc":"SP -35%"}]},{"lv":12,"opts":[{"id":"fork","name":"Fork","thai":"วิญญาณแยก","desc":"แตก 2 ลูกไปหาศัตรูอื่นใกล้เป้า 3 ช่อง ลูกละ 101%"},{"id":"reaper","name":"Reaper","thai":"เก็บวิญญาณ","desc":"เป้าเลือดต่ำกว่า 30% โดนแรงขึ้น 566%"},{"id":"more-souls","name":"More Souls","thai":"วิญญาณเพิ่ม","desc":"วิญญาณเพิ่ม 2 ลูก แต่ละลูกดาเมจ -15%"}]},{"lv":15,"opts":[{"id":"soul-lance","name":"Soul Lance","thai":"หอกวิญญาณ","desc":"รวมทุกลูกเป็นหอกวิญญาณเล่มเดียว แรงเท่าทุกลูกรวมกัน ทะลุศัตรูด้านหลัง 4 ช่อง 112%"},{"id":"soul-chain","name":"Soul Chain","thai":"วิญญาณกระโดด","desc":"วิญญาณกระโดดต่อ 3 ตัวในระยะ 4 ช่อง ตัวละ 73%"},{"id":"soul-reap","name":"Soul Reap","thai":"สูบวิญญาณ","desc":"ฟื้น HP 10% ของดาเมจ และเป้าเลือดต่ำกว่า 30% โดนแรงขึ้น 694%"}]}]},
-    {"id":"napalm-beat","name":"Psychic Burst","thai":"คลื่นจิต","maxLevel":10,"kind":"active","desc":"คลื่นพลังจิตระเบิดรอบเป้าหมาย ธาตุวิญญาณ","facets":[{"lv":5,"opts":[{"id":"power","name":"Power","thai":"พลังทำลาย","desc":"ดาเมจ +20%"},{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"focus","name":"Focus","thai":"สมาธิ","desc":"SP -35%"}]},{"lv":12,"opts":[{"id":"wide","name":"Wide","thai":"แผ่กว้าง","desc":"พื้นที่ +1 ช่อง"},{"id":"daze","name":"Daze","thai":"มึนงง","desc":"ศัตรูที่โดนช้าลง 14% 3 วิ"},{"id":"pull","name":"Pull","thai":"ดึงจิต","desc":"ดูดศัตรูเข้ากลางวง 1 ช่องก่อนโดน"}]},{"lv":15,"opts":[{"id":"mind-crush","name":"Mind Crush","thai":"บดจิต","desc":"ศัตรูกลางวง 1 ช่องโดนแรงขึ้น 217%"},{"id":"psychic-cascade","name":"Psychic Cascade","thai":"คลื่นจิตซ้อน","desc":"เกิดวงเล็กซ้ำ 2 จุดรอบวง ดาเมจ 114% ของทั้งสกิล"},{"id":"echo-burst","name":"Echo Burst","thai":"คลื่นจิตสะท้อน","desc":"พื้นที่ระเบิดซ้ำหลัง 1 วิ ทุกตัวโดน 216%"}]}]},
-    {"id":"frost-diver","name":"Glacial Spike","thai":"ธาราเยือกแข็ง","maxLevel":10,"kind":"active","req":"ศรน้ำแข็ง Lv.5","prereq":[{"skill":"cold-bolt","level":5}],"desc":"ยิงคลื่นน้ำแข็ง มีโอกาสแช่แข็งเป้าหมาย","facets":[{"lv":5,"opts":[{"id":"power","name":"Power","thai":"พลังทำลาย","desc":"ดาเมจ +20%"},{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"lingering","name":"Lingering Cold","thai":"หนาวนาน","desc":"เวลาแช่แข็ง +18%"}]},{"lv":12,"opts":[{"id":"splinter","name":"Splinter","thai":"เศษน้ำแข็ง","desc":"น้ำแข็งแตกโดนศัตรูรอบเป้า 1 ช่อง 82%"},{"id":"shatter","name":"Shatter","thai":"แตกละเอียด","desc":"ศัตรูที่แข็งอยู่โดนแรงขึ้น 55% แล้วหลุดแข็ง"},{"id":"deep-freeze","name":"Deep Freeze","thai":"แช่แข็งลึก","desc":"โอกาสแช่แข็งเพิ่มอีก 9% 2 วิ"}]},{"lv":15,"opts":[{"id":"ice-prison","name":"Ice Prison","thai":"คุกน้ำแข็ง","desc":"โอกาสแช่แข็งเพิ่ม 12% และแข็งนานขึ้น 35%"},{"id":"frost-nova","name":"Frost Nova","thai":"ระเบิดหิมะ","desc":"น้ำแข็งแตกโดนรอบเป้า 1 ช่อง 92% และช้าลง 18% 3 วิ"},{"id":"shatter-spike","name":"Shatter Spike","thai":"หนามแตก","desc":"ดาเมจ +20% และศัตรูที่แข็งอยู่โดนแรงขึ้น 65%"}]}]},
-    {"id":"sight","name":"Revealing Flame","thai":"ไฟส่องทาง","maxLevel":1,"kind":"active","desc":"เรียกลูกไฟวนรอบตัว 10 วินาที ผู้เล่นฝ่ายศัตรูที่หายตัวอยู่ในรัศมี 6 ช่องจะโผล่ออกมา","facets":[{"lv":1,"opts":[{"id":"far-sight","name":"Far Sight","thai":"ตาไกล","desc":"ระยะมองเห็น +1 ช่อง"},{"id":"focus","name":"Focus","thai":"สมาธิ","desc":"SP -35%"},{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"คูลดาวน์ -50%"}]},{"lv":1,"opts":[{"id":"mark","name":"Mark","thai":"ตีตรา","desc":"มอนที่ถูกเปิดเผยรับดาเมจจากทุกคนเพิ่ม 8% 8 วิ (ไม่เกิน 10 ตัว)"},{"id":"far-sight","name":"Eagle Eye","thai":"ตาเหยี่ยว","desc":"ระยะมองเห็น +2 ช่อง"},{"id":"focus","name":"Deep Focus","thai":"สมาธิลึก","desc":"SP -60%, คูลดาวน์ -30%"}]},{"lv":1,"opts":[{"id":"hunt","name":"Hunter's Flame","thai":"เปลวล่า","desc":"มอนที่ถูกเปิดเผยรับดาเมจจากทุกคนเพิ่ม 10% 8 วิ"},{"id":"beacon","name":"Beacon","thai":"ประภาคาร","desc":"ระยะมองเห็น +2 ช่อง"},{"id":"seer","name":"Seer","thai":"ผู้หยั่งรู้","desc":"ระยะมองเห็น +2 ช่อง และมอนที่ถูกเปิดเผยรับดาเมจเพิ่ม 10%"}]}]}
-  ], "archer": [
-    {"id":"owl-eye","name":"Keen Eye","thai":"ตานกฮูก","maxLevel":10,"kind":"passive","desc":"สายตาแหลมคม เพิ่ม DEX ถาวร"},
-    {"id":"vulture-eye","name":"Eagle Sight","thai":"ตาแร้ง","maxLevel":10,"kind":"passive","req":"ตานกฮูก Lv.3","prereq":[{"skill":"owl-eye","level":3}],"desc":"เพิ่มระยะยิงและความแม่นยำ"},
-    {"id":"double-strafe","name":"Twin Shot","thai":"ยิงคู่","maxLevel":10,"kind":"active","desc":"ยิงลูกธนูสองดอกติดกัน","facets":[{"lv":5,"opts":[{"id":"power","name":"Power","thai":"พลังทำลาย","desc":"ดาเมจ +20%"},{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"focus","name":"Focus","thai":"สมาธิ","desc":"SP -35%"}]},{"lv":12,"opts":[{"id":"chain","name":"Chain","thai":"ลูกโซ่","desc":"เด้งต่อไปยังศัตรูตัวที่ใกล้ที่สุดในระยะ 4 ช่อง ทีละตัว 2-3 ตัว แต่ละตัวโดน 66% ของดาเมจสกิล (ใช้กับสกิลเป้าเดียว)"},{"id":"fork","name":"Fork","thai":"แยกทาง","desc":"ยิงเพิ่ม 2 ลูกไปหาศัตรูตัวอื่นที่อยู่ภายใน 3 ช่องรอบเป้า แต่ละลูกโดน 101% ของดาเมจสกิล (ใช้กับสกิลเป้าเดียว)"},{"id":"piercing","name":"Piercing","thai":"ทะลวง","desc":"ทะลุเป้าไปโดนศัตรูทุกตัวด้านหลังในแนวยาว 6 ช่อง กว้าง 2 ช่อง แต่ละตัวโดน 116% ของดาเมจสกิล (ใช้กับสกิลเป้าเดียว)"}]},{"lv":15,"opts":[{"id":"one-strike","name":"One Strike","thai":"รวมพลัง","desc":"ทุกครั้งรวมเป็นครั้งเดียว แรงเท่ารวมกัน ดาเมจ +10%"},{"id":"barrage","name":"Barrage","thai":"ระดมโจมตี","desc":"โดนเพิ่ม 3 ครั้ง แต่ละครั้งดาเมจ -25%"},{"id":"detonate","name":"Detonate","thai":"ระเบิดศพ","desc":"ศัตรูที่ตายจากสกิลนี้ระเบิด ทำดาเมจ 90% ของ HP สูงสุดของตัวที่ตาย ใส่ศัตรูรอบ 5 ช่อง (ไม่เกิน 3 เท่าของดาเมจที่ฆ่า) ตัวที่ตายจากแรงระเบิดจะระเบิดต่ออีก 1 ทอด"}]}]},
-    {"id":"arrow-shower","name":"Arrow Rain","thai":"ฝนธนู","maxLevel":10,"kind":"active","req":"ยิงคู่ Lv.5","prereq":[{"skill":"double-strafe","level":5}],"desc":"ยิงธนูเป็นห่าฝนลงพื้นที่ที่เลือก โดนศัตรูทุกตัวในวง (ใช้ดึงมอนเป็นกลุ่มได้)","facets":[{"lv":5,"opts":[{"id":"power","name":"Power","thai":"พลังทำลาย","desc":"ดาเมจ +20%"},{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"concussive","name":"Concussive","thai":"แรงกระแทก","desc":"ศัตรูที่โดนช้าลง 18% 3 วิ"}]},{"lv":12,"opts":[{"id":"aftershock","name":"Aftershock","thai":"แรงสั่นสะเทือน","desc":"พื้นสั่นซ้ำหลัง 1 วิ ทุกตัวในพื้นที่โดน 189% ของดาเมจสกิล"},{"id":"vortex","name":"Vortex","thai":"วังวน","desc":"ดูดศัตรูในพื้นที่เข้าหากลางวง 1.5 ช่องก่อนโดน"},{"id":"epicenter","name":"Epicenter","thai":"จุดศูนย์กลาง","desc":"ศัตรูกลางวง 1 ช่องรับดาเมจ +184%"}]},{"lv":15,"opts":[{"id":"overload","name":"Overload","thai":"ทุ่มสุดตัว","desc":"ดาเมจ +60% แต่คูลดาวน์ +50%"},{"id":"wider","name":"Vast","thai":"กว้างไกล","desc":"พื้นที่ +2 ช่อง แต่ดาเมจ -15%"},{"id":"detonate","name":"Detonate","thai":"ระเบิดศพ","desc":"ศัตรูที่ตายจากสกิลนี้ระเบิด ทำดาเมจ 90% ของ HP สูงสุดของตัวที่ตาย ใส่ศัตรูรอบ 5 ช่อง (ไม่เกิน 3 เท่าของดาเมจที่ฆ่า) ตัวที่ตายจากแรงระเบิดจะระเบิดต่ออีก 1 ทอด"}]}]},
-    {"id":"improve-concentration","name":"Hunter's Focus","thai":"เพิ่มสมาธิ","maxLevel":10,"kind":"active","req":"ตาแร้ง Lv.1","prereq":[{"skill":"vulture-eye","level":1}],"desc":"รวบรวมสมาธิ เพิ่ม AGI และ DEX ชั่วคราว","facetsPending":true}
-  ], "acolyte": [
-    {"id":"heal","name":"Mending Light","thai":"แสงเยียวยา","maxLevel":10,"kind":"active","desc":"ฟื้นฟู HP ให้ตัวเองหรือพันธมิตร ปริมาณขึ้นกับ Base Level และ INT และ INT ทุก 2 แต้มเพิ่มพลังฮีลอีก 1% ใช้กับมอนเผ่า Undead จะทำดาเมจศักดิ์สิ...","facetsPending":true},
-    {"id":"divine-protection","name":"Sacred Ward","thai":"พรคุ้มครอง","maxLevel":10,"kind":"passive","desc":"พลังศักดิ์สิทธิ์ปกป้อง ลดดาเมจที่ได้รับจากมอนเผ่า Undead และ Demon"},
-    {"id":"blessing","name":"Heaven's Favor","thai":"พรแห่งสวรรค์","maxLevel":10,"kind":"active","req":"พรคุ้มครอง Lv.5","prereq":[{"skill":"divine-protection","level":5}],"desc":"อวยพรให้ STR INT DEX เพิ่มขึ้นชั่วคราว","facetsPending":true},
-    {"id":"increase-agi","name":"Swiftness","thai":"เพิ่มความว่องไว","maxLevel":10,"kind":"active","req":"แสงเยียวยา Lv.3","prereq":[{"skill":"heal","level":3}],"desc":"เพิ่ม AGI และความเร็วเคลื่อนที่ชั่วคราว","facetsPending":true},
-    {"id":"holy-light","name":"Radiant Smite","thai":"แสงศักดิ์สิทธิ์","maxLevel":5,"kind":"active","desc":"ยิงลำแสงธาตุศักดิ์สิทธิ์ ดาเมจเวท 300% ที่ Lv.1 เพิ่มขึ้นเลเวลละ 50% (500% ที่ Lv.5) มอนเผ่า Undead และ Demon โดนแรงเป็น 2 เท่า","facets":[{"lv":1,"opts":[{"id":"power","name":"Power","thai":"พลังทำลาย","desc":"ดาเมจ +20%"},{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"sanctify","name":"Sanctify","thai":"ชำระบาป","desc":"ดาเมจกับอันเดดและปีศาจ +9%"}]},{"lv":3,"opts":[{"id":"fork","name":"Fork","thai":"แยกทาง","desc":"ยิงเพิ่ม 2 ลูกไปหาศัตรูตัวอื่นที่อยู่ภายใน 3 ช่องรอบเป้า แต่ละลูกโดน 101% ของดาเมจสกิล (ใช้กับสกิลเป้าเดียว)"},{"id":"piercing","name":"Piercing","thai":"ทะลวง","desc":"ทะลุเป้าไปโดนศัตรูทุกตัวด้านหลังในแนวยาว 6 ช่อง กว้าง 2 ช่อง แต่ละตัวโดน 116% ของดาเมจสกิล (ใช้กับสกิลเป้าเดียว)"},{"id":"executioner","name":"Executioner","thai":"เพชฌฆาต","desc":"ดาเมจ +566% กับเป้าที่เลือดต่ำกว่า 30%"}]},{"lv":5,"opts":[{"id":"overload","name":"Overload","thai":"ทุ่มสุดตัว","desc":"ดาเมจ +60% แต่คูลดาวน์ +50%"},{"id":"barrage","name":"Barrage","thai":"ระดมโจมตี","desc":"โดนเพิ่ม 3 ครั้ง แต่ละครั้งดาเมจ -25%"},{"id":"chain","name":"Chain","thai":"ลูกโซ่","desc":"เด้งต่อไปยังศัตรูตัวที่ใกล้ที่สุดในระยะ 4 ช่อง ทีละตัว 2-3 ตัว แต่ละตัวโดน 73% ของดาเมจสกิล (ใช้กับสกิลเป้าเดียว)"}]}]},
-    {"id":"mace-mastery","name":"Mace Discipline","thai":"ชำนาญกระบอง","maxLevel":10,"kind":"passive","desc":"ถือกระบอง ATK +3 ต่อเลเวล"},
-    {"id":"defense-increase","name":"Defense Increase","thai":"เสริมเกราะศรัทธา","maxLevel":10,"kind":"passive","desc":"ศรัทธาเสริมความแข็งแกร่ง เพิ่ม DEF 1% ต่อเลเวล (Lv.10 +10%)"}
-  ], "merchant": [
-    {"id":"enlarge-weight","name":"Pack Mule","thai":"ขยายน้ำหนักบรรทุก","maxLevel":10,"kind":"passive","desc":"เพิ่มน้ำหนักที่แบกได้"},
-    {"id":"discount","name":"Haggler","thai":"ต่อราคา","maxLevel":10,"kind":"passive","req":"ขยายน้ำหนักบรรทุก Lv.3","prereq":[{"skill":"enlarge-weight","level":3}],"desc":"ซื้อของจาก NPC ถูกลง"},
-    {"id":"axe-mastery","name":"Axe Discipline","thai":"ชำนาญขวาน","maxLevel":10,"kind":"passive","desc":"ถือขวานมือเดียว ATK +4 ต่อเลเวล"},
-    {"id":"mammonite","name":"Gold Smash","thai":"ทุบด้วยเงิน","maxLevel":10,"kind":"active","desc":"ทุ่มเงินทุบศัตรูอย่างแรง ใช้ Zeny ทุกครั้ง","facets":[{"lv":5,"opts":[{"id":"power","name":"Power","thai":"พลังทำลาย","desc":"ดาเมจ +20%"},{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"crushing-blow","name":"Crushing Blow","thai":"ทุบสะท้าน","desc":"โอกาส 14% มึน 1.5 วิ"}]},{"lv":12,"opts":[{"id":"cleave","name":"Cleave","thai":"ฟันกวาด","desc":"ศัตรูรอบเป้าในระยะ 1 ช่อง โดน 82% ของดาเมจสกิลด้วย (ใช้กับสกิลเป้าเดียว)"},{"id":"executioner","name":"Executioner","thai":"เพชฌฆาต","desc":"ดาเมจ +566% กับเป้าที่เลือดต่ำกว่า 30%"},{"id":"overheat","name":"Overheat","thai":"ทุ่มแรง","desc":"ดาเมจ +35% แต่คูลดาวน์ +40%"}]},{"lv":15,"opts":[{"id":"overload","name":"Overload","thai":"ทุ่มสุดตัว","desc":"ดาเมจ +60% แต่คูลดาวน์ +50%"},{"id":"barrage","name":"Barrage","thai":"ระดมโจมตี","desc":"โดนเพิ่ม 3 ครั้ง แต่ละครั้งดาเมจ -25%"},{"id":"detonate","name":"Detonate","thai":"ระเบิดศพ","desc":"ศัตรูที่ตายจากสกิลนี้ระเบิด ทำดาเมจ 90% ของ HP สูงสุดของตัวที่ตาย ใส่ศัตรูรอบ 5 ช่อง (ไม่เกิน 3 เท่าของดาเมจที่ฆ่า) ตัวที่ตายจากแรงระเบิดจะระเบิดต่ออีก 1 ทอด"}]}]},
-    {"id":"loud-exclamation","name":"Battle Shout","thai":"ตะโกนปลุกใจ","maxLevel":1,"kind":"active","req":"ต่อราคา Lv.3","prereq":[{"skill":"discount","level":3}],"desc":"ตะโกนปลุกใจตัวเอง เพิ่ม STR และพลังโจมตี"},
-    {"id":"hagglers-wit","name":"Haggler's Wit","thai":"ปากหวานต่อราคา","maxLevel":10,"kind":"active","desc":"ใช้ไหวพริบพ่อค้าต่อรองราคา ลด Zeny ที่สกิลใช้ (เช่น ทุบด้วยเงิน) 5% ต่อเลเวล (Lv.10 ลด 50%) นาน 3 นาที"}
-  ], "thief": [
-    {"id":"dagger-mastery","name":"Dagger Finesse","thai":"ชำนาญมีดสั้น","maxLevel":10,"kind":"passive","desc":"ติดตัว: พลังโจมตีเพิ่มขึ้นเมื่อถือมีดสั้น"},
-    {"id":"double-attack","name":"Twin Fang","thai":"โจมตีสองจังหวะ","maxLevel":10,"kind":"passive","desc":"มีโอกาสโจมตีปกติสองครั้งเมื่อใช้มีดสั้น"},
-    {"id":"improve-dodge","name":"Evasion Art","thai":"หลบหลีกชำนาญ","maxLevel":10,"kind":"passive","desc":"เพิ่มอัตราการหลบหลีก FLEE +3 ต่อเลเวล · ครบ Lv.10 ได้ FLEE อีก +20"},
-    {"id":"steal","name":"Pickpocket","thai":"ขโมย","maxLevel":10,"kind":"active","desc":"ขโมยไอเทมจากมอนสเตอร์ โอกาส 2% ต่อเลเวล (Lv.10 = 20%) + DEX/10 ได้ครั้งเดียวต่อมอนหนึ่งตัว","facets":[{"lv":3,"opts":[{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"focus","name":"Focus","thai":"สมาธิ","desc":"SP -35%"},{"id":"swift","name":"Swift","thai":"ฉับไว","desc":"คูลดาวน์ -40%, SP -20%"}]},{"lv":6,"opts":[{"id":"swift","name":"Swift","thai":"ฉับไว","desc":"คูลดาวน์ -40%, SP -20%"},{"id":"efficient","name":"Efficient","thai":"ประหยัด","desc":"SP -50%"},{"id":"reach","name":"Reach","thai":"ระยะยาว","desc":"ระยะร่าย +2 ช่อง"}]},{"lv":10,"opts":[{"id":"master","name":"Master","thai":"ชำนาญ","desc":"คูลดาวน์ -50%, เวลาร่าย -50%"},{"id":"free","name":"Effortless","thai":"ไร้แรง","desc":"SP -70%"},{"id":"long-reach","name":"Long Reach","thai":"ระยะไกล","desc":"ระยะร่าย +3 ช่อง"}]}]},
-    {"id":"hiding","name":"Vanish","thai":"ซ่อนตัว","maxLevel":10,"kind":"toggle","req":"ขโมย Lv.5","prereq":[{"skill":"steal","level":5}],"desc":"ซ่อนตัวใต้ดิน มอนเลิกไล่ แต่เคลื่อนที่ไม่ได้และเสีย SP ต่อเนื่อง"},
-    {"id":"back-slide","name":"Backflip","thai":"ถอยฉาก","maxLevel":1,"kind":"active","desc":"กระโดดถอยหลัง 5 ช่อง ทิศตรงข้ามกับที่ตัวละครหันอยู่ (แบบ RO) ตัวละครยังหันหน้าเดิม ชนกำแพงแล้วหยุด","facets":[{"lv":1,"opts":[{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"focus","name":"Focus","thai":"สมาธิ","desc":"SP -35%"},{"id":"swift","name":"Swift","thai":"ฉับไว","desc":"คูลดาวน์ -40%, SP -20%"}]},{"lv":1,"opts":[{"id":"swift","name":"Swift","thai":"ฉับไว","desc":"คูลดาวน์ -40%, SP -20%"},{"id":"efficient","name":"Efficient","thai":"ประหยัด","desc":"SP -50%"},{"id":"reach","name":"Reach","thai":"ระยะยาว","desc":"ระยะร่าย +2 ช่อง"}]},{"lv":1,"opts":[{"id":"master","name":"Master","thai":"ชำนาญ","desc":"คูลดาวน์ -50%, เวลาร่าย -50%"},{"id":"free","name":"Effortless","thai":"ไร้แรง","desc":"SP -70%"},{"id":"long-reach","name":"Long Reach","thai":"ระยะไกล","desc":"ระยะร่าย +3 ช่อง"}]}]},
-    {"id":"envenom","name":"Venom Strike","thai":"จู่โจมพิษ","maxLevel":10,"kind":"active","desc":"โจมตีด้วยพิษ มีโอกาสทำให้เป้าหมายติดพิษ","facets":[{"lv":5,"opts":[{"id":"power","name":"Power","thai":"พลังทำลาย","desc":"ดาเมจ +20%"},{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"venom","name":"Venom","thai":"พิษร้าย","desc":"โอกาส 12% ติดพิษ 4 วิ"}]},{"lv":12,"opts":[{"id":"cleave","name":"Cleave","thai":"ฟันกวาด","desc":"ศัตรูรอบเป้าในระยะ 1 ช่อง โดน 82% ของดาเมจสกิลด้วย (ใช้กับสกิลเป้าเดียว)"},{"id":"executioner","name":"Executioner","thai":"เพชฌฆาต","desc":"ดาเมจ +566% กับเป้าที่เลือดต่ำกว่า 30%"},{"id":"lingering","name":"Lingering","thai":"สถานะยืดเยื้อ","desc":"เวลาสถานะที่สกิลทำ +56%"}]},{"lv":15,"opts":[{"id":"overload","name":"Overload","thai":"ทุ่มสุดตัว","desc":"ดาเมจ +60% แต่คูลดาวน์ +50%"},{"id":"barrage","name":"Barrage","thai":"ระดมโจมตี","desc":"โดนเพิ่ม 3 ครั้ง แต่ละครั้งดาเมจ -25%"},{"id":"overkill","name":"Overkill","thai":"ดาเมจล้น","desc":"ดาเมจที่เกินตอนฆ่า 167% ไหลไปศัตรูใกล้สุดใน 5 ช่อง"}]}]}
-  ], "dragon-knight": [
-    {"id":"dragon-breath","name":"Wyrmfire","thai":"ลมหายใจมังกร","maxLevel":10,"kind":"active","desc":"อัญเชิญมังกรเพลิงจากวงเวทย์ด้านหลัง พ่นไฟเป็นรูปกรวยใส่ศัตรูทุกตัวด้านหน้า โดน 5 ครั้ง","facets":[{"lv":5,"opts":[{"id":"power","name":"Power","thai":"พลังทำลาย","desc":"ดาเมจ +20%"},{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"ignite","name":"Ignite","thai":"เพลิงลาม","desc":"ศัตรูที่โดนติดไฟ เผาไหม้ 30% ของดาเมจต่อวิ 3 วิ"}]},{"lv":12,"opts":[{"id":"executioner","name":"Executioner","thai":"เพชฌฆาต","desc":"ดาเมจ +566% กับเป้าที่เลือดต่ำกว่า 30%"},{"id":"concussive","name":"Concussive","thai":"แรงกระแทก","desc":"ศัตรูที่โดนช้าลง 28% 3 วิ"},{"id":"chain","name":"Chain","thai":"ลูกโซ่","desc":"เด้งต่อไปยังศัตรูตัวที่ใกล้ที่สุดในระยะ 4 ช่อง ทีละตัว 2-3 ตัว แต่ละตัวโดน 66% ของดาเมจสกิล (ใช้กับสกิลเป้าเดียว)"}]},{"lv":15,"opts":[{"id":"one-strike","name":"One Strike","thai":"รวมพลัง","desc":"ทุกครั้งรวมเป็นครั้งเดียว แรงเท่ารวมกัน ดาเมจ +10%"},{"id":"barrage","name":"Barrage","thai":"ระดมโจมตี","desc":"โดนเพิ่ม 3 ครั้ง แต่ละครั้งดาเมจ -25%"},{"id":"epicenter","name":"Epicenter","thai":"จุดศูนย์กลาง","desc":"ศัตรูกลางวง 1 ช่องรับดาเมจ +217%"}]}]}
-  ], "wizard": [
-    {"id":"safety-wall","name":"Aegis Barrier","thai":"กำแพงนิรภัย","maxLevel":10,"kind":"active","desc":"วางวงเวทบนพื้น ใครยืนในวงไม่โดนดาเมจกายภาพ (เวทยังโดน) อยู่ 8 วินาที +3 ต่อเลเวล · กันได้ (เลเวล+1) ครั้งแล้วแตก (Lv.10: 11 ครั้ง)","facets":[{"lv":3,"opts":[{"id":"sturdy","name":"Sturdy","thai":"แข็งแรง","desc":"กันได้เพิ่ม 3 ครั้ง"},{"id":"lasting","name":"Lasting","thai":"ยืนนาน","desc":"กำแพงอยู่นานขึ้น 20%"},{"id":"focus","name":"Focus","thai":"สมาธิ","desc":"SP -35%"}]},{"lv":6,"opts":[{"id":"wide","name":"Wide","thai":"แผ่กว้าง","desc":"พื้นที่ +1 ช่อง"},{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -40%, คูลดาวน์ -30%"},{"id":"enduring","name":"Enduring","thai":"ทนทาน","desc":"กันได้เพิ่ม 2 ครั้ง และอยู่นานขึ้น 30%"}]},{"lv":10,"opts":[{"id":"bastion","name":"Bastion","thai":"ป้อมปราการ","desc":"กันได้เพิ่ม 8 ครั้ง แต่คูลดาวน์ +30%"},{"id":"sanctum","name":"Sanctum","thai":"เขตศักดิ์สิทธิ์","desc":"พื้นที่ +2 ช่อง แต่กันได้น้อยลง 2 ครั้ง"},{"id":"instant","name":"Instant Wall","thai":"กำแพงฉับพลัน","desc":"เวลาร่าย -70%, คูลดาวน์ -40%"}]}]},
-    {"id":"jupitel-thunder","name":"Thunder Orb","thai":"ลูกบอลสายฟ้า","maxLevel":10,"kind":"active","req":"ศรสายฟ้า Lv.5","prereq":[{"skill":"lightning-bolt","level":5}],"desc":"ยิงลูกบอลสายฟ้าที่ระเบิดหลายครั้ง ธาตุลม ผลักเป้าหมายกระเด็นออกไป","facets":[{"lv":5,"opts":[{"id":"power","name":"Power","thai":"พลังทำลาย","desc":"ดาเมจ +20%"},{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"focus","name":"Focus","thai":"สมาธิ","desc":"SP -35%"}]},{"lv":12,"opts":[{"id":"arc","name":"Arc","thai":"สายฟ้ากระโดด","desc":"ลูกบอลกระโดดต่อ 3 ตัวในระยะ 4 ช่อง ตัวละ 66%"},{"id":"pierce","name":"Pierce","thai":"ทะลวง","desc":"ทะลุไปโดนศัตรูด้านหลัง 4 ช่อง 101%"},{"id":"shock","name":"Shock","thai":"ช็อต","desc":"โอกาส 11% มึน 1.5 วิ"}]},{"lv":15,"opts":[{"id":"ball-lightning","name":"Ball Lightning","thai":"บอลสายฟ้ายักษ์","desc":"รวมทุกลูกเป็นลูกเดียว แรงเท่าทุกลูกรวมกัน ช็อตศัตรูรอบเป้า 1 ช่อง 92%"},{"id":"twin-orb","name":"Twin Orb","thai":"บอลคู่","desc":"แตก 2 ลูกไปหาศัตรูอื่นใกล้เป้า ลูกละ 112%"},{"id":"plasma-burst","name":"Plasma Burst","thai":"ระเบิดพลาสมา","desc":"ระเบิดรอบเป้า 1 ช่อง 112%"}]}]},
-    {"id":"heavens-drive","name":"Earth Rupture","thai":"ธรณีทะลวง","maxLevel":10,"kind":"active","req":"คลื่นจิต Lv.3","prereq":[{"skill":"napalm-beat","level":3}],"desc":"หนามหินพุ่งขึ้นจากพื้นในพื้นที่ที่เลือก ธาตุดิน โดนศัตรูทุกตัวในวง","facets":[{"lv":5,"opts":[{"id":"power","name":"Power","thai":"พลังทำลาย","desc":"ดาเมจ +20%"},{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"crack","name":"Crack","thai":"ผิวแตก","desc":"เป้าที่โดน DEF -7% 4 วิ"}]},{"lv":12,"opts":[{"id":"wide","name":"Wide","thai":"แผ่กว้าง","desc":"พื้นที่ +1 ช่อง"},{"id":"quake","name":"Quake","thai":"สะเทือน","desc":"ศัตรูที่โดนช้าลง 14% 3 วิ"},{"id":"aftershock","name":"Aftershock","thai":"แผ่นดินไหวซ้ำ","desc":"พื้นสั่นซ้ำหลัง 1 วิ ทุกตัวโดน 189%"}]},{"lv":15,"opts":[{"id":"monolith","name":"Monolith","thai":"เสาหินยักษ์","desc":"หินแหลมทุกแท่งรวมเป็นแท่งยักษ์แท่งเดียว แรงเท่ารวมกัน ศัตรูกลางวง 1 ช่องโดนแรงขึ้น 217%"},{"id":"fault-line","name":"Fault Line","thai":"รอยเลื่อน","desc":"เกิดวงเล็กซ้ำ 2 จุดรอบวง ดาเมจ 114% ของทั้งสกิล"},{"id":"great-quake","name":"Great Quake","thai":"มหาแผ่นดินไหว","desc":"พื้นสั่นซ้ำหลัง 1 วิ 216% และ DEF -14% 4 วิ"}]}]},
-    {"id":"quagmire","name":"Sinking Mire","thai":"บึงโคลน","maxLevel":10,"kind":"active","req":"ธรณีทะลวง Lv.1","prereq":[{"skill":"heavens-drive","level":1}],"desc":"เปลี่ยนพื้นเป็นบึงโคลน มอนในวงเดินช้าลง","facets":[{"lv":3,"opts":[{"id":"deep-mud","name":"Deep Mud","thai":"โคลนลึก","desc":"ทำให้ช้าลงแรงขึ้น 10%"},{"id":"wide","name":"Wide","thai":"แผ่กว้าง","desc":"พื้นที่ +1 ช่อง"},{"id":"lasting","name":"Lasting","thai":"ยืนนาน","desc":"โคลนอยู่นานขึ้น 20%"}]},{"lv":6,"opts":[{"id":"exploit","name":"Exploit","thai":"ซ้ำเติม","desc":"มอนที่ติดโคลนรับดาเมจจากทุกคนเพิ่ม 8% (บอสครึ่งหนึ่ง)"},{"id":"contagion","name":"Contagion","thai":"ลามไป","desc":"ความช้าลามไปมอนรอบเป้า 2 ช่อง 55% (สูงสุด 3 ตัว)"},{"id":"sticky","name":"Sticky","thai":"เหนียวหนึบ","desc":"ความช้าอยู่นานขึ้น 12%"}]},{"lv":10,"opts":[{"id":"abyss","name":"Abyss","thai":"หลุมลึก","desc":"ทำให้ช้าลงแรงขึ้น 22% และมอนที่ติดรับดาเมจเพิ่ม 11%"},{"id":"swamp","name":"Great Swamp","thai":"บึงใหญ่","desc":"พื้นที่ +2 ช่อง และอยู่นานขึ้น 38%"},{"id":"plague","name":"Plague Mire","thai":"โคลนระบาด","desc":"ความช้าลามไปมอนรอบเป้า 65% และมอนที่ติดรับดาเมจเพิ่ม 11%"}]}]},
-    {"id":"storm-gust","name":"Blizzard Tempest","thai":"พายุหิมะ","maxLevel":10,"kind":"active","req":"ธาราเยือกแข็ง Lv.3, ลูกบอลสายฟ้า Lv.3","prereq":[{"skill":"frost-diver","level":3},{"skill":"jupitel-thunder","level":3}],"desc":"พายุหิมะโหมกระหน่ำในพื้นที่กว้าง ธาตุน้ำ โดน 5 ครั้ง ครั้งที่ 3 มีโอกาสแช่แข็ง (MDEF ของเป้าลดโอกาส) ตัวที่แข็งแล้วไม่โดนพายุลูกเดียวกันซ้ำ","facets":[{"lv":5,"opts":[{"id":"power","name":"Power","thai":"พลังทำลาย","desc":"ดาเมจ +20%"},{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"chill","name":"Chill","thai":"หนาวเหน็บ","desc":"ศัตรูที่โดนช้าลง 9% 3 วิ"}]},{"lv":12,"opts":[{"id":"shatter","name":"Shatter","thai":"แตกละเอียด","desc":"ศัตรูที่แข็งอยู่โดนแรงขึ้น 55% แล้วหลุดแข็ง"},{"id":"long-storm","name":"Lingering Storm","thai":"พายุยาว","desc":"พายุอยู่นานขึ้น 2 คลื่น แต่ละคลื่น -10%"},{"id":"wide","name":"Wide Storm","thai":"พายุกว้าง","desc":"พื้นที่ +1.5 ช่อง"}]},{"lv":15,"opts":[{"id":"absolute-zero","name":"Absolute Zero","thai":"ศูนย์สัมบูรณ์","desc":"วงเล็กลง 2 ช่อง ดาเมจ +30% ศัตรูที่แข็งอยู่โดนแรงขึ้น 65%"},{"id":"blizzard-vortex","name":"Blizzard Vortex","thai":"วังวนหิมะ","desc":"ดูดศัตรูเข้ากลางวง 1 ช่อง และแข็งนานขึ้น 35%"},{"id":"ice-cascade","name":"Ice Cascade","thai":"พายุซ้อน","desc":"เกิดวงเล็กซ้ำ 2 จุดรอบวง ดาเมจ 114% ของทั้งสกิล"}]}]},
-    {"id":"meteor-storm","name":"Meteor Rain","thai":"ฝนอุกกาบาต","maxLevel":10,"kind":"active","req":"ศรเพลิง Lv.5, ธรณีทะลวง Lv.3","prereq":[{"skill":"fire-bolt","level":5},{"skill":"heavens-drive","level":3}],"desc":"เรียกอุกกาบาตเพลิงถล่มพื้นที่ ธาตุไฟ ตกลงมาทีละลูกช้าๆ มีโอกาสทำให้มึนงง","facets":[{"lv":5,"opts":[{"id":"power","name":"Power","thai":"พลังทำลาย","desc":"ดาเมจ +20%"},{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"scorch","name":"Scorch","thai":"ไฟลุก","desc":"ศัตรูที่โดนติดไฟ เผา 30% ของดาเมจต่อวิ 3 วิ"}]},{"lv":12,"opts":[{"id":"impact","name":"Impact","thai":"แรงกระแทก","desc":"โอกาส 11% มึน 1.5 วิ"},{"id":"wide","name":"Wide Rain","thai":"ฝนกว้าง","desc":"พื้นที่ +1.5 ช่อง"},{"id":"focused","name":"Focused Rain","thai":"ตกรวมจุด","desc":"ศัตรูกลางวง 1 ช่องโดนแรงขึ้น 184%"}]},{"lv":15,"opts":[{"id":"cataclysm","name":"Cataclysm","thai":"มหาวินาศ","desc":"อุกกาบาตยักษ์ลูกเดียวตกกลางวง แรงเท่าทุกลูกรวมกัน กลางวง 1 ช่องโดนแรงขึ้น 217%"},{"id":"starfall","name":"Starfall","thai":"ดาวตก","desc":"ดาวตกเพิ่ม 6 ลูก วงกว้าง +1 ช่อง แต่ละลูก -45%"},{"id":"meteor-cascade","name":"Meteor Cascade","thai":"ฝนซ้อน","desc":"เกิดวงเล็กซ้ำ 2 จุดรอบวง ดาเมจ 114% ของทั้งสกิล"}]}]},
-    {"id":"lord-of-vermilion","name":"Wrath of Thunder","thai":"อสนีบาตพิโรธ","maxLevel":10,"kind":"active","req":"ลูกบอลสายฟ้า Lv.5","prereq":[{"skill":"jupitel-thunder","level":5}],"desc":"สายฟ้านับร้อยฟาดลงพื้นที่กว้าง ธาตุลม โดนหลายครั้ง","facets":[{"lv":5,"opts":[{"id":"power","name":"Power","thai":"พลังทำลาย","desc":"ดาเมจ +20%"},{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"static-field","name":"Static Field","thai":"สนามไฟฟ้า","desc":"ศัตรูที่โดนช้าลง 9% 3 วิ"}]},{"lv":12,"opts":[{"id":"paralyze","name":"Paralyze","thai":"ชาอัมพาต","desc":"โอกาส 11% มึน 1 วิ"},{"id":"overcharge","name":"Overcharge","thai":"ประจุเกิน","desc":"เพิ่ม 1 คลื่น แต่คูลดาวน์ +15%"},{"id":"wide","name":"Wide Storm","thai":"พายุกว้าง","desc":"พื้นที่ +1.5 ช่อง"}]},{"lv":15,"opts":[{"id":"judgment","name":"Judgment Pillar","thai":"เสาพิพากษา","desc":"ทุกคลื่นรวมเป็นสายฟ้าครั้งเดียว แรงเท่ารวมกัน ศัตรูกลางวง 1 ช่องโดนแรงขึ้น 217%"},{"id":"storm-field","name":"Storm Field","thai":"ทุ่งพายุ","desc":"สายฟ้าเพิ่ม 4 คลื่น แต่ละคลื่น -35%"},{"id":"thunder-god","name":"Thunder God","thai":"เทพอัสนี","desc":"ฟ้าผ่าต่อจากตัวแรก 3 ตัวในระยะ 5 ช่อง ตัวละ 305%"}]}]},
-    {"id":"arcane-amplify","name":"Arcane Amplify","thai":"ขยายพลังเวท","maxLevel":10,"kind":"active","desc":"รวบรวมพลังเวทให้แรงขึ้น MATK +3% ต่อเลเวล นาน 60 วิ (คูลดาวน์ 90 วิ)","facetsPending":true},
-    {"id":"mana-shield","name":"Mana Shield","thai":"โล่มานา","maxLevel":10,"kind":"active","desc":"โล่มานาห่อตัว ลดดาเมจที่โดน 3% ต่อเลเวล นาน 300 วิ รับได้ 2 ครั้งต่อเลเวลแล้วโล่แตก ดาเมจที่โล่รับไว้กิน SP เท่ากัน (รับ 100 เสีย SP 100) SP..."}
-  ], "sage": [
-    {"id":"advanced-book","name":"Tome Mastery","thai":"ชำนาญหนังสือ","maxLevel":10,"kind":"passive","desc":"ชำนาญการใช้หนังสือ: เพิ่มพลังโจมตีและความเร็วโจมตีเมื่อถือหนังสือ · เดินขณะร่ายได้ (ความเร็ว 10% ต่อเลเวล, Lv.10 เต็มความเร็ว) และโจมตีปกติร..."},
-    {"id":"dragonology","name":"Dragon Lore","thai":"ปราชญ์มังกร","maxLevel":5,"kind":"passive","desc":"ศึกษาศาสตร์แห่งมังกร: MATK และ DEF +4% ต่อเลเวล (Lv.5 +20%), INT +1/+1/+2/+2/+3"},
-    {"id":"earth-spike","name":"Stone Spikes","thai":"หนามปฐพี","maxLevel":10,"kind":"active","desc":"หนามหินแทงขึ้นใต้เป้าหมายตามจำนวนเลเวลสกิล ธาตุดิน","facets":[{"lv":5,"opts":[{"id":"power","name":"Power","thai":"พลังทำลาย","desc":"ดาเมจ +20%"},{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"tremor","name":"Tremor","thai":"ธรณีสั่น","desc":"เป้าที่โดน DEF -7% 4 วิ"}]},{"lv":12,"opts":[{"id":"fork","name":"Fork","thai":"แยกทาง","desc":"ยิงเพิ่ม 2 ลูกไปหาศัตรูตัวอื่นที่อยู่ภายใน 3 ช่องรอบเป้า แต่ละลูกโดน 101% ของดาเมจสกิล (ใช้กับสกิลเป้าเดียว)"},{"id":"piercing","name":"Piercing","thai":"ทะลวง","desc":"ทะลุเป้าไปโดนศัตรูทุกตัวด้านหลังในแนวยาว 6 ช่อง กว้าง 2 ช่อง แต่ละตัวโดน 116% ของดาเมจสกิล (ใช้กับสกิลเป้าเดียว)"},{"id":"executioner","name":"Executioner","thai":"เพชฌฆาต","desc":"ดาเมจ +566% กับเป้าที่เลือดต่ำกว่า 30%"}]},{"lv":15,"opts":[{"id":"one-strike","name":"One Strike","thai":"รวมพลัง","desc":"ทุกครั้งรวมเป็นครั้งเดียว แรงเท่ารวมกัน ดาเมจ +10%"},{"id":"barrage","name":"Barrage","thai":"ระดมโจมตี","desc":"โดนเพิ่ม 3 ครั้ง แต่ละครั้งดาเมจ -25%"},{"id":"overkill","name":"Overkill","thai":"ดาเมจล้น","desc":"ดาเมจที่เกินตอนฆ่า 167% ไหลไปศัตรูใกล้สุดใน 5 ช่อง"}]}]},
-    {"id":"endow-blaze","name":"Flame Enchant","thai":"อาวุธเพลิง","maxLevel":5,"kind":"active","req":"ชำนาญหนังสือ Lv.2, ศรเพลิง Lv.1","prereq":[{"skill":"advanced-book","level":2},{"skill":"fire-bolt","level":1}],"desc":"ใส่พลังธาตุไฟให้อาวุธของตัวเองหรือเพื่อนในปาร์ตี้ การโจมตีปกติกลายเป็นธาตุไฟ (มีได้ทีละธาตุ)"},
-    {"id":"endow-tsunami","name":"Tide Enchant","thai":"อาวุธวารี","maxLevel":5,"kind":"active","req":"ชำนาญหนังสือ Lv.2, ศรน้ำแข็ง Lv.1","prereq":[{"skill":"advanced-book","level":2},{"skill":"cold-bolt","level":1}],"desc":"ใส่พลังธาตุน้ำให้อาวุธของตัวเองหรือเพื่อนในปาร์ตี้ การโจมตีปกติกลายเป็นธาตุน้ำ (มีได้ทีละธาตุ)"},
-    {"id":"endow-tornado","name":"Gale Enchant","thai":"อาวุธวายุ","maxLevel":5,"kind":"active","req":"ชำนาญหนังสือ Lv.2, ศรสายฟ้า Lv.1","prereq":[{"skill":"advanced-book","level":2},{"skill":"lightning-bolt","level":1}],"desc":"ใส่พลังธาตุลมให้อาวุธของตัวเองหรือเพื่อนในปาร์ตี้ การโจมตีปกติกลายเป็นธาตุลม (มีได้ทีละธาตุ)"},
-    {"id":"endow-quake","name":"Stone Enchant","thai":"อาวุธปฐพี","maxLevel":5,"kind":"active","req":"ชำนาญหนังสือ Lv.2, หนามปฐพี Lv.1","prereq":[{"skill":"advanced-book","level":2},{"skill":"earth-spike","level":1}],"desc":"ใส่พลังธาตุดินให้อาวุธของตัวเองหรือเพื่อนในปาร์ตี้ การโจมตีปกติกลายเป็นธาตุดิน (มีได้ทีละธาตุ)"},
-    {"id":"auto-spell","name":"Spell Echo","thai":"เวทอัตโนมัติ","maxLevel":10,"kind":"active","req":"ชำนาญหนังสือ Lv.3","prereq":[{"skill":"advanced-book","level":3}],"desc":"ช่วงเวลาหนึ่ง การโจมตีปกติที่โดนมีโอกาสร่าย Flame/Frost/Thunder Lance หรือ Stone Spikes ที่เรียนแล้วโดยอัตโนมัติ ที่เลเวลของสกิลนั้นในตัวละค..."},
-    {"id":"create-converter","name":"Craft Element Scroll","thai":"สร้างใบธาตุ","maxLevel":1,"kind":"active","req":"ชำนาญหนังสือ Lv.5","prereq":[{"skill":"advanced-book","level":5}],"desc":"สร้างใบธาตุ (ไฟ น้ำ ลม ดิน) จาก Blank Scroll 1 แผ่น + หินธาตุ 2 ก้อนต่อใบ (Red Blood, Crystal Blue, Wind of Verdure, Green Live ดรอปจากมอนธา...","facets":[{"lv":1,"opts":[{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"focus","name":"Focus","thai":"สมาธิ","desc":"SP -35%"},{"id":"swift","name":"Swift","thai":"ฉับไว","desc":"คูลดาวน์ -40%, SP -20%"}]},{"lv":1,"opts":[{"id":"swift","name":"Swift","thai":"ฉับไว","desc":"คูลดาวน์ -40%, SP -20%"},{"id":"efficient","name":"Efficient","thai":"ประหยัด","desc":"SP -50%"},{"id":"reach","name":"Reach","thai":"ระยะยาว","desc":"ระยะร่าย +2 ช่อง"}]},{"lv":1,"opts":[{"id":"master","name":"Master","thai":"ชำนาญ","desc":"คูลดาวน์ -50%, เวลาร่าย -50%"},{"id":"free","name":"Effortless","thai":"ไร้แรง","desc":"SP -70%"},{"id":"long-reach","name":"Long Reach","thai":"ระยะไกล","desc":"ระยะร่าย +3 ช่อง"}]}]},
-    {"id":"land-protector","name":"Sealed Ground","thai":"ผนึกปฐพี","maxLevel":1,"kind":"active","desc":"วางผนึกบนพื้น 11 ช่อง (รัศมี 5.5) อยู่ 120 วินาที ผู้เล่นที่ยืนในวง: ไม่โดนเวทของมอนและเวทใน PvP · สกิลเวทของบอสเบาลง 30% · ไม่ติดมึน/แช่แข็...","facets":[{"lv":1,"opts":[{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"focus","name":"Focus","thai":"สมาธิ","desc":"SP -35%"},{"id":"enduring-ground","name":"Enduring Ground","thai":"เขตยืนยง","desc":"โซนของสกิลนี้อยู่นานขึ้น 20%"}]},{"lv":1,"opts":[{"id":"swift","name":"Swift","thai":"ฉับไว","desc":"คูลดาวน์ -40%, SP -20%"},{"id":"wide","name":"Wide","thai":"แผ่กว้าง","desc":"พื้นที่ +1 ช่อง"},{"id":"efficient","name":"Efficient","thai":"ประหยัด","desc":"SP -50%"}]},{"lv":1,"opts":[{"id":"master","name":"Master","thai":"ชำนาญ","desc":"คูลดาวน์ -50%, เวลาร่าย -50%"},{"id":"free","name":"Effortless","thai":"ไร้แรง","desc":"SP -70%"},{"id":"long-reach","name":"Long Reach","thai":"ระยะไกล","desc":"ระยะร่าย +3 ช่อง"}]}]},
-    {"id":"flame-field","name":"Flame Field","thai":"ทุ่งเพลิง","maxLevel":5,"kind":"active","req":"อาวุธเพลิง Lv.2","prereq":[{"skill":"endow-blaze","level":2}],"desc":"วางพื้นธาตุไฟรอบตัว (รัศมี 3.5 ช่อง) ที่เดินตามผู้ร่าย ตัวเองและเพื่อนในปาร์ตี้ที่ยืนในวงทำดาเมจธาตุไฟแรงขึ้น 4% ต่อเลเวล (Lv.5 = 20%) ทั้งก...","facets":[{"lv":1,"opts":[{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"focus","name":"Focus","thai":"สมาธิ","desc":"SP -35%"},{"id":"swift","name":"Swift","thai":"ฉับไว","desc":"คูลดาวน์ -40%, SP -20%"}]},{"lv":3,"opts":[{"id":"swift","name":"Swift","thai":"ฉับไว","desc":"คูลดาวน์ -40%, SP -20%"},{"id":"wide","name":"Wide","thai":"แผ่กว้าง","desc":"พื้นที่ +1 ช่อง"},{"id":"efficient","name":"Efficient","thai":"ประหยัด","desc":"SP -50%"}]},{"lv":5,"opts":[{"id":"master","name":"Master","thai":"ชำนาญ","desc":"คูลดาวน์ -50%, เวลาร่าย -50%"},{"id":"free","name":"Effortless","thai":"ไร้แรง","desc":"SP -70%"},{"id":"long-reach","name":"Long Reach","thai":"ระยะไกล","desc":"ระยะร่าย +3 ช่อง"}]}]},
-    {"id":"tide-field","name":"Tide Field","thai":"ทุ่งวารี","maxLevel":5,"kind":"active","req":"อาวุธวารี Lv.2","prereq":[{"skill":"endow-tsunami","level":2}],"desc":"วางพื้นธาตุน้ำรอบตัว (รัศมี 3.5 ช่อง) ที่เดินตามผู้ร่าย ตัวเองและเพื่อนในปาร์ตี้ที่ยืนในวงทำดาเมจธาตุน้ำแรงขึ้น 4% ต่อเลเวล (Lv.5 = 20%) ทั้...","facets":[{"lv":1,"opts":[{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"focus","name":"Focus","thai":"สมาธิ","desc":"SP -35%"},{"id":"swift","name":"Swift","thai":"ฉับไว","desc":"คูลดาวน์ -40%, SP -20%"}]},{"lv":3,"opts":[{"id":"swift","name":"Swift","thai":"ฉับไว","desc":"คูลดาวน์ -40%, SP -20%"},{"id":"wide","name":"Wide","thai":"แผ่กว้าง","desc":"พื้นที่ +1 ช่อง"},{"id":"efficient","name":"Efficient","thai":"ประหยัด","desc":"SP -50%"}]},{"lv":5,"opts":[{"id":"master","name":"Master","thai":"ชำนาญ","desc":"คูลดาวน์ -50%, เวลาร่าย -50%"},{"id":"free","name":"Effortless","thai":"ไร้แรง","desc":"SP -70%"},{"id":"long-reach","name":"Long Reach","thai":"ระยะไกล","desc":"ระยะร่าย +3 ช่อง"}]}]},
-    {"id":"stone-field","name":"Stone Field","thai":"ทุ่งศิลา","maxLevel":5,"kind":"active","req":"อาวุธปฐพี Lv.2","prereq":[{"skill":"endow-quake","level":2}],"desc":"วางพื้นธาตุดินรอบตัว (รัศมี 3.5 ช่อง) ที่เดินตามผู้ร่าย ตัวเองและเพื่อนในปาร์ตี้ที่ยืนในวงทำดาเมจธาตุดินแรงขึ้น 4% ต่อเลเวล (Lv.5 = 20%) ทั้...","facets":[{"lv":1,"opts":[{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"focus","name":"Focus","thai":"สมาธิ","desc":"SP -35%"},{"id":"swift","name":"Swift","thai":"ฉับไว","desc":"คูลดาวน์ -40%, SP -20%"}]},{"lv":3,"opts":[{"id":"swift","name":"Swift","thai":"ฉับไว","desc":"คูลดาวน์ -40%, SP -20%"},{"id":"wide","name":"Wide","thai":"แผ่กว้าง","desc":"พื้นที่ +1 ช่อง"},{"id":"efficient","name":"Efficient","thai":"ประหยัด","desc":"SP -50%"}]},{"lv":5,"opts":[{"id":"master","name":"Master","thai":"ชำนาญ","desc":"คูลดาวน์ -50%, เวลาร่าย -50%"},{"id":"free","name":"Effortless","thai":"ไร้แรง","desc":"SP -70%"},{"id":"long-reach","name":"Long Reach","thai":"ระยะไกล","desc":"ระยะร่าย +3 ช่อง"}]}]},
-    {"id":"gale-field","name":"Gale Field","thai":"ทุ่งวายุ","maxLevel":5,"kind":"active","req":"อาวุธวายุ Lv.2","prereq":[{"skill":"endow-tornado","level":2}],"desc":"วางพื้นธาตุลมรอบตัว (รัศมี 3.5 ช่อง) ที่เดินตามผู้ร่าย ตัวเองและเพื่อนในปาร์ตี้ที่ยืนในวงทำดาเมจธาตุลมแรงขึ้น 4% ต่อเลเวล (Lv.5 = 20%) ทั้งก...","facets":[{"lv":1,"opts":[{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"focus","name":"Focus","thai":"สมาธิ","desc":"SP -35%"},{"id":"swift","name":"Swift","thai":"ฉับไว","desc":"คูลดาวน์ -40%, SP -20%"}]},{"lv":3,"opts":[{"id":"swift","name":"Swift","thai":"ฉับไว","desc":"คูลดาวน์ -40%, SP -20%"},{"id":"wide","name":"Wide","thai":"แผ่กว้าง","desc":"พื้นที่ +1 ช่อง"},{"id":"efficient","name":"Efficient","thai":"ประหยัด","desc":"SP -50%"}]},{"lv":5,"opts":[{"id":"master","name":"Master","thai":"ชำนาญ","desc":"คูลดาวน์ -50%, เวลาร่าย -50%"},{"id":"free","name":"Effortless","thai":"ไร้แรง","desc":"SP -70%"},{"id":"long-reach","name":"Long Reach","thai":"ระยะไกล","desc":"ระยะร่าย +3 ช่อง"}]}]},
-    {"id":"twin-bolt","name":"Twin Bolt","thai":"เวทคู่","maxLevel":5,"kind":"passive","req":"ชำนาญหนังสือ Lv.3","prereq":[{"skill":"advanced-book","level":3}],"desc":"สกิลโบลต์ (Fire Bolt, Cold Bolt, Lightning Bolt, Stone Spikes) มีโอกาสออกซ้ำอีกชุด: ร่ายเอง 6% ต่อเลเวล (Lv.5 = 30%) · ออกจาก Auto Spell 1% ..."}
-  ], "knight": [
-    {"id":"two-hand-sword-mastery","name":"Greatsword Mastery","thai":"ชำนาญดาบสองมือ","maxLevel":10,"kind":"passive","desc":"เพิ่มพลังโจมตีเมื่อใช้ดาบสองมือ"},
-    {"id":"spear-dynamo","name":"Spear Fervor","thai":"พลังหอก","maxLevel":10,"kind":"passive","req":"ชำนาญหอก Lv.1","prereq":[{"skill":"spear-mastery","level":1}],"desc":"ติดตัว: ความเสียหายระยะประชิดเพิ่มขึ้นเมื่อถือหอก (มือเดียวหรือสองมือ) คู่กับ Greatsword Haste ของสายดาบ แต่เพิ่มแรงแทนความเร็ว"},
-    {"id":"pierce","name":"Piercing Lunge","thai":"แทงทะลวง","maxLevel":10,"kind":"active","req":"ฟันกระแทก Lv.5","prereq":[{"skill":"bash","level":5}],"desc":"แทงเป้าหมายต่อเนื่องหลายครั้ง จำนวนครั้งเพิ่มตามเลเวล · มอนสเตอร์ขนาดใหญ่โดนเป็นสองเท่า (Lv.10: 6 ครั้ง)","facets":[{"lv":5,"opts":[{"id":"power","name":"Power","thai":"พลังทำลาย","desc":"ดาเมจ +20%"},{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"crushing-blow","name":"Crushing Blow","thai":"ทุบสะท้าน","desc":"โอกาส 14% มึน 1.5 วิ"}]},{"lv":12,"opts":[{"id":"executioner","name":"Executioner","thai":"เพชฌฆาต","desc":"ดาเมจ +566% กับเป้าที่เลือดต่ำกว่า 30%"},{"id":"cleave","name":"Cleave","thai":"ฟันกวาด","desc":"ศัตรูรอบเป้าในระยะ 1 ช่อง โดน 82% ของดาเมจสกิลด้วย (ใช้กับสกิลเป้าเดียว)"},{"id":"overheat","name":"Overheat","thai":"ทุ่มแรง","desc":"ดาเมจ +35% แต่คูลดาวน์ +40%"}]},{"lv":15,"opts":[{"id":"one-strike","name":"One Strike","thai":"รวมพลัง","desc":"ทุกครั้งรวมเป็นครั้งเดียว แรงเท่ารวมกัน ดาเมจ +10%"},{"id":"barrage","name":"Barrage","thai":"ระดมโจมตี","desc":"โดนเพิ่ม 3 ครั้ง แต่ละครั้งดาเมจ -25%"},{"id":"detonate","name":"Detonate","thai":"ระเบิดศพ","desc":"ศัตรูที่ตายจากสกิลนี้ระเบิด ทำดาเมจ 90% ของ HP สูงสุดของตัวที่ตาย ใส่ศัตรูรอบ 5 ช่อง (ไม่เกิน 3 เท่าของดาเมจที่ฆ่า) ตัวที่ตายจากแรงระเบิดจะระเบิดต่ออีก 1 ทอด"}]}]},
-    {"id":"bowling-bash","name":"Cleaving Storm","thai":"ฟันกวาดกระแทก","maxLevel":10,"kind":"active","req":"ฟันกระแทก Lv.5, ระเบิดเพลิง Lv.3","prereq":[{"skill":"bash","level":5},{"skill":"magnum-break","level":3}],"desc":"เลือกจุดบนพื้น ฟาดศัตรูทุกตัวในรัศมี 3 ช่องรอบจุดนั้นสองครั้ง แล้วผลักกระเด็นออกจากจุดกลาง · ยิ่งโดนหลายตัวยิ่งแรง: ทุกตัวที่เพิ่มจากตัวแรก ...","facets":[{"lv":5,"opts":[{"id":"power","name":"Power","thai":"พลังทำลาย","desc":"ดาเมจ +20%"},{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"concussive","name":"Concussive","thai":"แรงกระแทก","desc":"ศัตรูที่โดนช้าลง 18% 3 วิ"}]},{"lv":12,"opts":[{"id":"aftershock","name":"Aftershock","thai":"แรงสั่นสะเทือน","desc":"พื้นสั่นซ้ำหลัง 1 วิ ทุกตัวในพื้นที่โดน 189% ของดาเมจสกิล"},{"id":"vortex","name":"Vortex","thai":"วังวน","desc":"ดูดศัตรูในพื้นที่เข้าหากลางวง 1.5 ช่องก่อนโดน"},{"id":"epicenter","name":"Epicenter","thai":"จุดศูนย์กลาง","desc":"ศัตรูกลางวง 1 ช่องรับดาเมจ +184%"}]},{"lv":15,"opts":[{"id":"one-strike","name":"One Strike","thai":"รวมพลัง","desc":"ทุกครั้งรวมเป็นครั้งเดียว แรงเท่ารวมกัน ดาเมจ +10%"},{"id":"barrage","name":"Barrage","thai":"ระดมโจมตี","desc":"โดนเพิ่ม 3 ครั้ง แต่ละครั้งดาเมจ -25%"},{"id":"overkill","name":"Overkill","thai":"ดาเมจล้น","desc":"ดาเมจที่เกินตอนฆ่า 167% ไหลไปศัตรูใกล้สุดใน 5 ช่อง"}]}]},
-    {"id":"brandish-spear","name":"Spear Sweep","thai":"กวาดใบมีด","maxLevel":10,"kind":"active","req":"แทงทะลวง Lv.3","prereq":[{"skill":"pierce","level":3}],"desc":"เลือกจุดบนพื้นในระยะ 4 ช่อง กวาดอาวุธโดนศัตรูทุกตัวในรัศมี 3 ช่องรอบจุดนั้น · ขี่ Peco อยู่: แรงขึ้น 50% และรัศมีเป็น 5 ช่อง ถ้าถือหอกสองมือ...","facets":[{"lv":5,"opts":[{"id":"power","name":"Power","thai":"พลังทำลาย","desc":"ดาเมจ +20%"},{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"concussive","name":"Concussive","thai":"แรงกระแทก","desc":"ศัตรูที่โดนช้าลง 18% 3 วิ"}]},{"lv":12,"opts":[{"id":"vortex","name":"Vortex","thai":"วังวน","desc":"ดูดศัตรูในพื้นที่เข้าหากลางวง 1.5 ช่องก่อนโดน"},{"id":"epicenter","name":"Epicenter","thai":"จุดศูนย์กลาง","desc":"ศัตรูกลางวง 1 ช่องรับดาเมจ +184%"},{"id":"aftershock","name":"Aftershock","thai":"แรงสั่นสะเทือน","desc":"พื้นสั่นซ้ำหลัง 1 วิ ทุกตัวในพื้นที่โดน 189% ของดาเมจสกิล"}]},{"lv":15,"opts":[{"id":"overload","name":"Overload","thai":"ทุ่มสุดตัว","desc":"ดาเมจ +60% แต่คูลดาวน์ +50%"},{"id":"wider","name":"Vast","thai":"กว้างไกล","desc":"พื้นที่ +2 ช่อง แต่ดาเมจ -15%"},{"id":"overkill","name":"Overkill","thai":"ดาเมจล้น","desc":"ดาเมจที่เกินตอนฆ่า 167% ไหลไปศัตรูใกล้สุดใน 5 ช่อง"}]}]},
-    {"id":"two-hand-quicken","name":"Greatsword Haste","thai":"เร่งดาบสองมือ","maxLevel":10,"kind":"active","req":"ชำนาญดาบสองมือ Lv.1","prereq":[{"skill":"two-hand-sword-mastery","level":1}],"desc":"เร่งความเร็วโจมตีและคริติคอลชั่วคราว","facetsPending":true},
-    {"id":"parry","name":"Riposte Guard","thai":"ปัดป้อง","maxLevel":10,"kind":"active","req":"ยั่วยุ Lv.5, ชำนาญดาบสองมือ Lv.10, เร่งดาบสองมือ Lv.3","prereq":[{"skill":"provoke","level":5},{"skill":"two-hand-sword-mastery","level":10},{"skill":"two-hand-quicken","level":3}],"desc":"ตั้งท่าปัดป้องด้วยดาบสองมือ ช่วงบัพมีโอกาสปัดการโจมตีทางกายภาพทิ้ง (ไม่โดนดาเมจ) ต้องถือดาบสองมือ"},
-    {"id":"charge-attack","name":"Valiant Charge","thai":"พุ่งโจมตี","maxLevel":1,"kind":"active","desc":"พุ่งเข้าหาศัตรูจากระยะไกลแล้วฟาดทันที ยิ่งพุ่งไกลยิ่งแรง แบบ RO: ทุก 2 ช่องที่พุ่ง +100% (100% ถึง 500% ที่ระยะ 9 ช่อง) เลเวลเดียว ไม่ต้องมี...","facets":[{"lv":1,"opts":[{"id":"power","name":"Power","thai":"พลังทำลาย","desc":"ดาเมจ +20%"},{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"crushing-blow","name":"Crushing Blow","thai":"ทุบสะท้าน","desc":"โอกาส 14% มึน 1.5 วิ"}]},{"lv":1,"opts":[{"id":"executioner","name":"Executioner","thai":"เพชฌฆาต","desc":"ดาเมจ +566% กับเป้าที่เลือดต่ำกว่า 30%"},{"id":"cleave","name":"Cleave","thai":"ฟันกวาด","desc":"ศัตรูรอบเป้าในระยะ 1 ช่อง โดน 82% ของดาเมจสกิลด้วย (ใช้กับสกิลเป้าเดียว)"},{"id":"overheat","name":"Overheat","thai":"ทุ่มแรง","desc":"ดาเมจ +35% แต่คูลดาวน์ +40%"}]},{"lv":1,"opts":[{"id":"overload","name":"Overload","thai":"ทุ่มสุดตัว","desc":"ดาเมจ +60% แต่คูลดาวน์ +50%"},{"id":"barrage","name":"Barrage","thai":"ระดมโจมตี","desc":"โดนเพิ่ม 3 ครั้ง แต่ละครั้งดาเมจ -25%"},{"id":"overkill","name":"Overkill","thai":"ดาเมจล้น","desc":"ดาเมจที่เกินตอนฆ่า 167% ไหลไปศัตรูใกล้สุดใน 5 ช่อง"}]}]},
-    {"id":"spear-mastery","name":"Lance Mastery","thai":"ชำนาญหอก","maxLevel":10,"kind":"passive","desc":"เพิ่มพลังโจมตีเมื่อใช้หอก"},
-    {"id":"peco-peco-ride","name":"Peco Rider","thai":"ขี่เปโก้เปโก้","maxLevel":1,"kind":"passive","req":"จิตมั่นคง Lv.1","prereq":[{"skill":"endure","level":1}],"desc":"ขี่ Peco Peco ได้ (เช่าที่ Healer Mira 2,500 z) ขี่แล้วเดินเร็วขึ้น 25% แต่ตีช้าลง 25%"},
-    {"id":"peco-peco-master","name":"Cavalry Mastery","thai":"ชำนาญการขี่","maxLevel":5,"kind":"passive","req":"ขี่เปโก้เปโก้ Lv.1","prereq":[{"skill":"peco-peco-ride","level":1}],"desc":"ขี่ Peco Peco แล้วตีช้าลงน้อยลง 5% ต่อเลเวล (Lv5 ไม่ช้าลงเลย)"}
-  ], "crusader": [
-    {"id":"faith","name":"Devotion","thai":"ศรัทธา","maxLevel":10,"kind":"passive","desc":"เพิ่ม HP สูงสุดถาวร +200 ต่อเลเวล และ +2% ต่อเลเวล (Lv.10 = +2,000 และ +20%) และต้านธาตุศักดิ์สิทธิ์ +3% ต่อเลเวล (Lv.10 = 30%) · HP ปัจจุบั..."},
-    {"id":"holy-cross","name":"Sacred Cross","thai":"กางเขนศักดิ์สิทธิ์","maxLevel":10,"kind":"active","req":"ศรัทธา Lv.3","prereq":[{"skill":"faith","level":3}],"desc":"ฟันเป็นรูปกางเขนสองครั้ง ธาตุศักดิ์สิทธิ์ อันเดดและปีศาจโดนแรงขึ้น 30% · ติดตราศักดิ์สิทธิ์: เป้ารับดาเมจสกิลธาตุศักดิ์สิทธิ์เพิ่ม 25% นาน 6...","facets":[{"lv":5,"opts":[{"id":"power","name":"Power","thai":"พลังทำลาย","desc":"ดาเมจ +20%"},{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"crushing-blow","name":"Crushing Blow","thai":"ทุบสะท้าน","desc":"โอกาส 14% มึน 1.5 วิ"}]},{"lv":12,"opts":[{"id":"executioner","name":"Executioner","thai":"เพชฌฆาต","desc":"ดาเมจ +566% กับเป้าที่เลือดต่ำกว่า 30%"},{"id":"cleave","name":"Cleave","thai":"ฟันกวาด","desc":"ศัตรูรอบเป้าในระยะ 1 ช่อง โดน 82% ของดาเมจสกิลด้วย (ใช้กับสกิลเป้าเดียว)"},{"id":"overheat","name":"Overheat","thai":"ทุ่มแรง","desc":"ดาเมจ +35% แต่คูลดาวน์ +40%"}]},{"lv":15,"opts":[{"id":"one-strike","name":"One Strike","thai":"รวมพลัง","desc":"ทุกครั้งรวมเป็นครั้งเดียว แรงเท่ารวมกัน ดาเมจ +10%"},{"id":"barrage","name":"Barrage","thai":"ระดมโจมตี","desc":"โดนเพิ่ม 3 ครั้ง แต่ละครั้งดาเมจ -25%"},{"id":"overkill","name":"Overkill","thai":"ดาเมจล้น","desc":"ดาเมจที่เกินตอนฆ่า 167% ไหลไปศัตรูใกล้สุดใน 5 ช่อง"}]}]},
-    {"id":"grand-cross","name":"Divine Crucible","thai":"กางเขนมหาศักดิ์สิทธิ์","maxLevel":10,"kind":"active","req":"กางเขนศักดิ์สิทธิ์ Lv.5, ศรัทธา Lv.5","prereq":[{"skill":"holy-cross","level":5},{"skill":"faith","level":5}],"desc":"ปลดปล่อยกางเขนแสงสีขาวรอบตัว ธาตุศักดิ์สิทธิ์ (ATK + MATK) โดนศัตรูรอบด้าน 6 ครั้ง","facets":[{"lv":5,"opts":[{"id":"power","name":"Power","thai":"พลังทำลาย","desc":"ดาเมจ +20%"},{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"sanctify","name":"Sanctify","thai":"ชำระบาป","desc":"ดาเมจกับอันเดดและปีศาจ +9%"}]},{"lv":12,"opts":[{"id":"vortex","name":"Vortex","thai":"วังวน","desc":"ดูดศัตรูในพื้นที่เข้าหากลางวง 1.5 ช่องก่อนโดน"},{"id":"epicenter","name":"Epicenter","thai":"จุดศูนย์กลาง","desc":"ศัตรูกลางวง 1 ช่องรับดาเมจ +184%"},{"id":"spell-cascade","name":"Spell Cascade","thai":"เวทลดหลั่น","desc":"เกิดพื้นที่เล็กซ้ำ 2 จุดครึ่งทางจากกลางวงออกไป ดาเมจ 100% ของทั้งสกิล"}]},{"lv":15,"opts":[{"id":"one-strike","name":"One Strike","thai":"รวมพลัง","desc":"ทุกครั้งรวมเป็นครั้งเดียว แรงเท่ารวมกัน ดาเมจ +10%"},{"id":"barrage","name":"Barrage","thai":"ระดมโจมตี","desc":"โดนเพิ่ม 3 ครั้ง แต่ละครั้งดาเมจ -25%"},{"id":"overkill","name":"Overkill","thai":"ดาเมจล้น","desc":"ดาเมจที่เกินตอนฆ่า 167% ไหลไปศัตรูใกล้สุดใน 5 ช่อง"}]}]},
-    {"id":"shield-charge","name":"Shield Rush","thai":"พุ่งชนด้วยโล่","maxLevel":10,"kind":"active","req":"ป้องกันอัตโนมัติ Lv.5","prereq":[{"skill":"auto-guard","level":5}],"desc":"พุ่งชนด้วยโล่ ผลักกระเด็นและมีโอกาสทำให้มึนงง","facets":[{"lv":5,"opts":[{"id":"power","name":"Power","thai":"พลังทำลาย","desc":"ดาเมจ +20%"},{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"crushing-blow","name":"Crushing Blow","thai":"ทุบสะท้าน","desc":"โอกาส 14% มึน 1.5 วิ"}]},{"lv":12,"opts":[{"id":"cleave","name":"Cleave","thai":"ฟันกวาด","desc":"ศัตรูรอบเป้าในระยะ 1 ช่อง โดน 82% ของดาเมจสกิลด้วย (ใช้กับสกิลเป้าเดียว)"},{"id":"executioner","name":"Executioner","thai":"เพชฌฆาต","desc":"ดาเมจ +566% กับเป้าที่เลือดต่ำกว่า 30%"},{"id":"lingering","name":"Lingering","thai":"สถานะยืดเยื้อ","desc":"เวลาสถานะที่สกิลทำ +56%"}]},{"lv":15,"opts":[{"id":"overload","name":"Overload","thai":"ทุ่มสุดตัว","desc":"ดาเมจ +60% แต่คูลดาวน์ +50%"},{"id":"barrage","name":"Barrage","thai":"ระดมโจมตี","desc":"โดนเพิ่ม 3 ครั้ง แต่ละครั้งดาเมจ -25%"},{"id":"overkill","name":"Overkill","thai":"ดาเมจล้น","desc":"ดาเมจที่เกินตอนฆ่า 167% ไหลไปศัตรูใกล้สุดใน 5 ช่อง"}]}]},
-    {"id":"shield-boomerang","name":"Aegis Throw","thai":"โล่บูมเมอแรง","maxLevel":10,"kind":"active","req":"พุ่งชนด้วยโล่ Lv.3","prereq":[{"skill":"shield-charge","level":3}],"desc":"ขว้างโล่หมุนใส่ศัตรูระยะไกล กระแทก 5 ครั้งแล้วบินกลับมือ แรงขึ้นตามค่าตีบวกโล่ (+5% ต่อขั้น) และ VIT (+0.5% ต่อแต้ม)","facets":[{"lv":3,"opts":[{"id":"power","name":"Power","thai":"พลังทำลาย","desc":"ดาเมจ +20%"},{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"focus","name":"Focus","thai":"สมาธิ","desc":"SP -35%"}]},{"lv":6,"opts":[{"id":"chain","name":"Chain","thai":"ลูกโซ่","desc":"เด้งต่อไปยังศัตรูตัวที่ใกล้ที่สุดในระยะ 4 ช่อง ทีละตัว 2-3 ตัว แต่ละตัวโดน 66% ของดาเมจสกิล (ใช้กับสกิลเป้าเดียว)"},{"id":"fork","name":"Fork","thai":"แยกทาง","desc":"ยิงเพิ่ม 2 ลูกไปหาศัตรูตัวอื่นที่อยู่ภายใน 3 ช่องรอบเป้า แต่ละลูกโดน 101% ของดาเมจสกิล (ใช้กับสกิลเป้าเดียว)"},{"id":"piercing","name":"Piercing","thai":"ทะลวง","desc":"ทะลุเป้าไปโดนศัตรูทุกตัวด้านหลังในแนวยาว 6 ช่อง กว้าง 2 ช่อง แต่ละตัวโดน 116% ของดาเมจสกิล (ใช้กับสกิลเป้าเดียว)"}]},{"lv":10,"opts":[{"id":"one-strike","name":"One Strike","thai":"รวมพลัง","desc":"ทุกครั้งรวมเป็นครั้งเดียว แรงเท่ารวมกัน ดาเมจ +10%"},{"id":"barrage","name":"Barrage","thai":"ระดมโจมตี","desc":"โดนเพิ่ม 3 ครั้ง แต่ละครั้งดาเมจ -25%"},{"id":"overkill","name":"Overkill","thai":"ดาเมจล้น","desc":"ดาเมจที่เกินตอนฆ่า 167% ไหลไปศัตรูใกล้สุดใน 5 ช่อง"}]}]},
-    {"id":"auto-guard","name":"Bulwark","thai":"ป้องกันอัตโนมัติ","maxLevel":10,"kind":"active","desc":"ยกโล่ตั้งรับ มีโอกาสกันการโจมตีได้ทั้งหมดชั่วคราว (4% ต่อเลเวล, Lv.10 = 40%)"},
-    {"id":"crusader-heal","name":"Mending Light","thai":"แสงเยียวยา","maxLevel":10,"kind":"active","desc":"ฟื้นฟู HP ให้ตัวเองหรือพันธมิตร ปริมาณขึ้นกับ Base Level และ INT และ INT ทุก 2 แต้มเพิ่มพลังฮีลอีก 1% ใช้กับมอนเผ่า Undead จะทำดาเมจศักดิ์สิ..."},
-    {"id":"defender","name":"Defender","thai":"ป้อมปราการ","maxLevel":10,"kind":"active","req":"ป้องกันอัตโนมัติ Lv.3","prereq":[{"skill":"auto-guard","level":3}],"desc":"ตั้งท่าป้อมปราการ ลดดาเมจที่โดน 2.5% ต่อเลเวล (Lv.10 25%) ดาเมจระยะไกลที่โดนลดอีก 5% ต่อเลเวล (Lv.10 50%) แลกกับเดินช้าลง 20% นาน 180 วินาที"},
-    {"id":"shield-reflect","name":"Shield Reflect","thai":"โล่สะท้อน","maxLevel":10,"kind":"active","req":"ป้องกันอัตโนมัติ Lv.3","prereq":[{"skill":"auto-guard","level":3}],"desc":"โดนตีประชิดแต่ละครั้ง สะท้อนดาเมจ 0.1% ของ HP สูงสุดของมอนที่ตีต่อเลเวล (Lv.10 1%) บอสโดน 1 ใน 10 ต่อครั้งไม่เกิน 5 เท่าของ HP สูงสุดผู้ใช้ ..."},
-    {"id":"guardians-oath","name":"Guardian's Oath","thai":"คำสาบานผู้พิทักษ์","maxLevel":10,"kind":"active","req":"ป้อมปราการ Lv.3","prereq":[{"skill":"defender","level":3}],"desc":"สาบานปกป้องเพื่อนในปาร์ตี้ ทั้งการโจมตีปกติและสกิลของมอนที่ตกกับเพื่อนย้ายมาที่ผู้ใช้แทน (คิดดาเมจใหม่ด้วยพลังป้องกันของผู้ใช้) ปกป้องได้พร้...","facets":[{"lv":3,"opts":[{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"focus","name":"Focus","thai":"สมาธิ","desc":"SP -35%"},{"id":"swift","name":"Swift","thai":"ฉับไว","desc":"คูลดาวน์ -40%, SP -20%"}]},{"lv":6,"opts":[{"id":"swift","name":"Swift","thai":"ฉับไว","desc":"คูลดาวน์ -40%, SP -20%"},{"id":"efficient","name":"Efficient","thai":"ประหยัด","desc":"SP -50%"},{"id":"reach","name":"Reach","thai":"ระยะยาว","desc":"ระยะร่าย +2 ช่อง"}]},{"lv":10,"opts":[{"id":"master","name":"Master","thai":"ชำนาญ","desc":"คูลดาวน์ -50%, เวลาร่าย -50%"},{"id":"free","name":"Effortless","thai":"ไร้แรง","desc":"SP -70%"},{"id":"long-reach","name":"Long Reach","thai":"ระยะไกล","desc":"ระยะร่าย +3 ช่อง"}]}]},
-    {"id":"grand-peco-ride","name":"Grand Peco Rider","thai":"ขี่แกรนด์เปโก้","maxLevel":1,"kind":"passive","req":"ศรัทธา Lv.1","prereq":[{"skill":"faith","level":1}],"desc":"ขี่ Peco Peco ได้ (เช่าที่ Healer Mira 2,500 z) ขี่แล้วเดินเร็วขึ้น 25% แต่ตีช้าลง 25% (ผลเหมือน Peco Rider ของ Knight)"},
-    {"id":"grand-peco-master","name":"Holy Cavalry","thai":"ชำนาญการขี่แกรนด์เปโก้","maxLevel":5,"kind":"passive","req":"ขี่แกรนด์เปโก้ Lv.1","prereq":[{"skill":"grand-peco-ride","level":1}],"desc":"ขี่ Peco Peco แล้วตีช้าลงน้อยลง 5% ต่อเลเวล (Lv5 ไม่ช้าลงเลย)"}
-  ], "hunter": [
-    {"id":"falconry-mastery","name":"Falcon Bond","thai":"ฝึกเหยี่ยว","maxLevel":1,"kind":"passive","desc":"ปลดล็อกการเช่าเหยี่ยวที่ Healer Mira (2,500 z) เหยี่ยวบินตามอยู่เหนือไหล่ขวา จำเป็นสำหรับ Falcon Strike, Steel Talons, Falcon Instinct และ F..."},
-    {"id":"blitz-beat","name":"Falcon Strike","thai":"เหยี่ยวจู่โจม","maxLevel":10,"kind":"active","req":"ฝึกเหยี่ยว Lv.1, ยิงคู่ Lv.5","prereq":[{"skill":"falconry-mastery","level":1},{"skill":"double-strafe","level":5}],"desc":"สั่งเหยี่ยวพุ่งจิกเป้าหมายหลายครั้ง ต้องมีเหยี่ยว (Falcon Bond) จิกโดนเสมอ ไม่สน DEF และขนาดเป้า ดาเมจต่อการจิก = (แรงตาม DEX และ AGI + ATK ...","facets":[{"lv":5,"opts":[{"id":"power","name":"Power","thai":"พลังทำลาย","desc":"ดาเมจ +20%"},{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"focus","name":"Focus","thai":"สมาธิ","desc":"SP -35%"}]},{"lv":12,"opts":[{"id":"chain","name":"Chain","thai":"ลูกโซ่","desc":"เด้งต่อไปยังศัตรูตัวที่ใกล้ที่สุดในระยะ 4 ช่อง ทีละตัว 2-3 ตัว แต่ละตัวโดน 66% ของดาเมจสกิล (ใช้กับสกิลเป้าเดียว)"},{"id":"fork","name":"Fork","thai":"แยกทาง","desc":"ยิงเพิ่ม 2 ลูกไปหาศัตรูตัวอื่นที่อยู่ภายใน 3 ช่องรอบเป้า แต่ละลูกโดน 101% ของดาเมจสกิล (ใช้กับสกิลเป้าเดียว)"},{"id":"piercing","name":"Piercing","thai":"ทะลวง","desc":"ทะลุเป้าไปโดนศัตรูทุกตัวด้านหลังในแนวยาว 6 ช่อง กว้าง 2 ช่อง แต่ละตัวโดน 116% ของดาเมจสกิล (ใช้กับสกิลเป้าเดียว)"}]},{"lv":15,"opts":[{"id":"one-strike","name":"One Strike","thai":"รวมพลัง","desc":"ทุกครั้งรวมเป็นครั้งเดียว แรงเท่ารวมกัน ดาเมจ +10%"},{"id":"barrage","name":"Barrage","thai":"ระดมโจมตี","desc":"โดนเพิ่ม 3 ครั้ง แต่ละครั้งดาเมจ -25%"},{"id":"detonate","name":"Detonate","thai":"ระเบิดศพ","desc":"ศัตรูที่ตายจากสกิลนี้ระเบิด ทำดาเมจ 90% ของ HP สูงสุดของตัวที่ตาย ใส่ศัตรูรอบ 5 ช่อง (ไม่เกิน 3 เท่าของดาเมจที่ฆ่า) ตัวที่ตายจากแรงระเบิดจะระเบิดต่ออีก 1 ทอด"}]}]},
-    {"id":"steel-crow","name":"Steel Talons","thai":"เหยี่ยวเหล็ก","maxLevel":10,"kind":"passive","req":"เหยี่ยวจู่โจม Lv.5","prereq":[{"skill":"blitz-beat","level":5}],"desc":"ฝึกกรงเล็บเหยี่ยว ดาเมจเหยี่ยว +6 ต่อเลเวลต่อการจิก 1 ครั้ง (Falcon Strike และ Falcon Instinct)"},
-    {"id":"auto-blitz-beat","name":"Falcon Instinct","thai":"เหยี่ยวจู่โจมอัตโนมัติ","maxLevel":5,"kind":"passive","req":"ฝึกเหยี่ยว Lv.1","prereq":[{"skill":"falconry-mastery","level":1}],"desc":"ตีปกติโดนแล้วมีโอกาส (LUK ÷ 3)% ที่เหยี่ยวพุ่งจิกศัตรูเอง (LUK 99 = 33%) จำนวนจิกเท่ากับ Falcon Strike เลเวลที่มีอยู่ (เช่น Lv.10 = 6 ครั้ง;..."},
-    {"id":"land-mine","name":"Blast Mine","thai":"กับระเบิด","maxLevel":10,"kind":"active","desc":"วางกับระเบิดบนพื้น มอนเดินมาชนแล้วระเบิด ธาตุดิน โดนรอบจุดวาง มีโอกาสทำให้มึนงง ไม่มีใครชน 60 วิหายไป วางได้พร้อมกัน 3 อัน (อันที่ 4 แทนอันเ...","facets":[{"lv":5,"opts":[{"id":"power","name":"Power","thai":"พลังทำลาย","desc":"ดาเมจ +20%"},{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"tremor","name":"Tremor","thai":"ธรณีสั่น","desc":"เป้าที่โดน DEF -7% 4 วิ"}]},{"lv":12,"opts":[{"id":"concussive","name":"Concussive","thai":"แรงกระแทก","desc":"ศัตรูที่โดนช้าลง 28% 3 วิ"},{"id":"lingering","name":"Lingering","thai":"สถานะยืดเยื้อ","desc":"เวลาสถานะที่สกิลทำ +56%"},{"id":"aftershock","name":"Aftershock","thai":"แรงสั่นสะเทือน","desc":"พื้นสั่นซ้ำหลัง 1 วิ ทุกตัวในพื้นที่โดน 189% ของดาเมจสกิล"}]},{"lv":15,"opts":[{"id":"overload","name":"Overload","thai":"ทุ่มสุดตัว","desc":"ดาเมจ +60% แต่คูลดาวน์ +50%"},{"id":"wider","name":"Vast","thai":"กว้างไกล","desc":"พื้นที่ +2 ช่อง แต่ดาเมจ -15%"},{"id":"overkill","name":"Overkill","thai":"ดาเมจล้น","desc":"ดาเมจที่เกินตอนฆ่า 167% ไหลไปศัตรูใกล้สุดใน 5 ช่อง"}]}]},
-    {"id":"ankle-snare","name":"Snare Trap","thai":"กับดักข้อเท้า","maxLevel":10,"kind":"active","req":"กับระเบิด Lv.1","prereq":[{"skill":"land-mine","level":1}],"desc":"วางกับดักข้อเท้าบนพื้น มอนเดินมาเหยียบแล้วถูกล็อกขา เดินไม่ได้ (ยังตีได้ถ้าอยู่ในระยะ) 3.5–8 วิ ไม่มีใครเหยียบ 60 วิหายไป วางได้พร้อมกัน 3 อ...","facets":[{"lv":3,"opts":[{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"focus","name":"Focus","thai":"สมาธิ","desc":"SP -35%"},{"id":"sure-status","name":"Sure Status","thai":"ติดแน่น","desc":"โอกาสติดสถานะของสกิลนี้ +8% (ไม่ใช่สกิลโจมตี); ดีบัฟที่ติดแน่นอนอยู่แล้ว (Strip Armor, Provoke, Quagmire) อยู่นานขึ้น 8% แทน"}]},{"lv":6,"opts":[{"id":"lingering","name":"Lingering","thai":"สถานะยืดเยื้อ","desc":"เวลาสถานะที่สกิลทำ +56%"},{"id":"exploit","name":"Exploit","thai":"ซ้ำเติม","desc":"มอนที่ติดสถานะ / ดีบัฟจากสกิลนี้รับดาเมจจากทุกคนเพิ่ม 8% (บอสครึ่งหนึ่ง)"},{"id":"swift","name":"Swift","thai":"ฉับไว","desc":"คูลดาวน์ -40%, SP -20%"}]},{"lv":10,"opts":[{"id":"master","name":"Master","thai":"ชำนาญ","desc":"คูลดาวน์ -50%, เวลาร่าย -50%"},{"id":"free","name":"Effortless","thai":"ไร้แรง","desc":"SP -70%"},{"id":"long-reach","name":"Long Reach","thai":"ระยะไกล","desc":"ระยะร่าย +3 ช่อง"}]}]},
-    {"id":"claymore-trap","name":"Inferno Trap","thai":"กับดักเพลิง","maxLevel":10,"kind":"active","req":"กับระเบิด Lv.3","prereq":[{"skill":"land-mine","level":3}],"desc":"วางกับดักเพลิงบนพื้น มอนเดินมาชนแล้วระเบิดวงกว้าง ธาตุไฟ ไม่มีใครชน 60 วิหายไป วางได้พร้อมกัน 3 อัน (อันที่ 4 แทนอันเก่าสุด) · แรงขึ้นตาม IN...","facets":[{"lv":5,"opts":[{"id":"power","name":"Power","thai":"พลังทำลาย","desc":"ดาเมจ +20%"},{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"ignite","name":"Ignite","thai":"เพลิงลาม","desc":"ศัตรูที่โดนติดไฟ เผาไหม้ 30% ของดาเมจต่อวิ 3 วิ"}]},{"lv":12,"opts":[{"id":"concussive","name":"Concussive","thai":"แรงกระแทก","desc":"ศัตรูที่โดนช้าลง 28% 3 วิ"},{"id":"aftershock","name":"Aftershock","thai":"แรงสั่นสะเทือน","desc":"พื้นสั่นซ้ำหลัง 1 วิ ทุกตัวในพื้นที่โดน 189% ของดาเมจสกิล"},{"id":"vortex","name":"Vortex","thai":"วังวน","desc":"ดูดศัตรูในพื้นที่เข้าหากลางวง 1.5 ช่องก่อนโดน"}]},{"lv":15,"opts":[{"id":"overload","name":"Overload","thai":"ทุ่มสุดตัว","desc":"ดาเมจ +60% แต่คูลดาวน์ +50%"},{"id":"wider","name":"Vast","thai":"กว้างไกล","desc":"พื้นที่ +2 ช่อง แต่ดาเมจ -15%"},{"id":"overkill","name":"Overkill","thai":"ดาเมจล้น","desc":"ดาเมจที่เกินตอนฆ่า 167% ไหลไปศัตรูใกล้สุดใน 5 ช่อง"}]}]},
-    {"id":"detecting","name":"Falcon Scout","thai":"เหยี่ยวสอดแนม","maxLevel":1,"kind":"active","desc":"ปล่อยเหยี่ยวบินวนจิกในพื้นที่รัศมี 6 ช่อง ไม่มีดาเมจ ผู้เล่นฝ่ายศัตรูที่หายตัวอยู่ในวงจะโผล่ออกมา ต้องมีเหยี่ยว","facets":[{"lv":1,"opts":[{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"focus","name":"Focus","thai":"สมาธิ","desc":"SP -35%"},{"id":"eagle-eye","name":"Eagle Eye","thai":"ตาเหยี่ยว","desc":"ระยะเปิดเผย / มองเห็นของสกิลนี้ +1 ช่อง"}]},{"lv":1,"opts":[{"id":"hunters-mark","name":"Hunters Mark","thai":"ตามรอย","desc":"มอนที่ถูกเปิดเผย / อยู่ในระยะมองเห็น รับดาเมจจากทุกคนเพิ่ม 8% 8 วิ (ไม่เกิน 10 ตัวต่อการร่าย)"},{"id":"swift","name":"Swift","thai":"ฉับไว","desc":"คูลดาวน์ -40%, SP -20%"},{"id":"wide","name":"Wide","thai":"แผ่กว้าง","desc":"พื้นที่ +1 ช่อง"}]},{"lv":1,"opts":[{"id":"master","name":"Master","thai":"ชำนาญ","desc":"คูลดาวน์ -50%, เวลาร่าย -50%"},{"id":"free","name":"Effortless","thai":"ไร้แรง","desc":"SP -70%"},{"id":"long-reach","name":"Long Reach","thai":"ระยะไกล","desc":"ระยะร่าย +3 ช่อง"}]}]}
-  ], "bard": [
-    {"id":"musical-strike","name":"Melody Arrow","thai":"ศรทำนอง","maxLevel":10,"kind":"active","req":"ยิงคู่ Lv.3","prereq":[{"skill":"double-strafe","level":3}],"desc":"ยิงลูกศรที่พาเสียงดนตรีพุ่งใส่เป้าหมาย ใช้ลูกธนู 1 ดอกต่อครั้ง (ต้องติดตั้งลูกธนูไว้ ถือเครื่องดนตรีก็ยิงได้) ธาตุตามลูกธนูที่ใส่อยู่","facets":[{"lv":5,"opts":[{"id":"power","name":"Power","thai":"พลังทำลาย","desc":"ดาเมจ +20%"},{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"focus","name":"Focus","thai":"สมาธิ","desc":"SP -35%"}]},{"lv":12,"opts":[{"id":"piercing","name":"Piercing","thai":"ทะลวง","desc":"ทะลุเป้าไปโดนศัตรูทุกตัวด้านหลังในแนวยาว 6 ช่อง กว้าง 2 ช่อง แต่ละตัวโดน 116% ของดาเมจสกิล (ใช้กับสกิลเป้าเดียว)"},{"id":"executioner","name":"Executioner","thai":"เพชฌฆาต","desc":"ดาเมจ +566% กับเป้าที่เลือดต่ำกว่า 30%"},{"id":"chain","name":"Chain","thai":"ลูกโซ่","desc":"เด้งต่อไปยังศัตรูตัวที่ใกล้ที่สุดในระยะ 4 ช่อง ทีละตัว 2-3 ตัว แต่ละตัวโดน 66% ของดาเมจสกิล (ใช้กับสกิลเป้าเดียว)"}]},{"lv":15,"opts":[{"id":"overload","name":"Overload","thai":"ทุ่มสุดตัว","desc":"ดาเมจ +60% แต่คูลดาวน์ +50%"},{"id":"barrage","name":"Barrage","thai":"ระดมโจมตี","desc":"โดนเพิ่ม 3 ครั้ง แต่ละครั้งดาเมจ -25%"},{"id":"detonate","name":"Detonate","thai":"ระเบิดศพ","desc":"ศัตรูที่ตายจากสกิลนี้ระเบิด ทำดาเมจ 90% ของ HP สูงสุดของตัวที่ตาย ใส่ศัตรูรอบ 5 ช่อง (ไม่เกิน 3 เท่าของดาเมจที่ฆ่า) ตัวที่ตายจากแรงระเบิดจะระเบิดต่ออีก 1 ทอด"}]}]},
-    {"id":"frost-joke","name":"Chilling Jest","thai":"มุกเยือกแข็ง","maxLevel":10,"kind":"active","req":"ศรทำนอง Lv.3","prereq":[{"skill":"musical-strike","level":3}],"desc":"เล่นมุกตลกหนาวเหน็บ มอนรอบตัวมีโอกาสแข็งตัว","facets":[{"lv":3,"opts":[{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"focus","name":"Focus","thai":"สมาธิ","desc":"SP -35%"},{"id":"sure-status","name":"Sure Status","thai":"ติดแน่น","desc":"โอกาสติดสถานะของสกิลนี้ +8% (ไม่ใช่สกิลโจมตี); ดีบัฟที่ติดแน่นอนอยู่แล้ว (Strip Armor, Provoke, Quagmire) อยู่นานขึ้น 8% แทน"}]},{"lv":6,"opts":[{"id":"lingering","name":"Lingering","thai":"สถานะยืดเยื้อ","desc":"เวลาสถานะที่สกิลทำ +56%"},{"id":"exploit","name":"Exploit","thai":"ซ้ำเติม","desc":"มอนที่ติดสถานะ / ดีบัฟจากสกิลนี้รับดาเมจจากทุกคนเพิ่ม 8% (บอสครึ่งหนึ่ง)"},{"id":"swift","name":"Swift","thai":"ฉับไว","desc":"คูลดาวน์ -40%, SP -20%"}]},{"lv":10,"opts":[{"id":"master","name":"Master","thai":"ชำนาญ","desc":"คูลดาวน์ -50%, เวลาร่าย -50%"},{"id":"free","name":"Effortless","thai":"ไร้แรง","desc":"SP -70%"},{"id":"long-reach","name":"Long Reach","thai":"ระยะไกล","desc":"ระยะร่าย +3 ช่อง"}]}]},
-    {"id":"poem-of-bragi","name":"Ballad of Swiftcast","thai":"บทเพลงเร่งเวท","maxLevel":10,"kind":"active","desc":"บทเพลงที่ทำให้ร่ายเวทเร็วขึ้น เพิ่ม DEX และ INT (เล่นได้ทีละ 1 เพลง เพลงใหม่แทนเพลงเดิม · เพลงของ Bard กับท่าเต้นของ Dancer อยู่บนตัวผู้เล่น...","facetsPending":true},
-    {"id":"assassin-cross-of-sunset","name":"Dusk Tempo","thai":"เพลงยามอัสดง","maxLevel":10,"kind":"active","req":"บทเพลงเร่งเวท Lv.3","prereq":[{"skill":"poem-of-bragi","level":3}],"desc":"บทเพลงเร่งจังหวะ เพิ่มความเร็วโจมตี (เล่นได้ทีละ 1 เพลง เพลงใหม่แทนเพลงเดิม · เพลงของ Bard กับท่าเต้นของ Dancer อยู่บนตัวผู้เล่นพร้อมกันได้)","facetsPending":true},
-    {"id":"apple-of-idun","name":"Song of Renewal","thai":"เพลงฟื้นชีวา","maxLevel":10,"kind":"active","req":"บทเพลงเร่งเวท Lv.3","prereq":[{"skill":"poem-of-bragi","level":3}],"desc":"บทเพลงแห่งชีวิต เพิ่ม HP สูงสุดและพลังการฟื้นฟู (เล่นได้ทีละ 1 เพลง เพลงใหม่แทนเพลงเดิม · เพลงของ Bard กับท่าเต้นของ Dancer อยู่บนตัวผู้เล่น...","facetsPending":true}
-  ], "dancer": [
-    {"id":"throw-arrow","name":"Dancing Arrow","thai":"เหวี่ยงศร","maxLevel":10,"kind":"active","req":"ยิงคู่ Lv.3","prereq":[{"skill":"double-strafe","level":3}],"desc":"หมุนตัวเหวี่ยงลูกศรใส่เป้าหมาย ใช้ลูกธนู 1 ดอกต่อครั้ง (ต้องติดตั้งลูกธนูไว้ ถือแส้ก็ยิงได้) ธาตุตามลูกธนูที่ใส่อยู่","facets":[{"lv":5,"opts":[{"id":"power","name":"Power","thai":"พลังทำลาย","desc":"ดาเมจ +20%"},{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"focus","name":"Focus","thai":"สมาธิ","desc":"SP -35%"}]},{"lv":12,"opts":[{"id":"executioner","name":"Executioner","thai":"เพชฌฆาต","desc":"ดาเมจ +566% กับเป้าที่เลือดต่ำกว่า 30%"},{"id":"chain","name":"Chain","thai":"ลูกโซ่","desc":"เด้งต่อไปยังศัตรูตัวที่ใกล้ที่สุดในระยะ 4 ช่อง ทีละตัว 2-3 ตัว แต่ละตัวโดน 66% ของดาเมจสกิล (ใช้กับสกิลเป้าเดียว)"},{"id":"fork","name":"Fork","thai":"แยกทาง","desc":"ยิงเพิ่ม 2 ลูกไปหาศัตรูตัวอื่นที่อยู่ภายใน 3 ช่องรอบเป้า แต่ละลูกโดน 101% ของดาเมจสกิล (ใช้กับสกิลเป้าเดียว)"}]},{"lv":15,"opts":[{"id":"overload","name":"Overload","thai":"ทุ่มสุดตัว","desc":"ดาเมจ +60% แต่คูลดาวน์ +50%"},{"id":"barrage","name":"Barrage","thai":"ระดมโจมตี","desc":"โดนเพิ่ม 3 ครั้ง แต่ละครั้งดาเมจ -25%"},{"id":"piercing","name":"Piercing","thai":"ทะลวง","desc":"ทะลุเป้าไปโดนศัตรูทุกตัวด้านหลังในแนวยาว 6 ช่อง กว้าง 2 ช่อง แต่ละตัวโดน 129% ของดาเมจสกิล (ใช้กับสกิลเป้าเดียว)"}]}]},
-    {"id":"service-for-you","name":"Enchanting Dance","thai":"ระบำบริการ","maxLevel":10,"kind":"active","desc":"ท่าเต้นที่เพิ่ม SP สูงสุดและ INT (เล่นได้ทีละ 1 เพลง เพลงใหม่แทนเพลงเดิม · เพลงของ Bard กับท่าเต้นของ Dancer อยู่บนตัวผู้เล่นพร้อมกันได้)","facetsPending":true},
-    {"id":"fortune-kiss","name":"Lucky Kiss","thai":"จุมพิตแห่งโชค","maxLevel":10,"kind":"active","req":"ระบำบริการ Lv.3","prereq":[{"skill":"service-for-you","level":3}],"desc":"ส่งจูบนำโชค เพิ่มโอกาสคริติคอล (เล่นได้ทีละ 1 เพลง เพลงใหม่แทนเพลงเดิม · เพลงของ Bard กับท่าเต้นของ Dancer อยู่บนตัวผู้เล่นพร้อมกันได้)","facetsPending":true},
-    {"id":"scream","name":"Banshee Scream","thai":"กรีดร้อง","maxLevel":10,"kind":"active","req":"จุมพิตแห่งโชค Lv.1","prereq":[{"skill":"fortune-kiss","level":1}],"desc":"กรีดร้องสุดเสียง มอนรอบตัวมีโอกาสมึนงง","facets":[{"lv":3,"opts":[{"id":"power","name":"Power","thai":"พลังทำลาย","desc":"ดาเมจ +20%"},{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"concussive","name":"Concussive","thai":"แรงกระแทก","desc":"ศัตรูที่โดนช้าลง 18% 3 วิ"}]},{"lv":6,"opts":[{"id":"epicenter","name":"Epicenter","thai":"จุดศูนย์กลาง","desc":"ศัตรูกลางวง 1 ช่องรับดาเมจ +184%"},{"id":"lingering","name":"Lingering","thai":"สถานะยืดเยื้อ","desc":"เวลาสถานะที่สกิลทำ +56%"},{"id":"aftershock","name":"Aftershock","thai":"แรงสั่นสะเทือน","desc":"พื้นสั่นซ้ำหลัง 1 วิ ทุกตัวในพื้นที่โดน 189% ของดาเมจสกิล"}]},{"lv":10,"opts":[{"id":"overload","name":"Overload","thai":"ทุ่มสุดตัว","desc":"ดาเมจ +60% แต่คูลดาวน์ +50%"},{"id":"wider","name":"Vast","thai":"กว้างไกล","desc":"พื้นที่ +2 ช่อง แต่ดาเมจ -15%"},{"id":"detonate","name":"Detonate","thai":"ระเบิดศพ","desc":"ศัตรูที่ตายจากสกิลนี้ระเบิด ทำดาเมจ 90% ของ HP สูงสุดของตัวที่ตาย ใส่ศัตรูรอบ 5 ช่อง (ไม่เกิน 3 เท่าของดาเมจที่ฆ่า) ตัวที่ตายจากแรงระเบิดจะระเบิดต่ออีก 1 ทอด"}]}]},
-    {"id":"humming","name":"Humming","thai":"ฮัมเพลงแม่นยำ","maxLevel":10,"kind":"active","desc":"ท่าเต้นพร้อมเสียงฮัม เพิ่ม HIT +2 ต่อเลเวล (Lv.10 +20) (เล่นได้ทีละ 1 เพลง เพลงใหม่แทนเพลงเดิม · เพลงของ Bard กับท่าเต้นของ Dancer อยู่บนตัว..."}
-  ], "priest": [
-    {"id":"magnus-exorcismus","name":"Holy Judgment","thai":"มหาไล่ผี","maxLevel":10,"kind":"active","req":"แสงศักดิ์สิทธิ์ Lv.5","prereq":[{"skill":"holy-light","level":5}],"desc":"กางเขนแสงยักษ์ปักลงพื้น วงรัศมี 5 ช่อง ศัตรูในวงโดนดาเมจเวทศักดิ์สิทธิ์ 10 ครั้ง (Lv.10 ครั้งละ 150%) มอนเผ่า Undead และ Demon โดนแรงเป็น 2 ...","facets":[{"lv":5,"opts":[{"id":"power","name":"Power","thai":"พลังทำลาย","desc":"ดาเมจ +20%"},{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"sanctify","name":"Sanctify","thai":"ชำระบาป","desc":"ดาเมจกับอันเดดและปีศาจ +9%"}]},{"lv":12,"opts":[{"id":"spell-cascade","name":"Spell Cascade","thai":"เวทลดหลั่น","desc":"เกิดพื้นที่เล็กซ้ำ 2 จุดครึ่งทางจากกลางวงออกไป ดาเมจ 100% ของทั้งสกิล"},{"id":"concussive","name":"Concussive","thai":"แรงกระแทก","desc":"ศัตรูที่โดนช้าลง 28% 3 วิ"},{"id":"aftershock","name":"Aftershock","thai":"แรงสั่นสะเทือน","desc":"พื้นสั่นซ้ำหลัง 1 วิ ทุกตัวในพื้นที่โดน 189% ของดาเมจสกิล"}]},{"lv":15,"opts":[{"id":"one-strike","name":"One Strike","thai":"รวมพลัง","desc":"ทุกครั้งรวมเป็นครั้งเดียว แรงเท่ารวมกัน ดาเมจ +10%"},{"id":"barrage","name":"Barrage","thai":"ระดมโจมตี","desc":"โดนเพิ่ม 3 ครั้ง แต่ละครั้งดาเมจ -25%"},{"id":"overkill","name":"Overkill","thai":"ดาเมจล้น","desc":"ดาเมจที่เกินตอนฆ่า 167% ไหลไปศัตรูใกล้สุดใน 5 ช่อง"}]}]},
-    {"id":"kyrie-eleison","name":"Divine Shield","thai":"โล่ศักดิ์สิทธิ์","maxLevel":10,"kind":"active","req":"แสงเยียวยา Lv.3","prereq":[{"skill":"heal","level":3}],"desc":"โล่แสงปกป้อง ลดดาเมจที่ได้รับ","facetsPending":true},
-    {"id":"impositio-manus","name":"Blessed Might","thai":"หัตถ์ประทานพลัง","maxLevel":10,"kind":"active","desc":"วางมืออวยพร เพิ่มพลังโจมตี","facetsPending":true},
-    {"id":"gloria","name":"Hymn of Fortune","thai":"บทสรรเสริญ","maxLevel":5,"kind":"active","req":"โล่ศักดิ์สิทธิ์ Lv.4","prereq":[{"skill":"kyrie-eleison","level":4}],"desc":"ขับร้องบทสรรเสริญ เพิ่ม LUK ให้ตัวเองและปาร์ตี้ เลเวลละ 6 (Lv.5 = +30) นาน 30 วินาที"},
-    {"id":"sanctuary","name":"Holy Ground","thai":"แดนศักดิ์สิทธิ์","maxLevel":10,"kind":"active","req":"แสงเยียวยา Lv.5","prereq":[{"skill":"heal","level":5}],"desc":"วางวงศักดิ์สิทธิ์บนพื้น รัศมี 2.5 ช่อง ฟื้น HP ผู้เล่นทุกคนที่ยืนในวงทุก 1 วินาที (Lv.10 = 777 HP/วินาที) อยู่ 10 วินาที + 1 วินาทีต่อเลเวล ..."},
-    {"id":"aspersio","name":"Holy Water","thai":"น้ำมนต์","maxLevel":5,"kind":"active","req":"หัตถ์ประทานพลัง Lv.3","prereq":[{"skill":"impositio-manus","level":3}],"desc":"ประพรมน้ำมนต์ อาวุธของเป้าหมายกลายเป็นธาตุศักดิ์สิทธิ์ (ใช้กับตัวเองหรือเพื่อนในปาร์ตี้เท่านั้น)"},
-    {"id":"pneuma","name":"Wind Veil","thai":"ม่านลมคุ้มภัย","maxLevel":1,"kind":"active","desc":"วางวงเวทบนพื้น ใครยืนในวงไม่โดนการโจมตีระยะไกลทางกายภาพ (ธนู, มอนยิงไกล) ระยะประชิดและเวทยังโดน อยู่ 10 วินาที","facets":[{"lv":1,"opts":[{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"focus","name":"Focus","thai":"สมาธิ","desc":"SP -35%"},{"id":"enduring-ground","name":"Enduring Ground","thai":"เขตยืนยง","desc":"โซนของสกิลนี้อยู่นานขึ้น 20%"}]},{"lv":1,"opts":[{"id":"swift","name":"Swift","thai":"ฉับไว","desc":"คูลดาวน์ -40%, SP -20%"},{"id":"wide","name":"Wide","thai":"แผ่กว้าง","desc":"พื้นที่ +1 ช่อง"},{"id":"efficient","name":"Efficient","thai":"ประหยัด","desc":"SP -50%"}]},{"lv":1,"opts":[{"id":"master","name":"Master","thai":"ชำนาญ","desc":"คูลดาวน์ -50%, เวลาร่าย -50%"},{"id":"free","name":"Effortless","thai":"ไร้แรง","desc":"SP -70%"},{"id":"long-reach","name":"Long Reach","thai":"ระยะไกล","desc":"ระยะร่าย +3 ช่อง"}]}]},
-    {"id":"resurrection","name":"Rebirth","thai":"ชุบชีวิต","maxLevel":4,"kind":"active","req":"หัตถ์ประทานพลัง Lv.3","prereq":[{"skill":"impositio-manus","level":3}],"desc":"ชุบชีวิตผู้เล่นที่ตาย ณ จุดที่ล้ม ฟื้นมาพร้อม HP 12% +22% ต่อเลเวล (Lv.4 = 78%) ใช้กับคนที่ยังไม่ตายไม่ได้","facets":[{"lv":1,"opts":[{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"focus","name":"Focus","thai":"สมาธิ","desc":"SP -35%"},{"id":"swift","name":"Swift","thai":"ฉับไว","desc":"คูลดาวน์ -40%, SP -20%"}]},{"lv":2,"opts":[{"id":"swift","name":"Swift","thai":"ฉับไว","desc":"คูลดาวน์ -40%, SP -20%"},{"id":"efficient","name":"Efficient","thai":"ประหยัด","desc":"SP -50%"},{"id":"reach","name":"Reach","thai":"ระยะยาว","desc":"ระยะร่าย +2 ช่อง"}]},{"lv":3,"opts":[{"id":"master","name":"Master","thai":"ชำนาญ","desc":"คูลดาวน์ -50%, เวลาร่าย -50%"},{"id":"free","name":"Effortless","thai":"ไร้แรง","desc":"SP -70%"},{"id":"long-reach","name":"Long Reach","thai":"ระยะไกล","desc":"ระยะร่าย +3 ช่อง"}]}]},
-    {"id":"priest-safety-wall","name":"Aegis Barrier","thai":"กำแพงนิรภัย","maxLevel":10,"kind":"active","desc":"วางวงเวทบนพื้น ใครยืนในวงไม่โดนดาเมจกายภาพ (เวทยังโดน) อยู่ 8 วินาที +3 ต่อเลเวล · กันได้ (เลเวล+1) ครั้งแล้วแตก (Lv.10: 11 ครั้ง)","facets":[{"lv":3,"opts":[{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"focus","name":"Focus","thai":"สมาธิ","desc":"SP -35%"},{"id":"enduring-ground","name":"Enduring Ground","thai":"เขตยืนยง","desc":"โซนของสกิลนี้อยู่นานขึ้น 20%"}]},{"lv":6,"opts":[{"id":"swift","name":"Swift","thai":"ฉับไว","desc":"คูลดาวน์ -40%, SP -20%"},{"id":"wide","name":"Wide","thai":"แผ่กว้าง","desc":"พื้นที่ +1 ช่อง"},{"id":"efficient","name":"Efficient","thai":"ประหยัด","desc":"SP -50%"}]},{"lv":10,"opts":[{"id":"master","name":"Master","thai":"ชำนาญ","desc":"คูลดาวน์ -50%, เวลาร่าย -50%"},{"id":"free","name":"Effortless","thai":"ไร้แรง","desc":"SP -70%"},{"id":"long-reach","name":"Long Reach","thai":"ระยะไกล","desc":"ระยะร่าย +3 ช่อง"}]}]},
-    {"id":"purifying-light","name":"Purifying Light","thai":"แสงชำระล้าง","maxLevel":1,"kind":"active","req":"โล่ศักดิ์สิทธิ์ Lv.3","prereq":[{"skill":"kyrie-eleison","level":3}],"desc":"แสงศักดิ์สิทธิ์ชำระล้างตัวเองและปาร์ตี้ในระยะ 13 ช่อง ล้างมึน แช่แข็ง และสโลว์จากบอส แล้วกันไม่ให้ติดใหม่ 3 วินาที","facets":[{"lv":1,"opts":[{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"focus","name":"Focus","thai":"สมาธิ","desc":"SP -35%"},{"id":"swift","name":"Swift","thai":"ฉับไว","desc":"คูลดาวน์ -40%, SP -20%"}]},{"lv":1,"opts":[{"id":"swift","name":"Swift","thai":"ฉับไว","desc":"คูลดาวน์ -40%, SP -20%"},{"id":"efficient","name":"Efficient","thai":"ประหยัด","desc":"SP -50%"},{"id":"reach","name":"Reach","thai":"ระยะยาว","desc":"ระยะร่าย +2 ช่อง"}]},{"lv":1,"opts":[{"id":"master","name":"Master","thai":"ชำนาญ","desc":"คูลดาวน์ -50%, เวลาร่าย -50%"},{"id":"free","name":"Effortless","thai":"ไร้แรง","desc":"SP -70%"},{"id":"long-reach","name":"Long Reach","thai":"ระยะไกล","desc":"ระยะร่าย +3 ช่อง"}]}]}
-  ], "monk": [
-    {"id":"iron-fists","name":"Steel Knuckles","thai":"หมัดเหล็ก","maxLevel":10,"kind":"passive","desc":"เพิ่มพลังโจมตีเมื่อใช้สนับมือ"},
-    {"id":"triple-attack","name":"Threefold Strike","thai":"หมัดสามจังหวะ","maxLevel":10,"kind":"passive","desc":"ตีปกติมีโอกาส 30% -1% ต่อเลเวล ต่อยสามหมัดติด รวมพลัง 120% +20% ต่อเลเวลของ ATK (Lv.10 = 320%) ใช้ได้ทุกอาวุธ"},
-    {"id":"call-spirits","name":"Summon Spirit Orbs","thai":"เรียกลูกแก้ววิญญาณ","maxLevel":10,"kind":"active","req":"หมัดเหล็ก Lv.2","prereq":[{"skill":"iron-fists","level":2}],"desc":"เรียกลูกแก้ววิญญาณ 1 เม็ดต่อครั้ง (มีได้เท่าเลเวลสกิล สูงสุด 5 เม็ด) ลูกแก้วโคจรรอบตัว เม็ดละ ATK +6 ครบ 5 เม็ด ATK +5% อีก · เรียกเพิ่มแล้ว...","facetsPending":true},
-    {"id":"finger-offensive","name":"Spirit Shot","thai":"ดีดลูกแก้ววิญญาณ","maxLevel":10,"kind":"active","req":"เรียกลูกแก้ววิญญาณ Lv.3","prereq":[{"skill":"call-spirits","level":3}],"desc":"ดีดลูกแก้ววิญญาณใส่เป้าหมายระยะไกล จำนวนลูกเพิ่มตามเลเวล","facets":[{"lv":5,"opts":[{"id":"power","name":"Power","thai":"พลังทำลาย","desc":"ดาเมจ +20%"},{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"focus","name":"Focus","thai":"สมาธิ","desc":"SP -35%"}]},{"lv":12,"opts":[{"id":"chain","name":"Chain","thai":"ลูกโซ่","desc":"เด้งต่อไปยังศัตรูตัวที่ใกล้ที่สุดในระยะ 4 ช่อง ทีละตัว 2-3 ตัว แต่ละตัวโดน 66% ของดาเมจสกิล (ใช้กับสกิลเป้าเดียว)"},{"id":"fork","name":"Fork","thai":"แยกทาง","desc":"ยิงเพิ่ม 2 ลูกไปหาศัตรูตัวอื่นที่อยู่ภายใน 3 ช่องรอบเป้า แต่ละลูกโดน 101% ของดาเมจสกิล (ใช้กับสกิลเป้าเดียว)"},{"id":"piercing","name":"Piercing","thai":"ทะลวง","desc":"ทะลุเป้าไปโดนศัตรูทุกตัวด้านหลังในแนวยาว 6 ช่อง กว้าง 2 ช่อง แต่ละตัวโดน 116% ของดาเมจสกิล (ใช้กับสกิลเป้าเดียว)"}]},{"lv":15,"opts":[{"id":"one-strike","name":"One Strike","thai":"รวมพลัง","desc":"ทุกครั้งรวมเป็นครั้งเดียว แรงเท่ารวมกัน ดาเมจ +10%"},{"id":"barrage","name":"Barrage","thai":"ระดมโจมตี","desc":"โดนเพิ่ม 3 ครั้ง แต่ละครั้งดาเมจ -25%"},{"id":"overkill","name":"Overkill","thai":"ดาเมจล้น","desc":"ดาเมจที่เกินตอนฆ่า 167% ไหลไปศัตรูใกล้สุดใน 5 ช่อง"}]}]},
-    {"id":"six-saint","name":"Six-Step Leap","thai":"หกก้าวเทพ","maxLevel":3,"kind":"active","req":"หมัดสามจังหวะ Lv.5","prereq":[{"skill":"triple-attack","level":5}],"desc":"กระโดดไปยังจุดที่คลิกทันที ไม่มีร่าย ไม่มีดาเมจ ระยะ 7 ช่อง คูลดาวน์ 1.5 วิ ลดลงทุกเลเวล (Lv.2 = 0.85 วิ, Lv.3 = 0.2 วิ)","facets":[{"lv":1,"opts":[{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"focus","name":"Focus","thai":"สมาธิ","desc":"SP -35%"},{"id":"swift","name":"Swift","thai":"ฉับไว","desc":"คูลดาวน์ -40%, SP -20%"}]},{"lv":2,"opts":[{"id":"swift","name":"Swift","thai":"ฉับไว","desc":"คูลดาวน์ -40%, SP -20%"},{"id":"wide","name":"Wide","thai":"แผ่กว้าง","desc":"พื้นที่ +1 ช่อง"},{"id":"efficient","name":"Efficient","thai":"ประหยัด","desc":"SP -50%"}]},{"lv":3,"opts":[{"id":"master","name":"Master","thai":"ชำนาญ","desc":"คูลดาวน์ -50%, เวลาร่าย -50%"},{"id":"free","name":"Effortless","thai":"ไร้แรง","desc":"SP -70%"},{"id":"long-reach","name":"Long Reach","thai":"ระยะไกล","desc":"ระยะร่าย +3 ช่อง"}]}]},
-    {"id":"investigate","name":"Piercing Palm","thai":"ฝ่ามือทะลวง","maxLevel":10,"kind":"active","req":"เรียกลูกแก้ววิญญาณ Lv.5","prereq":[{"skill":"call-spirits","level":5}],"desc":"กระแทกฝ่ามือทะลุเกราะ ไม่โดนหักพลังป้องกัน ยิ่งศัตรู DEF สูงยิ่งแรง (+1% ต่อ DEF 1 แต้ม) และลดพลังป้องกันของเป้าหมาย","facets":[{"lv":5,"opts":[{"id":"power","name":"Power","thai":"พลังทำลาย","desc":"ดาเมจ +20%"},{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"crushing-blow","name":"Crushing Blow","thai":"ทุบสะท้าน","desc":"โอกาส 14% มึน 1.5 วิ"}]},{"lv":12,"opts":[{"id":"lingering","name":"Lingering","thai":"สถานะยืดเยื้อ","desc":"เวลาสถานะที่สกิลทำ +56%"},{"id":"cleave","name":"Cleave","thai":"ฟันกวาด","desc":"ศัตรูรอบเป้าในระยะ 1 ช่อง โดน 82% ของดาเมจสกิลด้วย (ใช้กับสกิลเป้าเดียว)"},{"id":"executioner","name":"Executioner","thai":"เพชฌฆาต","desc":"ดาเมจ +566% กับเป้าที่เลือดต่ำกว่า 30%"}]},{"lv":15,"opts":[{"id":"overload","name":"Overload","thai":"ทุ่มสุดตัว","desc":"ดาเมจ +60% แต่คูลดาวน์ +50%"},{"id":"barrage","name":"Barrage","thai":"ระดมโจมตี","desc":"โดนเพิ่ม 3 ครั้ง แต่ละครั้งดาเมจ -25%"},{"id":"overkill","name":"Overkill","thai":"ดาเมจล้น","desc":"ดาเมจที่เกินตอนฆ่า 167% ไหลไปศัตรูใกล้สุดใน 5 ช่อง"}]}]},
-    {"id":"asura-strike","name":"Asura Fist","thai":"หมัดอสูร","maxLevel":10,"kind":"active","req":"ฝ่ามือทะลวง Lv.5, ดีดลูกแก้ววิญญาณ Lv.3","prereq":[{"skill":"investigate","level":5},{"skill":"finger-offensive","level":3}],"desc":"ทุ่ม SP ทั้งหมดเป็นหมัดเดียว (เหลือ SP 1) ยิ่งมี SP เยอะยิ่งแรง: พลัง ATK × (15 + 1 ต่อเลเวล + SP ที่ใช้ × 0.15) ร่าย 1.5 วินาที โดนเสมอ · ห...","facets":[{"lv":5,"opts":[{"id":"power","name":"Power","thai":"พลังทำลาย","desc":"ดาเมจ +20%"},{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"crushing-blow","name":"Crushing Blow","thai":"ทุบสะท้าน","desc":"โอกาส 14% มึน 1.5 วิ"}]},{"lv":12,"opts":[{"id":"cleave","name":"Cleave","thai":"ฟันกวาด","desc":"ศัตรูรอบเป้าในระยะ 1 ช่อง โดน 82% ของดาเมจสกิลด้วย (ใช้กับสกิลเป้าเดียว)"},{"id":"executioner","name":"Executioner","thai":"เพชฌฆาต","desc":"ดาเมจ +566% กับเป้าที่เลือดต่ำกว่า 30%"},{"id":"overheat","name":"Overheat","thai":"ทุ่มแรง","desc":"ดาเมจ +35% แต่คูลดาวน์ +40%"}]},{"lv":15,"opts":[{"id":"overload","name":"Overload","thai":"ทุ่มสุดตัว","desc":"ดาเมจ +60% แต่คูลดาวน์ +50%"},{"id":"barrage","name":"Barrage","thai":"ระดมโจมตี","desc":"โดนเพิ่ม 3 ครั้ง แต่ละครั้งดาเมจ -25%"},{"id":"overkill","name":"Overkill","thai":"ดาเมจล้น","desc":"ดาเมจที่เกินตอนฆ่า 167% ไหลไปศัตรูใกล้สุดใน 5 ช่อง"}]}]},
-    {"id":"fury","name":"Fury","thai":"พลังโทสะ","maxLevel":1,"kind":"active","req":"เรียกลูกแก้ววิญญาณ Lv.5","prereq":[{"skill":"call-spirits","level":5}],"desc":"ต้องมีลูกแก้ววิญญาณอย่างน้อย 3 เม็ด ใช้ลูกแก้วหมดทุกเม็ด แล้ว 3 นาที: อัตราคริ +10% และความแรงคริติคอล +5% · คูลดาวน์ 8 วินาที"}
-  ], "blacksmith": [
-    {"id":"weaponry-research","name":"Forge Expertise","thai":"วิจัยอาวุธ","maxLevel":10,"kind":"passive","desc":"เพิ่มพลังโจมตีและความแม่นยำถาวร"},
-    {"id":"two-hand-axe-mastery","name":"Greataxe Mastery","thai":"ชำนาญขวานสองมือ","maxLevel":10,"kind":"passive","desc":"ถือขวานสองมือ ATK +4 ต่อเลเวล"},
-    {"id":"hammer-fall","name":"Earthshaker","thai":"ทุบพสุธา","maxLevel":10,"kind":"active","desc":"ทุบพื้นให้สะเทือน ทำความเสียหายศัตรูรอบตัว และมีโอกาสทำให้มึนงง","facets":[{"lv":3,"opts":[{"id":"power","name":"Power","thai":"พลังทำลาย","desc":"ดาเมจ +20%"},{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"concussive","name":"Concussive","thai":"แรงกระแทก","desc":"ศัตรูที่โดนช้าลง 18% 3 วิ"}]},{"lv":6,"opts":[{"id":"lingering","name":"Lingering","thai":"สถานะยืดเยื้อ","desc":"เวลาสถานะที่สกิลทำ +56%"},{"id":"aftershock","name":"Aftershock","thai":"แรงสั่นสะเทือน","desc":"พื้นสั่นซ้ำหลัง 1 วิ ทุกตัวในพื้นที่โดน 189% ของดาเมจสกิล"},{"id":"vortex","name":"Vortex","thai":"วังวน","desc":"ดูดศัตรูในพื้นที่เข้าหากลางวง 1.5 ช่องก่อนโดน"}]},{"lv":10,"opts":[{"id":"overload","name":"Overload","thai":"ทุ่มสุดตัว","desc":"ดาเมจ +60% แต่คูลดาวน์ +50%"},{"id":"wider","name":"Vast","thai":"กว้างไกล","desc":"พื้นที่ +2 ช่อง แต่ดาเมจ -15%"},{"id":"epicenter","name":"Epicenter","thai":"จุดศูนย์กลาง","desc":"ศัตรูกลางวง 1 ช่องรับดาเมจ +217%"}]}]},
-    {"id":"adrenaline-rush","name":"Battle Frenzy","thai":"อะดรีนาลีนพลุ่ง","maxLevel":10,"kind":"active","req":"ทุบพสุธา Lv.2","prereq":[{"skill":"hammer-fall","level":2}],"desc":"เลือดสูบฉีด เพิ่มความเร็วโจมตี (ตัวเองและสมาชิกปาร์ตี้ในระยะ 13 ช่อง)","facetsPending":true},
-    {"id":"over-thrust","name":"Overdrive","thai":"พลังเหนือขีด","maxLevel":10,"kind":"active","req":"อะดรีนาลีนพลุ่ง Lv.4","prereq":[{"skill":"adrenaline-rush","level":4}],"desc":"ปลุกพลังอาวุธของตัวเองและปาร์ตี้ เพิ่มดาเมจระยะประชิด (ตัวเองและสมาชิกปาร์ตี้ในระยะ 13 ช่อง)","facetsPending":true},
-    {"id":"weapon-perfection","name":"True Edge","thai":"อาวุธสมบูรณ์แบบ","maxLevel":10,"kind":"active","req":"วิจัยอาวุธ Lv.2","prereq":[{"skill":"weaponry-research","level":2}],"desc":"ลับอาวุธจนคมกริบ เพิ่มความแม่นยำและดาเมจคริติคอล (ตัวเองและสมาชิกปาร์ตี้ในระยะ 13 ช่อง)","facetsPending":true}
-  ], "alchemist": [
-    {"id":"acid-terror","name":"Acid Flask","thai":"ขวดกรดกัดเกราะ","maxLevel":10,"kind":"active","desc":"ขว้างขวดกรด ทำดาเมจและกัดพลังป้องกันของเป้าหมาย ศัตรูที่ยืนบนพื้นไฟ Firebomb โดนแรงขึ้น 50%","facets":[{"lv":5,"opts":[{"id":"power","name":"Power","thai":"พลังทำลาย","desc":"ดาเมจ +20%"},{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"focus","name":"Focus","thai":"สมาธิ","desc":"SP -35%"}]},{"lv":12,"opts":[{"id":"executioner","name":"Executioner","thai":"เพชฌฆาต","desc":"ดาเมจ +566% กับเป้าที่เลือดต่ำกว่า 30%"},{"id":"lingering","name":"Lingering","thai":"สถานะยืดเยื้อ","desc":"เวลาสถานะที่สกิลทำ +56%"},{"id":"chain","name":"Chain","thai":"ลูกโซ่","desc":"เด้งต่อไปยังศัตรูตัวที่ใกล้ที่สุดในระยะ 4 ช่อง ทีละตัว 2-3 ตัว แต่ละตัวโดน 66% ของดาเมจสกิล (ใช้กับสกิลเป้าเดียว)"}]},{"lv":15,"opts":[{"id":"overload","name":"Overload","thai":"ทุ่มสุดตัว","desc":"ดาเมจ +60% แต่คูลดาวน์ +50%"},{"id":"barrage","name":"Barrage","thai":"ระดมโจมตี","desc":"โดนเพิ่ม 3 ครั้ง แต่ละครั้งดาเมจ -25%"},{"id":"piercing","name":"Piercing","thai":"ทะลวง","desc":"ทะลุเป้าไปโดนศัตรูทุกตัวด้านหลังในแนวยาว 6 ช่อง กว้าง 2 ช่อง แต่ละตัวโดน 129% ของดาเมจสกิล (ใช้กับสกิลเป้าเดียว)"}]}]},
-    {"id":"demonstration","name":"Firebomb","thai":"ระเบิดเพลิงขวด","maxLevel":10,"kind":"active","desc":"ขว้างขวดระเบิดลงพื้น เกิดพื้นไฟวงรัศมี 2 ช่องนาน 5 วินาที ศัตรูที่ยืนในวงโดนไฟเผาทุก 1 วินาที (ดาเมจมาจากพื้นไฟ ไม่ใช่ตัวขวด) Lv.10 รวม 1500...","facets":[{"lv":5,"opts":[{"id":"power","name":"Power","thai":"พลังทำลาย","desc":"ดาเมจ +20%"},{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"ignite","name":"Ignite","thai":"เพลิงลาม","desc":"ศัตรูที่โดนติดไฟ เผาไหม้ 30% ของดาเมจต่อวิ 3 วิ"}]},{"lv":12,"opts":[{"id":"vortex","name":"Vortex","thai":"วังวน","desc":"ดูดศัตรูในพื้นที่เข้าหากลางวง 1.5 ช่องก่อนโดน"},{"id":"epicenter","name":"Epicenter","thai":"จุดศูนย์กลาง","desc":"ศัตรูกลางวง 1 ช่องรับดาเมจ +184%"},{"id":"concussive","name":"Concussive","thai":"แรงกระแทก","desc":"ศัตรูที่โดนช้าลง 28% 3 วิ"}]},{"lv":15,"opts":[{"id":"one-strike","name":"One Strike","thai":"รวมพลัง","desc":"ทุกครั้งรวมเป็นครั้งเดียว แรงเท่ารวมกัน ดาเมจ +10%"},{"id":"barrage","name":"Barrage","thai":"ระดมโจมตี","desc":"โดนเพิ่ม 3 ครั้ง แต่ละครั้งดาเมจ -25%"},{"id":"overkill","name":"Overkill","thai":"ดาเมจล้น","desc":"ดาเมจที่เกินตอนฆ่า 167% ไหลไปศัตรูใกล้สุดใน 5 ช่อง"}]}]},
-    {"id":"potion-pitcher","name":"Potion Toss","thai":"ขว้างยา","maxLevel":10,"kind":"active","req":"ขวดกรดกัดเกราะ Lv.1","prereq":[{"skill":"acid-terror","level":1}],"desc":"ขว้าง White Potion ใส่ตัวเองหรือพันธมิตร ฟื้น HP 5 เท่าของยา (ใช้ White Potion 1 ขวดต่อครั้ง)","facetsPending":true},
-    {"id":"chemical-protection","name":"Alchemic Coating","thai":"เคลือบสารป้องกัน","maxLevel":10,"kind":"active","req":"ขว้างยา Lv.3","prereq":[{"skill":"potion-pitcher","level":3}],"desc":"เคลือบสารเคมีบนชุดเกราะ เพิ่มพลังป้องกันกายภาพและเวท","facetsPending":true},
-    {"id":"alchemy-mastery","name":"Alchemy Mastery","thai":"ปรมาจารย์การปรุงยา","maxLevel":10,"kind":"passive","desc":"ชำนาญการปรุงยา สกิลโจมตีที่ใช้ขวดยา (Acid Flask, Firebomb) แรงขึ้น 3% ต่อเลเวล (Lv.10 +30%)"},
-    {"id":"berserk-elixir","name":"Berserk Elixir","thai":"ยาคลั่ง","maxLevel":5,"kind":"active","req":"ขว้างยา Lv.3","prereq":[{"skill":"potion-pitcher","level":3}],"desc":"ดื่มเองหรือขว้างให้เพื่อน: ความเสียหายระยะไกล +3% และความเร็วโจมตี +4% ต่อเลเวล (Lv.5 ความเสียหายระยะไกล +15% ความเร็วโจมตี +20%) นาน 30 วิน..."},
-    {"id":"flask-frenzy","name":"Flask Frenzy","thai":"เมายา","maxLevel":10,"kind":"passive","req":"ขวดกรดกัดเกราะ Lv.5","prereq":[{"skill":"acid-terror","level":5}],"desc":"ติดตัว: ปา Acid Flask มีโอกาสออกสองลูก 2% ต่อเลเวล (Lv.10 20%) หรือสามลูก 1% ต่อเลเวล (Lv.10 10%) ในการกดครั้งเดียว"}
-  ], "assassin": [
-    {"id":"katar-mastery","name":"Katar Edge","thai":"ชำนาญคาตาร์","maxLevel":10,"kind":"passive","desc":"เพิ่มพลังโจมตีเมื่อใช้คาตาร์"},
-    {"id":"righthand-mastery","name":"Main-Hand Finesse","thai":"ชำนาญมือขวา","maxLevel":5,"kind":"passive","desc":"ถืออาวุธสองมือ: ดาเมจมือขวาจาก 50% เป็น 60 / 70 / 80 / 90 / 100% (Lv1-5) ไม่มีผลกับ Katar และสกิล"},
-    {"id":"lefthand-mastery","name":"Off-Hand Finesse","thai":"ชำนาญมือซ้าย","maxLevel":5,"kind":"passive","req":"ชำนาญมือขวา Lv.2","prereq":[{"skill":"righthand-mastery","level":2}],"desc":"ถืออาวุธสองมือ: ดาเมจมือซ้ายจาก 30% เป็น 40 / 50 / 60 / 70 / 80% (Lv1-5) ไม่มีผลกับ Katar และสกิล"},
-    {"id":"sonic-blow","name":"Shadow Fang","thai":"ฟันเสียงสะท้าน","maxLevel":10,"kind":"active","req":"ชำนาญคาตาร์ Lv.4","prereq":[{"skill":"katar-mastery","level":4}],"desc":"ฟันรัวแปดครั้งในพริบตา มีโอกาสทำให้มึนงง","facets":[{"lv":5,"opts":[{"id":"power","name":"Power","thai":"พลังทำลาย","desc":"ดาเมจ +20%"},{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"crushing-blow","name":"Crushing Blow","thai":"ทุบสะท้าน","desc":"โอกาส 14% มึน 1.5 วิ"}]},{"lv":12,"opts":[{"id":"lingering","name":"Lingering","thai":"สถานะยืดเยื้อ","desc":"เวลาสถานะที่สกิลทำ +56%"},{"id":"cleave","name":"Cleave","thai":"ฟันกวาด","desc":"ศัตรูรอบเป้าในระยะ 1 ช่อง โดน 82% ของดาเมจสกิลด้วย (ใช้กับสกิลเป้าเดียว)"},{"id":"executioner","name":"Executioner","thai":"เพชฌฆาต","desc":"ดาเมจ +566% กับเป้าที่เลือดต่ำกว่า 30%"}]},{"lv":15,"opts":[{"id":"one-strike","name":"One Strike","thai":"รวมพลัง","desc":"ทุกครั้งรวมเป็นครั้งเดียว แรงเท่ารวมกัน ดาเมจ +10%"},{"id":"barrage","name":"Barrage","thai":"ระดมโจมตี","desc":"โดนเพิ่ม 3 ครั้ง แต่ละครั้งดาเมจ -25%"},{"id":"overkill","name":"Overkill","thai":"ดาเมจล้น","desc":"ดาเมจที่เกินตอนฆ่า 167% ไหลไปศัตรูใกล้สุดใน 5 ช่อง"}]}]},
-    {"id":"sonic-acceleration","name":"Swift Fang","thai":"เร่งโซนิค","maxLevel":5,"kind":"passive","req":"ฟันเสียงสะท้าน Lv.5","prereq":[{"skill":"sonic-blow","level":5}],"desc":"เพิ่มความเสียหายของ Shadow Fang เลเวลละ 20% (Lv.5 = +100%)"},
-    {"id":"cloaking","name":"Shadow Walk","thai":"เดินในเงา","maxLevel":5,"kind":"toggle","req":"ซ่อนตัว Lv.2","prereq":[{"skill":"hiding","level":2}],"desc":"หายตัวแบบ Vanish แต่ยังเดินได้ช้าลง (Lv1 36% ถึง Lv5 60% ของความเร็วปกติ) มอนเลิกไล่ เสีย SP ต่อเนื่อง ใช้ Reaper's Bite ได้ระหว่างหายตัว"},
-    {"id":"grimtooth","name":"Reaper's Bite","thai":"เขี้ยวเงา","maxLevel":10,"kind":"active","req":"ฟันเสียงสะท้าน Lv.5, ซ่อนตัว Lv.2","prereq":[{"skill":"sonic-blow","level":5},{"skill":"hiding","level":2}],"desc":"แทงใบมีดเงาผุดขึ้นจากพื้นใต้เป้าหมาย โดนศัตรูรอบข้าง ใช้ได้ตอนซ่อนตัว (Vanish / Shadow Walk) เท่านั้น และไม่หลุดจากการซ่อนตัว","facets":[{"lv":5,"opts":[{"id":"power","name":"Power","thai":"พลังทำลาย","desc":"ดาเมจ +20%"},{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"crushing-blow","name":"Crushing Blow","thai":"ทุบสะท้าน","desc":"โอกาส 14% มึน 1.5 วิ"}]},{"lv":12,"opts":[{"id":"executioner","name":"Executioner","thai":"เพชฌฆาต","desc":"ดาเมจ +566% กับเป้าที่เลือดต่ำกว่า 30%"},{"id":"concussive","name":"Concussive","thai":"แรงกระแทก","desc":"ศัตรูที่โดนช้าลง 28% 3 วิ"},{"id":"cleave","name":"Cleave","thai":"ฟันกวาด","desc":"ศัตรูรอบเป้าในระยะ 1 ช่อง โดน 82% ของดาเมจสกิลด้วย (ใช้กับสกิลเป้าเดียว)"}]},{"lv":15,"opts":[{"id":"overload","name":"Overload","thai":"ทุ่มสุดตัว","desc":"ดาเมจ +60% แต่คูลดาวน์ +50%"},{"id":"wider","name":"Vast","thai":"กว้างไกล","desc":"พื้นที่ +2 ช่อง แต่ดาเมจ -15%"},{"id":"aftershock","name":"Aftershock","thai":"แรงสั่นสะเทือน","desc":"พื้นสั่นซ้ำหลัง 1 วิ ทุกตัวในพื้นที่โดน 216% ของดาเมจสกิล"}]}]},
-    {"id":"enchant-poison","name":"Venom Coat","thai":"อาบยาพิษ","maxLevel":10,"kind":"active","req":"จู่โจมพิษ Lv.1","prereq":[{"skill":"envenom","level":1}],"desc":"อาบยาพิษบนอาวุธ การโจมตีปกติกลายเป็นธาตุพิษ (ใช้กับตัวเองหรือเพื่อนในปาร์ตี้เท่านั้น)"},
-    {"id":"venom-dust","name":"Toxic Cloud","thai":"ผงพิษ","maxLevel":10,"kind":"active","req":"อาบยาพิษ Lv.5","prereq":[{"skill":"enchant-poison","level":5}],"desc":"โปรยผงพิษลงพื้น มอนในวงโดนดาเมจพิษและมีโอกาสติดพิษ","facets":[{"lv":5,"opts":[{"id":"power","name":"Power","thai":"พลังทำลาย","desc":"ดาเมจ +20%"},{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"venom","name":"Venom","thai":"พิษร้าย","desc":"โอกาส 12% ติดพิษ 4 วิ"}]},{"lv":12,"opts":[{"id":"concussive","name":"Concussive","thai":"แรงกระแทก","desc":"ศัตรูที่โดนช้าลง 28% 3 วิ"},{"id":"lingering","name":"Lingering","thai":"สถานะยืดเยื้อ","desc":"เวลาสถานะที่สกิลทำ +56%"},{"id":"aftershock","name":"Aftershock","thai":"แรงสั่นสะเทือน","desc":"พื้นสั่นซ้ำหลัง 1 วิ ทุกตัวในพื้นที่โดน 189% ของดาเมจสกิล"}]},{"lv":15,"opts":[{"id":"overload","name":"Overload","thai":"ทุ่มสุดตัว","desc":"ดาเมจ +60% แต่คูลดาวน์ +50%"},{"id":"wider","name":"Vast","thai":"กว้างไกล","desc":"พื้นที่ +2 ช่อง แต่ดาเมจ -15%"},{"id":"epicenter","name":"Epicenter","thai":"จุดศูนย์กลาง","desc":"ศัตรูกลางวง 1 ช่องรับดาเมจ +217%"}]}]}
-  ], "rogue": [
-    {"id":"plagiarism","name":"Mimicry","thai":"ลอกเลียน","maxLevel":10,"kind":"passive","desc":"ติดตัว: ความเร็วโจมตี +1% ต่อเลเวล · วางบนแถบปุ่มลัด เลือกผู้เล่นใกล้ๆ แล้วกด (หรือคลิกขวาผู้เล่น → ลอกเลียนสกิล) แล้วเลือก 1 สกิลกดใช้ของอา..."},
-    {"id":"back-stab","name":"Blink Stab","thai":"แทงข้างหลัง","maxLevel":10,"kind":"active","req":"ขโมย Lv.4","prereq":[{"skill":"steal","level":4}],"desc":"พุ่งไปโผล่ด้านหลังศัตรูแล้วแทงจุดตาย ดาเมจสูง","facets":[{"lv":5,"opts":[{"id":"power","name":"Power","thai":"พลังทำลาย","desc":"ดาเมจ +20%"},{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"crushing-blow","name":"Crushing Blow","thai":"ทุบสะท้าน","desc":"โอกาส 14% มึน 1.5 วิ"}]},{"lv":12,"opts":[{"id":"cleave","name":"Cleave","thai":"ฟันกวาด","desc":"ศัตรูรอบเป้าในระยะ 1 ช่อง โดน 82% ของดาเมจสกิลด้วย (ใช้กับสกิลเป้าเดียว)"},{"id":"executioner","name":"Executioner","thai":"เพชฌฆาต","desc":"ดาเมจ +566% กับเป้าที่เลือดต่ำกว่า 30%"},{"id":"overheat","name":"Overheat","thai":"ทุ่มแรง","desc":"ดาเมจ +35% แต่คูลดาวน์ +40%"}]},{"lv":15,"opts":[{"id":"overload","name":"Overload","thai":"ทุ่มสุดตัว","desc":"ดาเมจ +60% แต่คูลดาวน์ +50%"},{"id":"barrage","name":"Barrage","thai":"ระดมโจมตี","desc":"โดนเพิ่ม 3 ครั้ง แต่ละครั้งดาเมจ -25%"},{"id":"overkill","name":"Overkill","thai":"ดาเมจล้น","desc":"ดาเมจที่เกินตอนฆ่า 167% ไหลไปศัตรูใกล้สุดใน 5 ช่อง"}]}]},
-    {"id":"raid","name":"Ambush","thai":"จู่โจมจากเงา","maxLevel":10,"kind":"active","req":"แทงข้างหลัง Lv.2, ซ่อนตัว Lv.3","prereq":[{"skill":"back-stab","level":2},{"skill":"hiding","level":3}],"desc":"โผล่จากเงาฟันศัตรูรอบตัว มีโอกาสทำให้มึนงง","facets":[{"lv":5,"opts":[{"id":"power","name":"Power","thai":"พลังทำลาย","desc":"ดาเมจ +20%"},{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"concussive","name":"Concussive","thai":"แรงกระแทก","desc":"ศัตรูที่โดนช้าลง 18% 3 วิ"}]},{"lv":12,"opts":[{"id":"epicenter","name":"Epicenter","thai":"จุดศูนย์กลาง","desc":"ศัตรูกลางวง 1 ช่องรับดาเมจ +184%"},{"id":"lingering","name":"Lingering","thai":"สถานะยืดเยื้อ","desc":"เวลาสถานะที่สกิลทำ +56%"},{"id":"aftershock","name":"Aftershock","thai":"แรงสั่นสะเทือน","desc":"พื้นสั่นซ้ำหลัง 1 วิ ทุกตัวในพื้นที่โดน 189% ของดาเมจสกิล"}]},{"lv":15,"opts":[{"id":"overload","name":"Overload","thai":"ทุ่มสุดตัว","desc":"ดาเมจ +60% แต่คูลดาวน์ +50%"},{"id":"wider","name":"Vast","thai":"กว้างไกล","desc":"พื้นที่ +2 ช่อง แต่ดาเมจ -15%"},{"id":"detonate","name":"Detonate","thai":"ระเบิดศพ","desc":"ศัตรูที่ตายจากสกิลนี้ระเบิด ทำดาเมจ 90% ของ HP สูงสุดของตัวที่ตาย ใส่ศัตรูรอบ 5 ช่อง (ไม่เกิน 3 เท่าของดาเมจที่ฆ่า) ตัวที่ตายจากแรงระเบิดจะระเบิดต่ออีก 1 ทอด"}]}]},
-    {"id":"strip-armor","name":"Armor Break","thai":"ปลดเกราะ","maxLevel":10,"kind":"active","req":"ขโมย Lv.3","prereq":[{"skill":"steal","level":3}],"desc":"ปลดเกราะของเป้าหมาย ลดพลังป้องกันอย่างมาก","facets":[{"lv":3,"opts":[{"id":"quick","name":"Quick Cast","thai":"ร่ายว่องไว","desc":"เวลาร่าย -30%, คูลดาวน์ -20%"},{"id":"focus","name":"Focus","thai":"สมาธิ","desc":"SP -35%"},{"id":"deep-curse","name":"Deep Curse","thai":"คำสาปลึก","desc":"ค่าที่ดีบัฟของสกิลนี้ลด (DEF / ATK / ความเร็ว ฯลฯ) แรงขึ้น 10%"}]},{"lv":6,"opts":[{"id":"contagion","name":"Contagion","thai":"ดีบัฟลาม","desc":"ดีบัฟของสกิลนี้ลามไปมอนรอบเป้า 2 ช่อง 55% ของความแรงและเวลา (สูงสุด 3 ตัว ไม่รวมบอส ไม่ลามต่อ)"},{"id":"exploit","name":"Exploit","thai":"ซ้ำเติม","desc":"มอนที่ติดสถานะ / ดีบัฟจากสกิลนี้รับดาเมจจากทุกคนเพิ่ม 8% (บอสครึ่งหนึ่ง)"},{"id":"sure-status","name":"Sure Status","thai":"ติดแน่น","desc":"โอกาสติดสถานะของสกิลนี้ +12% (ไม่ใช่สกิลโจมตี); ดีบัฟที่ติดแน่นอนอยู่แล้ว (Strip Armor, Provoke, Quagmire) อยู่นานขึ้น 12% แทน"}]},{"lv":10,"opts":[{"id":"lingering","name":"Lingering","thai":"สถานะยืดเยื้อ","desc":"เวลาสถานะที่สกิลทำ +70%"},{"id":"master","name":"Master","thai":"ชำนาญ","desc":"คูลดาวน์ -50%, เวลาร่าย -50%"},{"id":"free","name":"Effortless","thai":"ไร้แรง","desc":"SP -70%"}]}]},
-    {"id":"snatcher","name":"Snatch Strike","thai":"ฉกชิง","maxLevel":10,"kind":"passive","req":"ขโมย Lv.5","prereq":[{"skill":"steal","level":5}],"desc":"ติดตัว: โจมตีปกติที่โดนมอน มีโอกาส 1% ต่อเลเวล (Lv.10 = 10%) ขโมยไอเทมจากมอนตัวนั้น (ขโมยได้ครั้งเดียวต่อมอน ไม่ได้กับบอส)"}
-  ] };
+const SKILLS_DATABASE = {
+  "novice": [
+    {
+      "id": "q",
+      "name": "ฟาดเต็มแรง",
+      "thai": "กดใช้",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "desc": "ฟาดอาวุธเต็มแรงใส่มอนตัวเดียวข้างหน้า 100% ของ ATK ผลักกระเด็น"
+    },
+    {
+      "id": "e",
+      "name": "พุ่งใบไม้",
+      "thai": "กดใช้",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "desc": "พุ่งเป็นสายลมใบไม้ อมตะชั่วครู่ ชนมอนตัวแรกที่ขวาง 100% ของ ATK"
+    },
+    {
+      "id": "mastery",
+      "name": "ชำนาญอาวุธ",
+      "thai": "กดใช้",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "desc": "ATK +4 (เลเวลละ +4)"
+    },
+    {
+      "id": "body",
+      "name": "ร่างกายแข็งแกร่ง",
+      "thai": "กดใช้",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "desc": "HP สูงสุด +2% · ฟื้น HP +10%"
+    },
+    {
+      "id": "mind",
+      "name": "สมาธิแน่วแน่",
+      "thai": "กดใช้",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "desc": "SP สูงสุด +2% · ฟื้น SP +10%"
+    }
+  ],
+  "knight": [
+    {
+      "id": "bash",
+      "name": "ฟันสะท้านเหล็ก",
+      "thai": "สายดาบ",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "active",
+      "desc": "[มีฟรี Lv.1] · ฟาดดาบครั้งใหญ่ข้างหน้า 100% ของ ATK ทำให้มึน 1.2 วิ"
+    },
+    {
+      "id": "kn_bowling",
+      "name": "หมุนฟาดกระเด็น",
+      "thai": "สายดาบ",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ฟันสะท้านเหล็ก Lv.5",
+      "prereq": [
+        {
+          "skill": "bash",
+          "level": 5
+        }
+      ],
+      "desc": "ฟันหมุนรอบตัว 2 รอบ รอบละ 100% ของ ATK รอบหลังผลักศัตรูกระเด็น"
+    },
+    {
+      "id": "kn_swordmastery",
+      "name": "ชำนาญดาบ",
+      "thai": "สายดาบ",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "desc": "ถือดาบ ดาบใหญ่ ดาบคู่ ขวาน ขวานยักษ์ หรือกระบอง: ATK +2% ความแม่น +1"
+    },
+    {
+      "id": "kn_quicken",
+      "name": "เร่งเพลงดาบ",
+      "thai": "สายคลั่งศึก",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ชำนาญดาบ Lv.3",
+      "prereq": [
+        {
+          "skill": "kn_swordmastery",
+          "level": 3
+        }
+      ],
+      "desc": "33 วิ ถือดาบ ดาบใหญ่ ดาบคู่ หรือขวานยักษ์: ความเร็วโจมตี +2% คริติคอล +0.5% · Lv10 ตีคริแล้วเร็วขึ้นอีกชั่วครู่"
+    },
+    {
+      "id": "kn_cleave",
+      "name": "ฟันกวาด",
+      "thai": "สายคลั่งศึก",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "เร่งเพลงดาบ Lv.1",
+      "prereq": [
+        {
+          "skill": "kn_quicken",
+          "level": 1
+        }
+      ],
+      "desc": "ตีปกติระยะประชิด โดนศัตรูรอบเป้าด้วย 2% ของดาเมจ · Lv5 กวาดกว้างขึ้น · Lv10 ตีครั้งที่ 5 ปล่อยคลื่นดาบ"
+    },
+    {
+      "id": "kn_aurablade",
+      "name": "ดาบเรืองพลัง",
+      "thai": "สายคลั่งศึก",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ชำนาญดาบ Lv.5",
+      "prereq": [
+        {
+          "skill": "kn_swordmastery",
+          "level": 5
+        }
+      ],
+      "desc": "48 วิ: ตีปกติทุกครั้งแรงขึ้น 6 + Base Lv ÷ 4 แบบไม่สน DEF · Lv5 ฟันกวาดและคลื่นดาบแรงขึ้น 20% ระหว่างออร่า"
+    },
+    {
+      "id": "kn_berserk",
+      "name": "บ้าคลั่ง",
+      "thai": "สายคลั่งศึก",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "เร่งเพลงดาบ Lv.5, ฟันกวาด Lv.3",
+      "prereq": [
+        {
+          "skill": "kn_quicken",
+          "level": 5
+        },
+        {
+          "skill": "kn_cleave",
+          "level": 3
+        }
+      ],
+      "desc": "คลั่ง 17 วิ: ความเร็วโจมตี +20% ATK +12% ดูดเลือด 0.6% ของดาเมจที่ตี · ระหว่างคลั่งใช้ได้แค่ตีปกติกับบัฟ HP ลดวิละ 1.5% หมดแล้วเหนื่อย 5 วิ · Lv5 การตีครั้งที่ 3 ทุกครั้งปล่อยคลื่นดาบเล็ก"
+    },
+    {
+      "id": "guard",
+      "name": "โล่แสงศักดิ์สิทธิ์",
+      "thai": "สายผู้พิทักษ์",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "active",
+      "desc": "[มีฟรี Lv.1] · โดมแสงคุ้มกัน 5.3 วิ รับดาเมจลดลง 33%"
+    },
+    {
+      "id": "kn_ironskin",
+      "name": "ผิวเหล็ก",
+      "thai": "สายผู้พิทักษ์",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "desc": "DEF +1 · HP สูงสุด +1% · ฟื้น HP +8%"
+    },
+    {
+      "id": "kn_provoke",
+      "name": "ตะโกนท้าทาย",
+      "thai": "สายผู้พิทักษ์",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "desc": "ตะโกนท้าศัตรูรอบตัว ให้หันมาสู้กับเรา และรับดาเมจเพิ่ม 13% นาน 10 วิ"
+    },
+    {
+      "id": "judgment",
+      "name": "ดาบแสงพิพากษา",
+      "thai": "สายผู้พิทักษ์",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "โล่แสงศักดิ์สิทธิ์ Lv.5, ผิวเหล็ก Lv.3",
+      "prereq": [
+        {
+          "skill": "guard",
+          "level": 5
+        },
+        {
+          "skill": "kn_ironskin",
+          "level": 3
+        }
+      ],
+      "desc": "ดาบแสงยักษ์ปักลงจากฟ้า 100% ของ ATK รอบจุดตก"
+    },
+    {
+      "id": "magnum",
+      "name": "ระเบิดเพลิงรอบกาย",
+      "thai": "สายเพลิงหอก",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "active",
+      "desc": "[มีฟรี Lv.1] · เปลวไฟระเบิดรอบตัว 100% ของ ATK ผลักศัตรู · อาวุธติดไฟ 4 วิ (ตีเป็นธาตุไฟ)"
+    },
+    {
+      "id": "kn_pierce",
+      "name": "แทงสามจังหวะ",
+      "thai": "สายเพลิงหอก",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ระเบิดเพลิงรอบกาย Lv.3",
+      "prereq": [
+        {
+          "skill": "magnum",
+          "level": 3
+        }
+      ],
+      "desc": "แทงไปข้างหน้า 3 ครั้งเป็นแนวยาว ครั้งละ 100% ของ ATK โดนทุกตัวในแนว"
+    }
+  ],
+  "mage": [
+    {
+      "id": "fireball",
+      "name": "ลูกไฟ",
+      "thai": "สายไฟ",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "active",
+      "desc": "[มีฟรี Lv.1] · ยิงลูกไฟระเบิดเป็นวง 100% ของ MATK"
+    },
+    {
+      "id": "mg_firewall",
+      "name": "กำแพงไฟ",
+      "thai": "สายไฟ",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ลูกไฟ Lv.4",
+      "prereq": [
+        {
+          "skill": "fireball",
+          "level": 4
+        }
+      ],
+      "desc": "กำแพงไฟยาวขวางหน้า 5 วิ ศัตรูที่แตะโดน 100% ของ MATK ทุก 0.3 วิ และถูกผลักกลับ"
+    },
+    {
+      "id": "mg_fireheart",
+      "name": "ใจเพลิง",
+      "thai": "สายไฟ",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "desc": "ดาเมจไฟ +2% · โอกาสติดเผา +3% · Lv5 เผาซ้อน 2 ชั้น"
+    },
+    {
+      "id": "frostdiver",
+      "name": "หอกน้ำแข็ง",
+      "thai": "สายน้ำแข็ง",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "active",
+      "desc": "[มีฟรี Lv.1] · แนวหนามน้ำแข็งพุ่งไปข้างหน้า 100% ของ MATK แช่แข็ง 1.6 วิ"
+    },
+    {
+      "id": "mg_frostnova",
+      "name": "วงน้ำแข็ง",
+      "thai": "สายน้ำแข็ง",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "หอกน้ำแข็ง Lv.4",
+      "prereq": [
+        {
+          "skill": "frostdiver",
+          "level": 4
+        }
+      ],
+      "desc": "ระเบิดน้ำแข็งรอบตัว 100% ของ MATK แช่แข็งทุกตัว 1.3 วิ"
+    },
+    {
+      "id": "mg_iceheart",
+      "name": "ใจน้ำแข็ง",
+      "thai": "สายน้ำแข็ง",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "desc": "ดาเมจน้ำ +3% · Lv5 ศัตรูเย็นเฉียบซ้อน 3 ชั้นแล้วแข็ง · Lv10 ตัวที่แข็งรับดาเมจเพิ่ม 20%"
+    },
+    {
+      "id": "thunder",
+      "name": "สายฟ้าฟาด",
+      "thai": "สายสายฟ้า",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "active",
+      "desc": "[มีฟรี Lv.1] · สายฟ้าผ่าศัตรู 3 ตัว ตัวละ 100% ของ MATK"
+    },
+    {
+      "id": "mg_stormheart",
+      "name": "ใจสายฟ้า",
+      "thai": "สายสายฟ้า",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "desc": "ดาเมจลม/สายฟ้า +3% · โอกาสช็อต +2% · Lv5 ช็อตแล้วรับดาเมจสายฟ้าเพิ่ม"
+    },
+    {
+      "id": "meteor",
+      "name": "มหาเวทธาตุ",
+      "thai": "กดใช้",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ใจเพลิง Lv.5 หรือ ใจน้ำแข็ง Lv.5 หรือ ใจสายฟ้า Lv.5",
+      "desc": "อุกกาบาต 6 ลูกถล่มพื้นที่ ลูกละ 100% ของ MATK ธาตุไฟ · ใจธาตุที่เลเวลสูงสุดกำหนดสีวงเวท"
+    },
+    {
+      "id": "mg_staffmastery",
+      "name": "ชำนาญคทา",
+      "thai": "สายเวทเร็ว",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "desc": "ถือคทาหรือออร์บ: ตีปกติเป็นดาเมจเวทจาก MATK แรงขึ้น 4% ความเร็วโจมตี +1% · นำ ATK 2% มารวมเป็น MATK · Lv5 ลูกแก้วทะลุ 1 ตัว · Lv10 ตีปกติยิงลูกที่สอง (40%)"
+    },
+    {
+      "id": "mg_autospell",
+      "name": "ร่ายอัตโนมัติ",
+      "thai": "สายเวทเร็ว",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ชำนาญคทา Lv.3",
+      "prereq": [
+        {
+          "skill": "mg_staffmastery",
+          "level": 3
+        }
+      ],
+      "desc": "ตีปกติโอกาส 1.5% ร่ายลูกไฟ / หอกน้ำแข็ง / สายฟ้าฟาดเอง ตามใจธาตุที่เลเวลสูงสุด (เลเวลเวทไม่เกิน 1) ไม่ต้องร่าย เสีย SP ครึ่งหนึ่งของเวทที่ออก (ได้ทุก 0.8 วิ) · เปิดลูกแก้วธาตุ: วนธาตุตามลูกแก้ว · Lv5 SP เกิน 80% โอกาสเพิ่ม 30% · Lv10 บางครั้งร่าย 2 ธาตุพร้อมกัน (30%)"
+    },
+    {
+      "id": "mg_memorize",
+      "name": "จดจำเวท",
+      "thai": "สายเวทเร็ว",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ฟื้นฟูมานา Lv.3",
+      "prereq": [
+        {
+          "skill": "mg_sprecovery",
+          "level": 3
+        }
+      ],
+      "desc": "30 วิ: เวลาร่ายลดลง 10% · Lv5 ครั้งแรกหลังเปิดบัฟร่ายทันที"
+    },
+    {
+      "id": "mg_sprecovery",
+      "name": "ฟื้นฟูมานา",
+      "thai": "สายเวทเร็ว",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "desc": "ฟื้น SP +8% · SP สูงสุด +1% · Lv10 ร่ายอัตโนมัติคืน SP นิดหน่อย"
+    }
+  ],
+  "archer": [
+    {
+      "id": "ar_bowmastery",
+      "name": "ชำนาญธนู",
+      "thai": "สายยิงรัว",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "desc": "ถือธนู: ATK +1.5% คริติคอล +0.5% · Lv10 ยิงปกติทุกดอกที่ 5 ยิงคู่ แรงขึ้น 50%"
+    },
+    {
+      "id": "ar_concentrate",
+      "name": "สมาธิเล็ง",
+      "thai": "สายยิงรัว",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ตาเหยี่ยว Lv.3",
+      "prereq": [
+        {
+          "skill": "ar_owl",
+          "level": 3
+        }
+      ],
+      "desc": "36 วิ: DEX และ AGI +2 ความแม่น +6"
+    },
+    {
+      "id": "ar_doubleshot",
+      "name": "ยิงเบิ้ล",
+      "thai": "สายยิงรัว",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ชำนาญธนู Lv.1",
+      "prereq": [
+        {
+          "skill": "ar_bowmastery",
+          "level": 1
+        }
+      ],
+      "desc": "ถือธนู: ยิงปกติโอกาส 2% ปล่อยลูกที่สองตามไปทันที · Lv5 ลูกเบิ้ลแรงขึ้น 10% · Lv10 บางครั้งออกสามลูก"
+    },
+    {
+      "id": "double",
+      "name": "ยิงคู่",
+      "thai": "สายแม่นยำ",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "active",
+      "desc": "[มีฟรี Lv.1] · ยิงลูกธนูแสง 2 ดอกติดกัน ดอกละ 100% ของ ATK"
+    },
+    {
+      "id": "ar_owl",
+      "name": "ตาเหยี่ยว",
+      "thai": "สายแม่นยำ",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "desc": "DEX +1 · ความแม่น +1"
+    },
+    {
+      "id": "ar_charge",
+      "name": "ธนูกระแทก",
+      "thai": "สายแม่นยำ",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ยิงคู่ Lv.3",
+      "prereq": [
+        {
+          "skill": "double",
+          "level": 3
+        }
+      ],
+      "desc": "ลูกธนูหนักกระแทก 100% ของ ATK ศัตรูกระเด็นไกลและมึน 1 วิ"
+    },
+    {
+      "id": "starshot",
+      "name": "ธนูดาราพิฆาต",
+      "thai": "สายแม่นยำ",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ยิงคู่ Lv.5 หรือ ห่าฝนธนู Lv.5",
+      "desc": "ชาร์จแล้วยิงลำแสงดาราทะลวงทั้งแนว 100% ของ ATK"
+    },
+    {
+      "id": "shower",
+      "name": "ห่าฝนธนู",
+      "thai": "สายห่าศร",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "active",
+      "desc": "[มีฟรี Lv.1] · ธนู 20 ดอกตกใส่พื้นที่ข้างหน้า ดอกละ 60% ของ ATK"
+    },
+    {
+      "id": "ar_multishot",
+      "name": "ยิงกระจาย",
+      "thai": "สายห่าศร",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ห่าฝนธนู Lv.3",
+      "prereq": [
+        {
+          "skill": "shower",
+          "level": 3
+        }
+      ],
+      "desc": "ยิงธนู 5 ดอกกระจายเป็นพัด ดอกละ 100% ของ ATK · 5 ดอกทุกเลเวล · ดอกแรงขึ้นตามเลเวล"
+    },
+    {
+      "id": "gale",
+      "name": "ธนูพายุทะลวง",
+      "thai": "สายพรานพฤกษา",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "active",
+      "desc": "[มีฟรี Lv.1] · ลูกธนูพันพายุทะลุทุกตัวในแนว 100% ของ ATK ผลักกระเด็น"
+    },
+    {
+      "id": "ar_snare",
+      "name": "กับดักเถาวัลย์",
+      "thai": "สายพรานพฤกษา",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ธนูพายุทะลวง Lv.3",
+      "prereq": [
+        {
+          "skill": "gale",
+          "level": 3
+        }
+      ],
+      "desc": "วางกับดักที่เมาส์ (วางได้หลายอัน) ศัตรูที่เหยียบโดนเถาวัลย์รัด 2.8 วิ และ 100% ของ ATK"
+    }
+  ],
+  "rogue": [
+    {
+      "id": "ro_double",
+      "name": "โจมตีสองครั้ง",
+      "thai": "สายคมมีด",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "desc": "ถือมีดคู่: ตีปกติมีโอกาส 4% โดน 2 เท่า"
+    },
+    {
+      "id": "ro_dagger",
+      "name": "ชำนาญมีด",
+      "thai": "สายคมมีด",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "desc": "ถือมีดคู่: หลบหลีก +1 ATK +1% ความเร็วโจมตี +1% · Lv10 ความเร็วโจมตีเพิ่มอีก 10%"
+    },
+    {
+      "id": "ro_vital",
+      "name": "จุดตาย",
+      "thai": "สายคมมีด",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ชำนาญมีด Lv.3",
+      "prereq": [
+        {
+          "skill": "ro_dagger",
+          "level": 3
+        }
+      ],
+      "desc": "ถือมีดคู่: คริติคอล +1% · Lv5 คริแล้วแรงขึ้น 20% · Lv10 คริติคอลฟันสองครั้ง"
+    },
+    {
+      "id": "sonic",
+      "name": "พายุคมเงา",
+      "thai": "สายคมมีด",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "โจมตีสองครั้ง Lv.5 หรือ แทงข้างหลัง Lv.5",
+      "desc": "วาร์ปฟันรัว 8 ครั้ง ครั้งละ 100% ของ ATK ปิดท้ายฟันกากบาท x2.5"
+    },
+    {
+      "id": "envenom",
+      "name": "ฟันพิษ",
+      "thai": "สายพิษ",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "active",
+      "desc": "[มีฟรี Lv.1] · ฟันไขว้ 2 ครั้ง ครั้งละ 100% ของ ATK ติดพิษ 3 วิ"
+    },
+    {
+      "id": "venomdust",
+      "name": "ม่านควันพิษ",
+      "thai": "สายพิษ",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ฟันพิษ Lv.3",
+      "prereq": [
+        {
+          "skill": "envenom",
+          "level": 3
+        }
+      ],
+      "desc": "ปาขวดพิษเป็นกลุ่มควัน 5 วิ ทุก 0.5 วิ 100% ของ ATK และติดพิษ"
+    },
+    {
+      "id": "ro_venomheart",
+      "name": "ใจพิษ",
+      "thai": "สายพิษ",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "desc": "พิษจากตีปกติแรงขึ้น 5% · ดาเมจพิษ +2% · ตีปกติโอกาสติดพิษ 2% · Lv10 ศัตรูที่ติดพิษตีเราเบาลง"
+    },
+    {
+      "id": "shadowstep",
+      "name": "ก้าวเงา",
+      "thai": "สายเงา",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "active",
+      "desc": "[มีฟรี Lv.1] · หายตัวไปโผล่ข้างหลังศัตรู 100% ของ ATK · ตีปกติครั้งถัดไปคริติคอลแน่นอน"
+    },
+    {
+      "id": "ro_hide",
+      "name": "ซ่อนตัว",
+      "thai": "สายเงา",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ก้าวเงา Lv.3",
+      "prereq": [
+        {
+          "skill": "shadowstep",
+          "level": 3
+        }
+      ],
+      "desc": "หายตัวในเงา 3.4 วิ มอนมองไม่เห็น (เดินช้าลง) · ออกจากที่ซ่อนเมื่อโจมตี ตีครั้งแรกคริติคอลแน่นอน"
+    },
+    {
+      "id": "ro_backstab",
+      "name": "แทงข้างหลัง",
+      "thai": "สายเงา",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ซ่อนตัว Lv.2",
+      "prereq": [
+        {
+          "skill": "ro_hide",
+          "level": 2
+        }
+      ],
+      "desc": "วาร์ปไปข้างหลังศัตรูแล้วแทง 100% ของ ATK · ใช้ตอนซ่อนตัว: คริติคอลแน่นอน"
+    },
+    {
+      "id": "ro_steal",
+      "name": "ขโมยของ",
+      "thai": "กดใช้",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "desc": "ฟันเบา ๆ 100% ของ ATK และมีโอกาส 14% ขโมยวัตถุดิบประจำตัวมอนตัวนั้น"
+    }
+  ],
+  "priest": [
+    {
+      "id": "pr_heal",
+      "name": "แสงเยียวยา",
+      "thai": "สายฟื้นฟู",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "active",
+      "desc": "[มีฟรี Lv.1] · ฟื้น HP ตัวเองและเพื่อนในปาร์ตี้รอบตัว 9% ของ HP สูงสุด + ตามพลังเวท · มอนอมตะ/ความมืดรอบตัวโดนแสง 100% ของ MATK"
+    },
+    {
+      "id": "pr_resurrect",
+      "name": "ชุบชีวิต",
+      "thai": "สายฟื้นฟู",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "แสงเยียวยา Lv.5",
+      "prereq": [
+        {
+          "skill": "pr_heal",
+          "level": 5
+        }
+      ],
+      "desc": "ชุบชีวิตเพื่อนในปาร์ตี้ที่หมดแรงรอบตัว ให้ลุกขึ้นพร้อม HP 28% · ชุบแล้วได้บัฟอมตะ 1.5 วิ"
+    },
+    {
+      "id": "pr_protect",
+      "name": "พรคุ้มครอง",
+      "thai": "สายฟื้นฟู",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "desc": "MDEF +1 · DEF +0 · รับดาเมจลดลง 0.8%"
+    },
+    {
+      "id": "blessing",
+      "name": "พรศักดิ์สิทธิ์",
+      "thai": "สายบัฟทีม",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "active",
+      "desc": "[มีฟรี Lv.1] · ตัวเองและเพื่อนรอบตัว 66 วิ: STR INT DEX +1 (ได้ทั้ง ATK MATK ความแม่น และร่ายเร็วขึ้น)"
+    },
+    {
+      "id": "pr_agi",
+      "name": "เพิ่มความเร็ว",
+      "thai": "สายบัฟทีม",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "แสงเยียวยา Lv.3",
+      "prereq": [
+        {
+          "skill": "pr_heal",
+          "level": 3
+        }
+      ],
+      "desc": "ตัวเองและเพื่อนรอบตัว 66 วิ: AGI +1 (โจมตีเร็วขึ้น) เดินเร็วขึ้น 10% · Lv10 ทั้งทีมเดินเร็วขึ้นอีก 10%"
+    },
+    {
+      "id": "pr_angelus",
+      "name": "พรเกราะกาย",
+      "thai": "สายบัฟทีม",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "พรคุ้มครอง Lv.3",
+      "prereq": [
+        {
+          "skill": "pr_protect",
+          "level": 3
+        }
+      ],
+      "desc": "ตัวเองและเพื่อนรอบตัว 36 วิ: VIT +1 DEF +3 (ผู้ร่ายสายนักพรต: เพื่อนได้รับดาเมจลดลง 6% แทน)"
+    },
+    {
+      "id": "pr_gloria",
+      "name": "บทสรรเสริญโชค",
+      "thai": "สายบัฟทีม",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "พรศักดิ์สิทธิ์ Lv.3",
+      "prereq": [
+        {
+          "skill": "blessing",
+          "level": 3
+        }
+      ],
+      "desc": "ตัวเองและเพื่อนรอบตัว 36 วิ: LUK +5 (คริติคอลและหลบสมบูรณ์เพิ่ม) · Lv5 ทั้งทีมคริแรงขึ้น 10%"
+    },
+    {
+      "id": "pr_suffragium",
+      "name": "พรเร่งร่าย",
+      "thai": "สายบัฟทีม",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "พรศักดิ์สิทธิ์ Lv.5",
+      "prereq": [
+        {
+          "skill": "blessing",
+          "level": 5
+        }
+      ],
+      "desc": "ตัวเองและเพื่อนรอบตัว 30 วิ: เวลาร่ายลดลง 6% · Lv5 ร่ายครั้งแรกหลังได้บัฟเร็วขึ้นอีก 30%"
+    },
+    {
+      "id": "holylight",
+      "name": "แสงศักดิ์สิทธิ์",
+      "thai": "สายแสง",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "active",
+      "desc": "[มีฟรี Lv.1] · ลำแสงจากฟ้าฟาดลงศัตรูใกล้เมาส์ 100% ของ MATK ธาตุแสง"
+    },
+    {
+      "id": "pr_demonbane",
+      "name": "ปราบมาร",
+      "thai": "สายแสง",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "desc": "ดาเมจต่อมอนอมตะและความมืด +4%"
+    },
+    {
+      "id": "magnus",
+      "name": "วงเวทแสงขับมาร",
+      "thai": "สายแสง",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "แสงศักดิ์สิทธิ์ Lv.5, ปราบมาร Lv.3",
+      "prereq": [
+        {
+          "skill": "holylight",
+          "level": 5
+        },
+        {
+          "skill": "pr_demonbane",
+          "level": 3
+        }
+      ],
+      "desc": "วงเวทศักดิ์สิทธิ์ขนาดใหญ่ เสาแสงผุด 8 ระลอก ระลอกละ 100% ของ MATK ธาตุแสง"
+    },
+    {
+      "id": "pr_aspersio",
+      "name": "อาวุธแสงชำระ",
+      "thai": "สายพระนักสู้",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "แสงศักดิ์สิทธิ์ Lv.3",
+      "prereq": [
+        {
+          "skill": "holylight",
+          "level": 3
+        }
+      ],
+      "desc": "36 วิ: อาวุธเป็นธาตุแสง (แรงกับอมตะและความมืด) ATK +1%"
+    },
+    {
+      "id": "pr_macemastery",
+      "name": "ชำนาญกระบอง",
+      "thai": "สายพระนักสู้",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "desc": "ถือกระบอง: ตีปกติแรงขึ้น 3% ความเร็วโจมตี +1% · Lv10 ตีครั้งที่ 5 ฟื้น HP เพื่อนที่เลือดน้อยสุด"
+    },
+    {
+      "id": "pr_duple",
+      "name": "ลงทัณฑ์",
+      "thai": "สายพระนักสู้",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ชำนาญกระบอง Lv.3",
+      "prereq": [
+        {
+          "skill": "pr_macemastery",
+          "level": 3
+        }
+      ],
+      "desc": "ตีปกติโอกาส 3% เรียกแสงศักดิ์สิทธิ์ลงเป้า 112% ของ ATK/MATK ธาตุแสง · Lv5 ติดสถานะชำระ · Lv10 แสงกระโดดไปอีกตัว"
+    }
+  ],
+  "paladin": [
+    {
+      "id": "pal_strike",
+      "name": "ฟันศักดิ์สิทธิ์",
+      "thai": "สายแสงศักดิ์สิทธิ์",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "active",
+      "desc": "[มีฟรี Lv.1] · ฟันดาบแสงข้างหน้า 100% ของ ATK/MATK (ที่สูงกว่า) ธาตุแสง ฟื้น HP 2.3% ต่อศัตรูที่โดน (สูงสุด 3 ตัว)"
+    },
+    {
+      "id": "pal_cross",
+      "name": "แสงกากบาทเผาผลาญ",
+      "thai": "สายแสงศักดิ์สิทธิ์",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ฟันศักดิ์สิทธิ์ Lv.3, ดาบแสงพิพากษา Lv.1",
+      "prereq": [
+        {
+          "skill": "pal_strike",
+          "level": 3
+        },
+        {
+          "skill": "judgment",
+          "level": 1
+        }
+      ],
+      "desc": "กางเขนแสงยักษ์รอบตัว 100% ของ ATK/MATK (ที่สูงกว่า) ธาตุแสง"
+    },
+    {
+      "id": "pal_faith",
+      "name": "ศรัทธา",
+      "thai": "สายแสงศักดิ์สิทธิ์",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "desc": "HP สูงสุด +2% · รับดาเมจลดลง 1% · MDEF +0 · Lv10 แสงกากบาทเผาผลาญไม่เสีย HP"
+    },
+    {
+      "id": "pal_heaven",
+      "name": "ดาบสวรรค์พิพากษา",
+      "thai": "สายแสงศักดิ์สิทธิ์",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "แสงกากบาทเผาผลาญ Lv.5, ศรัทธา Lv.5",
+      "prereq": [
+        {
+          "skill": "pal_cross",
+          "level": 5
+        },
+        {
+          "skill": "pal_faith",
+          "level": 5
+        }
+      ],
+      "desc": "ดาบแสง 10 เล่มร่วงจากฟ้าใส่พื้นที่ที่เล็ง เล่มละ 100% ของ ATK/MATK (ที่สูงกว่า) ธาตุแสง"
+    },
+    {
+      "id": "pal_holyblade",
+      "name": "ดาบแสงสถิต",
+      "thai": "สายดาบศักดิ์สิทธิ์",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ชำนาญดาบ Lv.5",
+      "prereq": [
+        {
+          "skill": "kn_swordmastery",
+          "level": 5
+        }
+      ],
+      "desc": "ตีปกติระยะประชิดแรงขึ้น 4% ด้วยแสง · Lv5 ตีครั้งที่ 5 ฟันกางเขนแสง"
+    },
+    {
+      "id": "pal_zeal",
+      "name": "ศรัทธาร้อนแรง",
+      "thai": "สายดาบศักดิ์สิทธิ์",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "เร่งเพลงดาบ Lv.5",
+      "prereq": [
+        {
+          "skill": "kn_quicken",
+          "level": 5
+        }
+      ],
+      "desc": "33 วิ: ความเร็วโจมตี +2% อาวุธเป็นธาตุแสง · Lv5 ตีคริแล้วได้ HP · Lv10 ออร่าแสงเผาศัตรูรอบตัวทุกวินาที"
+    },
+    {
+      "id": "pal_faithblade",
+      "name": "ดาบแห่งศรัทธา",
+      "thai": "สายดาบศักดิ์สิทธิ์",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "บ้าคลั่ง Lv.3",
+      "prereq": [
+        {
+          "skill": "kn_berserk",
+          "level": 3
+        }
+      ],
+      "desc": "ตีปกติฮีลคนที่เลือดน้อยสุดในทีม (รวมตัวเอง) 1% ของดาเมจ (ทุก 3.5 วิ) · Lv1 ตีปกติฮีลเพื่อนที่เลือดน้อยสุด 1% ของดาเมจ · Lv3 ตีครบ 10 ครั้งปล่อยกางเขนแสงรอบตัว · Lv5 บ้าคลั่งไม่เสีย HP"
+    },
+    {
+      "id": "pal_shieldchain",
+      "name": "โล่พิฆาต",
+      "thai": "สายปราการโล่",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "โล่แสงศักดิ์สิทธิ์ Lv.5",
+      "prereq": [
+        {
+          "skill": "guard",
+          "level": 5
+        }
+      ],
+      "desc": "ขว้างโล่แสงเด้งไป 3 ตัว ตัวละ 100% ของ ATK · เด้งเพิ่ม 1 ตัวทุก 3 เลเวล"
+    },
+    {
+      "id": "pal_aegis",
+      "name": "โล่อีจิส",
+      "thai": "สายปราการโล่",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "โล่แสงศักดิ์สิทธิ์ Lv.5",
+      "prereq": [
+        {
+          "skill": "guard",
+          "level": 5
+        }
+      ],
+      "desc": "โดมโล่ทอง 8.6 วิ: รับดาเมจลดลง 22% DEF +1 ฟื้น HP เร็วขึ้น 2 เท่า"
+    },
+    {
+      "id": "pal_reflect",
+      "name": "โล่สะท้อน",
+      "thai": "สายปราการโล่",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "โล่อีจิส Lv.3",
+      "prereq": [
+        {
+          "skill": "pal_aegis",
+          "level": 3
+        }
+      ],
+      "desc": "35 วิ: สะท้อนดาเมจ 13% กลับใส่มอนที่ตีเรา"
+    },
+    {
+      "id": "pal_devotion",
+      "name": "สายใยพิทักษ์",
+      "thai": "สายพิทักษ์ทีม",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ศรัทธา Lv.3",
+      "prereq": [
+        {
+          "skill": "pal_faith",
+          "level": 3
+        }
+      ],
+      "desc": "33 วิ: โซ่แสงผูกเพื่อนรอบตัว เพื่อนรับดาเมจลดลง 22% ตัวเอง DEF +1"
+    },
+    {
+      "id": "pal_layhands",
+      "name": "มือแห่งแสง",
+      "thai": "สายพิทักษ์ทีม",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "สายใยพิทักษ์ Lv.1",
+      "prereq": [
+        {
+          "skill": "pal_devotion",
+          "level": 1
+        }
+      ],
+      "desc": "ฟื้น HP ตัวเองและเพื่อนรอบตัว 14% ของ HP สูงสุด"
+    }
+  ],
+  "dragonknight": [
+    {
+      "id": "dk_thrust",
+      "name": "แทงเพลิงมังกร",
+      "thai": "สายศาสตร์หอก",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "active",
+      "desc": "[มีฟรี Lv.1] · แทงหอกพ่นไฟเป็นแนวยาว 100% ของ ATK ธาตุไฟ โดนทุกตัวในแนว"
+    },
+    {
+      "id": "dk_spiral",
+      "name": "หอกเกลียวสว่าน",
+      "thai": "สายศาสตร์หอก",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "แทงเพลิงมังกร Lv.5, ชำนาญหอก Lv.3",
+      "prereq": [
+        {
+          "skill": "dk_thrust",
+          "level": 5
+        },
+        {
+          "skill": "dk_spearmastery",
+          "level": 3
+        }
+      ],
+      "desc": "หอกหมุนเป็นสว่านเพลิงเจาะศัตรูข้างหน้า 5 ครั้ง ครั้งละ 100% ของ ATK"
+    },
+    {
+      "id": "dk_charge",
+      "name": "จู่โจมพุ่งทะลวง",
+      "thai": "สายศาสตร์หอก",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "แทงเพลิงมังกร Lv.3",
+      "prereq": [
+        {
+          "skill": "dk_thrust",
+          "level": 3
+        }
+      ],
+      "desc": "พุ่งตรงไปข้างหน้า ชนทุกตัวที่ขวาง 100% ของ ATK ผลักกระเด็นออกข้าง"
+    },
+    {
+      "id": "dk_spearmastery",
+      "name": "ชำนาญหอก",
+      "thai": "สายศาสตร์หอก",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "desc": "ถือหอกหรือหอกยาว: ATK +2% ความแม่น +1"
+    },
+    {
+      "id": "dk_quicken",
+      "name": "เร่งหอก",
+      "thai": "สายหอกรัว",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ชำนาญหอก Lv.3",
+      "prereq": [
+        {
+          "skill": "dk_spearmastery",
+          "level": 3
+        }
+      ],
+      "desc": "33 วิ ถือหอกยาว: ความเร็วโจมตี +2% คริติคอล +0.3% · Lv5 ตีปกติบางครั้งแทงสองครั้ง (10%) · Lv10 เร็วขึ้นรวม 20%"
+    },
+    {
+      "id": "dk_tail",
+      "name": "หางมังกร",
+      "thai": "สายหอกรัว",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "เร่งหอก Lv.1",
+      "prereq": [
+        {
+          "skill": "dk_quicken",
+          "level": 1
+        }
+      ],
+      "desc": "ตีปกติระยะประชิดโอกาส 0.6% ปล่อยหอกไฟพุ่งทะลุเป็นแนว 55% ของ ATK · Lv5 หอกไฟติดเผา · Lv10 แตกเป็น 3 แนว"
+    },
+    {
+      "id": "dk_fury",
+      "name": "โทสะมังกร",
+      "thai": "สายหอกรัว",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ชำนาญหอก Lv.3",
+      "prereq": [
+        {
+          "skill": "dk_spearmastery",
+          "level": 3
+        }
+      ],
+      "desc": "22 วิ: ATK +7% โจมตีเร็วขึ้น 5% อาวุธเป็นธาตุไฟ แต่ DEF -8"
+    },
+    {
+      "id": "dk_breath",
+      "name": "ลมหายใจมังกร",
+      "thai": "สายเพลิงมังกร",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ระเบิดเพลิงรอบกาย Lv.5",
+      "prereq": [
+        {
+          "skill": "magnum",
+          "level": 5
+        }
+      ],
+      "desc": "พ่นไฟเป็นกรวยข้างหน้า 1.2 วิ (หันตามเมาส์ได้) 8 ครั้ง ครั้งละ 100% ของ ATK ธาตุไฟ"
+    },
+    {
+      "id": "dk_leap",
+      "name": "มังกรทะยาน",
+      "thai": "สายเพลิงมังกร",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ลมหายใจมังกร Lv.3",
+      "prereq": [
+        {
+          "skill": "dk_breath",
+          "level": 3
+        }
+      ],
+      "desc": "พุ่งทะยานไปที่เมาส์แล้วกระแทกพื้นเป็นวงไฟ 100% ของ ATK ธาตุไฟ ผลักศัตรู"
+    },
+    {
+      "id": "dk_blood",
+      "name": "เลือดมังกร",
+      "thai": "สายเพลิงมังกร",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ลมหายใจมังกร Lv.5",
+      "prereq": [
+        {
+          "skill": "dk_breath",
+          "level": 5
+        }
+      ],
+      "desc": "HP สูงสุด +2% · ATK +1%"
+    },
+    {
+      "id": "dk_roar",
+      "name": "วิญญาณมังกรคำราม",
+      "thai": "สายเพลิงมังกร",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ลมหายใจมังกร Lv.5, เลือดมังกร Lv.3",
+      "prereq": [
+        {
+          "skill": "dk_breath",
+          "level": 5
+        },
+        {
+          "skill": "dk_blood",
+          "level": 3
+        }
+      ],
+      "desc": "มังกรเพลิงวนรอบตัว 5 ระลอก ระลอกละ 100% ของ ATK แล้วคำรามระเบิด x2.5"
+    },
+    {
+      "id": "dk_wyvern",
+      "name": "ไวเวิร์นคู่ใจ",
+      "thai": "สายไวเวิร์น",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "เลือดมังกร Lv.1",
+      "prereq": [
+        {
+          "skill": "dk_blood",
+          "level": 1
+        }
+      ],
+      "desc": "เรียกไวเวิร์นน้อย 22 วิ บินตามและพ่นลูกไฟ ลูกละ 100% ของ ATK/MATK · ยิ่งอัพยิ่งตัวโต · โตทุกเลเวล"
+    }
+  ],
+  "swordmaster": [
+    {
+      "id": "sm_twin",
+      "name": "ดาบคู่ประสาน",
+      "thai": "สายเพลงดาบคู่",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "เร่งเพลงดาบ Lv.3",
+      "prereq": [
+        {
+          "skill": "kn_quicken",
+          "level": 3
+        }
+      ],
+      "desc": "ถือดาบคู่: ตีปกติฟันสองมือ มือซ้ายแรง 37% ความเร็วโจมตี +1% · ทุกครั้งที่ 4 ทิ้งรอยดาบ · Lv5 รอยที่ครบ 3 วิระเบิดเอง 45% · Lv10 ทุกครั้งที่ 4 ทิ้ง 2 รอย"
+    },
+    {
+      "id": "sm_moondance",
+      "name": "ระบำใบมีดใต้จันทร์",
+      "thai": "สายเพลงดาบคู่",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ดาบคู่ประสาน Lv.3",
+      "prereq": [
+        {
+          "skill": "sm_twin",
+          "level": 3
+        }
+      ],
+      "desc": "30 วิ: ตีโดนได้ชั้นระบำ สูงสุด 10 ชั้น ชั้นละความเร็วโจมตี +1.5% · ครบ 10 ชั้นตีปกติทุกครั้งทิ้งรอยดาบ · Lv5 เปลี่ยนเป้าแล้วชั้นไม่หาย · Lv10 ครบ 10 ชั้นคริ +10"
+    },
+    {
+      "id": "sm_bladerain",
+      "name": "สายฝนดาบ",
+      "thai": "สายเพลงดาบคู่",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "active",
+      "desc": "[มีฟรี Lv.1] · ฟันรัว 6 ครั้ง ครั้งละ 100% ของ ATK ทุกครั้งทิ้งรอยดาบ · Lv5 ไม่เดินช้าลงระหว่างฟัน · Lv10 ครั้งสุดท้ายดึงรอยดาบทั้งหมดมาระเบิดที่เป้า"
+    },
+    {
+      "id": "sm_thousand",
+      "name": "จันทร์พันดาบ",
+      "thai": "สายเพลงดาบคู่",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ระบำใบมีดใต้จันทร์ Lv.5, สายฝนดาบ Lv.5",
+      "prereq": [
+        {
+          "skill": "sm_moondance",
+          "level": 5
+        },
+        {
+          "skill": "sm_bladerain",
+          "level": 5
+        }
+      ],
+      "desc": "เงาดาบ 8 เล่มโคจรรอบตัว 16 วิ ตีปกติแต่ละครั้งเงาดาบ 2 เล่มพุ่งตาม เล่มละ 100% ของ ATK · Lv5 เงาดาบแรงขึ้นทุกเลเวล"
+    },
+    {
+      "id": "sm_duel",
+      "name": "ท้าดวล",
+      "thai": "สายเจตจำนงนักดาบ",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "desc": "ท้าเป้า 1 ตัว 12 วิ มันหันมาตีเรา เราทำดาเมจใส่มัน +4% · ชนะดวลได้ \"เกียรตินักดาบ\" ATK +5% 20 วิ ซ้อนได้ 3 ชั้น · Lv5 ดาเมจใส่คู่ดวล +20%"
+    },
+    {
+      "id": "sm_eye",
+      "name": "สายตานักดาบ",
+      "thai": "สายเจตจำนงนักดาบ",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ชำนาญดาบ Lv.3",
+      "prereq": [
+        {
+          "skill": "kn_swordmastery",
+          "level": 3
+        }
+      ],
+      "desc": "ถือดาบ: ดาเมจคริ +2% ความแม่น +2 · รอยดาบระเบิดคริได้ · Lv10 ดาเมจคริ +20%"
+    },
+    {
+      "id": "sm_enchant",
+      "name": "ใส่ธาตุดาบ",
+      "thai": "สายดาบเวท",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "desc": "60 วิ: ใส่ธาตุไฟ น้ำแข็ง หรือสายฟ้าให้ดาบ (กดซ้ำเพื่อสลับธาตุ) ตีปกติเพิ่ม MATK 46% ธาตุนั้น ติดสถานะของธาตุ · ตีปกติทุกครั้งที่ 3 ทิ้งรอยดาบ · Lv5 สลับธาตุแล้วฮิตธาตุครั้งแรกแรงขึ้น 30% · Lv10 ใส่ได้ 2 ธาตุพร้อมกัน"
+    },
+    {
+      "id": "sm_wave",
+      "name": "คลื่นดาบเวท",
+      "thai": "สายดาบเวท",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "active",
+      "desc": "[มีฟรี Lv.1] · ฟันปล่อยคลื่นเวทธาตุของดาบไป 500 100% ของ ATK+MATK ทิ้งรอยดาบบนตัวที่โดน · Lv5 คลื่นทะลุ · Lv10 ปล่อย 3 คลื่นเป็นพัด"
+    },
+    {
+      "id": "sm_float",
+      "name": "ดาบเวทลอย",
+      "thai": "สายดาบเวท",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "คลื่นดาบเวท Lv.3, ใส่ธาตุดาบ Lv.3",
+      "prereq": [
+        {
+          "skill": "sm_wave",
+          "level": 3
+        },
+        {
+          "skill": "sm_enchant",
+          "level": 3
+        }
+      ],
+      "desc": "ดาบเวท 2 เล่มลอยรอบตัว 20 วิ พุ่งใส่เป้าที่เราตีทุก 1 วิ เล่มละ 100% ของ MATK ธาตุของดาบ · จำนวนเล่มเพิ่มทุก 4 เลเวล (2 → 4)"
+    },
+    {
+      "id": "sm_heart",
+      "name": "ใจดาบเวท",
+      "thai": "สายดาบเวท",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ใส่ธาตุดาบ Lv.5",
+      "prereq": [
+        {
+          "skill": "sm_enchant",
+          "level": 5
+        }
+      ],
+      "desc": "ATK กับ MATK ยืมค่ากันและกัน: ท่า ATK+MATK แรงขึ้นราว 20% · Lv1 ATK กับ MATK ยืมกันและกัน 20% · Lv3 รอยดาบระเบิดเป็นธาตุ · Lv5 ชักดาบแล้วดาบเวทลอยทุกเล่มพุ่งพร้อมกัน"
+    },
+    {
+      "id": "sm_iai",
+      "name": "ชักดาบผ่ารอย",
+      "thai": "สายท่าชักดาบ",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "คลื่นดาบเวท Lv.1",
+      "prereq": [
+        {
+          "skill": "sm_wave",
+          "level": 1
+        }
+      ],
+      "desc": "ชาร์จ 0.6 วิ แล้วพุ่งฟันเป็นเส้น 400 100% ของ ATK ×1.6 รอยดาบบนเส้นทางระเบิดทั้งหมด รอยละ 60% · มือว่าง (ไม่ถือโล่): แรงขึ้น 44% รวมโบนัสอาวุธ · Lv10 ฆ่าได้คืนคูลดาวน์ครึ่งหนึ่ง"
+    },
+    {
+      "id": "sm_focus",
+      "name": "สมาธิดาบ",
+      "thai": "สายท่าชักดาบ",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ชักดาบผ่ารอย Lv.3",
+      "prereq": [
+        {
+          "skill": "sm_iai",
+          "level": 3
+        }
+      ],
+      "desc": "ไม่ได้ตี 2 วิ ท่าชักดาบครั้งถัดไปคริแน่นอน · Lv1 ไม่ได้ตี 2 วิ ชักดาบครั้งถัดไปคริแน่นอน · Lv3 ชาร์จเร็วขึ้น 30% · Lv5 รอยดาบจากท่าชักดาบแรง ×1.5"
+    }
+  ],
+  "berserker": [
+    {
+      "id": "bk_crosscut",
+      "name": "ฟันกากบาท",
+      "thai": "สายเพลงดาบใหญ่",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "active",
+      "desc": "[มีฟรี Lv.1] · พุ่งเข้าหาเป้าแล้วฟันไขว้ 2 ครั้ง ครั้งละ 100% ของ ATK ลงเลือด 2 ชั้น (15% ATK ต่อวิต่อชั้น 5 วิ สูงสุด 5 ชั้น) โทสะ +15 · Lv5 ฟันครั้งที่ 3 · Lv10 พุ่งทะลุ"
+    },
+    {
+      "id": "bk_whirlwind",
+      "name": "ดาบพายุหมุน",
+      "thai": "สายเพลงดาบใหญ่",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ฟันกากบาท Lv.3",
+      "prereq": [
+        {
+          "skill": "bk_crosscut",
+          "level": 3
+        }
+      ],
+      "desc": "ใช้โทสะ 1 ช่อง หมุนดาบ 2.5 วิ ตีทุกตัวรอบตัว 5 ครั้งต่อวิ ครั้งละ 100% ของ ATK · Lv5 ดูดศัตรูเข้ามา · Lv10 ปิดด้วยฟันกวาด 300%"
+    },
+    {
+      "id": "bk_guillotine",
+      "name": "ฟันประหาร",
+      "thai": "สายเพลงดาบใหญ่",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ฟันกากบาท Lv.5",
+      "prereq": [
+        {
+          "skill": "bk_crosscut",
+          "level": 5
+        }
+      ],
+      "desc": "ใช้โทสะทุกช่อง กระโดดสับลง 100% ของ ATK × 1 / 1.5 / 2.2 ตามช่อง · ศัตรูเลือดต่ำกว่า 30% หรือมึนโดนสองเท่า · ระเบิดเลือดไหลชั้นละ 60% · ฆ่าได้คืน 1 ช่องและคูลดาวน์ · แรงขึ้นตามช่องโทสะ ×1 / 1.5 / 2.2"
+    },
+    {
+      "id": "bk_smash",
+      "name": "ทุบสะสมพลัง",
+      "thai": "สายทลายพสุธา",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "active",
+      "desc": "[มีฟรี Lv.1] · ง้างสะสมพลัง 0.7 วิ (อมตะระหว่างง้าง) แล้วทุบเป็นกรวย 100% ของ ATK ธาตุดิน โทสะ +16 · ค้อน: มึน 2 วิ · ขวาน: ลงเลือด 3 ชั้น · Lv10 แรงเพิ่ม 40% แลก HP 5%"
+    },
+    {
+      "id": "bk_leap",
+      "name": "กระโดดทุบธรณี",
+      "thai": "สายทลายพสุธา",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ทุบสะสมพลัง Lv.3",
+      "prereq": [
+        {
+          "skill": "bk_smash",
+          "level": 3
+        }
+      ],
+      "desc": "ใช้โทสะทุกช่อง กระโดดไปไกล 350 ทุบลง 100% ของ ATK × ตามช่อง ศัตรูล้ม 1 วิ · 2 ช่องขึ้นไป: พื้นแตกสั่น 3 วิ ตีทุก 0.5 วิ 60% ศัตรูช้าลง · 2 ช่องขึ้นไป พื้นแตกสั่น 3 วิ"
+    },
+    {
+      "id": "bk_hurl",
+      "name": "ขว้างอาวุธ",
+      "thai": "สายทลายพสุธา",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ทุบสะสมพลัง Lv.1",
+      "prereq": [
+        {
+          "skill": "bk_smash",
+          "level": 1
+        }
+      ],
+      "desc": "ขว้างอาวุธไป 500 แล้ววกกลับ โดนทั้งขาไปขากลับ ครั้งละ 100% ของ ATK โทสะ +12 · ขวาน: ลงเลือด · ค้อน: มึน 0.8 วิ และดึงศัตรูเข้ามา · ขวาน ลงเลือด · ค้อน มึนและดึง"
+    },
+    {
+      "id": "bk_frenzy",
+      "name": "เลือดเดือด",
+      "thai": "สายโลหิตคลั่ง",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "เร่งเพลงดาบ Lv.1",
+      "prereq": [
+        {
+          "skill": "kn_quicken",
+          "level": 1
+        }
+      ],
+      "desc": "ตีเป้าเดิมติดกันได้ชั้นเลือดเดือด ชั้นละความเร็วโจมตี +2% สูงสุด 10 ชั้น คริ +0.5 · ครบ 10 ชั้น โอกาสตีเบิ้ล 16.8% · ค้อน: ทุก 4 ครั้งมึน 0.5 วิ · ขวาน: คริได้ชั้นเพิ่ม · ครบ 10 ชั้นตีเบิ้ล"
+    },
+    {
+      "id": "bk_pact",
+      "name": "สัญญาเลือด",
+      "thai": "สายโลหิตคลั่ง",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "เลือดเดือด Lv.3",
+      "prereq": [
+        {
+          "skill": "bk_frenzy",
+          "level": 3
+        }
+      ],
+      "desc": "ATK +1% และความเร็วโจมตี +2% ทุก 3% ของ HP ที่หายไป (สูงสุด 25% / 50%) · Lv1 เลือดน้อยแรงขึ้น · Lv3 รอดตาย 1 ครั้งต่อ 60 วิ · Lv5 จ่าย HP แทนโทสะ ดูดเลือด"
+    },
+    {
+      "id": "bk_titan",
+      "name": "พิโรธไททัน",
+      "thai": "สายโลหิตคลั่ง",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ฟันประหาร Lv.5 หรือ กระโดดทุบธรณี Lv.5",
+      "desc": "ใช้โทสะทั้งหมด (อย่างน้อย 1 ช่อง) ตัวโตเป็นยักษ์ 6 วิ + 2 วิต่อช่อง รับดาเมจลด 25% ศัตรูรอบตัวช้าลง ตีปกติส่งคลื่นกระแทก 100% ของ ATK · ท่าปิดไม่ใช้โทสะและนับเป็น 3 ช่อง · จบแล้วระเบิด 400% และ 8 วิไม่ได้โทสะ · ร่างยักษ์ ตีปกติส่งคลื่นกระแทก"
+    },
+    {
+      "id": "bk_warcry",
+      "name": "คำรามศึก",
+      "thai": "สายจ่าฝูง",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "desc": "20 วิ: ทีม ATK +6% · ตัวเองความเร็วโจมตี +1% · โทสะ +30 · ศัตรูรอบตัวรับดาเมจ +15% 6 วิ"
+    },
+    {
+      "id": "bk_roar",
+      "name": "คำรามท้ารบ",
+      "thai": "สายจ่าฝูง",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "คำรามศึก Lv.3",
+      "prereq": [
+        {
+          "skill": "bk_warcry",
+          "level": 3
+        }
+      ],
+      "desc": "ดึงศัตรูรอบตัว 320 เข้ามา มันตีเบาลง 20% 4 วิ · ต่อตัวที่ดึงได้ รับดาเมจลด 4% (สูงสุด 20%) 6 วิ และโทสะ +5 · ดึงศัตรูแล้วรับดาเมจลดลง"
+    }
+  ],
+  "archmage": [
+    {
+      "id": "am_chain",
+      "name": "สายฟ้าลูกโซ่",
+      "thai": "สายพายุอสนี",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "สายฟ้าฟาด Lv.5",
+      "prereq": [
+        {
+          "skill": "thunder",
+          "level": 5
+        }
+      ],
+      "desc": "สายฟ้ากระโดดต่อกัน 4 ตัว ตัวละ 100% ของ MATK (ลดลงทีละนิดต่อการกระโดด)"
+    },
+    {
+      "id": "am_lordthunder",
+      "name": "เจ้าแห่งอสนี",
+      "thai": "สายพายุอสนี",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "สายฟ้าลูกโซ่ Lv.5",
+      "prereq": [
+        {
+          "skill": "am_chain",
+          "level": 5
+        }
+      ],
+      "desc": "พายุฟ้าผ่าเต็มพื้นที่ 3 วิ ฟ้าผ่าลูกละ 100% ของ MATK · Lv5 ฟ้าผ่าถี่ขึ้น · Lv10 เมฆพายุตามตัวเราไปด้วย"
+    },
+    {
+      "id": "am_overcharge",
+      "name": "ประจุล้น",
+      "thai": "สายพายุอสนี",
+      "maxLevel": 1,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ใจสายฟ้า Lv.10",
+      "prereq": [
+        {
+          "skill": "mg_stormheart",
+          "level": 10
+        }
+      ],
+      "desc": "ตีมอนธาตุลม/ดินได้อย่างน้อย 75% · เลเวลเดียว: ตีมอนธาตุลม/ดินได้อย่างน้อย 75%"
+    },
+    {
+      "id": "am_orbwater",
+      "name": "ลูกแก้วน้ำ",
+      "thai": "สายผสานธาตุ",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ร่ายอัตโนมัติ Lv.1",
+      "prereq": [
+        {
+          "skill": "mg_autospell",
+          "level": 1
+        }
+      ],
+      "desc": "120 วิ: ร่ายอัตโนมัติวนมาใช้หอกน้ำแข็ง · เปิดหลายลูก: ร่ายอัตโนมัติวนธาตุตามลำดับที่เปิด ลูกแก้วตีปกติเป็นธาตุของรอบล่าสุด · Lv5 ตีปกติ 3 ครั้งแช่แข็ง · Lv10 โล่น้ำ"
+    },
+    {
+      "id": "am_orbwind",
+      "name": "ลูกแก้วลม",
+      "thai": "สายผสานธาตุ",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ร่ายอัตโนมัติ Lv.1",
+      "prereq": [
+        {
+          "skill": "mg_autospell",
+          "level": 1
+        }
+      ],
+      "desc": "120 วิ: ร่ายอัตโนมัติวนมาใช้สายฟ้าฟาด · ความเร็วโจมตี +1% · โอกาสร่ายอัตโนมัติ +0.5% · เปิดหลายลูก: ร่ายอัตโนมัติวนธาตุตามลำดับที่เปิด ลูกแก้วตีปกติเป็นธาตุของรอบล่าสุด · Lv5 ร่ายอัตโนมัติทุก 0.6 วิ · Lv10 สายฟ้ากระโดดต่อ"
+    },
+    {
+      "id": "am_orbfire",
+      "name": "ลูกแก้วไฟ",
+      "thai": "สายผสานธาตุ",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ร่ายอัตโนมัติ Lv.1",
+      "prereq": [
+        {
+          "skill": "mg_autospell",
+          "level": 1
+        }
+      ],
+      "desc": "120 วิ: ร่ายอัตโนมัติวนมาใช้ลูกไฟ · เวทจากร่ายอัตโนมัติและเวทคู่แรงขึ้น 3% · เปิดหลายลูก: ร่ายอัตโนมัติวนธาตุตามลำดับที่เปิด ลูกแก้วตีปกติเป็นธาตุของรอบล่าสุด · Lv5 เลเวลเวทเต็ม · Lv10 ลูกไฟระเบิดซ้ำ"
+    },
+    {
+      "id": "am_chainreact",
+      "name": "ปฏิกิริยาลูกโซ่",
+      "thai": "สายผสานธาตุ",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "desc": "ปฏิกิริยาธาตุแรงขึ้น 6% · เวทจากร่ายอัตโนมัติหรือเวทคู่ที่เกิดปฏิกิริยา โอกาส 10% ร่ายอัตโนมัติต่อทันทีด้วยลูกแก้วถัดไป (ต่อได้ 3 ครั้ง) · Lv3 ปฏิกิริยาแพร่ · Lv5 ปฏิกิริยาใหม่ 2 แบบ"
+    },
+    {
+      "id": "am_doublecast",
+      "name": "เวทคู่",
+      "thai": "สายเวทรัวหลอมธาตุ",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ร่ายอัตโนมัติ Lv.5",
+      "prereq": [
+        {
+          "skill": "mg_autospell",
+          "level": 5
+        }
+      ],
+      "desc": "เวทจากร่ายอัตโนมัติและลูกแก้วตีปกติ มีโอกาส 1% ออกซ้ำอีกครั้ง · Lv5 ครั้งที่สองเป็นอีกธาตุ (ลูกแก้วลูกถัดไป เกิดปฏิกิริยาได้) · Lv10 ทุก 10 ครั้งปล่อยพายุธาตุเล็ก"
+    },
+    {
+      "id": "am_arcaneflux",
+      "name": "ประกายเวท",
+      "thai": "สายเวทรัวหลอมธาตุ",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ชำนาญคทา Lv.5",
+      "prereq": [
+        {
+          "skill": "mg_staffmastery",
+          "level": 5
+        }
+      ],
+      "desc": "33 วิ ถือคทาหรือออร์บ: ความเร็วโจมตี +1% MATK +1% · Lv5 เวลาร่ายลดลง 20% ระหว่างบัฟ · Lv10 วงเวทหมุนรอบตัว ยิงลูกแก้วเพิ่มเอง"
+    },
+    {
+      "id": "am_convergence",
+      "name": "หลอมรวมธาตุ",
+      "thai": "สายเวทรัวหลอมธาตุ",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "desc": "ร่ายธาตุต่างจากครั้งก่อน ดาเมจเวท +8% ซ้อนได้ 3 ชั้น (6 วิ) · Lv1 ร่ายธาตุต่างจากครั้งก่อน ดาเมจ +8% ซ้อน 3 ชั้น · Lv3 ปฏิกิริยาธาตุแรงขึ้น 50% · Lv5 ปฏิกิริยาธาตุทุกครั้งคืน SP 0.5% ของ SP สูงสุด"
+    },
+    {
+      "id": "am_trinity",
+      "name": "มหาเวทสามธาตุ",
+      "thai": "สายมหาเวทสามธาตุ",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ปฏิกิริยาลูกโซ่ Lv.3",
+      "prereq": [
+        {
+          "skill": "am_chainreact",
+          "level": 3
+        }
+      ],
+      "desc": "ไฟ น้ำแข็ง สายฟ้าหมุนรอบตัว 6 วิ ทุกสกิลที่ร่ายนับเป็นสองธาตุ ปลดเวทผสมทุกครั้ง · ลูกแก้วธาตุยิงศัตรูใกล้สุดทุก 0.6 วิ 100% ของ MATK · ทุกสกิลที่ร่ายนับเป็นสองธาตุ"
+    }
+  ],
+  "warlock": [
+    {
+      "id": "wl_soulfire",
+      "name": "ไฟวิญญาณ",
+      "thai": "สายไฟวิญญาณ",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "active",
+      "desc": "[มีฟรี Lv.1] · ลูกไฟวิญญาณระเบิดเป็นวง 100% ของ MATK และติดพิษ 3 วิ"
+    },
+    {
+      "id": "wl_soulburn",
+      "name": "คำสาปเผาวิญญาณ",
+      "thai": "สายไฟวิญญาณ",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ไฟวิญญาณ Lv.3",
+      "prereq": [
+        {
+          "skill": "wl_soulfire",
+          "level": 3
+        }
+      ],
+      "desc": "สาปศัตรูใกล้เมาส์ได้ถึง 5 ตัว เผาวิญญาณ 7 วิ ทุก 0.5 วิ 100% ของ MATK"
+    },
+    {
+      "id": "wl_harvest",
+      "name": "เก็บเกี่ยววิญญาณ",
+      "thai": "สายไฟวิญญาณ",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ไฟวิญญาณ Lv.5",
+      "prereq": [
+        {
+          "skill": "wl_soulfire",
+          "level": 5
+        }
+      ],
+      "desc": "มอนตายใกล้ตัวได้วิญญาณ 1 ดวง (สูงสุด 3) ดวงละ MATK +4% หายไปถ้าไม่ได้เพิ่ม 20 วิ"
+    },
+    {
+      "id": "wl_parade",
+      "name": "ขบวนแห่วิญญาณ",
+      "thai": "สายไฟวิญญาณ",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ไฟวิญญาณ Lv.5, เก็บเกี่ยววิญญาณ Lv.3",
+      "prereq": [
+        {
+          "skill": "wl_soulfire",
+          "level": 5
+        },
+        {
+          "skill": "wl_harvest",
+          "level": 3
+        }
+      ],
+      "desc": "วิญญาณ 24 ดวงพรั่งพรูจากตะเกียงไล่ล่าศัตรู ดวงละ 100% ของ MATK"
+    },
+    {
+      "id": "wl_swing",
+      "name": "ตะเกียงแกว่ง",
+      "thai": "สายตะเกียงแกว่ง",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ชำนาญคทา Lv.3",
+      "prereq": [
+        {
+          "skill": "mg_staffmastery",
+          "level": 3
+        }
+      ],
+      "desc": "ลูกแก้วตีปกติมีโอกาสติดเผา แล้วไฟวิญญาณกระโดดไปอีก 1 ตัว 44% ของ MATK · ถือตะเกียง: MATK +1 ต่อ AGI 1 · Lv5 กระโดด 2 ตัว · Lv10 ฆ่าได้แล้วได้ดวงวิญญาณเพิ่ม"
+    },
+    {
+      "id": "wl_drain",
+      "name": "ดูดวิญญาณ",
+      "thai": "สายตะเกียงแกว่ง",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ตะเกียงแกว่ง Lv.1",
+      "prereq": [
+        {
+          "skill": "wl_swing",
+          "level": 1
+        }
+      ],
+      "desc": "ตีปกติดูด HP 0.2% ของดาเมจ และ SP 0.2% · Lv10 ดูดจน HP เต็มแล้วส่วนเกินกลายเป็นบาเรีย"
+    },
+    {
+      "id": "wl_blaze",
+      "name": "ตะเกียงเดือด",
+      "thai": "สายตะเกียงแกว่ง",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ตะเกียงแกว่ง Lv.3",
+      "prereq": [
+        {
+          "skill": "wl_swing",
+          "level": 3
+        }
+      ],
+      "desc": "23 วิ: ความเร็วโจมตี +4% ไฟวิญญาณจากการตีระเบิดเป็นวงเล็ก 60% ของ MATK · Lv5 ระหว่างบัฟ ได้ดวงวิญญาณสองเท่า"
+    },
+    {
+      "id": "wl_chains",
+      "name": "โซ่คำสาป",
+      "thai": "สายคำสาป",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "desc": "โซ่รูนผุดที่เมาส์ 100% ของ MATK ตรึงศัตรู 1.6 วิ และรับดาเมจเพิ่ม 15% นาน 6 วิ"
+    },
+    {
+      "id": "wl_hex",
+      "name": "ตราคำสาปมรณะ",
+      "thai": "สายคำสาป",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "โซ่คำสาป Lv.3",
+      "prereq": [
+        {
+          "skill": "wl_chains",
+          "level": 3
+        }
+      ],
+      "desc": "ประทับตราคำสาปบนศัตรู 2.5 วิแล้วระเบิด 100% ของ MATK ตัวรอบข้างโดนครึ่งหนึ่ง"
+    },
+    {
+      "id": "wl_pact",
+      "name": "สัญญาแห่งความมืด",
+      "thai": "สายคำสาป",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "โซ่คำสาป Lv.1",
+      "prereq": [
+        {
+          "skill": "wl_chains",
+          "level": 1
+        }
+      ],
+      "desc": "แลก HP 30% เป็น SP และได้ MATK +10% นาน 30 วิ"
+    },
+    {
+      "id": "wl_wisps",
+      "name": "เรียกวิญญาณ",
+      "thai": "สายภูตตะเกียง",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "desc": "วิญญาณน้อย 3 ดวงวนรอบตัว 13 วิ ยิงศัตรูใกล้ ๆ ทุกวินาที ดวงละ 100% ของ MATK · อยู่นานขึ้นและแรงขึ้นทุกเลเวล · 3 ดวง (ปรมาจารย์ตะเกียง Lv3: 4 ดวง)"
+    },
+    {
+      "id": "wl_lantern",
+      "name": "ภูตตะเกียง",
+      "thai": "สายภูตตะเกียง",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "เรียกวิญญาณ Lv.3",
+      "prereq": [
+        {
+          "skill": "wl_wisps",
+          "level": 3
+        }
+      ],
+      "desc": "เรียกภูตตะเกียง 44 วิ ดูดวิญญาณศัตรู 100% ของ MATK แล้วคืน HP ให้เรา 30% ของดาเมจ · ยิ่งอัพยิ่งตัวโต · โตทุกเลเวล อยู่นานขึ้นและดูดแรงขึ้น · ปรมาจารย์ตะเกียง Lv5: อยู่ถาวร"
+    },
+    {
+      "id": "wl_lanternmastery",
+      "name": "ปรมาจารย์ตะเกียง",
+      "thai": "สายภูตตะเกียง",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ภูตตะเกียง Lv.3",
+      "prereq": [
+        {
+          "skill": "wl_lantern",
+          "level": 3
+        }
+      ],
+      "desc": "ภูตตะเกียงแรงขึ้น 15% · Lv1 ซัมมอน +15% · Lv3 วิญญาณ +1 ดวง · Lv5 ภูตตะเกียงอยู่ถาวร"
+    }
+  ],
+  "firemage": [
+    {
+      "id": "fm_pillar",
+      "name": "เสาเพลิง",
+      "thai": "สายนรกเพลิง",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "active",
+      "desc": "[มีฟรี Lv.1] · เสาไฟปะทุใต้ศัตรู 3 ครั้ง (ถือคทา 4 ครั้ง) ครั้งละ 100% ของ MATK ความร้อน +8 · Lv5 ตัวที่เผาอยู่โดนเพิ่ม 20% · Lv10 ทิ้งพื้นไฟ 3 วิ"
+    },
+    {
+      "id": "fm_sea",
+      "name": "ทะเลเพลิง",
+      "thai": "สายนรกเพลิง",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "เสาเพลิง Lv.3",
+      "prereq": [
+        {
+          "skill": "fm_pillar",
+          "level": 3
+        }
+      ],
+      "desc": "ทะเลเพลิงรัศมี 320 นาน 6 วิ ทุกครึ่งวิ 100% ของ MATK มีโอกาสติดเผา ความร้อน +20 · Lv5 ศัตรูในทะเลเพลิงช้าลง · Lv10 ไฟลามตามตัวที่หนี"
+    },
+    {
+      "id": "fm_ring",
+      "name": "วงแหวนเพลิง",
+      "thai": "สายนรกเพลิง",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "กำแพงไฟ Lv.3",
+      "prereq": [
+        {
+          "skill": "mg_firewall",
+          "level": 3
+        }
+      ],
+      "desc": "วงแหวนไฟรอบตัว 4 วิ ศัตรูที่ผ่านโดน 100% ของ MATK และถูกผลักออก ความร้อน +12 · Lv5 วงแหวนขยายออกเรื่อย ๆ · Lv10 วงแหวน 2 ชั้น"
+    },
+    {
+      "id": "fm_master",
+      "name": "ปรมาจารย์เพลิง",
+      "thai": "สายนรกเพลิง",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ใจเพลิง Lv.5",
+      "prereq": [
+        {
+          "skill": "mg_fireheart",
+          "level": 5
+        }
+      ],
+      "desc": "เผาซ้อนได้ 8 ชั้น · Lv1 เผาซ้อน 8 ชั้น · Lv5 เผาครบ 8 ชั้นระเบิดเอง"
+    },
+    {
+      "id": "fm_gauge",
+      "name": "แถบความร้อน",
+      "thai": "สายความร้อน",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "active",
+      "desc": "[มีฟรี Lv.1] · ร่ายสกิลไฟได้ความร้อน 0–100 ทุก 10 ความร้อน ดาเมจไฟ +0.6% · เกิน 80 ฟื้น HP 1% ต่อวิ · ไม่ร่ายไฟ 3 วิ ความร้อนลดวิละ 10 · Lv5 ความร้อนลดช้าลงครึ่งหนึ่ง · Lv10 ที่ 100 ความร้อน ร่ายไฟไม่ใช้ SP"
+    },
+    {
+      "id": "fm_vent",
+      "name": "ระบายความร้อน",
+      "thai": "สายความร้อน",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "แถบความร้อน Lv.2",
+      "prereq": [
+        {
+          "skill": "fm_gauge",
+          "level": 2
+        }
+      ],
+      "desc": "ปล่อยความร้อนทั้งหมดเป็นระเบิดรอบตัว MATK 4.7% × ความร้อน (ตอนนี้ 0) ผลักศัตรูออก · Lv5 ที่ 100 ความร้อนทิ้งวงไฟ 4 วิ · Lv10 ระบายแล้วร่ายเร็วขึ้น 30% 5 วิ"
+    },
+    {
+      "id": "fm_forge",
+      "name": "หัวใจเตาหลอม",
+      "thai": "สายความร้อน",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "desc": "HP สูงสุด +1.5% · ร่ายเร็วขึ้น 0.25% ต่อ VIT 1"
+    },
+    {
+      "id": "fm_orbfire",
+      "name": "ลูกไฟตีปกติ",
+      "thai": "สายลูกไฟรัว",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ชำนาญคทา Lv.1",
+      "prereq": [
+        {
+          "skill": "mg_staffmastery",
+          "level": 1
+        }
+      ],
+      "desc": "ถือออร์บ: ตีปกติเป็นลูกไฟ MATK +3% โอกาสติดเผาเพิ่ม 5% ต่อครั้ง ความร้อน +2 ต่อครั้ง · ถือออร์บเท่านั้น"
+    },
+    {
+      "id": "fm_spread",
+      "name": "ไฟลาม",
+      "thai": "สายลูกไฟรัว",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ลูกไฟตีปกติ Lv.3",
+      "prereq": [
+        {
+          "skill": "fm_orbfire",
+          "level": 3
+        }
+      ],
+      "desc": "ถือออร์บ: ตัวที่ติดเผาตาย ไฟกระโดดไปตัวใกล้ 1 ตัว พร้อมชั้นเผาครึ่งหนึ่ง · Lv5 กระโดด 2 ตัว · Lv10 3 ตัว"
+    },
+    {
+      "id": "fm_seek",
+      "name": "เพลิงตามติด",
+      "thai": "สายลูกไฟรัว",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ลูกไฟตีปกติ Lv.5",
+      "prereq": [
+        {
+          "skill": "fm_orbfire",
+          "level": 5
+        }
+      ],
+      "desc": "20 วิ: ลูกไฟตีปกติโดนแล้วแตกเป็นลูกเล็ก 3 ลูกวิ่งหาเป้าเอง ลูกละ 15% ของ MATK · Lv5 ลูกเล็กแรงขึ้น"
+    },
+    {
+      "id": "fm_meteor",
+      "name": "อุกกาบาตถล่ม",
+      "thai": "สายอุกกาบาตถล่ม",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ทะเลเพลิง Lv.5 หรือ ระบายความร้อน Lv.5",
+      "desc": "อุกกาบาต 16 ลูกร่วงใส่วงใหญ่ 3 วิ 4 ลูกพุ่งใส่ศัตรูในวง ลูกละ 100% ของ MATK วงระเบิดใหญ่ · ร่ายตอนความร้อน 100 ได้ลูกยักษ์เพิ่ม 1 ลูก (×3.2) · ร่ายตอนความร้อน 100 ได้ลูกยักษ์"
+    }
+  ],
+  "icemage": [
+    {
+      "id": "im_blizzard",
+      "name": "พายุหิมะ",
+      "thai": "สายธารน้ำแข็ง",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "active",
+      "desc": "[มีฟรี Lv.1] · พายุหิมะ 5 วิที่เมาส์ วิละ 100% ของ MATK มีโอกาสเย็นเฉียบทุกวิ ศัตรูช้า · ถือคทา: วงใหญ่ขึ้น 30% · Lv10 พายุตามเป้าหมาย"
+    },
+    {
+      "id": "im_lance",
+      "name": "หอกธารน้ำแข็ง",
+      "thai": "สายธารน้ำแข็ง",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "หอกน้ำแข็ง Lv.5",
+      "prereq": [
+        {
+          "skill": "frostdiver",
+          "level": 5
+        }
+      ],
+      "desc": "หอกน้ำแข็งยักษ์พุ่งทะลุทั้งแนว 100% ของ MATK ตัวที่แข็งอยู่โดนสองเท่า · ตัวที่แข็งโดนสองเท่า"
+    },
+    {
+      "id": "im_aura",
+      "name": "ลมหนาวรอบตัว",
+      "thai": "สายธารน้ำแข็ง",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "desc": "ศัตรูที่อยู่ใกล้เราในระยะ 200 ช้าลง · เย็นเฉียบ 1 ชั้นทุก 5 วิ"
+    },
+    {
+      "id": "im_zero",
+      "name": "ศูนย์สัมบูรณ์",
+      "thai": "สายธารน้ำแข็ง",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ใจน้ำแข็ง Lv.3",
+      "prereq": [
+        {
+          "skill": "mg_iceheart",
+          "level": 3
+        }
+      ],
+      "desc": "เย็นเฉียบครบ 3 ชั้นแล้วแข็ง (ตัวที่เพิ่งละลายต้านทาน 4 วิ) · Lv1 เย็นเฉียบครบ 3 ชั้นแล้วแข็ง · Lv3 แข็งนานขึ้น 1 วิ · Lv5 บอสแข็งได้"
+    },
+    {
+      "id": "im_shatter",
+      "name": "ทุบน้ำแข็ง",
+      "thai": "สายแตกกระจาย",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "active",
+      "desc": "[มีฟรี Lv.1] · สกิลโดนตัวที่แข็งอยู่ มันแตกกระจาย ดาเมจเพิ่ม 68% ของ MATK เศษน้ำแข็ง 4 ชิ้นกระเด็นไปแช่ตัวข้าง ๆ · Lv5 เศษ 6 ชิ้น · Lv10 แตกต่อเป็นลูกโซ่"
+    },
+    {
+      "id": "im_breath",
+      "name": "ลมหายใจเยือกแข็ง",
+      "thai": "สายแตกกระจาย",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ทุบน้ำแข็ง Lv.2",
+      "prereq": [
+        {
+          "skill": "im_shatter",
+          "level": 2
+        }
+      ],
+      "desc": "พ่นลมหนาวเป็นกรวย 2 วิ วิละ 68% ของ MATK เย็นเฉียบ 2 ชั้นต่อวิ"
+    },
+    {
+      "id": "im_burst",
+      "name": "ผลึกระเบิด",
+      "thai": "สายแตกกระจาย",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ทุบน้ำแข็ง Lv.5",
+      "prereq": [
+        {
+          "skill": "im_shatter",
+          "level": 5
+        }
+      ],
+      "desc": "ทุบทุกตัวที่แข็งอยู่ในจอให้แตกพร้อมกัน ตัวละ 100% ของ MATK · Lv10 ฆ่าได้คืน SP 0.5 ต่อตัว"
+    },
+    {
+      "id": "im_armor",
+      "name": "เกราะน้ำแข็ง",
+      "thai": "สายปราการน้ำแข็ง",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "desc": "60 วิ: เกราะดูดซับดาเมจ 175% ของ MATK คนที่ตีเราประชิดติดเย็นเฉียบ · ถือโล่: เกราะหนาขึ้น 40% · Lv5 เกราะแตกแล้วระเบิดแช่รอบตัว · Lv10 เกราะฟื้นเองทุก 20 วิ"
+    },
+    {
+      "id": "im_wall",
+      "name": "กำแพงน้ำแข็ง",
+      "thai": "สายปราการน้ำแข็ง",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "เกราะน้ำแข็ง Lv.3",
+      "prereq": [
+        {
+          "skill": "im_armor",
+          "level": 3
+        }
+      ],
+      "desc": "กำแพงน้ำแข็งยาว 300 นาน 6.5 วิ ขวางศัตรูไม่ให้ผ่าน · Lv10 กำแพงแตกแล้วเศษแช่ศัตรูรอบ ๆ"
+    },
+    {
+      "id": "im_winter",
+      "name": "ใจเหมันต์",
+      "thai": "สายปราการน้ำแข็ง",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ชำนาญคทา Lv.1",
+      "prereq": [
+        {
+          "skill": "mg_staffmastery",
+          "level": 1
+        }
+      ],
+      "desc": "ถือออร์บ: DEF +2 MDEF +1 ตีปกติเป็นเกล็ดน้ำแข็ง MATK +6% โอกาสเย็นเฉียบเพิ่ม 5% · ถือออร์บเท่านั้น"
+    },
+    {
+      "id": "im_iceage",
+      "name": "ยุคน้ำแข็ง",
+      "thai": "สายยุคน้ำแข็ง",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ผลึกระเบิด Lv.5 หรือ เกราะน้ำแข็ง Lv.5",
+      "desc": "ทั้งจอหนาวจัด 8 วิ ศัตรูทุกตัวเย็นเฉียบทุกวิ (100% ของ MATK) ตัวที่แข็งแตกกระจายเองทุก 2 วิ · พื้นที่เหลือ 50% ของเดิม · ทั้งจอหนาวจัด 8 วิ"
+    }
+  ],
+  "ranger": [
+    {
+      "id": "rg_fearbreeze",
+      "name": "พายุศรเร็ว",
+      "thai": "สายพายุศรเร็ว",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ยิงเบิ้ล Lv.5",
+      "prereq": [
+        {
+          "skill": "ar_doubleshot",
+          "level": 5
+        }
+      ],
+      "desc": "ถือธนู: ความเร็วโจมตี +2% ยิงปกติโอกาส 4% ยิงเพิ่ม 2–4 ดอก ดอกละ 60% ของ ATK · Lv5 ดอกเพิ่มเป็นธาตุลม · Lv10 ดอกที่คริติคอลยิงซ้ำ"
+    },
+    {
+      "id": "rg_truesight",
+      "name": "ตาทิพย์",
+      "thai": "สายพายุศรเร็ว",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ตาเหยี่ยว Lv.5",
+      "prereq": [
+        {
+          "skill": "ar_owl",
+          "level": 5
+        }
+      ],
+      "desc": "33 วิ: ทุกสเตตัส +1 ATK +0.5% ความแม่น +2 คริติคอล +0.5% · Lv5 คริแรงขึ้น 10% · Lv10 ระหว่างบัฟ ยิงปกติไม่พลาด"
+    },
+    {
+      "id": "rg_unlimit",
+      "name": "ปลดขีดจำกัด",
+      "thai": "สายพายุศรเร็ว",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "พายุศรเร็ว Lv.3, ตาทิพย์ Lv.3",
+      "prereq": [
+        {
+          "skill": "rg_fearbreeze",
+          "level": 3
+        },
+        {
+          "skill": "rg_truesight",
+          "level": 3
+        }
+      ],
+      "desc": "20 วิ: ATK +6% แต่ DEF และ MDEF เป็น 0 และไม่ฟื้น HP · Lv5 ระหว่างบัฟ ยิงเบิ้ลเพิ่ม 20%"
+    },
+    {
+      "id": "rg_trap",
+      "name": "กับดักระเบิด",
+      "thai": "สายกับดัก",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "กับดักเถาวัลย์ Lv.3",
+      "prereq": [
+        {
+          "skill": "ar_snare",
+          "level": 3
+        }
+      ],
+      "desc": "โยนกับดักระเบิดที่เมาส์ (วางได้หลายอัน) ศัตรูเหยียบแล้วระเบิดเป็นวง 100% ของ ATK มึน 1.2 วิ"
+    },
+    {
+      "id": "rg_freezetrap",
+      "name": "กับดักน้ำแข็ง",
+      "thai": "สายกับดัก",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "กับดักระเบิด Lv.3",
+      "prereq": [
+        {
+          "skill": "rg_trap",
+          "level": 3
+        }
+      ],
+      "desc": "โยนกับดักน้ำแข็ง ศัตรูเหยียบแล้วแช่แข็งทั้งวง 2.2 วิ และ 100% ของ ATK"
+    },
+    {
+      "id": "rg_trapmastery",
+      "name": "ช่างกับดัก",
+      "thai": "สายกับดัก",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "กับดักระเบิด Lv.5",
+      "prereq": [
+        {
+          "skill": "rg_trap",
+          "level": 5
+        }
+      ],
+      "desc": "กับดักแรงขึ้น 5% · วางกับดักได้เพิ่ม 0 อัน (ปกติ 3) · Lv3 วางได้ +1 อัน · กับดักแรงขึ้น 5% ต่อเลเวล"
+    },
+    {
+      "id": "rg_detonate",
+      "name": "จุดระเบิดกับดัก",
+      "thai": "สายกับดัก",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ช่างกับดัก Lv.1",
+      "prereq": [
+        {
+          "skill": "rg_trapmastery",
+          "level": 1
+        }
+      ],
+      "desc": "จุดระเบิดกับดักทุกอันที่วางไว้ทันที กับดักระเบิดและกับดักน้ำแข็งแรงขึ้น 50%"
+    },
+    {
+      "id": "rg_snipe",
+      "name": "ยิงสไนป์",
+      "thai": "สายสไนเปอร์",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ธนูกระแทก Lv.3",
+      "prereq": [
+        {
+          "skill": "ar_charge",
+          "level": 3
+        }
+      ],
+      "desc": "เล็ง 0.6 วิแล้วยิงทะลุทั้งแนว 100% ของ ATK"
+    },
+    {
+      "id": "rg_eagle",
+      "name": "ตาอินทรี",
+      "thai": "สายสไนเปอร์",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ตาเหยี่ยว Lv.10",
+      "prereq": [
+        {
+          "skill": "ar_owl",
+          "level": 10
+        }
+      ],
+      "desc": "คริติคอล +1% · ดาเมจคริติคอล +3% · คริแรง +3% ต่อเลเวล"
+    },
+    {
+      "id": "rg_focus",
+      "name": "เล็งจุดตาย",
+      "thai": "สายสไนเปอร์",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ตาอินทรี Lv.1",
+      "prereq": [
+        {
+          "skill": "rg_eagle",
+          "level": 1
+        }
+      ],
+      "desc": "30 วิ: ATK +6.5% คริติคอล +1.5% ความแม่น +2 · ยิงสไนป์ตอนเล็งอยู่คริติคอลแน่นอน"
+    },
+    {
+      "id": "rg_triple",
+      "name": "ยิงสามดอก",
+      "thai": "สายพายุพฤกษา",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "active",
+      "desc": "[มีฟรี Lv.1] · ยิงธนูพันลม 3 ดอกเป็นพัดแคบ ทะลุทุกตัวในแนว ดอกละ 100% ของ ATK · ทุกดอกทะลุทั้งแนว"
+    },
+    {
+      "id": "rg_piercer",
+      "name": "ธนูใบไม้ทะลวง",
+      "thai": "สายพายุพฤกษา",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ธนูพายุทะลวง Lv.5",
+      "prereq": [
+        {
+          "skill": "gale",
+          "level": 5
+        }
+      ],
+      "desc": "ธนูหมุนใบไม้ทะลุทั้งแนว 100% ของ ATK แล้วเปิดวังวนใบไม้ดูดศัตรูตรงศัตรูตัวแรกที่โดน (ไม่โดนใครจะเปิดที่ปลายทาง)"
+    },
+    {
+      "id": "rg_storm",
+      "name": "พายุศร",
+      "thai": "สายพายุพฤกษา",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ธนูใบไม้ทะลวง Lv.5",
+      "prereq": [
+        {
+          "skill": "rg_piercer",
+          "level": 5
+        }
+      ],
+      "desc": "พายุธนู 40 ดอกกับสายฟ้าสีเขียวถล่มพื้นที่ที่เล็ง ดอกละ 100% ของ ATK"
+    }
+  ],
+  "wolfhunter": [
+    {
+      "id": "wh_wolf",
+      "name": "เรียกหมาป่า",
+      "thai": "สายหมาป่าคู่ใจ",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "active",
+      "desc": "[มีฟรี Lv.1] · เรียกหมาป่าคู่ใจ อยู่จนกว่าจะหมดแรง กัดครั้งละ 100% ของ ATK · ตัวใหญ่ 85% เลือด 40% ของเรา · (Lv 5 กัดติดเลือดออก) · (Lv 8 กัดโดนรอบตัว) · โตทุกเลเวล · Lv5 กัดเลือดออก · Lv8 กัดโดนรอบตัว · Lv10 ขนสีทอง"
+    },
+    {
+      "id": "wh_command",
+      "name": "สั่งขย้ำ",
+      "thai": "สายหมาป่าคู่ใจ",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "เรียกหมาป่า Lv.3",
+      "prereq": [
+        {
+          "skill": "wh_wolf",
+          "level": 3
+        }
+      ],
+      "desc": "สั่งหมาป่าพุ่งขย้ำศัตรูใกล้เมาส์ 3 ครั้ง ครั้งละ 100% ของ ATK มึน 0.5 วิ"
+    },
+    {
+      "id": "wh_alpha",
+      "name": "จ่าฝูง",
+      "thai": "สายหมาป่าคู่ใจ",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "เรียกหมาป่า Lv.5",
+      "prereq": [
+        {
+          "skill": "wh_wolf",
+          "level": 5
+        }
+      ],
+      "desc": "หมาป่าตัวโตขึ้นอีก 2% เลือด +5% กัดแรงขึ้น 5% · หมาป่าแรงขึ้น 2% ต่อเลเวล"
+    },
+    {
+      "id": "wh_pack",
+      "name": "ฝูงหมาป่าวิญญาณ",
+      "thai": "สายหมาป่าคู่ใจ",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "เรียกหมาป่า Lv.5, หอนเรียกพลัง Lv.3",
+      "prereq": [
+        {
+          "skill": "wh_wolf",
+          "level": 5
+        },
+        {
+          "skill": "wh_howl",
+          "level": 3
+        }
+      ],
+      "desc": "หมาป่าวิญญาณ 5 ตัววิ่งตะลุยไปข้างหน้า ชนทุกตัวที่ผ่าน ตัวละ 100% ของ ATK"
+    },
+    {
+      "id": "wh_blitz",
+      "name": "เหยี่ยวโฉบล่า",
+      "thai": "สายเหยี่ยว",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "active",
+      "desc": "[มีฟรี Lv.1] · สั่งเหยี่ยวโฉบ 1 ครั้ง ครั้งละ 18 (ตาม DEX และ INT) ไม่สน DEF ไม่พลาด · Lv5 โฉบเป็นวงโดนรอบเป้า · Lv10 เหยี่ยวสายฟ้า ติดช็อต"
+    },
+    {
+      "id": "wh_autoblitz",
+      "name": "เหยี่ยวโฉบอัตโนมัติ",
+      "thai": "สายเหยี่ยว",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "เหยี่ยวโฉบล่า Lv.3",
+      "prereq": [
+        {
+          "skill": "wh_blitz",
+          "level": 3
+        }
+      ],
+      "desc": "ยิงปกติโอกาส 1.3% (LUK ÷ 6 + 0.5) ให้เหยี่ยวโฉบเอง 2 ครั้ง ไม่เสีย SP · Lv5 โฉบเองถี่ขึ้น · Lv10 เหยี่ยวคริติคอลได้"
+    },
+    {
+      "id": "wh_steelcrow",
+      "name": "กรงเล็บเหล็ก",
+      "thai": "สายเหยี่ยว",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "เหยี่ยวโฉบอัตโนมัติ Lv.5",
+      "prereq": [
+        {
+          "skill": "wh_autoblitz",
+          "level": 5
+        }
+      ],
+      "desc": "เหยี่ยวแรงขึ้น 20% · Lv1 เหยี่ยวแรง +20% · Lv3 เป้าที่โดนโฉบรับดาเมจธนูเพิ่ม 10% · Lv5 เหยี่ยวทองตัวที่สอง โฉบพร้อมกัน (แรง 35%)"
+    },
+    {
+      "id": "wh_bond",
+      "name": "สายใยสัตว์ป่า",
+      "thai": "สายสายเลือดจันทร์",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "desc": "สัตว์ที่เรียกมาแรงขึ้น 8% · ATK +1%"
+    },
+    {
+      "id": "wh_howl",
+      "name": "หอนเรียกพลัง",
+      "thai": "สายสายเลือดจันทร์",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "เรียกหมาป่า Lv.3",
+      "prereq": [
+        {
+          "skill": "wh_wolf",
+          "level": 3
+        }
+      ],
+      "desc": "หอนใต้แสงจันทร์ 21 วิ: ATK +10% โจมตีเร็วขึ้น 6% (หมาป่าด้วย) ศัตรูรอบตัวหวาดกลัว 1 วิ"
+    },
+    {
+      "id": "wh_frenzy",
+      "name": "คลั่งป่า",
+      "thai": "สายสายเลือดจันทร์",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "สายใยสัตว์ป่า Lv.5",
+      "prereq": [
+        {
+          "skill": "wh_bond",
+          "level": 5
+        }
+      ],
+      "desc": "15 วิ: เราโจมตีเร็วขึ้น 12% หมาป่าตัวใหญ่ขึ้นและกัดเร็วขึ้นมาก"
+    },
+    {
+      "id": "wh_wolfrush",
+      "name": "หมาป่าจู่โจม",
+      "thai": "สายสายเลือดจันทร์",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "เรียกหมาป่า Lv.3",
+      "prereq": [
+        {
+          "skill": "wh_wolf",
+          "level": 3
+        }
+      ],
+      "desc": "ยิงปกติโอกาส 0.6% ให้หมาป่าพุ่งไปกัดเป้าที่เรายิงทันที · Lv5 กัดแล้วตรึง 1 วิ · Lv10 ทุกครั้งที่หมาป่ากัด เรายิงเร็วขึ้น 0.5% ซ้อน 10 ชั้น"
+    },
+    {
+      "id": "wh_fang",
+      "name": "ธนูเขี้ยวหมาป่า",
+      "thai": "สายนักล่า",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "desc": "ลูกธนูเขี้ยวหมาป่า 100% ของ ATK · ถ้าหมาป่าออกมาอยู่ มันจะวิ่งไปกัดเป้าเดียวกัน"
+    },
+    {
+      "id": "wh_mark",
+      "name": "ล่าเป้าหมาย",
+      "thai": "สายนักล่า",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ธนูเขี้ยวหมาป่า Lv.3",
+      "prereq": [
+        {
+          "skill": "wh_fang",
+          "level": 3
+        }
+      ],
+      "desc": "ทำเครื่องหมายศัตรูใกล้เมาส์ 15 วิ: รับดาเมจเพิ่ม 12% และหมาป่าจะไล่กัดตัวนั้น"
+    },
+    {
+      "id": "wh_huntmastery",
+      "name": "ชำนาญธนูพราน",
+      "thai": "สายนักล่า",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "desc": "ถือธนู: ATK +2% DEX +0"
+    }
+  ],
+  "bard": [
+    {
+      "id": "bd_tempo",
+      "name": "เพลงเร่งจังหวะ",
+      "thai": "สายเพลงรอบกองไฟ",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "active",
+      "desc": "[มีฟรี Lv.1] · เล่นต่อเนื่อง (SP 2/วิ) รัศมี 450: ตัวเองความเร็วโจมตี +1% เพื่อนตีแรงขึ้น 1% คูณท่อน (ท่อนขึ้นทุก 5 วิ ×1 / ×1.5 / ×2) · กดอีกครั้ง = ท่อนฮุก: ตัวเองตีปกติ 3 ครั้งถัดไปคริแน่นอน เพื่อนตีแรงขึ้น 30% 4 วิ · ท่อนขึ้นทุก 5 วิ แรง ×1 / ×1.5 / ×2 · กดซ้ำตอนท่อน 2 ขึ้นไป = ท่อนฮุก"
+    },
+    {
+      "id": "bd_warm",
+      "name": "เพลงอุ่นไอไฟ",
+      "thai": "สายเพลงรอบกองไฟ",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "เพลงเร่งจังหวะ Lv.3",
+      "prereq": [
+        {
+          "skill": "bd_tempo",
+          "level": 3
+        }
+      ],
+      "desc": "เล่นต่อเนื่อง: ทั้งทีมฟื้น HP 0.6% ทุก 5 วิ คูณท่อน · ท่อนฮุก: ฮีลทั้งทีม 17% คูณท่อน · ท่อนฮุกฮีลทั้งทีม"
+    },
+    {
+      "id": "bd_stars",
+      "name": "เพลงดาวค้างฟ้า",
+      "thai": "สายเพลงรอบกองไฟ",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "เพลงเร่งจังหวะ Lv.3",
+      "prereq": [
+        {
+          "skill": "bd_tempo",
+          "level": 3
+        }
+      ],
+      "desc": "เล่นต่อเนื่อง: ตัวเองเวลาร่าย −2% คูลดาวน์ −1% คูณท่อน · ท่อนฮุก: สกิลที่เหลือคูลดาวน์นานที่สุดลดลง 30% · ท่อนฮุกลดคูลดาวน์สกิลที่นานที่สุด 30%"
+    },
+    {
+      "id": "bd_band",
+      "name": "วงดนตรี",
+      "thai": "สายเพลงรอบกองไฟ",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "เพลงอุ่นไอไฟ Lv.3",
+      "prereq": [
+        {
+          "skill": "bd_warm",
+          "level": 3
+        }
+      ],
+      "desc": "หยุดเล่นแล้วเพลงค้างอีก 3 วิ · Lv1 เพลงค้าง 3 วิ · Lv3 เดินได้ปกติ · Lv5 เล่น 2 เพลงพร้อมกัน · INT เพิ่มผลเพลง"
+    },
+    {
+      "id": "bd_twirl",
+      "name": "ระบำควงไฟ",
+      "thai": "สายระบำไฟ",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "active",
+      "desc": "[มีฟรี Lv.1] · ควงแส้ปลายไฟรอบตัว 2 วิ ทุก 0.25 วิ 100% ของ ATK มีโอกาสติดเผา 35% · พื้นที่ 200% ของเดิม · ติดเผา"
+    },
+    {
+      "id": "bd_firefly",
+      "name": "ระบำหิ่งห้อย",
+      "thai": "สายระบำไฟ",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ระบำควงไฟ Lv.3",
+      "prereq": [
+        {
+          "skill": "bd_twirl",
+          "level": 3
+        }
+      ],
+      "desc": "รำต่อเนื่อง (SP 2/วิ) รัศมี 400: หิ่งห้อยล้อมศัตรู เดินช้าลง ตีเบาลง 2% คูณท่อน · ท่อนยิ่งสูงยิ่งแรง"
+    },
+    {
+      "id": "bd_lure",
+      "name": "ระบำหลอกล่อ",
+      "thai": "สายระบำไฟ",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ระบำควงไฟ Lv.3",
+      "prereq": [
+        {
+          "skill": "bd_twirl",
+          "level": 3
+        }
+      ],
+      "desc": "รำต่อเนื่อง: ศัตรูรอบตัวตีเบาลง 1.5% รับดาเมจเพิ่ม 1% คูณท่อน และศัตรูที่ยังไม่มีเป้าหันมาตามผู้รำ · ศัตรูหันมาตามผู้รำ"
+    },
+    {
+      "id": "bd_lash",
+      "name": "ฟาดแส้ดึง",
+      "thai": "สายระบำไฟ",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ระบำควงไฟ Lv.1",
+      "prereq": [
+        {
+          "skill": "bd_twirl",
+          "level": 1
+        }
+      ],
+      "desc": "ฟาดแส้ยาว 320 100% ของ ATK ดึงศัตรูเข้าหา · ดึงศัตรูเข้าหา"
+    },
+    {
+      "id": "bd_note",
+      "name": "โน้ตเด้ง",
+      "thai": "สายโน้ตดนตรี",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ยิงคู่ Lv.3",
+      "prereq": [
+        {
+          "skill": "double",
+          "level": 3
+        }
+      ],
+      "desc": "ยิงตัวโน้ตที่เด้งไปอีก 2 ตัว ตัวละ 100% ของ ATK · เด้งต่อ 2 ตัว"
+    },
+    {
+      "id": "bd_noterain",
+      "name": "ฝนโน้ต",
+      "thai": "สายโน้ตดนตรี",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "โน้ตเด้ง Lv.3",
+      "prereq": [
+        {
+          "skill": "bd_note",
+          "level": 3
+        }
+      ],
+      "desc": "ตัวโน้ต 6 ตัวตกใส่วง ตัวละ 100% ของ ATK · ท่อนเพลงยิ่งสูงยิ่งตกเพิ่ม (+2 ต่อท่อน) · ท่อนเพลงยิ่งสูงยิ่งตกเพิ่ม"
+    },
+    {
+      "id": "bd_groove",
+      "name": "จังหวะเร้าใจ",
+      "thai": "สายโน้ตดนตรี",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "โน้ตเด้ง Lv.5",
+      "prereq": [
+        {
+          "skill": "bd_note",
+          "level": 5
+        }
+      ],
+      "desc": "ระหว่างเล่นหรือรำ ตีปกติ 4% ยิงโน้ตเด้งฟรี · ระหว่างเล่นหรือรำเท่านั้น"
+    },
+    {
+      "id": "bd_festival",
+      "name": "มหกรรมรอบกองไฟ",
+      "thai": "สายมหกรรมรอบกองไฟ",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "วงดนตรี Lv.1 หรือ ระบำหลอกล่อ Lv.5",
+      "desc": "จุดกองไฟใหญ่ 15 วิ เพลงของเราแรงเป็นสองเท่าตอนอยู่ใกล้กองไฟ เพื่อนใกล้กองไฟตีแรงขึ้น 25% ศัตรูที่เข้าใกล้ติดเผาวิละ 100% ของ ATK และหลับ 2 วิครั้งแรก · ทุกเพลงที่เรียนไว้ที่ท่อน 3"
+    }
+  ],
+  "gunslinger": [
+    {
+      "id": "gs_spin",
+      "name": "หมุนโม่",
+      "thai": "สายโม่เสี่ยงดวง",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ตาเหยี่ยว Lv.1",
+      "prereq": [
+        {
+          "skill": "ar_owl",
+          "level": 1
+        }
+      ],
+      "desc": "หมุนโม่: นัดถัดไปสุ่ม 1 ใน 6 แรง ×3 · ระเบิดเป็นวง · ธาตุไฟ ×2 · ฟื้น HP 5% · ยิงทะลุ · ด้าน (ไม่ออก) · โอกาสด้าน 17% · Lv10 ไม่ออกด้านเลย"
+    },
+    {
+      "id": "gs_sixth",
+      "name": "นัดที่หก",
+      "thai": "สายโม่เสี่ยงดวง",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "desc": "ทุกนัดที่ 6 ของลูกโม่คริแน่นอนและแรงขึ้น 5% · ทุกนัดที่ 6 คริแน่นอน"
+    },
+    {
+      "id": "gs_special",
+      "name": "บรรจุกระสุนพิเศษ",
+      "thai": "สายโม่เสี่ยงดวง",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "หมุนโม่ Lv.3",
+      "prereq": [
+        {
+          "skill": "gs_spin",
+          "level": 3
+        }
+      ],
+      "desc": "บรรจุใหม่ทันที 6 นัดเป็นกระสุนธาตุ (ไฟ น้ำแข็ง สายฟ้า สลับกันทุกครั้งที่บรรจุ) แรงขึ้น 14% มีโอกาสติดสถานะของธาตุ · ธาตุสลับไฟ น้ำแข็ง สายฟ้า"
+    },
+    {
+      "id": "gs_eye",
+      "name": "สายตานักแม่นปืน",
+      "thai": "สายโม่เสี่ยงดวง",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ตาเหยี่ยว Lv.3",
+      "prereq": [
+        {
+          "skill": "ar_owl",
+          "level": 3
+        }
+      ],
+      "desc": "ถือปืน: คริ +1 ความแม่น +3"
+    },
+    {
+      "id": "gs_mastery",
+      "name": "ชำนาญปืนพก",
+      "thai": "สายปืนพกคู่",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "desc": "ถือปืนพก: ความเร็วโจมตี +1.5% บรรจุกระสุนเร็วขึ้น 5% · บรรจุเร็วขึ้น"
+    },
+    {
+      "id": "gs_rapid",
+      "name": "ลั่นไกรัว",
+      "thai": "สายปืนพกคู่",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ชำนาญปืนพก Lv.3",
+      "prereq": [
+        {
+          "skill": "gs_mastery",
+          "level": 3
+        }
+      ],
+      "desc": "ถือปืนพก: ยิงปกติ 4% ยิงซ้ำอีกนัดฟรี (90% ไม่กินกระสุน) · นัดฟรีไม่กินกระสุน"
+    },
+    {
+      "id": "gs_triple",
+      "name": "รัวค้อนปืน",
+      "thai": "สายปืนพกคู่",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "active",
+      "desc": "[มีฟรี Lv.1] · ยิงกระสุนที่เหลือในลูกโม่ออกหมดรวดเดียว นัดละ 100% ของ ATK แล้วบรรจุใหม่ · ทุกนัดได้ผลกระสุนพิเศษและนัดที่หก หมุนโม่ได้นัดแรก · ยิงกระสุนที่เหลือทั้งหมด · Lv5 บรรจุเร็วขึ้น · Lv10 ลูกโม่เต็มนัดสุดท้าย ×2"
+    },
+    {
+      "id": "gs_ricochet",
+      "name": "กระสุนสะท้อน",
+      "thai": "สายปืนพกคู่",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "รัวค้อนปืน Lv.5",
+      "prereq": [
+        {
+          "skill": "gs_triple",
+          "level": 5
+        }
+      ],
+      "desc": "กระสุนเด้งต่อ 3 ตัว นัดละ 100% ของ ATK · เด้งเพิ่มทุก 2 เลเวล"
+    },
+    {
+      "id": "gs_buckshot",
+      "name": "ลูกปรายกระจาย",
+      "thai": "สายลูกซอง",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "active",
+      "desc": "[มีฟรี Lv.1] · ยิงกรวย 9 ลูกปรายทะลุทุกตัวในแนว ระยะ 350 ลูกละ 100% ของ ATK · ใกล้ยิ่งโดนหลายลูก"
+    },
+    {
+      "id": "gs_kick",
+      "name": "ถีบถอย",
+      "thai": "สายลูกซอง",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ลูกปรายกระจาย Lv.3",
+      "prereq": [
+        {
+          "skill": "gs_buckshot",
+          "level": 3
+        }
+      ],
+      "desc": "ยิงกระแทกระยะใกล้ 100% ของ ATK ผลักศัตรูกระเด็น เราถีบตัวถอยหลัง 200 · เราถอยหลัง 200"
+    },
+    {
+      "id": "gs_smoke",
+      "name": "ระเบิดควัน",
+      "thai": "สายลูกซอง",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "desc": "ขว้างระเบิดควันวง 220 100% ของ ATK ธาตุไฟ ศัตรูในควันตีเบาลง 30% นาน 4 วิ (ใช้ได้ทุกอาวุธ) · ใช้ได้ทุกอาวุธ"
+    },
+    {
+      "id": "gs_stars",
+      "name": "ยิงดาวตก",
+      "thai": "สายยิงดาวตก",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "กระสุนสะท้อน Lv.3 หรือ ถีบถอย Lv.3",
+      "desc": "ยิงขึ้นฟ้า 1 นัด อีก 1 วิดาวตก 12 ดวงร่วงรอบเป้า ดวงละ 100% ของ ATK · ดาวตก 12 ดวง"
+    }
+  ],
+  "assassin": [
+    {
+      "id": "as_haste",
+      "name": "เร่งนักฆ่า",
+      "thai": "สายคริติคอล",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "โจมตีสองครั้ง Lv.5",
+      "prereq": [
+        {
+          "skill": "ro_double",
+          "level": 5
+        }
+      ],
+      "desc": "33 วิ ถือมีดคู่: ความเร็วโจมตี +2% คริติคอล +0.5% · Lv5 เดินเร็วขึ้น · Lv10 ตีปกติทิ้งเงาที่ฟันซ้ำ"
+    },
+    {
+      "id": "as_lethal",
+      "name": "คมมรณะ",
+      "thai": "สายคริติคอล",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "จุดตาย Lv.5",
+      "prereq": [
+        {
+          "skill": "ro_vital",
+          "level": 5
+        }
+      ],
+      "desc": "ดาเมจคริติคอล +1.5% · Lv5 คริแล้วติดเลือดออก · Lv10 คริติดกัน 3 ครั้งได้ความเร็วเพิ่มชั่วครู่"
+    },
+    {
+      "id": "as_katar",
+      "name": "ชำนาญมีดคู่",
+      "thai": "สายคริติคอล",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ชำนาญมีด Lv.10",
+      "prereq": [
+        {
+          "skill": "ro_dagger",
+          "level": 10
+        }
+      ],
+      "desc": "ถือมีดคู่: คริติคอล +3% · Lv1 คริ +3% · Lv3 คริแรง +15% · Lv5 คริแล้วฟันซ้ำอัตโนมัติ (20%)"
+    },
+    {
+      "id": "as_twin",
+      "name": "เขี้ยวคู่",
+      "thai": "สายคริติคอล",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "active",
+      "desc": "[มีฟรี Lv.1] · พุ่งฟันมีดคู่ทะลุศัตรู 2 ครั้ง ครั้งละ 100% ของ ATK"
+    },
+    {
+      "id": "as_meteor",
+      "name": "อุกกาบาตเงา",
+      "thai": "สายคริติคอล",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "เขี้ยวคู่ Lv.5",
+      "prereq": [
+        {
+          "skill": "as_twin",
+          "level": 5
+        }
+      ],
+      "desc": "ระเบิดคมเงาสีเลือดรอบตัว 100% ของ ATK มึน 0.8 วิ"
+    },
+    {
+      "id": "as_knives",
+      "name": "มีดพิษกระจาย",
+      "thai": "สายพิษมรณะ",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ม่านควันพิษ Lv.3",
+      "prereq": [
+        {
+          "skill": "venomdust",
+          "level": 3
+        }
+      ],
+      "desc": "ปามีดอาบพิษ 5 เล่มเป็นพัด เล่มละ 100% ของ ATK ติดพิษ"
+    },
+    {
+      "id": "as_edp",
+      "name": "อาบพิษมรณะ",
+      "thai": "สายพิษมรณะ",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ใจพิษ Lv.5",
+      "prereq": [
+        {
+          "skill": "ro_venomheart",
+          "level": 5
+        }
+      ],
+      "desc": "22 วิ: อาวุธอาบพิษมรณะ (ธาตุพิษ) ATK +12% ทุกการตีติดพิษ"
+    },
+    {
+      "id": "as_splasher",
+      "name": "ระเบิดพิษ",
+      "thai": "สายพิษมรณะ",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "มีดพิษกระจาย Lv.3",
+      "prereq": [
+        {
+          "skill": "as_knives",
+          "level": 3
+        }
+      ],
+      "desc": "ฝังระเบิดพิษในศัตรู 2 วิแล้วระเบิดเป็นวง 100% ของ ATK ติดพิษรุนแรง"
+    },
+    {
+      "id": "as_venom",
+      "name": "พิษร้าย",
+      "thai": "สายพิษมรณะ",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ใจพิษ Lv.10",
+      "prereq": [
+        {
+          "skill": "ro_venomheart",
+          "level": 10
+        }
+      ],
+      "desc": "พิษจากตีปกติและสกิลนักฆ่าแรงขึ้น 10% · ตีปกติมีโอกาส 3% ติดพิษ"
+    },
+    {
+      "id": "as_cloak",
+      "name": "อำพรางกาย",
+      "thai": "สายเงามรณะ",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ซ่อนตัว Lv.3",
+      "prereq": [
+        {
+          "skill": "ro_hide",
+          "level": 3
+        }
+      ],
+      "desc": "หายตัว 5.5 วิ เดินได้ปกติ มอนมองไม่เห็น · เขี้ยวมัจจุราชใช้ได้โดยไม่หลุดอำพราง · ตีแรกคริติคอลแน่นอน"
+    },
+    {
+      "id": "as_grimtooth",
+      "name": "เขี้ยวมัจจุราช",
+      "thai": "สายเงามรณะ",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "อำพรางกาย Lv.3",
+      "prereq": [
+        {
+          "skill": "as_cloak",
+          "level": 3
+        }
+      ],
+      "desc": "หนามเงาผุดเป็นแนวยาวข้างหน้า 100% ของ ATK · ใช้ตอนอำพรางได้โดยไม่หลุด"
+    },
+    {
+      "id": "as_deathmark",
+      "name": "ตราประทับมรณะ",
+      "thai": "สายเงามรณะ",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "เขี้ยวมัจจุราช Lv.5 หรือ เขี้ยวคู่ Lv.5",
+      "desc": "ประทับตรามรณะแล้ววาร์ปฟันรอบตัวเป้า 10 ครั้ง ครั้งละ 100% ของ ATK ปิดท้าย x3 และติดพิษ"
+    }
+  ],
+  "shinobi": [
+    {
+      "id": "sh_throwing",
+      "name": "ดาวคู่",
+      "thai": "สายซัดรัว",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "โจมตีสองครั้ง Lv.3",
+      "prereq": [
+        {
+          "skill": "ro_double",
+          "level": 3
+        }
+      ],
+      "desc": "ปาดาวยักษ์แต่ละครั้ง โอกาส 5% ได้เงาดาวอีกดอก บินโค้งไขว้กับดาวจริงไปแล้ววนกลับอีกฝั่ง โดนทั้งขาไปและขากลับ 133% ของ ATK · Lv5 เงาดาวชิ่งต่อ 1 ตัว · Lv10 ท่ากระโดดปาได้ดาวคู่ทุกครั้ง"
+    },
+    {
+      "id": "sh_huuma",
+      "name": "ขว้างดาวยักษ์วกกลับ",
+      "thai": "สายซัดรัว",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "desc": "ขว้างดาวยักษ์ยักษ์ไป 420 แล้ววกกลับเข้ามือ โดนทั้งขาไปและขากลับ ครั้งละ 100% ของ ATK · คอมโบซัดเงา: ใช้สกิลซัดคนละตัวต่อกันภายใน 3 วิ แรงขึ้น ×1.05 / ×1.1 และร่างเงาปาท่าก่อนหน้าซ้ำ 15% · Lv5 ใหญ่ขึ้น · Lv10 ปลายทางหมุนค้างดูดมอนเข้าหา"
+    },
+    {
+      "id": "sh_fan",
+      "name": "พัดดาวกระจาย",
+      "thai": "สายซัดรัว",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ขว้างดาวยักษ์วกกลับ Lv.3",
+      "prereq": [
+        {
+          "skill": "sh_huuma",
+          "level": 3
+        }
+      ],
+      "desc": "ปาดาวยักษ์ตรงกลางกับเงาดาว 4 ดอกเป็นรูปพัด ทุกดอกทะลุไป 360 แล้ววนกลับ ศัตรูแต่ละตัวโดนขาไปและขากลับ ครั้งละ 100% ของ ATK · คอมโบซัดเงา: ใช้สกิลซัดคนละตัวต่อกันภายใน 3 วิ แรงขึ้น ×1.05 / ×1.1 และร่างเงาปาท่าก่อนหน้าซ้ำ 15% · Lv5 7 ดอก · Lv10 ทุกดอกชิ่ง 1 ครั้งก่อนกลับ"
+    },
+    {
+      "id": "sh_ricochet",
+      "name": "ดาวชิ่ง",
+      "thai": "สายซัดรัว",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "พัดดาวกระจาย Lv.3",
+      "prereq": [
+        {
+          "skill": "sh_fan",
+          "level": 3
+        }
+      ],
+      "desc": "ปาดาวยักษ์ใส่ตัวที่ใกล้เป้า แล้วชิ่งต่ออีก 4 ตัว แรงขึ้นทีละ 12% แล้วกลับเข้ามือ ครั้งละ 100% ของ ATK · เจอตัวเดียว เด้งกลับมาโดนซ้ำได้อีก 2 ครั้ง · คอมโบซัดเงา: ใช้สกิลซัดคนละตัวต่อกันภายใน 3 วิ แรงขึ้น ×1.05 / ×1.1 และร่างเงาปาท่าก่อนหน้าซ้ำ 15% · Lv10 ชิ่ง 7 ตัว"
+    },
+    {
+      "id": "sh_shuriken",
+      "name": "พายุชูริเคน",
+      "thai": "สายซัดรัว",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ขว้างดาวยักษ์วกกลับ Lv.5",
+      "prereq": [
+        {
+          "skill": "sh_huuma",
+          "level": 5
+        }
+      ],
+      "desc": "วงเงาดาวหมุนรอบตัว ขยายออกแล้วหดเข้า 2.4 วิ ทุก 0.12 วิ 100% ของ ATK · ตอนจบวงแตก ดาวทุกดอกพุ่งออกไปชิ่งศัตรูรอบตัว · คอมโบซัดเงา: ใช้สกิลซัดคนละตัวต่อกันภายใน 3 วิ แรงขึ้น ×1.05 / ×1.1 และร่างเงาปาท่าก่อนหน้าซ้ำ 15% · ท่าปิด: กดตอนคอมโบขั้น 3 แรง ×1.3 และร่างเงา 2 ร่างหมุนวงด้วย · Lv5 วงสองชั้นหมุนสวนกัน · ตอนจบวงแตกพุ่งชิ่ง"
+    },
+    {
+      "id": "sh_kunai",
+      "name": "คุไนระเบิด",
+      "thai": "สายคาถาไฟ",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "active",
+      "desc": "[มีฟรี Lv.1] · ปาคุไนติดยันต์ไฟ ปักแล้วระเบิดใน 0.5 วิ 100% ของ ATK/MATK (ที่สูงกว่า) ธาตุไฟ"
+    },
+    {
+      "id": "sh_katon",
+      "name": "คาถาไฟ",
+      "thai": "สายคาถาไฟ",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "คุไนระเบิด Lv.3",
+      "prereq": [
+        {
+          "skill": "sh_kunai",
+          "level": 3
+        }
+      ],
+      "desc": "ผนึกมือ กลีบไฟ 5 กลีบไล่ตามศัตรู กลีบละ 100% ของ ATK/MATK ธาตุไฟ"
+    },
+    {
+      "id": "sh_windblade",
+      "name": "ใบมีดวายุ",
+      "thai": "สายคาถาลม-สายฟ้า",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ก้าวเงา Lv.5",
+      "prereq": [
+        {
+          "skill": "shadowstep",
+          "level": 5
+        }
+      ],
+      "desc": "พุ่งเป็นสายลมคม ฟันทุกตัวที่ผ่าน 100% ของ ATK"
+    },
+    {
+      "id": "sh_raiton",
+      "name": "คาถาสายฟ้า",
+      "thai": "สายคาถาลม-สายฟ้า",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ใบมีดวายุ Lv.3",
+      "prereq": [
+        {
+          "skill": "sh_windblade",
+          "level": 3
+        }
+      ],
+      "desc": "มังกรสายฟ้าฟาดลงที่เมาส์ 100% ของ ATK/MATK มึน 0.8 วิ"
+    },
+    {
+      "id": "sh_ninjamastery",
+      "name": "วิชานินจา",
+      "thai": "กดใช้",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ซ่อนตัว Lv.3",
+      "prereq": [
+        {
+          "skill": "ro_hide",
+          "level": 3
+        }
+      ],
+      "desc": "สกิลแรงขึ้น 2% · หลบหลีก +1 · SP สูงสุด +1%"
+    },
+    {
+      "id": "sh_clone",
+      "name": "แยกเงาร่าง",
+      "thai": "สายวิชาเงา",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ซ่อนตัว Lv.3",
+      "prereq": [
+        {
+          "skill": "ro_hide",
+          "level": 3
+        }
+      ],
+      "desc": "ร่างเงา 2 ร่างโผล่ล้อมเป้า ปาเงาดาวพร้อมกันร่างละ 3 ดอกเข้ากลางฝูง ดาวชิ่งต่อ 1 ครั้ง ดอกละ 100% ของ ATK แล้วร่างเงาหายเป็นควัน · Lv5 3 ร่าง · Lv10 4 ร่าง ดาวชิ่ง 2 ครั้ง"
+    },
+    {
+      "id": "sh_substitute",
+      "name": "คาถาสลับร่าง",
+      "thai": "สายวิชาเงา",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "แยกเงาร่าง Lv.1",
+      "prereq": [
+        {
+          "skill": "sh_clone",
+          "level": 1
+        }
+      ],
+      "desc": "30 วิ: หลบการโจมตีได้หมด 2 ครั้ง (ทิ้งท่อนไม้ไว้แทน)"
+    },
+    {
+      "id": "sh_smoke",
+      "name": "ระเบิดควัน",
+      "thai": "สายวิชาเงา",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "คาถาสลับร่าง Lv.1",
+      "prereq": [
+        {
+          "skill": "sh_substitute",
+          "level": 1
+        }
+      ],
+      "desc": "กลุ่มควันรอบตัว 5 วิ ศัตรูข้างในช้าลงและตีเบาลง 22%"
+    }
+  ],
+  "reaper": [
+    {
+      "id": "rp_souls",
+      "name": "เก็บวิญญาณ",
+      "thai": "สายดวงวิญญาณ",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "desc": "ตีติดรอย (ตีปกติ 1 สกิล 2) ครบ 5 รอยวิญญาณสุก 3 วิ ตีอีกครั้งเกี่ยวได้ 1 ดวง (สุกซ้ำได้หลัง 6 วิ บอส 3 วิ) ตัวที่สุกล้มทิ้งวิญญาณบนพื้น 4 วิ เก็บได้ในระยะ 400 · เก็บได้ 20 ดวง ดวงละ ATK +1.2% ดูดเลือด 0.1% · ตีครบ 5 รอยวิญญาณสุก ตีอีกครั้งเกี่ยว · Lv5 สุกนานขึ้น · Lv10 ครบ 20 ดวง ตีเร็วขึ้น 20%"
+    },
+    {
+      "id": "rp_ghost",
+      "name": "ร่างวิญญาณ",
+      "thai": "สายดวงวิญญาณ",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "เก็บวิญญาณ Lv.3",
+      "prereq": [
+        {
+          "skill": "rp_souls",
+          "level": 3
+        }
+      ],
+      "desc": "ใช้ 3 ดวง: กลายเป็นผี พุ่งทะลุศัตรูเป็นแนว 350 100% ของ ATK ไม่โดนตีระหว่างนั้น · Lv5 ทิ้งรอยหนาว · Lv10 ใช้แค่ 2 ดวง"
+    },
+    {
+      "id": "rp_shroud",
+      "name": "ผ้าคลุมแห่งความตาย",
+      "thai": "สายดวงวิญญาณ",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "เก็บวิญญาณ Lv.3",
+      "prereq": [
+        {
+          "skill": "rp_souls",
+          "level": 3
+        }
+      ],
+      "desc": "30 วิ: รับดาเมจลดลง 1% ต่อดวงวิญญาณที่มี (สูงสุด 25%)"
+    },
+    {
+      "id": "rp_death",
+      "name": "ความตายเยือน",
+      "thai": "สายดวงวิญญาณ",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "เก็บวิญญาณ Lv.5",
+      "prereq": [
+        {
+          "skill": "rp_souls",
+          "level": 5
+        }
+      ],
+      "desc": "ศัตรูเลือดต่ำกว่า 20% โดนเราแรงขึ้น 15% · Lv1 ศัตรูเลือดน้อยโดนแรงขึ้น · Lv3 ศัตรูเลือดน้อยวิญญาณสุกทันที · Lv5 ล้มแล้วลุกเป็นร่างวิญญาณ"
+    },
+    {
+      "id": "rp_scythemastery",
+      "name": "ชำนาญเคียวใหญ่",
+      "thai": "สายเคียวเก็บเกี่ยว",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "desc": "ถือเคียวใหญ่: ตีปกติกวาดกว้างโดนทุกตัวข้างหน้า ATK +2%"
+    },
+    {
+      "id": "rp_sweep",
+      "name": "ฟันเก็บเกี่ยว",
+      "thai": "สายเคียวเก็บเกี่ยว",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "active",
+      "desc": "[มีฟรี Lv.1] · หมุนเคียวรอบตัว 2 รอบ รอบละ 100% ของ ATK ดูดเลือด 5% ของดาเมจ · Lv5 ดึงเข้ากลาง · Lv10 โดน 3 ตัวได้วิญญาณ"
+    },
+    {
+      "id": "rp_execute",
+      "name": "ประหารใต้จันทร์",
+      "thai": "สายเคียวเก็บเกี่ยว",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ฟันเก็บเกี่ยว Lv.5",
+      "prereq": [
+        {
+          "skill": "rp_sweep",
+          "level": 5
+        }
+      ],
+      "desc": "ฟันลงจากฟ้า 100% ของ ATK · ศัตรูธรรมดาที่เลือดต่ำกว่า 30% ตายทันที บอสโดนสองเท่าแทน · ตายทันทีต่ำกว่า 30% (ศัตรูธรรมดา)"
+    },
+    {
+      "id": "rp_twin",
+      "name": "เคียวคู่ประสาน",
+      "thai": "สายเคียวคู่หมุนวน",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ชำนาญมีด Lv.3",
+      "prereq": [
+        {
+          "skill": "ro_dagger",
+          "level": 3
+        }
+      ],
+      "desc": "ถือเคียวคู่: ความเร็วโจมตี +2% ตีแต่ละครั้งโอกาส 3% ติดเลือดไหล (4 วิ) · เลือดไหล 4 วิ"
+    },
+    {
+      "id": "rp_return",
+      "name": "ขว้างเคียววกกลับ",
+      "thai": "สายเคียวคู่หมุนวน",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "active",
+      "desc": "[มีฟรี Lv.1] · ขว้างเคียวสองเล่มไป 450 แล้ววกกลับ โดนทั้งขาไปขากลับ 100% ของ ATK · Lv5 ขากลับดึง · Lv10 4 เล่มกากบาท"
+    },
+    {
+      "id": "rp_hook",
+      "name": "เกี่ยววิญญาณ",
+      "thai": "สายเคียวคู่หมุนวน",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ขว้างเคียววกกลับ Lv.3",
+      "prereq": [
+        {
+          "skill": "rp_return",
+          "level": 3
+        }
+      ],
+      "desc": "เกี่ยวเป้าเดียวดึงมาตรงหน้า (บอสไม่ถูกดึง) แล้วฟัน 100% ของ ATK ได้ดวงวิญญาณ 1 ดวง (เป้าที่วิญญาณสุกอยู่ได้อีก 1 ดวงจากการเกี่ยว) · ได้วิญญาณ 1 ดวง"
+    },
+    {
+      "id": "rp_storm",
+      "name": "พายุวิญญาณ",
+      "thai": "สายพายุวิญญาณ",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ประหารใต้จันทร์ Lv.5 หรือ เกี่ยววิญญาณ Lv.3",
+      "desc": "ใช้ดวงวิญญาณทั้งหมด: ดวงวิญญาณหมุนรอบตัวเป็นพายุ 6 วิ ทุกวิดวงละ 100% ของ ATK ดูดเลือด 3% · ยิ่งมีวิญญาณยิ่งแรง"
+    }
+  ],
+  "puppeteer": [
+    {
+      "id": "pp_puppet",
+      "name": "สร้างหุ่นรบ",
+      "thai": "สายหุ่นรบ",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "active",
+      "desc": "[มีฟรี Lv.1] · หุ่นไม้ตัวใหญ่สู้ข้างเราถาวร HP 65% ของ HP สูงสุดเรา ตี 100% ของ ATK · กดอีกครั้งเปลี่ยนแบบ: ขวาน (ตีหมู่) → โล่ (ยั่วยุ ทนกว่า) → หน้าไม้ (ยิงไกล) · Lv5 หุ่นได้ท่าพิเศษของแบบนั้น · Lv10 หุ่นร่างใหญ่"
+    },
+    {
+      "id": "pp_strings",
+      "name": "ชักใยหุ่น",
+      "thai": "สายหุ่นรบ",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "สร้างหุ่นรบ Lv.3",
+      "prereq": [
+        {
+          "skill": "pp_puppet",
+          "level": 3
+        }
+      ],
+      "desc": "ถือไม้เชิด: ตีปกติสั่งหุ่นฟาดเป้าเดียวกันทันที แรงขึ้น 3% · หุ่นตีตามทุกครั้งที่เราตีปกติ"
+    },
+    {
+      "id": "pp_swap",
+      "name": "สลับร่างหุ่น",
+      "thai": "สายหุ่นรบ",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "สร้างหุ่นรบ Lv.3",
+      "prereq": [
+        {
+          "skill": "pp_puppet",
+          "level": 3
+        }
+      ],
+      "desc": "สลับที่กับหุ่นทันที ศัตรูที่เล็งเราหันไปตีหุ่น · ศัตรูหันไปตีหุ่น"
+    },
+    {
+      "id": "pp_dance",
+      "name": "ระบำหุ่น",
+      "thai": "สายหุ่นรบ",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "สร้างหุ่นรบ Lv.5",
+      "prereq": [
+        {
+          "skill": "pp_puppet",
+          "level": 5
+        }
+      ],
+      "desc": "หุ่นหมุนตัวฟาดรอบตัว 3 รอบ รอบละ 100% ของ ATK · หมุน 3 รอบ"
+    },
+    {
+      "id": "pp_control",
+      "name": "เชิดมอน",
+      "thai": "สายด้ายเชิด",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ซ่อนตัว Lv.1",
+      "prereq": [
+        {
+          "skill": "ro_hide",
+          "level": 1
+        }
+      ],
+      "desc": "เกี่ยวด้ายเข้ามอน 1 ตัว 2.3 วิ มันหันไปตีพวกเดียวกันด้วยพลังเต็มของมัน · บอสเชิดไม่ได้ แต่ช้าลง 3 วิแทน · Lv5 เชิดได้ 2 ตัว · Lv10 มอนที่เชิดตายแล้วระเบิด"
+    },
+    {
+      "id": "pp_guide",
+      "name": "ด้ายนำทาง",
+      "thai": "สายด้ายเชิด",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "เชิดมอน Lv.3",
+      "prereq": [
+        {
+          "skill": "pp_control",
+          "level": 3
+        }
+      ],
+      "desc": "ด้ายที่เชื่อมเรากับหุ่นหรือมอนที่เชิด ศัตรูที่ข้ามเส้นด้ายโดนวิละ 35% ของ ATK และช้าลง · ด้ายถึงหุ่นและมอนที่เชิด"
+    },
+    {
+      "id": "pp_soulstring",
+      "name": "เชือกชักวิญญาณ",
+      "thai": "สายด้ายเชิด",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "เชิดมอน Lv.5",
+      "prereq": [
+        {
+          "skill": "pp_control",
+          "level": 5
+        }
+      ],
+      "desc": "มอนที่เชิดคริได้เท่าเรา · Lv1 มอนที่เชิดคริได้ · Lv3 สลับร่างแล้วไม่โดนตี 2 วิ · Lv5 หุ่นประกอบใหม่เอง"
+    },
+    {
+      "id": "pp_edge",
+      "name": "ด้ายคม",
+      "thai": "สายด้ายสังหาร",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ชำนาญมีด Lv.3",
+      "prereq": [
+        {
+          "skill": "ro_dagger",
+          "level": 3
+        }
+      ],
+      "desc": "ถือด้ายเหล็ก: ตีปกติสะบัดด้ายไกล 300 ทะลุทั้งแนว แรงขึ้น 4% · สะบัดด้ายทะลุทั้งแนว"
+    },
+    {
+      "id": "pp_stretch",
+      "name": "ขึงด้ายเหล็ก",
+      "thai": "สายด้ายสังหาร",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "active",
+      "desc": "[มีฟรี Lv.1] · ขึงด้ายจากเราไปจุดที่เล็งยาว 400 นาน 6 วิ ศัตรูที่แตะด้ายโดน 100% ของ ATK ทุกครึ่งวิ ขึงได้ 3 เส้น · Lv5 ด้ายไขว้ระเบิดที่จุดตัด · Lv10 ขึงได้ 5 เส้น"
+    },
+    {
+      "id": "pp_bind",
+      "name": "รัดด้าย",
+      "thai": "สายด้ายสังหาร",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ขึงด้ายเหล็ก Lv.3",
+      "prereq": [
+        {
+          "skill": "pp_stretch",
+          "level": 3
+        }
+      ],
+      "desc": "ร่าย 0.6 วิ ดึงด้ายทุกเส้นเข้าหาตัว ศัตรูที่ติดด้ายถูกลากมา 100% ของ ATK · ลากศัตรูที่ติดด้าย"
+    },
+    {
+      "id": "pp_theatre",
+      "name": "โรงละครหุ่นเชิด",
+      "thai": "สายโรงละครหุ่นเชิด",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ระบำหุ่น Lv.5 หรือ รัดด้าย Lv.5",
+      "desc": "เวทีหุ่นเชิดรอบตัวเรา (วง 900) 8 วิ ศัตรูทุกตัวบนเวทีถูกตรึงอยู่กับที่ โดน 100% ของ ATK ทุกวิ แล้วหันไปฟาดตัวข้าง ๆ ด้วยพลังของเรา · ทุก 2 วิ กระตุกด้ายลากมอนเข้าหาเรา · จบโชว์ \"ปิดม่าน\" ฟาดทุกตัว 5800% · บอสไม่ถูกตรึง แต่ช้าลงและหันไปตีหุ่นรบ · พื้นที่เหลือ 50% ของเดิม · วง 900 ตามตัว 8 วิ · มอนฟาดกันด้วยพลังเรา · กระตุกด้าย · ปิดม่าน"
+    }
+  ],
+  "bishop": [
+    {
+      "id": "bi_heal",
+      "name": "วงแสงเยียวยา",
+      "thai": "สายฟื้นฟูชั้นสูง",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "active",
+      "desc": "[มีฟรี Lv.1] · วงแสงรักษาตัวเองและเพื่อนรอบตัว 10% ของ HP สูงสุด + ตามพลังเวท · ศัตรูรอบตัวโดนแสง 100% ของ MATK"
+    },
+    {
+      "id": "bi_sanctuary",
+      "name": "ลานแสงเยียวยา",
+      "thai": "สายฟื้นฟูชั้นสูง",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "วงแสงเยียวยา Lv.3",
+      "prereq": [
+        {
+          "skill": "bi_heal",
+          "level": 3
+        }
+      ],
+      "desc": "เขตศักดิ์สิทธิ์ที่เมาส์ 8 วิ ทุก 0.5 วิ ฟื้น HP พวกเรา 3.3% และแสงเผาศัตรู 100% ของ MATK"
+    },
+    {
+      "id": "bi_meditatio",
+      "name": "สมาธิภาวนา",
+      "thai": "สายฟื้นฟูชั้นสูง",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "แสงเยียวยา Lv.10",
+      "prereq": [
+        {
+          "skill": "pr_heal",
+          "level": 10
+        }
+      ],
+      "desc": "พลังฮีลของสกิลบิชอป +3% · ฟื้น SP +3% · SP สูงสุด +1% · ฮีลของสกิลบิชอป +3% ต่อเลเวล"
+    },
+    {
+      "id": "bi_miracle",
+      "name": "ปาฏิหาริย์",
+      "thai": "สายฟื้นฟูชั้นสูง",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ลานแสงเยียวยา Lv.5",
+      "prereq": [
+        {
+          "skill": "bi_sanctuary",
+          "level": 5
+        }
+      ],
+      "desc": "ตะวันแสงศักดิ์สิทธิ์: ฟื้น HP ทุกคน 60% ชุบเพื่อนที่หมดแรง แสงพิพากษาศัตรูรอบตัว 100% ของ MATK และอวยพร ATK/MATK +15% 20 วิ"
+    },
+    {
+      "id": "bi_clementia",
+      "name": "พรทั่วทัพ",
+      "thai": "สายสรรเสริญ",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "พรศักดิ์สิทธิ์ Lv.10",
+      "prereq": [
+        {
+          "skill": "blessing",
+          "level": 10
+        }
+      ],
+      "desc": "ทุกคนในทีมรัศมีกว้าง 66 วิ: STR INT DEX +1 และ +1 ทุก 10 Job Lv (ใช้แทนพรศักดิ์สิทธิ์) · Lv5 นานขึ้นเท่าตัว · Lv10 ปีกแสงทั้งทีม"
+    },
+    {
+      "id": "bi_canto",
+      "name": "บทเพลงเท้าไว",
+      "thai": "สายสรรเสริญ",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "เพิ่มความเร็ว Lv.10",
+      "prereq": [
+        {
+          "skill": "pr_agi",
+          "level": 10
+        }
+      ],
+      "desc": "ทุกคนในทีมรัศมีกว้าง 66 วิ: AGI +1 และ +1 ทุก 10 Job Lv เดินเร็วขึ้น 15% (ใช้แทนเพิ่มความเร็ว) · Lv5 ความเร็วโจมตีทั้งทีม +10% · Lv10 นานขึ้นเท่าตัว"
+    },
+    {
+      "id": "bi_sacrament",
+      "name": "พิธีเร่งเวท",
+      "thai": "สายสรรเสริญ",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "พรเร่งร่าย Lv.3",
+      "prereq": [
+        {
+          "skill": "pr_suffragium",
+          "level": 3
+        }
+      ],
+      "desc": "ตัวเองและเพื่อนรอบตัว 60 วิ: เวลาร่ายลดลง 8% คูลดาวน์ลดลง 4% · Lv5 ส่วนคงที่ของเวลาร่ายหายไป"
+    },
+    {
+      "id": "bi_expiatio",
+      "name": "พรทะลวงเกราะ",
+      "thai": "สายสรรเสริญ",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "มือประทานพลัง Lv.3",
+      "prereq": [
+        {
+          "skill": "bi_impositio",
+          "level": 3
+        }
+      ],
+      "desc": "ตัวเองและเพื่อนรอบตัว 60 วิ: ตีทะลุ DEF ศัตรู 5% · Lv5 ตีทะลุ MDEF ด้วย"
+    },
+    {
+      "id": "bi_barrier",
+      "name": "ม่านแสงคุ้มภัย",
+      "thai": "สายบาเรีย",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "พรศักดิ์สิทธิ์ Lv.5",
+      "prereq": [
+        {
+          "skill": "blessing",
+          "level": 5
+        }
+      ],
+      "desc": "บาเรียทอง 20 วิ ดูดซับดาเมจได้ 14% ของ HP สูงสุด + MATK x2 (เพื่อนรอบตัวรับดาเมจลดลง 15%)"
+    },
+    {
+      "id": "bi_assumptio",
+      "name": "ปีกแสงคุ้มกาย",
+      "thai": "สายบาเรีย",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ม่านแสงคุ้มภัย Lv.5",
+      "prereq": [
+        {
+          "skill": "bi_barrier",
+          "level": 5
+        }
+      ],
+      "desc": "ปีกทองโอบทั้งทีม 22 วิ: ตัวเองและเพื่อนรอบตัวรับดาเมจลดลง 11%"
+    },
+    {
+      "id": "bi_magnificat",
+      "name": "บทสวดฟื้นมานา",
+      "thai": "สายบาเรีย",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "พรเกราะกาย Lv.3",
+      "prereq": [
+        {
+          "skill": "pr_angelus",
+          "level": 3
+        }
+      ],
+      "desc": "เพลงสรรเสริญ 35 วิ: ฟื้น SP เร็วขึ้น 2 เท่า SP สูงสุด +1%"
+    },
+    {
+      "id": "bi_turnundead",
+      "name": "ขับไล่อมตะ",
+      "thai": "สายพิพากษา",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "แสงศักดิ์สิทธิ์ Lv.5",
+      "prereq": [
+        {
+          "skill": "holylight",
+          "level": 5
+        }
+      ],
+      "desc": "ลำแสงศักดิ์สิทธิ์ขับไล่ศัตรูใกล้เมาส์ 100% ของ MATK (อมตะและความมืดโดน x2)"
+    },
+    {
+      "id": "bi_lexdivina",
+      "name": "ตราแสงตรึง",
+      "thai": "สายพิพากษา",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ขับไล่อมตะ Lv.3",
+      "prereq": [
+        {
+          "skill": "bi_turnundead",
+          "level": 3
+        }
+      ],
+      "desc": "ตราศักดิ์สิทธิ์ที่เมาส์ 100% ของ MATK ตรึงศัตรู 2.3 วิ"
+    },
+    {
+      "id": "bi_impositio",
+      "name": "มือประทานพลัง",
+      "thai": "สายพิพากษา",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "พรศักดิ์สิทธิ์ Lv.3",
+      "prereq": [
+        {
+          "skill": "blessing",
+          "level": 3
+        }
+      ],
+      "desc": "ตัวเองและเพื่อนรอบตัว 60 วิ: ATK +5"
+    },
+    {
+      "id": "bi_battlehymn",
+      "name": "เพลงสวดศึก",
+      "thai": "สายบทสวดศึก",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ชำนาญกระบอง Lv.5",
+      "prereq": [
+        {
+          "skill": "pr_macemastery",
+          "level": 5
+        }
+      ],
+      "desc": "ตัวเองและเพื่อนรอบตัว 44 วิ: ความเร็วโจมตี +3% ATK +1% อาวุธเป็นธาตุแสง · Lv5 ตีคริแล้วฟื้น HP · Lv10 ออร่าเพลงรอบตัวตลอดบัฟ"
+    },
+    {
+      "id": "bi_mercy",
+      "name": "มือเมตตา",
+      "thai": "สายบทสวดศึก",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ลงทัณฑ์ Lv.3",
+      "prereq": [
+        {
+          "skill": "pr_duple",
+          "level": 3
+        }
+      ],
+      "desc": "ตีปกติโอกาส 2% ปล่อยวงแสงเยียวยาที่เป้า ดาเมจ 50% ของวงแสงเยียวยา (ไม่ฮีล) · Lv10 โอกาส 20%"
+    }
+  ],
+  "monk": [
+    {
+      "id": "mo_triple",
+      "name": "หมัดสามดาว",
+      "thai": "สายคอมโบ",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ชำนาญกระบอง Lv.3",
+      "prereq": [
+        {
+          "skill": "pr_macemastery",
+          "level": 3
+        }
+      ],
+      "desc": "ตีปกติโอกาส 3% ต่อยสามหมัดติด แรง 150% แล้วเปิดคอมโบ 1.2 วิ (ชุดหมัดพายุไม่เสีย SP) · Lv5 สามหมัดได้ลูกปราณ · Lv10 ระหว่างปราณเดือด โอกาสคงที่ 30%"
+    },
+    {
+      "id": "mo_palms",
+      "name": "ฝ่ามือร้อยทิศ",
+      "thai": "สายคอมโบ",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ปล่อยพลังปราณ Lv.3",
+      "prereq": [
+        {
+          "skill": "mo_chi",
+          "level": 3
+        }
+      ],
+      "desc": "ฝ่ามือรัว 10 ครั้งข้างหน้า ครั้งละ 100% ของ ATK แล้วผลักกระเด็น"
+    },
+    {
+      "id": "mo_combo",
+      "name": "ชุดหมัดพายุ",
+      "thai": "สายคอมโบ",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ฝ่ามือร้อยทิศ Lv.3",
+      "prereq": [
+        {
+          "skill": "mo_palms",
+          "level": 3
+        }
+      ],
+      "desc": "หมัดชุด 4 จังหวะข้างหน้า ครั้งละ 100% ของ ATK จังหวะสุดท้ายผลักกระเด็น"
+    },
+    {
+      "id": "mo_snap",
+      "name": "ก้าวกระโดด",
+      "thai": "สายคอมโบ",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ลูกปราณ Lv.2",
+      "prereq": [
+        {
+          "skill": "mo_spheres",
+          "level": 2
+        }
+      ],
+      "desc": "ก้าวพริบตาไปที่เมาส์ (ไกลสุด 380) ทิ้งเส้นแสงทองไว้"
+    },
+    {
+      "id": "mo_fury",
+      "name": "ปราณเดือด",
+      "thai": "สายคอมโบ",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "หมัดเหล็ก Lv.3",
+      "prereq": [
+        {
+          "skill": "mo_ironfist",
+          "level": 3
+        }
+      ],
+      "desc": "36 วิ: คริติคอล +3% ความเร็วโจมตี +4% · Lv5 ระหว่างบัฟ หมัดสิ้นปราณไม่ต้องร่าย"
+    },
+    {
+      "id": "mo_chi",
+      "name": "ปล่อยพลังปราณ",
+      "thai": "สายลูกปราณ",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "active",
+      "desc": "[มีฟรี Lv.1] · คลื่นปราณพุ่งทะลุทั้งแนว 100% ของ ATK · มีลูกปราณ: ใช้ 1 ลูก แรงขึ้น 50%"
+    },
+    {
+      "id": "mo_spheres",
+      "name": "ลูกปราณ",
+      "thai": "สายลูกปราณ",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "desc": "สะสมลูกปราณ 1 ลูก (สูงสุด 1) ลูกละ ATK +3% · บางสกิลใช้ลูกปราณเพิ่มพลัง · สูงสุดตามเลเวล (1 → 5 ลูก)"
+    },
+    {
+      "id": "mo_impact",
+      "name": "ฝ่ามือทะลวงปราณ",
+      "thai": "สายลูกปราณ",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ปล่อยพลังปราณ Lv.5",
+      "prereq": [
+        {
+          "skill": "mo_chi",
+          "level": 5
+        }
+      ],
+      "desc": "ฝ่ามือส่งปราณทะลุเกราะ 100% ของ ATK คริติคอลแน่นอน (ทะลุ DEF ครึ่งหนึ่ง)"
+    },
+    {
+      "id": "mo_asura",
+      "name": "หมัดสิ้นปราณ",
+      "thai": "สายลูกปราณ",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ลูกปราณ Lv.5, ฝ่ามือทะลวงปราณ Lv.3",
+      "prereq": [
+        {
+          "skill": "mo_spheres",
+          "level": 5
+        },
+        {
+          "skill": "mo_impact",
+          "level": 3
+        }
+      ],
+      "desc": "ใช้ SP ที่เหลือทั้งหมดและลูกปราณทุกลูก พุ่งหมัดเพลิงวิญญาณใส่ศัตรู 100% ของ ATK · SP ที่ใช้เพิ่มพลังได้ถึง 2 เท่า ลูกปราณลูกละ +10%"
+    },
+    {
+      "id": "mo_ironbody",
+      "name": "กายเหล็ก",
+      "thai": "สายร่างเหล็ก",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "หมัดเหล็ก Lv.3",
+      "prereq": [
+        {
+          "skill": "mo_ironfist",
+          "level": 3
+        }
+      ],
+      "desc": "10.5 วิ: รับดาเมจลดลง 33% ATK +10% (เดินช้าลงนิด)"
+    },
+    {
+      "id": "mo_ironfist",
+      "name": "หมัดเหล็ก",
+      "thai": "สายร่างเหล็ก",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "desc": "ATK +3% · ความแม่น +1"
+    },
+    {
+      "id": "mo_dodge",
+      "name": "ก้าวไร้เงา",
+      "thai": "สายร่างเหล็ก",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "desc": "หลบหลีก +2 · หลบสมบูรณ์ +0%"
+    }
+  ],
+  "lightkeeper": [
+    {
+      "id": "lk_radiance",
+      "name": "รัศมีแสง",
+      "thai": "สายเขตแสง",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "desc": "รอบตัวเป็นเขตแสงรัศมี 210 พวกเราในแสงฟื้น HP 0.5% ทุก 5 วิ ผี อมตะ และธาตุมืดในแสงโดนเผาวิละ 23% ของ MATK · กลางคืนและในดันเจี้ยนแสงกว้างขึ้น 30% · กลางคืนและในดันเจี้ยนแสงกว้างขึ้น 30%"
+    },
+    {
+      "id": "lk_flash",
+      "name": "แสงไล่เงา",
+      "thai": "สายเขตแสง",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "แสงศักดิ์สิทธิ์ Lv.3",
+      "prereq": [
+        {
+          "skill": "holylight",
+          "level": 3
+        }
+      ],
+      "desc": "แสงวาบรัศมี 300 ศัตรูโดน 100% ของ MATK ธาตุแสง ผีและอมตะมึน 1 วิ · ผีและอมตะมึน 1 วิ"
+    },
+    {
+      "id": "lk_lighthouse",
+      "name": "ประภาคาร",
+      "thai": "สายเขตแสง",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "รัศมีแสง Lv.5",
+      "prereq": [
+        {
+          "skill": "lk_radiance",
+          "level": 5
+        }
+      ],
+      "desc": "แสงของเราสว่างขึ้น (ฮีลของรัศมีแสงกับโคมแก้ว และเผาของรัศมีแสง +20%) · Lv1 แสงแรงขึ้น · Lv3 ยืนนิ่งแสงกว้างขึ้น · Lv5 ล้มในแสงแล้วลุก"
+    },
+    {
+      "id": "lk_torchmastery",
+      "name": "ชำนาญคบเพลิง",
+      "thai": "สายคบเพลิงศักดิ์สิทธิ์",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ชำนาญกระบอง Lv.1",
+      "prereq": [
+        {
+          "skill": "pr_macemastery",
+          "level": 1
+        }
+      ],
+      "desc": "ถือคบเพลิง: ตีปกติแรงขึ้น 3% ติดเผา 4% แรงกับผี อมตะ และธาตุมืดอีก 20% · ติดเผา แรงกับผีและอมตะ"
+    },
+    {
+      "id": "lk_swing",
+      "name": "ฟาดเปลวไฟ",
+      "thai": "สายคบเพลิงศักดิ์สิทธิ์",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "active",
+      "desc": "[มีฟรี Lv.1] · ฟาดคบเพลิงเป็นวงข้างหน้า 100% ของ ATK ธาตุไฟ ทิ้งเปลวไฟที่พื้น 3 วิ (เป็นเขตแสงด้วย) · ทิ้งเปลวไฟที่เป็นเขตแสง"
+    },
+    {
+      "id": "lk_plant",
+      "name": "ปักคบเพลิง",
+      "thai": "สายคบเพลิงศักดิ์สิทธิ์",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ฟาดเปลวไฟ Lv.3",
+      "prereq": [
+        {
+          "skill": "lk_swing",
+          "level": 3
+        }
+      ],
+      "desc": "ปักคบเพลิงสำรองลงพื้น 20 วิ เป็นเขตแสงรัศมี 250 เผาศัตรูที่เข้าใกล้ทุกครึ่งวิ 100% ของ MATK ปักได้ 2 อัน · ปักได้ 2 อัน"
+    },
+    {
+      "id": "lk_faith",
+      "name": "ไฟศรัทธา",
+      "thai": "สายคบเพลิงศักดิ์สิทธิ์",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ชำนาญคบเพลิง Lv.3",
+      "prereq": [
+        {
+          "skill": "lk_torchmastery",
+          "level": 3
+        }
+      ],
+      "desc": "30 วิ: อาวุธเราเป็นธาตุแสง ATK +1% ตีอมตะและธาตุมืดแรงขึ้นอีก 2% · เพื่อนรอบตัวได้บัฟนี้ด้วย · อาวุธเป็นธาตุแสง"
+    },
+    {
+      "id": "lk_lamp",
+      "name": "วางโคมแก้ว",
+      "thai": "สายโคมแก้ว",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "active",
+      "desc": "[มีฟรี Lv.1] · วางโคมแก้วที่พื้นได้ 3 ดวง อยู่ 25 วิ (ถือคทา 35 วิ) แต่ละดวงเป็นเขตแสงรัศมี 220 ฮีลพวกเราในแสงวิละ 29% ของ MATK · Lv5 วางได้ 4 ดวง · Lv10 โคมลอยตามเพื่อน"
+    },
+    {
+      "id": "lk_flare",
+      "name": "โคมเรืองรอง",
+      "thai": "สายโคมแก้ว",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "วางโคมแก้ว Lv.3",
+      "prereq": [
+        {
+          "skill": "lk_lamp",
+          "level": 3
+        }
+      ],
+      "desc": "โคมทุกดวงสว่างวาบ ฮีลทุกคนในแสงของโคม 170% ของ MATK ทันที · ฮีลทุกคนในแสงของโคม"
+    },
+    {
+      "id": "lk_wick",
+      "name": "ไส้ตะเกียงอย่างดี",
+      "thai": "สายโคมแก้ว",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "desc": "ฮีลจากพลังเวทแรงขึ้น 2% ฟื้น SP เร็วขึ้น 3%"
+    },
+    {
+      "id": "lk_dawn",
+      "name": "รุ่งอรุณ",
+      "thai": "สายรุ่งอรุณ",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "โคมเรืองรอง Lv.5 หรือ ปักคบเพลิง Lv.3",
+      "desc": "แสงรุ่งอรุณรัศมี 1000 รอบตัว 10 วิ: พวกเราในแสงอยู่ในเขตแสง ฮีลแรงขึ้น 50% · ผี อมตะ และธาตุมืดในแสงโดนเผาวิละ 95% ของ MATK · แสงรัศมี 1000 รอบตัว 10 วิ"
+    }
+  ],
+  "wisp": [
+    {
+      "id": "ws_flock",
+      "name": "เลี้ยงดวงไฟ",
+      "thai": "สายฝูงดวงไฟ",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "active",
+      "desc": "[มีฟรี Lv.1] · ดวงไฟวิญญาณลอยรอบตัว 1 ดวง ดวงที่ใช้ไปเกิดใหม่ทุก 4 วิ แรงตาม MATK · จำนวนดวงเพิ่มทุก 2 เลเวล (สูงสุด 5) · Lv5 เกิดใหม่ทุก 3 วิ"
+    },
+    {
+      "id": "ws_swarm",
+      "name": "ฝูงหิ่งห้อย",
+      "thai": "สายฝูงดวงไฟ",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "เลี้ยงดวงไฟ Lv.3",
+      "prereq": [
+        {
+          "skill": "ws_flock",
+          "level": 3
+        }
+      ],
+      "desc": "ดวงไฟที่ลอยรอบตัวยิงศัตรูใกล้ ๆ เอง ดวงละ 25% ของ MATK ทุก 1.6 วิ ถี่ขึ้นตามความเร็วโจมตี (เร็วสุดทุก 0.8 วิ) · ยิงเอง ถี่ขึ้นตามความเร็วโจมตี"
+    },
+    {
+      "id": "ws_swift",
+      "name": "ดวงไฟเร็ว",
+      "thai": "สายฝูงดวงไฟ",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "desc": "ดวงไฟเกิดใหม่และพุ่งเร็วขึ้น 3%"
+    },
+    {
+      "id": "ws_heart",
+      "name": "ใจดวงไฟ",
+      "thai": "สายฝูงดวงไฟ",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "เลี้ยงดวงไฟ Lv.5",
+      "prereq": [
+        {
+          "skill": "ws_flock",
+          "level": 5
+        }
+      ],
+      "desc": "เกาะเพื่อนได้คนละ 2 ดวง · Lv1 เกาะเพื่อนได้ 2 ดวง · Lv3 ดวงไฟที่พุ่งชนทิ้งแสงฮีล · Lv5 ดวงใหญ่"
+    },
+    {
+      "id": "ws_latch",
+      "name": "ส่งดวงไฟเกาะ",
+      "thai": "สายดวงไฟรักษา",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "active",
+      "desc": "[มีฟรี Lv.1] · ส่งดวงไฟ 1 ดวงไปเกาะเพื่อนที่เลือดน้อยที่สุด (หรือตัวเอง) 20 วิ (ถือคทา 30 วิ) ฮีลวิละ 18% ของ MATK · เกาะเพื่อนที่เลือดน้อยที่สุด"
+    },
+    {
+      "id": "ws_embrace",
+      "name": "ดวงไฟโอบกาย",
+      "thai": "สายดวงไฟรักษา",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ส่งดวงไฟเกาะ Lv.3",
+      "prereq": [
+        {
+          "skill": "ws_latch",
+          "level": 3
+        }
+      ],
+      "desc": "ดวงไฟที่เกาะอยู่กลายเป็นโล่ ดูดซับดาเมจดวงละ 115% ของ MATK · อยู่จนดวงไฟที่เกาะหมดเวลา (20 วิ ถือคทา 30 วิ) ดูดซับครบ หรือใช้ดวงไฟแตกฮีล · ดูเวลาที่แถวบัฟ · ดวงไฟที่เกาะกลายเป็นโล่"
+    },
+    {
+      "id": "ws_burst",
+      "name": "ดวงไฟแตกฮีล",
+      "thai": "สายดวงไฟรักษา",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ส่งดวงไฟเกาะ Lv.5",
+      "prereq": [
+        {
+          "skill": "ws_latch",
+          "level": 5
+        }
+      ],
+      "desc": "ดวงไฟทุกดวงที่เกาะอยู่แตกพร้อมกัน ฮีลทันที 140% ของ MATK รอบตัวคนนั้น · ฮีลรอบตัวคนที่ถูกเกาะ"
+    },
+    {
+      "id": "ws_call",
+      "name": "เสียงเรียกดวงไฟ",
+      "thai": "สายดวงไฟโจมตี",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ชำนาญกระบอง Lv.1",
+      "prereq": [
+        {
+          "skill": "pr_macemastery",
+          "level": 1
+        }
+      ],
+      "desc": "ถือกระดิ่ง: ตีปกติเป็นคลื่นเสียง ทุก 0.8 วิ ดวงไฟ 1 ดวงพุ่งใส่เป้าที่ตีโดน 68% ของ MATK (ดวงไฟไม่หมด ยังลอยรอบตัวเท่าเดิม) · ถือกระดิ่งเท่านั้น"
+    },
+    {
+      "id": "ws_rush",
+      "name": "ฝูงดวงไฟพุ่ง",
+      "thai": "สายดวงไฟโจมตี",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "เสียงเรียกดวงไฟ Lv.3",
+      "prereq": [
+        {
+          "skill": "ws_call",
+          "level": 3
+        }
+      ],
+      "desc": "ดวงไฟทุกดวงพุ่งรุมเป้า ดวงละ 100% ของ MATK ระเบิดเป็นวงกว้าง ตัวรอบ ๆ โดน 70% · Lv10 ดวงไฟครึ่งหนึ่งเกิดใหม่ทันที"
+    },
+    {
+      "id": "ws_mark",
+      "name": "ดวงไฟติดศัตรู",
+      "thai": "สายดวงไฟโจมตี",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "เสียงเรียกดวงไฟ Lv.3",
+      "prereq": [
+        {
+          "skill": "ws_call",
+          "level": 3
+        }
+      ],
+      "desc": "แปะดวงไฟบนศัตรูทุกตัวในวงตรงจุดที่ชี้ 6 วิ ทุกครั้งที่ตีตัวที่ติด (ดวงไฟของเราก็นับ ถี่สุด 0.3 วิต่อตัว) ดวงไฟระเบิดเป็นวงเล็ก 100% ของ MATK (ตัวรอบข้าง 50%) · แปะทั้งวง ตีแล้วระเบิดเป็นวง"
+    },
+    {
+      "id": "ws_night",
+      "name": "คืนหิ่งห้อยพันดวง",
+      "thai": "สายคืนหิ่งห้อยพันดวง",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ดวงไฟแตกฮีล Lv.5 หรือ ฝูงดวงไฟพุ่ง Lv.5",
+      "desc": "ดวงไฟนับพันลอยขึ้นทั่วจอ 10 วิ ศัตรูโดนดวงไฟรุมวิละ 200% ของ MATK · \"แสงพร่า\" ศัตรูตีเบาลงครึ่งหนึ่งและช้าลง · ดวงไฟติดทุกตัว ใครในทีมตีโดนก็ระเบิดเพิ่ม 250% · ทุก 2 วิ ฝนดวงไฟดิ่งใส่ทุกตัว 900% ลามตัวข้าง ๆ 6 ตัว · พวกเราฟื้น HP 2% ทุกวิ รับดาเมจ ×0.8 · เราได้โล่ดวงไฟ 240% ของ MATK · ทั้งจอ 10 วิ · แสงพร่า · ดวงไฟติดทุกตัว · ฝนดวงไฟ · โล่ดวงไฟ"
+    }
+  ]
+};
 
 let currentSkillBuilderTab = 'novice';
 let skillBuilderSnapshot = null;
@@ -234,38 +4364,47 @@ let skillBuilderNotice = '';
 function updateClassDropdownsInEditor() {
   const c1Sel = document.getElementById("plan-editor-class1");
   const c2Sel = document.getElementById("plan-editor-class2");
+  const c3Badge = document.getElementById("plan-editor-class3-badge");
   if (!c1Sel || !c2Sel || !activeEditingPlan) return;
 
-  const currentC1 = activeEditingPlan.class1Target || 'archer';
+  const LEGACY_C1_MAP = { swordsman: 'knight', thief: 'rogue', acolyte: 'priest', merchant: 'knight' };
+  const rawC1 = activeEditingPlan.class1Target || 'archer';
+  const currentC1 = CLASS_TREE_MAP[rawC1] ? rawC1 : (LEGACY_C1_MAP[rawC1] || 'archer');
+  activeEditingPlan.class1Target = currentC1;
   c1Sel.value = currentC1;
+
   const j1 = document.getElementById("plan-editor-class1-job");
   const j2 = document.getElementById("plan-editor-class2-job");
   if (j1) j1.value = activeEditingPlan.class1JobLevel || 10;
   if (j2) j2.value = activeEditingPlan.class2JobLevel || 50;
+
+  const aqCb = document.getElementById("plan-editor-autoquest");
+  if (aqCb) {
+    aqCb.checked = activeEditingPlan.autoQuestEnabled !== false;
+    aqCb.onchange = () => {
+      activeEditingPlan.autoQuestEnabled = aqCb.checked;
+      if (typeof markPlanDirty === 'function') markPlanDirty();
+      refreshAutoJobUi();
+    };
+  }
+
   const autoCb = document.getElementById("plan-editor-autojob");
   if (autoCb) {
-    autoCb.checked = planAutoJobChangeOf(activeEditingPlan);
+    autoCb.checked = typeof planAutoJobChangeOf === 'function' ? planAutoJobChangeOf(activeEditingPlan) : (activeEditingPlan.autoJobChange !== false);
     autoCb.onchange = () => {
       activeEditingPlan.autoJobChange = autoCb.checked;
       if (typeof markPlanDirty === 'function') markPlanDirty();
       refreshAutoJobUi();
     };
   }
-  refreshAutoJobUi();
-  const petCb = document.getElementById("plan-editor-eventpet");
-  if (petCb) {
-    petCb.checked = activeEditingPlan.eventPet !== false;
-    petCb.onchange = () => {
-      activeEditingPlan.eventPet = petCb.checked;
+
+  const statCb = document.getElementById("plan-editor-autostat");
+  if (statCb) {
+    statCb.checked = activeEditingPlan.autoStatSkillEnabled !== false;
+    statCb.onchange = () => {
+      activeEditingPlan.autoStatSkillEnabled = statCb.checked;
       if (typeof markPlanDirty === 'function') markPlanDirty();
-    };
-  }
-  const gemCb = document.getElementById("plan-editor-autogem");
-  if (gemCb) {
-    gemCb.checked = activeEditingPlan.autoUpgradeGems !== false;
-    gemCb.onchange = () => {
-      activeEditingPlan.autoUpgradeGems = gemCb.checked;
-      if (typeof markPlanDirty === 'function') markPlanDirty();
+      refreshAutoJobUi();
     };
   }
 
@@ -281,6 +4420,17 @@ function updateClassDropdownsInEditor() {
     c2Sel.value = activeEditingPlan.class2Target;
   }
 
+  const updateC3Preview = () => {
+    const t = CLASS_TREE_MAP[activeEditingPlan.class1Target] || CLASS_TREE_MAP['archer'];
+    const sc = t.secondClasses.find(s => s.id === activeEditingPlan.class2Target) || t.secondClasses[0];
+    if (sc) {
+      activeEditingPlan.class3Target = sc.class3Id;
+      if (c3Badge) c3Badge.textContent = sc.class3Name || sc.class3Id;
+    }
+    if (typeof refreshAutoJobUi === 'function') refreshAutoJobUi();
+  };
+  updateC3Preview();
+
   c1Sel.onchange = () => {
     activeEditingPlan.class1Target = c1Sel.value;
     const newTree = CLASS_TREE_MAP[c1Sel.value] || CLASS_TREE_MAP['archer'];
@@ -289,11 +4439,17 @@ function updateClassDropdownsInEditor() {
     `).join('');
     activeEditingPlan.class2Target = newTree.secondClasses[0].id;
     c2Sel.value = activeEditingPlan.class2Target;
+    skillMetaCache = null;
+    updateC3Preview();
+    if (typeof markPlanDirty === 'function') markPlanDirty();
     updatePlanEditorBadges();
   };
 
   c2Sel.onchange = () => {
     activeEditingPlan.class2Target = c2Sel.value;
+    skillMetaCache = null;
+    updateC3Preview();
+    if (typeof markPlanDirty === 'function') markPlanDirty();
     updatePlanEditorBadges();
   };
 }
@@ -848,230 +5004,35 @@ function resetSkillQueue() {
 function applySkillPreset() {
   if (!activeEditingPlan || !activeEditingPlan.skillBuild) return;
   const c1 = activeEditingPlan.class1Target || 'archer';
-  const c2 = activeEditingPlan.class2Target || 'hunter';
+  const c2 = activeEditingPlan.class2Target || 'ranger';
 
   activeEditingPlan.skillBuild.skillPointQueue = [];
   activeEditingPlan.skillBuild.plannedLevels = {};
-  if (!activeEditingPlan.skillBuild.facets || typeof activeEditingPlan.skillBuild.facets !== 'object') {
-    activeEditingPlan.skillBuild.facets = {};
-  }
+  activeEditingPlan.skillBuild.facets = {};
+  skillMetaCache = null;
 
   const pushMany = (id, count) => {
     for (let i = 0; i < count; i++) addSkillPoint(id, true);
   };
 
-  // 1. Novice: 9x basic-skill
-  pushMany('basic-skill', 9);
+  // 1. Traveler (Novice) 9 points
+  pushMany('mastery', 5);
+  pushMany('q', 2);
+  pushMany('body', 2);
 
-  // 2. Class 1 presets (49 points each)
-  if (c1 === 'archer') {
-    pushMany('double-strafe', 10);
-    pushMany('owl-eye', 10);
-    pushMany('vulture-eye', 10);
-    pushMany('improve-concentration', 10);
-    pushMany('arrow-shower', 9);
-    activeEditingPlan.skillBuild.facets['double-strafe'] = [0, 1, 0];
-    activeEditingPlan.skillBuild.facets['arrow-shower'] = [0, 1, 0];
-  } else if (c1 === 'swordsman') {
-    pushMany('bash', 5);
-    pushMany('sword-mastery', 10);
-    pushMany('hp-recovery', 5);
-    pushMany('bash', 5);
-    pushMany('provoke', 5);
-    pushMany('endure', 3);
-    if (c2 === 'knight') {
-      pushMany('magnum-break', 3);
-      pushMany('hp-recovery', 5);
-      pushMany('provoke', 5);
-      pushMany('endure', 3);
-    } else {
-      pushMany('hp-recovery', 5);
-      pushMany('provoke', 5);
-      pushMany('endure', 6);
+  // 2. Class 1 & Class 2 auto-fill from SKILLS_DATABASE[c1] and SKILLS_DATABASE[c2]
+  const fillTier = (tierKey, maxPts) => {
+    const list = SKILLS_DATABASE[tierKey] || [];
+    let before = activeEditingPlan.skillBuild.skillPointQueue.length;
+    for (const sk of list) {
+      const spent = activeEditingPlan.skillBuild.skillPointQueue.length - before;
+      if (spent >= maxPts) break;
+      const want = Math.min(sk.maxLevel || 5, maxPts - spent);
+      pushMany(sk.id, want);
     }
-    activeEditingPlan.skillBuild.facets['bash'] = [0, 1, 0];
-    activeEditingPlan.skillBuild.facets['provoke'] = [2, 2, 0];
-  } else if (c1 === 'mage') {
-    pushMany('fire-bolt', 5);
-    pushMany('cold-bolt', 5);
-    pushMany('frost-diver', 5);
-    pushMany('lightning-bolt', 5);
-    pushMany('napalm-beat', 5);
-    pushMany('staff-mastery', 10);
-    pushMany('sp-recovery', 10);
-    pushMany('fire-bolt', 4);
-    activeEditingPlan.skillBuild.facets['fire-bolt'] = [0, 0, 0];
-    activeEditingPlan.skillBuild.facets['cold-bolt'] = [0, 0, 0];
-    activeEditingPlan.skillBuild.facets['lightning-bolt'] = [0, 0, 0];
-  } else if (c1 === 'thief') {
-    pushMany('dagger-mastery', 10);
-    pushMany('double-attack', 10);
-    pushMany('improve-dodge', 10);
-    pushMany('steal', 5);
-    pushMany('hiding', 3);
-    pushMany('envenom', 5);
-    pushMany('steal', 5);
-    pushMany('back-slide', 1);
-    activeEditingPlan.skillBuild.facets['envenom'] = [0, 0, 0];
-  } else if (c1 === 'acolyte') {
-    pushMany('heal', 3);
-    pushMany('holy-light', 5);
-    pushMany('divine-protection', 5);
-    pushMany('blessing', 10);
-    pushMany('increase-agi', 10);
-    pushMany('divine-protection', 5);
-    pushMany('heal', 7);
-    pushMany('defense-increase', 4);
-    activeEditingPlan.skillBuild.facets['holy-light'] = [0, 0, 2];
-  } else if (c1 === 'merchant') {
-    pushMany('axe-mastery', 10);
-    pushMany('enlarge-weight', 3);
-    pushMany('discount', 3);
-    pushMany('loud-exclamation', 1);
-    pushMany('hagglers-wit', 10);
-    pushMany('mammonite', 8);
-    pushMany('discount', 7);
-    pushMany('enlarge-weight', 7);
-    activeEditingPlan.skillBuild.facets['mammonite'] = [0, 0, 0];
-  }
-
-  // 3. Class 2 presets (49 points each)
-  if (c2 === 'hunter') {
-    pushMany('falconry-mastery', 1);
-    pushMany('blitz-beat', 10);
-    pushMany('steel-crow', 10);
-    pushMany('auto-blitz-beat', 5);
-    pushMany('detecting', 1);
-    pushMany('land-mine', 10);
-    pushMany('ankle-snare', 10);
-    pushMany('claymore-trap', 2);
-    activeEditingPlan.skillBuild.facets['blitz-beat'] = [0, 1, 0];
-    activeEditingPlan.skillBuild.facets['detecting'] = [2, 0, 0];
-  } else if (c2 === 'bard') {
-    pushMany('musical-strike', 10);
-    pushMany('poem-of-bragi', 3);
-    pushMany('apple-of-idun', 10);
-    pushMany('poem-of-bragi', 7);
-    pushMany('assassin-cross-of-sunset', 10);
-    pushMany('frost-joke', 9);
-    activeEditingPlan.skillBuild.facets['musical-strike'] = [0, 2, 1];
-    activeEditingPlan.skillBuild.facets['frost-joke'] = [0, 1, 0];
-  } else if (c2 === 'dancer') {
-    pushMany('throw-arrow', 10);
-    pushMany('service-for-you', 3);
-    pushMany('fortune-kiss', 10);
-    pushMany('service-for-you', 7);
-    pushMany('humming', 10);
-    pushMany('scream', 9);
-    activeEditingPlan.skillBuild.facets['throw-arrow'] = [0, 2, 1];
-    activeEditingPlan.skillBuild.facets['scream'] = [0, 2, 0];
-  } else if (c2 === 'knight') {
-    pushMany('two-hand-sword-mastery', 10);
-    pushMany('two-hand-quicken', 10);
-    pushMany('bowling-bash', 10);
-    pushMany('parry', 10);
-    pushMany('peco-peco-ride', 1);
-    pushMany('peco-peco-master', 5);
-    pushMany('charge-attack', 1);
-    pushMany('pierce', 2);
-    activeEditingPlan.skillBuild.facets['bowling-bash'] = [0, 1, 0];
-    activeEditingPlan.skillBuild.facets['charge-attack'] = [0, 1, 0];
-  } else if (c2 === 'crusader') {
-    pushMany('faith', 5);
-    pushMany('auto-guard', 5);
-    pushMany('defender', 5);
-    pushMany('guardians-oath', 5);
-    pushMany('shield-charge', 3);
-    pushMany('shield-boomerang', 6);
-    pushMany('faith', 5);
-    pushMany('auto-guard', 5);
-    pushMany('defender', 5);
-    pushMany('guardians-oath', 5);
-    activeEditingPlan.skillBuild.facets['guardians-oath'] = [1, 1, 0];
-    activeEditingPlan.skillBuild.facets['shield-boomerang'] = [0, 0, 0];
-  } else if (c2 === 'wizard') {
-    pushMany('jupitel-thunder', 5);
-    pushMany('storm-gust', 10);
-    pushMany('heavens-drive', 3);
-    pushMany('meteor-storm', 10);
-    pushMany('arcane-amplify', 10);
-    pushMany('quagmire', 5);
-    pushMany('safety-wall', 6);
-    activeEditingPlan.skillBuild.facets['storm-gust'] = [0, 2, 1];
-    activeEditingPlan.skillBuild.facets['meteor-storm'] = [0, 1, 2];
-  } else if (c2 === 'sage') {
-    pushMany('advanced-book', 10);
-    pushMany('auto-spell', 10);
-    pushMany('twin-bolt', 5);
-    pushMany('dragonology', 5);
-    pushMany('earth-spike', 10);
-    pushMany('endow-blaze', 2);
-    pushMany('flame-field', 5);
-    pushMany('create-converter', 1);
-    pushMany('land-protector', 1);
-    activeEditingPlan.skillBuild.facets['earth-spike'] = [0, 0, 0];
-  } else if (c2 === 'assassin') {
-    pushMany('katar-mastery', 10);
-    pushMany('sonic-blow', 10);
-    pushMany('sonic-acceleration', 5);
-    pushMany('cloaking', 5);
-    pushMany('grimtooth', 10);
-    pushMany('enchant-poison', 9);
-    activeEditingPlan.skillBuild.facets['sonic-blow'] = [0, 1, 0];
-    activeEditingPlan.skillBuild.facets['grimtooth'] = [0, 2, 0];
-  } else if (c2 === 'rogue') {
-    pushMany('back-stab', 10);
-    pushMany('raid', 10);
-    pushMany('snatcher', 10);
-    pushMany('strip-armor', 9);
-    pushMany('plagiarism', 10);
-    activeEditingPlan.skillBuild.facets['back-stab'] = [0, 0, 0];
-    activeEditingPlan.skillBuild.facets['raid'] = [0, 2, 0];
-    activeEditingPlan.skillBuild.facets['strip-armor'] = [2, 1, 1];
-  } else if (c2 === 'priest') {
-    pushMany('magnus-exorcismus', 10);
-    pushMany('impositio-manus', 10);
-    pushMany('kyrie-eleison', 10);
-    pushMany('gloria', 5);
-    pushMany('pneuma', 1);
-    pushMany('purifying-light', 1);
-    pushMany('resurrection', 1);
-    pushMany('sanctuary', 7);
-    pushMany('aspersio', 4);
-    activeEditingPlan.skillBuild.facets['magnus-exorcismus'] = [0, 0, 0];
-    activeEditingPlan.skillBuild.facets['pneuma'] = [2, 1, 0];
-    activeEditingPlan.skillBuild.facets['resurrection'] = [0, 0, 0];
-    activeEditingPlan.skillBuild.facets['purifying-light'] = [0, 0, 0];
-  } else if (c2 === 'monk') {
-    pushMany('iron-fists', 10);
-    pushMany('triple-attack', 10);
-    pushMany('call-spirits', 5);
-    pushMany('investigate', 10);
-    pushMany('finger-offensive', 3);
-    pushMany('asura-strike', 10);
-    pushMany('fury', 1);
-    activeEditingPlan.skillBuild.facets['investigate'] = [0, 1, 0];
-    activeEditingPlan.skillBuild.facets['asura-strike'] = [0, 0, 0];
-  } else if (c2 === 'blacksmith') {
-    pushMany('hammer-fall', 9);
-    pushMany('adrenaline-rush', 4);
-    pushMany('over-thrust', 10);
-    pushMany('weaponry-research', 2);
-    pushMany('weapon-perfection', 10);
-    pushMany('adrenaline-rush', 6);
-    pushMany('weaponry-research', 8);
-    activeEditingPlan.skillBuild.facets['hammer-fall'] = [0, 1, 0];
-  } else if (c2 === 'alchemist') {
-    pushMany('alchemy-mastery', 10);
-    pushMany('acid-terror', 10);
-    pushMany('flask-frenzy', 10);
-    pushMany('demonstration', 10);
-    pushMany('potion-pitcher', 3);
-    pushMany('berserk-elixir', 5);
-    pushMany('chemical-protection', 1);
-    activeEditingPlan.skillBuild.facets['acid-terror'] = [0, 2, 0];
-    activeEditingPlan.skillBuild.facets['demonstration'] = [0, 0, 0];
-  }
+  };
+  fillTier(c1, 49);
+  fillTier(c2, 49);
 
   renderSkillBuilderUI();
 }
@@ -1089,19 +5050,20 @@ function saveSkillBuild() {
 //    are kept for older bots. Old plans without a queue: targets in priority order (what the bot did before).
 const STAT_KEYS = ['STR', 'AGI', 'VIT', 'INT', 'DEX', 'LUK'];
 const STAT_META = {
-  STR: { icon: '💪', color: '#f87171', th: 'กายภาพ / แบกน้ำหนัก' },
-  AGI: { icon: '⚡', color: '#34d399', th: 'ความเร็วโจมตี / หลบหลีก' },
-  VIT: { icon: '🛡️', color: '#fbbf24', th: 'HP สูงสุด / ป้องกัน' },
-  INT: { icon: '🔮', color: '#60a5fa', th: 'SP สูงสุด / เวท' },
-  DEX: { icon: '🏹', color: '#38bdf8', th: 'แม่นยำ / โจมตีไกล / ร่ายไว' },
-  LUK: { icon: '🍀', color: '#c084fc', th: 'คริติคอล / นกออกบ่อย' }
+  STR: { icon: '💪', color: '#f87171', th: 'ATK ประชิด +1.6/แต้ม · เบรกเกราะ · แบกของ +20 (เพดาน 80)' },
+  AGI: { icon: '⚡', color: '#34d399', th: 'ASPD +0.5%/แต้ม · หลบเฉียดลดดาเมจ 70% · หลบ MISS (เพดาน 80)' },
+  VIT: { icon: '🛡️', color: '#fbbf24', th: 'HP +1%/แต้ม · ลดดาเมจที่ได้รับ 0.2%/แต้ม (เพดาน 80)' },
+  INT: { icon: '🔮', color: '#60a5fa', th: 'MATK +1.6/แต้ม · ฮีล · SP สูงสุด & ฟื้น SP (เพดาน 80)' },
+  DEX: { icon: '🏹', color: '#38bdf8', th: 'ATK ธนู/ปืน +1.6/แต้ม · แม่นยำ · ลดเวลาร่าย 0.6%/แต้ม (เพดาน 80)' },
+  LUK: { icon: '🍀', color: '#c084fc', th: 'คริ +0.3%/แต้ม · คริแรง +0.4%/แต้ม · เหยี่ยวโฉบฟรี LUK÷6 (เพดาน 80)' }
 };
+// Nightcamp Soft Cap: 30 + 0.55 * BaseLv (max 80). Points above cap only give 40% efficiency!
 const STAT_PRESETS = {
-  agi_dex: [['DEX', 30], ['AGI', 30], ['DEX', 60], ['AGI', 60], ['DEX', 99], ['AGI', 99], ['LUK', 9]],
-  blitz_beat: [['DEX', 40], ['LUK', 30], ['AGI', 30], ['DEX', 80], ['LUK', 60], ['AGI', 80], ['INT', 20]],
-  str_agi: [['STR', 30], ['AGI', 30], ['STR', 60], ['AGI', 60], ['VIT', 30], ['STR', 90], ['AGI', 90], ['DEX', 30]],
-  int_dex: [['INT', 30], ['DEX', 30], ['INT', 60], ['DEX', 60], ['VIT', 30], ['INT', 99], ['DEX', 99]],
-  vit_tank: [['VIT', 40], ['INT', 20], ['VIT', 70], ['DEX', 30], ['INT', 40], ['VIT', 99], ['STR', 30], ['INT', 60], ['DEX', 50]]
+  agi_dex: [['DEX', 30], ['AGI', 30], ['LUK', 20], ['DEX', 45], ['AGI', 45], ['VIT', 20], ['DEX', 65], ['AGI', 65], ['LUK', 40], ['DEX', 80], ['AGI', 80], ['VIT', 40]],
+  blitz_beat: [['DEX', 30], ['AGI', 30], ['LUK', 24], ['DEX', 45], ['AGI', 45], ['LUK', 36], ['VIT', 20], ['DEX', 60], ['AGI', 60], ['LUK', 48], ['DEX', 80], ['AGI', 80], ['LUK', 60], ['VIT', 40]],
+  str_agi: [['STR', 30], ['AGI', 30], ['DEX', 20], ['STR', 45], ['AGI', 45], ['VIT', 25], ['STR', 65], ['AGI', 65], ['LUK', 30], ['STR', 80], ['AGI', 80], ['VIT', 45]],
+  int_dex: [['INT', 30], ['DEX', 30], ['VIT', 20], ['INT', 45], ['DEX', 45], ['AGI', 25], ['INT', 65], ['DEX', 65], ['VIT', 35], ['INT', 80], ['DEX', 80], ['VIT', 50]],
+  vit_tank: [['VIT', 35], ['STR', 25], ['DEX', 20], ['VIT', 50], ['STR', 40], ['AGI', 30], ['VIT', 65], ['STR', 55], ['VIT', 80], ['STR', 70], ['AGI', 50]]
 };
 let statWork = null;   // the queue being edited (written to the plan only on save)
 

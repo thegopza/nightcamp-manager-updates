@@ -85,6 +85,7 @@ function createPlanSync({ loadPlans, savePlans, loadProfiles, evalProfilePort })
       botRunning: !!window.__isBotRunning,
       planId: plan ? plan.id || null : null,
       planName: plan ? plan.name || null : null,
+      task: window.__planActiveTask || '',
       done: st ? Object.keys(st.done || {}) : [],
       pending: st ? Object.keys(st.pending || {}).map(id => ({ id, level: st.pending[id].level, type: st.pending[id].type, cls: st.pending[id].cls || '' })) : []
     };
