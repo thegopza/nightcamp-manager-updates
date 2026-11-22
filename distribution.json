@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "sourceCommit": "bc851c1964f088545006be0fac81b2cfbb44f0d0",
+  "sourceCommit": "0430d6d6333eb1415fcec7f79b56f444185339cd",
   "files": [
     {
       "path": "manager/asset_cache.js",
@@ -108,7 +108,7 @@
     },
     {
       "path": "manager/offline_script_bootstrap.js",
-      "sha256": "88691ced250478f0284a519dcb1a1c883247862595b5465c0e3eb80223ac0382"
+      "sha256": "51140c89bafc652925d3a8b7d3100e3eb02d74cbf72f56e707642c49902acf22"
     },
     {
       "path": "manager/party_api.js",
@@ -140,7 +140,7 @@
     },
     {
       "path": "manager/public/app.js",
-      "sha256": "d5ace912cfc63828ddce6f5dda5fec81cee10124d705a741d58f2c55695d49d2"
+      "sha256": "79bb1e9bca54789e31f45d22ba8adc980c5db2c3ad42553428080777bf92a94c"
     },
     {
       "path": "manager/public/bot_update.css",

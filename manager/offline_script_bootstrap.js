@@ -20,7 +20,7 @@
     'setLowPowerMode', 'getColyseusRoom', 'getGameRoom', '__getClientLiveState',
     'getCurrentMapName', 'getCurrentChannel', 'getLiveCharacterData',
     '__inspectNightcampRuntime', 'getCharacterName', 'syncAllHudInputsFromConfig',
-    '__setAutoRespawnEnabled', '__setPotionConfig', '__setSmartAutoQuestEnabled',
+    '__setAutoRespawnEnabled', '__setSmartGearEnabled', '__setPotionConfig', '__setSmartAutoQuestEnabled',
     '__setUpgradeBotAiEnabled', '__setAutoSellConfig', '__setTargetFarmMap',
     '__applyScriptPlan', '__triggerPotionRestockTripNow']);
   const safeStops = new Set(['stopMasterBot', 'stopPelicanBot']);

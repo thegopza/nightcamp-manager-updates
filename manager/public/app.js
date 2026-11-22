@@ -8075,6 +8075,10 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
         <input type="checkbox" id="p-nc-autorespawn-enabled" ${state?.autoRespawnEnabled !== false ? 'checked' : ''} style="accent-color:#f43f5e;">
         <span>⚰️ เปิด Auto-Respawn (ตายเกิดใหม่ทันที + ลุยต่อ)</span>
       </label>
+      <label style="display:flex; align-items:center; gap:5px; font-size:10.5px; font-weight:700; color:#c084fc; cursor:pointer;" title="สวมใส่อาวุธ ชุดเกราะ หมวก และประดับในกระเป๋าที่ดีกว่าเดิมโดยคำนวณตามสายอาชีพและ Stats ของตัวละครอัตโนมัติทันทีที่ดรอป">
+        <input type="checkbox" id="p-nc-smartgear-enabled" ${state?.smartGearEnabled !== false ? 'checked' : ''} style="accent-color:#a855f7;">
+        <span>⚔️ เปิด Smart Gear (สวมใส่อุปกรณ์ตามสายอาชีพ/Stats อัตโนมัติ)</span>
+      </label>
       <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; border-top:1px solid rgba(255,255,255,0.08); padding-top:5px;">
         <label style="display:flex; align-items:center; gap:5px; font-size:10.5px; font-weight:700; color:#fde68a; cursor:pointer;">
           <input type="checkbox" id="p-nc-autosell-enabled" ${state?.autoSellEnabled !== false ? 'checked' : ''} style="accent-color:#f59e0b;">
@@ -8546,6 +8550,18 @@ async function openWebBotHUD(profileId) {
     };
   }
 
+  const sgEnableCb = hudEl.querySelector('#p-nc-smartgear-enabled');
+  if (sgEnableCb) {
+    sgEnableCb.onchange = async () => {
+      try {
+        await sendWebHudAction(profileId, {
+          type: 'eval',
+          code: `(typeof window.__setSmartGearEnabled === 'function' ? window.__setSmartGearEnabled(${Boolean(sgEnableCb.checked)}) : (window.__smartGearEnabled = ${Boolean(sgEnableCb.checked)}))`
+        });
+      } catch (_) {}
+    };
+  }
+
   const syncWebPotCfg = async () => {
     try {
       const patch = {
@@ -8797,6 +8813,10 @@ function populateWebHudData(profileId, data) {
   const respEnableCb = hud.querySelector('#p-nc-autorespawn-enabled');
   if (respEnableCb && typeof st.autoRespawnEnabled === 'boolean' && document.activeElement !== respEnableCb) {
     respEnableCb.checked = st.autoRespawnEnabled;
+  }
+  const sgEnableCb = hud.querySelector('#p-nc-smartgear-enabled');
+  if (sgEnableCb && typeof st.smartGearEnabled === 'boolean' && document.activeElement !== sgEnableCb) {
+    sgEnableCb.checked = st.smartGearEnabled;
   }
   if (st.potionConfig && typeof st.potionConfig === 'object') {
     const pc = st.potionConfig;
