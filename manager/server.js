@@ -1198,7 +1198,7 @@ const LIVE_STATE_EVAL = `(() => {
           autoReloadAfterMs = 16000;
         } else if (/เครื่องนี้เล่นพร้อมกันได้สูงสุด|ออกจากตัวละครอื่นก่อน/i.test(errText)) {
           screenPhase = 'char_select_limit';
-          baseLabel = '🔑 จำกัด 3 จอ (กำลังสลับ Device ID...)';
+          baseLabel = '🔑 จำกัด 2 จอ (กำลังสลับ Device ID...)';
           detail = '🔑 หน้าเลือกตัวละคร: ' + errText;
           autoReloadAfterMs = 16000;
         } else {
@@ -9461,7 +9461,7 @@ const server = http.createServer(async (req, res) => {
     const surchargeConfig = typeof screenProxy.getSurchargeConfig === "function"
       ? screenProxy.getSurchargeConfig()
       : null;
-    return sendJSON({ success: true, maxScreensPerDevice: 3, screensPerIp, groups, customIpConfig, customGroupLeases, surchargeConfig, lastJailAutoCloseEvent });
+    return sendJSON({ success: true, maxScreensPerDevice: 2, screensPerIp, groups, customIpConfig, customGroupLeases, surchargeConfig, lastJailAutoCloseEvent });
   }
 
   // GET / POST /api/custom-ip-devices

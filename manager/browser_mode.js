@@ -17,7 +17,7 @@ const { spawn, execFile } = require('child_process');
 const GAME_URL = 'https://play.nightcamp.app/';
 const BOT_URL = 'https://raw.githubusercontent.com/thegopza/nightcamp-bot/main/bot.js';
 const DEFAULT_CDP_PORT = 9500;
-const MAX_SCREENS_PER_DEVICE = 3;
+const MAX_SCREENS_PER_DEVICE = 2;
 const UUID_V4_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SHA256_HEX_RE = /^[0-9a-f]{64}$/i;
 function deriveMachineId(seed) {

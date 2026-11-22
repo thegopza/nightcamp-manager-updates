@@ -3,7 +3,7 @@
 // ============================================================
 // - Sits on the right edge directly below Jail (`#jl-tab`), with a gear icon (`⚙️`).
 // - Tab 1 ("จัดกลุ่มอัตโนมัติ"): Groups unisolated profiles by IP block (`screensPerIp`, default 6),
-//   subdivides each IP block into Device Spoof groups of at most 3 screens per Device,
+//   subdivides each IP block into Device Spoof groups of at most 2 screens per Device,
 //   and shows tiered merit surcharge rate relative to baseline (1 IP : 6 จอ = +0%).
 // - Tab 2 ("แยก IP / Device พิเศษ"): Lets users create dedicated Custom IP Groups
 //   (reserving 1 Proxy IP upfront), create flexible Custom Device Groups inside each IP
@@ -11,7 +11,7 @@
 //   and rotate Device/Machine IDs independently.
 
 (function () {
-  const MAX_SCREENS_PER_DEVICE = 3;
+  const MAX_SCREENS_PER_DEVICE = 2;
   const DEFAULT_SURCHARGE_CFG = {
     enabled: true,
     baseline: 6,
@@ -448,11 +448,11 @@
           <div class="dv-platform-mode-group" id="dv-platform-mode-group">
             <button type="button" class="dv-platform-mode-btn active" data-dv-platform-mode="pc" title="จำลองทุกกลุ่มอัตโนมัติเป็นเครื่องคอมพิวเตอร์ Windows PC">🖥️ PC ทั้งหมด</button>
             <button type="button" class="dv-platform-mode-btn" data-dv-platform-mode="android" title="จำลองทุกกลุ่มอัตโนมัติเป็นมือถือ/แท็บเล็ต Android (Adreno/Mali + Touch)">📱 Android ทั้งหมด</button>
-            <button type="button" class="dv-platform-mode-btn" data-dv-platform-mode="mixed" title="สลับอัตโนมัติ: ใน 1 IP ให้ Device 1 เป็น PC และ Device 2 เป็น Android">🔀 ผสม PC + Android</button>
+            <button type="button" class="dv-platform-mode-btn" data-dv-platform-mode="mixed" title="สลับอัตโนมัติ: ใน 1 IP ให้สลับกลุ่มคี่เป็น PC และกลุ่มคู่เป็น Android">🔀 ผสม PC + Android</button>
           </div>
         </div>
         <div class="dv-ip-split-banner" id="dv-ip-split-banner">
-          ⚙️ 1 IP (6 จอ) ➜ แบ่งเป็น <b>2 กลุ่ม · 2 Device</b> (3 + 3 จอ)
+          ⚙️ 1 IP (6 จอ) ➜ แบ่งเป็น <b>3 กลุ่ม · 3 Device</b> (2 + 2 + 2 จอ)
         </div>
 
         <div class="dv-summary-bar">

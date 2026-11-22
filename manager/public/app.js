@@ -1389,7 +1389,7 @@ function getActivityTone(text, screenPhase) {
   }
   const t = String(text || '');
   if (t.includes('ตาย') || t.includes('ชุบ') || t.includes('พลาด') || t.includes('ไม่ตอบ') || t.includes('ไม่ผ่าน') || t.includes('Error') || t.includes('HTTP 5') || t.includes('ค้างออนไลน์')) return 'danger';
-  if (t.includes('ซื้อ') || t.includes('ขาย') || t.includes('กำลังโหลด') || t.includes('จำกัด 3 จอ') || t.includes('รีเฟรช') || t.includes('รอคิวสมัคร') || t.includes('ถึงคิวสมัคร')) return 'warn';
+  if (t.includes('ซื้อ') || t.includes('ขาย') || t.includes('กำลังโหลด') || t.includes('จำกัด 2 จอ') || t.includes('จำกัด 3 จอ') || t.includes('รีเฟรช') || t.includes('รอคิวสมัคร') || t.includes('ถึงคิวสมัคร')) return 'warn';
   if (t.includes('เดิน') || t.includes('หน้า Login') || t.includes('เลือกตัวละคร') || t.includes('สมัครบัญชี') || t.includes('สร้างตัวละคร') || t.includes('กำลังเข้าสู่ระบบ')) return 'travel';
   if (t.includes('ฟาร์ม') || t.includes('Farm')) return 'farm';
   if (t.includes('รอ') || t.includes('แสตนด์บาย') || t.includes('หยุด')) return 'idle';
@@ -3998,7 +3998,7 @@ window.updateScreenProxyToolbarBtn = updateScreenProxyToolbarBtn;
 
 function computeDeviceSubSizesForIp(screensPerIp) {
   const perIp = Math.max(1, Math.min(20, Number(screensPerIp) || 6));
-  const maxPerDevice = 3;
+  const maxPerDevice = 2;
   const count = Math.ceil(perIp / maxPerDevice);
   const sizes = [];
   for (let i = 0; i < count; i++) {
