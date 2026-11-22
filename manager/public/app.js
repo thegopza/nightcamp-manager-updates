@@ -8063,10 +8063,54 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
     </div>
 
     <div class="p-card" style="border: 1px solid rgba(168, 85, 247, 0.42); background: linear-gradient(145deg, rgba(30, 17, 56, 0.65), rgba(15, 23, 42, 0.85)); border-radius: 7px; padding: 8px; display:flex; flex-direction:column; gap:6px;">
-      <label style="display:flex; align-items:center; gap:5px; font-size:10.5px; font-weight:700; color:#86efac; cursor:pointer;" title="ทำเควส/บทเรียนอัตโนมัติทั้งหมด หากไม่ได้เปิด Plan Script ระบบจะหยุดรอให้คุณเลือกอาชีพเอง">
+      <label style="display:flex; align-items:center; gap:5px; font-size:10.5px; font-weight:700; color:#86efac; cursor:pointer;" title="ใหญ่สุด: ทำเควส/บทเรียนอัตโนมัติทั้งหมด หากไม่ได้เปิด Plan Script ระบบจะหยุดรอให้คุณเลือกอาชีพเอง">
         <input type="checkbox" id="p-nc-smart-autoquest-enabled" ${state?.smartAutoQuestEnabled !== false ? 'checked' : ''} style="accent-color:#22c55e;">
-        <span>🧭 เปิด Smart Auto-Quest (ทำเควสอัตโนมัติ)</span>
+        <span>🧭 เปิด Smart Auto-Quest (ทำเควสอัตโนมัติ - ใหญ่สุด)</span>
       </label>
+      <label style="display:flex; align-items:center; gap:5px; font-size:10.5px; font-weight:700; color:#7dd3fc; cursor:pointer;" title="แก้บั๊ก AI ของเกมที่เดินวนของดรอป + วิ่งหาโซนเกิดมอนเควส + เคลียร์มอนแย่งจุดเกิด">
+        <input type="checkbox" id="p-nc-upgrade-ai-enabled" ${state?.upgradeBotAiEnabled !== false ? 'checked' : ''} style="accent-color:#0ea5e9;">
+        <span>🧠 Upgrade BOT AI (เก็บของไว/ไม่เดินวน/วิ่งหาโซนมอน)</span>
+      </label>
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; border-top:1px solid rgba(255,255,255,0.08); padding-top:5px;">
+        <label style="display:flex; align-items:center; gap:5px; font-size:10.5px; font-weight:700; color:#fde68a; cursor:pointer;">
+          <input type="checkbox" id="p-nc-autosell-enabled" ${state?.autoSellEnabled !== false ? 'checked' : ''} style="accent-color:#f59e0b;">
+          <span>💰 Auto-Sell เมื่อนน.เกิน:</span>
+        </label>
+        <select id="p-nc-autosell-pct" style="background:#090d16; border:1px solid rgba(251,191,36,0.5); color:#fde68a; border-radius:4px; font-size:10px; font-weight:700; padding:2px 5px; cursor:pointer;">
+          ${[45, 50, 55, 60, 65, 70, 75, 80].map(pct => `<option value="${pct}" ${Number(state?.autoSellWeightPct || 65) === pct ? 'selected' : ''}>${pct}%</option>`).join('')}
+        </select>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:3px; border-top:1px solid rgba(255,255,255,0.08); padding-top:5px;">
+        <span style="font-size:10px; font-weight:700; color:#e2e8f0;">🗺️ แมพฟาร์มประจำ (เมื่อปิด Auto-Quest):</span>
+        <select id="p-nc-target-farm-map" style="width:100%; background:#090d16; border:1px solid rgba(56,189,248,0.45); color:#fff; border-radius:4px; font-size:10px; padding:3px 5px; cursor:pointer;">
+          ${[
+            ['auto', '⚡ อัตโนมัติตามเลเวล (Auto Level Map)'],
+            ['farm', '[Lv.1-10] ไร่ฟักทอง (farm)'],
+            ['batcave', '[Lv.8-16] ถ้ำค้างคาว (batcave)'],
+            ['meadow', '[Lv.8-18] ทุ่งหญ้าแสงจันทร์ (meadow)'],
+            ['apiary', '[Lv.10-18] สวนรังผึ้ง (apiary)'],
+            ['cornmaze', '[Lv.12-20] เขาวงกตข้าวโพด (cornmaze)'],
+            ['farm2', '[Lv.12-22] ไร่ฟักทองในลึก (farm2)'],
+            ['marsh', '[Lv.15-25] บึงหมอกพิษ (marsh)'],
+            ['graveyard', '[Lv.18-30] เนินสุสานโบสถ์ร้าง (graveyard)'],
+            ['meadow2', '[Lv.18-28] ทุ่งหญ้าแสงจันทร์ชั้นใน (meadow2)'],
+            ['antmine1', '[Lv.20-30] เหมืองมด ชั้น 1 (antmine1)'],
+            ['woods', '[Lv.26-38] ป่าลึกเงามืด (woods)'],
+            ['antmine2', '[Lv.28-38] เหมืองมด ชั้น 2 (antmine2)'],
+            ['graveyard2', '[Lv.30-42] สุสานโบสถ์ร้างชั้นใน (graveyard2)'],
+            ['burnt', '[Lv.35-48] ป่าไฟไหม้ (burnt)'],
+            ['woods2', '[Lv.38-50] ป่าลึกชั้นใน (woods2)'],
+            ['crypt1', '[Lv.40-52] สุสานใต้ดิน ชั้น 1 (crypt1)'],
+            ['salt', '[Lv.44-56] ทุ่งเกลือ (salt)'],
+            ['wind', '[Lv.45-58] ที่ราบสูงสายลม (wind)'],
+            ['peak', '[Lv.46-60] ยอดเขาหิมะ (peak)'],
+            ['avalanche', '[Lv.50-65] หุบเขาหิมะถล่ม (avalanche)'],
+            ['swamp', '[Lv.55-70] บึงมรณะ (swamp)'],
+            ['canyon', '[Lv.60-75] หุบผาหินแดง (canyon)'],
+            ['volcano', '[Lv.70-85] ปากปล่องภูเขาไฟ (volcano)']
+          ].map(([id, label]) => `<option value="${id}" ${(state?.targetFarmMap || 'auto') === id ? 'selected' : ''}>${label}</option>`).join('')}
+        </select>
+      </div>
       <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; border-top:1px solid rgba(255,255,255,0.08); padding-top:5px;">
         <label style="display:flex; align-items:center; gap:5px; font-size:10.5px; font-weight:700; color:#e9d5ff; cursor:pointer;">
           <input type="checkbox" id="p-nc-plan-enabled" ${state?.planScriptEnabled !== false ? 'checked' : ''} style="accent-color:#a855f7;">
@@ -8439,6 +8483,46 @@ async function openWebBotHUD(profileId) {
     };
   }
 
+  const aiEnableCb = hudEl.querySelector('#p-nc-upgrade-ai-enabled');
+  if (aiEnableCb) {
+    aiEnableCb.onchange = async () => {
+      try {
+        await sendWebHudAction(profileId, {
+          type: 'eval',
+          code: `(typeof window.__setUpgradeBotAiEnabled === 'function' ? window.__setUpgradeBotAiEnabled(${Boolean(aiEnableCb.checked)}) : (window.__upgradeBotAiEnabled = ${Boolean(aiEnableCb.checked)}))`
+        });
+      } catch (_) {}
+    };
+  }
+
+  const sellEnableCb = hudEl.querySelector('#p-nc-autosell-enabled');
+  const sellPctSel = hudEl.querySelector('#p-nc-autosell-pct');
+  const syncSellCfg = async () => {
+    try {
+      const en = sellEnableCb ? Boolean(sellEnableCb.checked) : true;
+      const pct = sellPctSel ? (Number(sellPctSel.value) || 65) : 65;
+      await sendWebHudAction(profileId, {
+        type: 'eval',
+        code: `(typeof window.__setAutoSellConfig === 'function' ? window.__setAutoSellConfig(${en}, ${pct}) : null)`
+      });
+    } catch (_) {}
+  };
+  if (sellEnableCb) sellEnableCb.onchange = syncSellCfg;
+  if (sellPctSel) sellPctSel.onchange = syncSellCfg;
+
+  const targetMapSel = hudEl.querySelector('#p-nc-target-farm-map');
+  if (targetMapSel) {
+    targetMapSel.onchange = async () => {
+      try {
+        const val = JSON.stringify(targetMapSel.value || 'auto');
+        await sendWebHudAction(profileId, {
+          type: 'eval',
+          code: `(typeof window.__setTargetFarmMap === 'function' ? window.__setTargetFarmMap(${val}) : null)`
+        });
+      } catch (_) {}
+    };
+  }
+
   const planEnableCb = hudEl.querySelector('#p-nc-plan-enabled');
   if (planEnableCb) {
     planEnableCb.onchange = async () => {
@@ -8631,6 +8715,22 @@ function populateWebHudData(profileId, data) {
   const aqEnableCb = hud.querySelector('#p-nc-smart-autoquest-enabled');
   if (aqEnableCb && typeof st.smartAutoQuestEnabled === 'boolean' && document.activeElement !== aqEnableCb) {
     aqEnableCb.checked = st.smartAutoQuestEnabled;
+  }
+  const aiEnableCb = hud.querySelector('#p-nc-upgrade-ai-enabled');
+  if (aiEnableCb && typeof st.upgradeBotAiEnabled === 'boolean' && document.activeElement !== aiEnableCb) {
+    aiEnableCb.checked = st.upgradeBotAiEnabled;
+  }
+  const sellEnableCb = hud.querySelector('#p-nc-autosell-enabled');
+  if (sellEnableCb && typeof st.autoSellEnabled === 'boolean' && document.activeElement !== sellEnableCb) {
+    sellEnableCb.checked = st.autoSellEnabled;
+  }
+  const sellPctSel = hud.querySelector('#p-nc-autosell-pct');
+  if (sellPctSel && st.autoSellWeightPct && document.activeElement !== sellPctSel) {
+    sellPctSel.value = String(st.autoSellWeightPct);
+  }
+  const targetMapSel = hud.querySelector('#p-nc-target-farm-map');
+  if (targetMapSel && st.targetFarmMap && document.activeElement !== targetMapSel) {
+    targetMapSel.value = String(st.targetFarmMap);
   }
   const planEnableCb = hud.querySelector('#p-nc-plan-enabled');
   if (planEnableCb && typeof st.planScriptEnabled === 'boolean' && document.activeElement !== planEnableCb) {
