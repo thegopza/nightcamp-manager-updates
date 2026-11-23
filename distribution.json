@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "sourceCommit": "e64b6eaf1c6fe32535ab517c4cce467f91228572",
+  "sourceCommit": "d3bc6e78d88a504942082db89a45a98197ca24ae",
   "files": [
     {
       "path": "manager/asset_cache.js",
@@ -12,7 +12,7 @@
     },
     {
       "path": "manager/bot_auto_update.js",
-      "sha256": "089d05dfd0d8a519855737eeab346bb8d1c1ebadeaf31abd758d6151ae829331"
+      "sha256": "f09f94aa52c7795cba8e84ee275041f95a249d5f2da2e64d9e0a5aeeadba095c"
     },
     {
       "path": "manager/browser_mode.js",
@@ -96,7 +96,7 @@
     },
     {
       "path": "manager/offline_coordinator.js",
-      "sha256": "57c464c9520575f67b214859f5b526e8247194ce200b86aa48996a40ae2fec7d"
+      "sha256": "6e7097f069e85f048710656829c23fa5ad5dcbefa75d1c0a5e78fb4684fc4856"
     },
     {
       "path": "manager/offline_journal.js",
@@ -108,7 +108,7 @@
     },
     {
       "path": "manager/offline_script_bootstrap.js",
-      "sha256": "b3e5d1ed8ea2a5cee89191feec9ad3a214a7c761a7dca55197d241b543b9b3ed"
+      "sha256": "af2397aa263191abf6386682c972cb40000e3b8631bd5d0472d45e20436dc11a"
     },
     {
       "path": "manager/party_api.js",
@@ -140,7 +140,7 @@
     },
     {
       "path": "manager/public/app.js",
-      "sha256": "3bc31bac62a5494d97ecd4c124a8c2ca78cbc865640b20bc71ea169493a7d3b9"
+      "sha256": "e9733aca2cd079ab617a599a2f121a50038614fae148de7025cd5845e8eb82bd"
     },
     {
       "path": "manager/public/bot_update.css",
@@ -148,11 +148,11 @@
     },
     {
       "path": "manager/public/bot_update.js",
-      "sha256": "35b00d3b3509035eb2e16ae544060600696387b7f067fd485675823f0b83a690"
+      "sha256": "53e29586ac4f447e5238a3f700a3c98ebaa8642155e98562ba1efbb71448afe3"
     },
     {
       "path": "manager/public/builder_module.js",
-      "sha256": "60372521a03ccc7fc922a26426b06928e46bbd8528f64b459557b3212945f67a"
+      "sha256": "bbee6cb1f315858d1ebe9ff56076d29b31f0eea41d648b81277f1e9992ccc189"
     },
     {
       "path": "manager/public/card_manager.css",
@@ -320,7 +320,7 @@
     },
     {
       "path": "manager/server.js",
-      "sha256": "f03fdacf23bad4e8048280f1f095f552a4702c86054cfba2cb816c7074ac7646"
+      "sha256": "0c2ae3f0a3170c1a0e999b96b792da4b1dbed414077ff5ac3b1c53ab95e22c29"
     },
     {
       "path": "manager/test_isolation.js",

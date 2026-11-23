@@ -9725,67 +9725,73 @@ const PLAN_QUEST_CHECKPOINTS = [
 function buildNightcampExamplePlanPayload() {
   const now = Date.now();
   return {
-    name: "🐺 [ตัวอย่างแนะนำ] นักธนู ➔ นักล่าหมาป่า (สายยิงรัว+เหยี่ยว+หมาป่า 0 มานา Lv.1–50+)",
-    description: "ฟาร์มง่ายที่สุด ไม่ใช้มานา: ยิงปกติติดยิงเบิ้ล + เหยี่ยวโฉบฟรีไม่สน DEF + หมาป่าช่วยแทงค์และกัดรัว อัป Stat ตามเพดานเลเวล (30+0.55×Lv) ได้ผล 100%",
+    name: "✨ [แนะนำอันดับ 1] พระ ➔ บิชอป ➔ นักบุญแสงดาว (สายเวทแสงอมตะ ฮีล+ระเบิดรอบตัว+บาเรีย ไม่เปลืองยา Lv.1–80+)",
+    description: "สายฟาร์มโซโล่ที่เก่งและถึกที่สุดใน Season 2: ฮีลตัวเอง+ระเบิดแสงรอบตัว 340% MATK (0s CD) + บาเรียดูดซับดาเมจ + บัฟเร่งมานา 2 เท่า + แสงศักดิ์สิทธิ์แรง x2 กับมอนสุสาน/ความมืด ไม่ต้องซื้อยาแดง",
     autoQuestEnabled: true,
     autoJobChange: true,
     autoStatSkillEnabled: true,
-    class1Target: "archer",
+    class1Target: "priest",
     class1JobLevel: 10,
-    class2Target: "wolfhunter",
+    class2Target: "bishop",
     class2JobLevel: 50,
-    class3Target: "packalpha",
+    class3Target: "starsaint",
     statBuild: {
       queue: [
-        { stat: "DEX", to: 30 },
-        { stat: "AGI", to: 30 },
-        { stat: "LUK", to: 24 },
-        { stat: "DEX", to: 45 },
-        { stat: "AGI", to: 45 },
-        { stat: "LUK", to: 36 },
-        { stat: "VIT", to: 20 },
+        { stat: "INT", to: 30 },
+        { stat: "DEX", to: 24 },
+        { stat: "VIT", to: 24 },
+        { stat: "INT", to: 45 },
+        { stat: "DEX", to: 36 },
+        { stat: "VIT", to: 36 },
+        { stat: "INT", to: 60 },
+        { stat: "DEX", to: 48 },
+        { stat: "VIT", to: 48 },
+        { stat: "INT", to: 80 },
         { stat: "DEX", to: 60 },
-        { stat: "AGI", to: 60 },
-        { stat: "LUK", to: 48 },
-        { stat: "DEX", to: 80 },
-        { stat: "AGI", to: 80 },
-        { stat: "LUK", to: 60 },
-        { stat: "VIT", to: 40 }
+        { stat: "VIT", to: 60 }
       ],
-      targets: { STR: 1, AGI: 80, VIT: 40, INT: 1, DEX: 80, LUK: 60 },
-      priorityOrder: ["DEX", "AGI", "LUK", "VIT", "INT", "STR"]
+      targets: { STR: 1, AGI: 1, VIT: 60, INT: 80, DEX: 60, LUK: 1 },
+      priorityOrder: ["INT", "VIT", "DEX", "LUK", "AGI", "STR"]
     },
     skillBuild: {
       skillPointQueue: [
-        // Traveler (9 pts): ชำนาญอาวุธ 5 + ร่างกายแข็งแกร่ง 4 (เพิ่ม ATK ถาวร +20 และ HP/Regen ไม่เปลือง SP)
+        // Traveler (9 pts)
         "mastery", "mastery", "mastery", "mastery", "mastery",
         "body", "body", "body", "body",
-        // Class 1 Archer (49 pts): สายยิงรัว (rapid) เต็มพิกัดเพื่อเอา Resonance +30% ส่งต่อให้สายเหยี่ยว
-        "ar_bowmastery", "ar_bowmastery", "ar_bowmastery", "ar_bowmastery", "ar_bowmastery",
-        "ar_doubleshot", "ar_doubleshot", "ar_doubleshot", "ar_doubleshot", "ar_doubleshot",
-        "ar_bowmastery", "ar_bowmastery", "ar_bowmastery", "ar_bowmastery", "ar_bowmastery",
-        "ar_doubleshot", "ar_doubleshot", "ar_doubleshot", "ar_doubleshot", "ar_doubleshot",
-        "ar_owl", "ar_owl", "ar_owl", "ar_owl", "ar_owl", "ar_owl", "ar_owl", "ar_owl", "ar_owl", "ar_owl",
-        "ar_concentrate", "ar_concentrate", "ar_concentrate", "ar_concentrate", "ar_concentrate",
-        "mastery", "mastery", "mastery", "mastery", "mastery",
-        "body", "body", "body", "body", "body", "body",
-        "double", "double", "double",
-        // Class 2 Wolf Hunter (49 pts): เหยี่ยวโฉบอัตโนมัติ (0 SP) + หมาป่าคู่ใจ + สายใยสัตว์ป่า (+80% Pet Dmg, +10% ATK)
-        "wh_blitz", "wh_blitz",
-        "wh_autoblitz", "wh_autoblitz", "wh_autoblitz", "wh_autoblitz", "wh_autoblitz",
-        "wh_steelcrow", "wh_steelcrow", "wh_steelcrow", "wh_steelcrow", "wh_steelcrow",
-        "wh_autoblitz", "wh_autoblitz", "wh_autoblitz", "wh_autoblitz", "wh_autoblitz",
-        "wh_wolf", "wh_wolf", "wh_wolf", "wh_wolf",
-        "wh_alpha", "wh_alpha", "wh_alpha", "wh_alpha", "wh_alpha",
-        "wh_bond", "wh_bond", "wh_bond", "wh_bond", "wh_bond", "wh_bond", "wh_bond", "wh_bond", "wh_bond", "wh_bond",
-        "wh_wolfrush", "wh_wolfrush", "wh_wolfrush", "wh_wolfrush", "wh_wolfrush",
-        "wh_wolf", "wh_wolf", "wh_wolf", "wh_wolf", "wh_wolf",
-        "wh_howl", "wh_howl", "wh_howl"
+        // Class 1 Priest (49 pts)
+        "holylight", "holylight", "holylight", "holylight", "holylight", "holylight", "holylight", "holylight", "holylight",
+        "pr_heal", "pr_heal", "pr_heal", "pr_heal",
+        "blessing", "blessing", "blessing", "blessing",
+        "pr_agi", "pr_agi", "pr_agi", "pr_agi", "pr_agi",
+        "pr_demonbane", "pr_demonbane", "pr_demonbane", "pr_demonbane",
+        "magnus", "magnus", "magnus", "magnus", "magnus",
+        "pr_protect", "pr_protect", "pr_protect", "pr_protect", "pr_protect",
+        "pr_angelus", "pr_angelus", "pr_angelus",
+        "pr_heal", "pr_heal", "pr_heal", "pr_heal", "pr_heal",
+        "blessing", "blessing", "blessing", "blessing", "blessing",
+        // Class 2 Bishop (49 pts)
+        "bi_heal", "bi_heal", "bi_heal", "bi_heal", "bi_heal", "bi_heal", "bi_heal", "bi_heal", "bi_heal",
+        "bi_barrier", "bi_barrier", "bi_barrier", "bi_barrier", "bi_barrier",
+        "bi_meditatio", "bi_meditatio", "bi_meditatio", "bi_meditatio", "bi_meditatio",
+        "bi_magnificat", "bi_magnificat", "bi_magnificat", "bi_magnificat", "bi_magnificat",
+        "bi_sanctuary", "bi_sanctuary", "bi_sanctuary", "bi_sanctuary", "bi_sanctuary",
+        "bi_turnundead", "bi_turnundead", "bi_turnundead", "bi_turnundead", "bi_turnundead",
+        "bi_turnundead", "bi_turnundead", "bi_turnundead", "bi_turnundead", "bi_turnundead",
+        "bi_miracle", "bi_miracle", "bi_miracle", "bi_miracle", "bi_miracle",
+        "bi_barrier", "bi_barrier", "bi_barrier", "bi_barrier", "bi_barrier",
+        // Class 3 Star Saint (49 pts)
+        "ss_faith", "ss_faith", "ss_faith", "ss_faith", "ss_faith", "ss_faith", "ss_faith", "ss_faith", "ss_faith", "ss_faith",
+        "ss_heal", "ss_heal", "ss_heal", "ss_heal", "ss_heal", "ss_heal", "ss_heal", "ss_heal", "ss_heal", "ss_heal",
+        "ss_turn", "ss_turn", "ss_turn", "ss_turn", "ss_turn", "ss_turn", "ss_turn", "ss_turn", "ss_turn", "ss_turn",
+        "ss_sanct", "ss_sanct", "ss_sanct", "ss_sanct", "ss_sanct", "ss_sanct", "ss_sanct", "ss_sanct", "ss_sanct", "ss_sanct",
+        "ss_awaken", "ss_awaken", "ss_awaken", "ss_awaken", "ss_awaken",
+        "ss_lex", "ss_lex", "ss_lex", "ss_lex"
       ],
       plannedLevels: {
-        mastery: 10, body: 10,
-        ar_bowmastery: 10, ar_doubleshot: 10, ar_owl: 10, ar_concentrate: 5, double: 3,
-        wh_blitz: 2, wh_autoblitz: 10, wh_steelcrow: 5, wh_wolf: 9, wh_alpha: 5, wh_bond: 10, wh_wolfrush: 5, wh_howl: 3
+        mastery: 5, body: 4,
+        holylight: 10, pr_heal: 10, blessing: 10, pr_agi: 5, pr_demonbane: 4, magnus: 5, pr_protect: 5, pr_angelus: 3,
+        bi_heal: 10, bi_barrier: 10, bi_meditatio: 5, bi_magnificat: 5, bi_sanctuary: 5, bi_turnundead: 10, bi_miracle: 5,
+        ss_faith: 10, ss_heal: 10, ss_turn: 10, ss_sanct: 10, ss_awaken: 5, ss_lex: 4
       },
       facets: {}
     },
@@ -9818,7 +9824,7 @@ function buildNightcampExamplePlanPayload() {
           {
             id: "act_nc_c1_" + now,
             type: "change_class",
-            targetClass: "archer"
+            targetClass: "priest"
           },
           {
             id: "act_nc_eq2_" + now,
@@ -9836,8 +9842,8 @@ function buildNightcampExamplePlanPayload() {
             id: "act_nc_sell12_" + now,
             type: "sell_trip",
             sellMaterials: true,
-            redQty: 30,
-            blueQty: 10
+            redQty: 15,
+            blueQty: 20
           },
           {
             id: "act_nc_aq12_" + now,
@@ -9856,7 +9862,7 @@ function buildNightcampExamplePlanPayload() {
           {
             id: "act_nc_map25_" + now,
             type: "change_map",
-            targetMap: "woods",
+            targetMap: "graveyard",
             targetMonster: ""
           },
           {
@@ -9875,13 +9881,13 @@ function buildNightcampExamplePlanPayload() {
             id: "act_nc_sell35_" + now,
             type: "sell_trip",
             sellMaterials: true,
-            redQty: 50,
-            blueQty: 15
+            redQty: 15,
+            blueQty: 25
           },
           {
             id: "act_nc_map35_" + now,
             type: "change_map",
-            targetMap: "burnt",
+            targetMap: "crypt1",
             targetMonster: ""
           }
         ]
@@ -9889,13 +9895,13 @@ function buildNightcampExamplePlanPayload() {
       {
         id: "trig_nc_job50_c1_" + now,
         type: "job_level",
-        classId: "archer",
+        classId: "priest",
         targetLevel: 50,
         actions: [
           {
             id: "act_nc_c2_" + now,
             type: "change_class",
-            targetClass: "wolfhunter"
+            targetClass: "bishop"
           },
           {
             id: "act_nc_eq_c2_" + now,
@@ -9912,7 +9918,7 @@ function buildNightcampExamplePlanPayload() {
           {
             id: "act_nc_map46_" + now,
             type: "change_map",
-            targetMap: "peak",
+            targetMap: "crypt2",
             targetMonster: ""
           },
           {
@@ -10117,11 +10123,11 @@ async function createNewPlanProfile() {
         autoQuestEnabled: true,
         autoJobChange: true,
         autoStatSkillEnabled: true,
-        class1Target: "archer",
+        class1Target: "priest",
         class1JobLevel: 10,
-        class2Target: "ranger",
+        class2Target: "bishop",
         class2JobLevel: 50,
-        class3Target: "moonsniper",
+        class3Target: "starsaint",
         triggers: [
           {
             id: "trig_" + now,

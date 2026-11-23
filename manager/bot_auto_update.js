@@ -59,9 +59,53 @@ const CLIENT_PROBE_JS = `(() => {
     payloadHash: window.__pmHotPayloadHash || window.__pmScriptBootstrap?.status?.()?.payloadHash || null,
     inGame: Boolean(document.getElementById('nightcamp-hud') || nameEl || typeof window.__getClientLiveState === 'function' || (map && !map.startsWith('ไม่ทราบ'))),
     running: Boolean(window.__isBotRunning),
+    requestedUpdate: Boolean(window.__ncRequestSelfHotUpdate),
+    pendingNotifiedVersion: (window.__ncPendingScriptUpdate && window.__ncPendingScriptUpdate.version) || null,
     busy
   };
 })()`;
+
+function buildPushUpdateBannerJs(version) {
+  return `(() => {
+    const ver = ${JSON.stringify(version || null)};
+    if (!ver || ver === (window.__nightcampBotVersion || window.__pelicanBotVersion)) {
+      window.__ncPendingScriptUpdate = null;
+      window.__ncRequestSelfHotUpdate = false;
+      if (typeof window.__setPendingScriptUpdate === 'function') window.__setPendingScriptUpdate(null);
+      const oldB = document.getElementById('nc-script-update-banner');
+      if (oldB) oldB.style.display = 'none';
+      return false;
+    }
+    window.__ncPendingScriptUpdate = { version: ver };
+    if (typeof window.__setPendingScriptUpdate === 'function') {
+      window.__setPendingScriptUpdate({ version: ver });
+      return true;
+    }
+    const hud = document.getElementById('nightcamp-hud');
+    const header = document.getElementById('nc-hud-header');
+    if (!hud || !header) return false;
+    let banner = document.getElementById('nc-script-update-banner');
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = 'nc-script-update-banner';
+      banner.style.cssText = 'display:flex; align-items:center; justify-content:space-between; gap:6px; padding:6px 10px; background:linear-gradient(135deg, rgba(234,179,8,0.28), rgba(217,119,6,0.22)); border-bottom:1px solid rgba(250,204,21,0.5); font-size:10.5px; color:#fef08a;';
+      banner.innerHTML = '<span id="nc-script-update-text" style="font-weight:700;"></span><button type="button" id="nc-btn-apply-script-update" style="padding:3px 8px; border-radius:4px; border:1px solid #facc15; background:#ca8a04; color:#fff; font-size:10px; font-weight:700; cursor:pointer; white-space:nowrap;">⚡ กดอัปเดต (ไม่รีเกม)</button>';
+      header.insertAdjacentElement('afterend', banner);
+      const btn = banner.querySelector('#nc-btn-apply-script-update');
+      if (btn) {
+        btn.addEventListener('click', () => {
+          window.__ncRequestSelfHotUpdate = true;
+          btn.disabled = true;
+          btn.textContent = '⏳ กำลังอัปเดต...';
+        });
+      }
+    }
+    banner.style.display = 'flex';
+    const txt = banner.querySelector('#nc-script-update-text');
+    if (txt) txt.textContent = '🔔 มีอัปเดต Script ใหม่ v' + ver;
+    return true;
+  })()`;
+}
 
 const START_BOT_JS = `(() => {
   window.__autoLoopEnabled = true;
@@ -235,76 +279,69 @@ function createBotAutoUpdater({ loadProfiles, evalProfilePort, getGameDir, dataD
     refreshInFlight = true;
     try {
       const wasRunning = Boolean(info.running);
-      // 1. Try zero-downtime hot-upgrade in memory first (avoids kicking Nightcamp players into server queue!)
+      // Zero-downtime Hot-Upgrade in memory (NEVER calls location.reload(), so players never lose connection or re-enter Nightcamp server queue!)
       try {
-        const managed = typeof getCachedManagedRelease === 'function' ? getCachedManagedRelease() : null;
-        let hotCode = (managed && typeof managed.code === 'string' && managed.code.length > 1000) ? managed.code : '';
+        let managed = typeof getCachedManagedRelease === 'function' ? getCachedManagedRelease() : null;
+        if ((!managed || (!managed.code && !managed.source)) && typeof getManagedRelease === 'function') {
+          try { managed = await getManagedRelease(true); } catch (_) {}
+        }
+        let hotCode = (managed && typeof (managed.code || managed.source) === 'string' && (managed.code || managed.source).length > 1000)
+          ? (managed.code || managed.source)
+          : '';
         if (!hotCode) {
           const rootBot = path.join(path.resolve(__dirname, '..'), 'bot.js');
           if (fs.existsSync(rootBot)) hotCode = fs.readFileSync(rootBot, 'utf8');
         }
         if (hotCode && hotCode.length > 1000) {
-          setClient(p, 'reloading', 'กำลังอัปเดตบอทแบบ Hot-Reload (ไม่รีเฟรชหน้าเกม)...');
-          const hotExpr = `(() => {
+          setClient(p, 'reloading', '⚡ กำลังอัปเดต Script แบบ Hot-Reload (ไม่รีเกม/ไม่รี Browser)...', info.version);
+          const hotExpr = `(async () => {
             window.__forceNightcampHotReload = true;
             window.__pmHotPayloadHash = ${JSON.stringify(target.sha || null)};
-            (0, eval)(${JSON.stringify(hotCode)});
+            window.__ncPendingScriptUpdate = null;
+            window.__ncRequestSelfHotUpdate = false;
+            if (window.__pmScriptBootstrap && typeof window.__pmScriptBootstrap.hotUpgrade === 'function' && ${Boolean(managed && managed.envelope)}) {
+              try {
+                const up = await window.__pmScriptBootstrap.hotUpgrade({
+                  envelope: ${JSON.stringify(managed?.envelope || null)},
+                  payload: { source: ${JSON.stringify(hotCode)}, version: ${JSON.stringify(target.version || null)}, hash: ${JSON.stringify(target.sha || null)} }
+                });
+                if (up && up.success) {
+                  return { version: window.__nightcampBotVersion || window.__pelicanBotVersion || null };
+                }
+              } catch (_) {}
+            }
+            const hotRuntime = {
+              window,
+              allowed: () => true,
+              nativeTimeout: window.setTimeout.bind(window),
+              nativeInterval: window.setInterval.bind(window),
+              draining: () => false,
+              async wait(v) { return await v; },
+              assert() {},
+              setInterval: window.setInterval.bind(window),
+              setTimeout: window.setTimeout.bind(window),
+              guard(fn) { return fn; }
+            };
+            const fn = new Function('runtime', ${JSON.stringify(hotCode)});
+            fn(hotRuntime);
             return { version: window.__nightcampBotVersion || window.__pelicanBotVersion || null };
           })()`;
-          await evalProfilePort(p.debugPort, hotExpr, 6000);
+          await evalProfilePort(p.debugPort, hotExpr, 8000);
           const hotNow = await probe(p);
           if (hotNow && isCurrentFor(target, hotNow)) {
             if (failedTargets[p.id]) { delete failedTargets[p.id]; persist(); }
             if (wasRunning && !hotNow.running) {
               await evalProfilePort(p.debugPort, START_BOT_JS, 4000);
             }
-            setClient(p, 'done', wasRunning ? 'อัปเดตแล้ว บอททำงานต่อ (Hot-Reload)' : 'อัปเดตแล้ว (Hot-Reload)', hotNow.version);
+            setClient(p, 'done', wasRunning ? '⚡ อัปเดตแล้ว บอททำงานต่อทันที (ไม่รีเกม)' : '⚡ อัปเดต Script แล้ว (ไม่รีเกม)', hotNow.version);
             return true;
           }
         }
       } catch (_) {}
 
-      setClient(p, 'reloading', 'กำลังรีเฟรชหน้าเกม...');
-      // Wait for the dispatch to settle even when unload makes the eval time out.
-      try {
-        await evalProfilePort(p.debugPort, `(() => { try { localStorage.setItem('pelican_bot_running', ${wasRunning ? "'true'" : "'false'"}); } catch (e) {} setTimeout(() => location.reload(), 150); return true; })()`, 2000);
-      } catch (e) {
-        // A rejected eval may mean the page already unloaded. Keep protecting its recovery.
-      }
-      await sleep(8000);
-
-      const started = clock();
-      let resumedAt = null;
-      while (clock() - started < clientBackTimeoutMs) {
-        const now = await probe(p);
-        if (now && now.inGame && now.loadedAt > info.loadedAt) {
-          const liveTarget = currentTarget();
-          if (!isCurrentFor(target, now) && !(liveTarget && isCurrentFor(liveTarget, now))) {
-            await sleep(3000);
-            continue;
-          }
-          if (failedTargets[p.id]) { delete failedTargets[p.id]; persist(); }
-          if (!wasRunning) {
-            setClient(p, 'done', 'อัปเดตแล้ว', now.version);
-            return true;
-          }
-          if (now.running) {
-            setClient(p, 'done', 'อัปเดตแล้ว บอททำงานต่อ', now.version);
-            return true;
-          }
-          resumedAt = resumedAt || clock();
-          if (clock() - resumedAt > RESUME_GRACE_MS) {
-            await evalProfilePort(p.debugPort, START_BOT_JS, 4000);
-            setClient(p, 'done', 'อัปเดตแล้ว (Manager สั่งเริ่มบอทให้)', now.version);
-            return true;
-          }
-          setClient(p, 'resuming', 'รอบอทกลับมาทำงานต่อ...');
-        }
-        await sleep(5000);
-      }
       failedTargets[p.id] = { key: target.key, at: clock() };
       persist();
-      setClient(p, 'error', 'รีเฟรชแล้วแต่ตัวละครยังไม่กลับเข้าเกม หรือยังไม่ได้เวอร์ชันล่าสุด — ตรวจสอบจอนี้ (จะไม่รีเฟรชซ้ำจนกว่าจะมีเวอร์ชันใหม่หรือกด "ตรวจตอนนี้")');
+      setClient(p, 'error', 'อัปเดตแบบ Hot-Reload ยังไม่สำเร็จ (ระบบจะไม่รีเฟรชหน้าเว็บเพื่อป้องกันหลุดเข้าคิว — กดปุ่มอัปเดตเพื่อลองใหม่ได้ทันที)', info.version);
       return false;
     } finally {
       refreshInFlight = false;
@@ -354,15 +391,31 @@ function createBotAutoUpdater({ loadProfiles, evalProfilePort, getGameDir, dataD
         if (!info) { delete status.clients[p.id]; continue; }
         if (isCurrentFor(target, info)) {
           if (failedTargets[p.id]) { delete failedTargets[p.id]; persist(); }
+          if (info.pendingNotifiedVersion) {
+            try { await evalProfilePort(p.debugPort, buildPushUpdateBannerJs(null), 2500); } catch (_) {}
+          }
           if (!status.clients[p.id] || status.clients[p.id].state !== 'done') setClient(p, 'up-to-date', 'ใช้เวอร์ชันล่าสุดอยู่แล้ว', info.version);
           else status.clients[p.id].version = info.version;
           continue;
         }
         pending++;
-        if (!status.enabled) { setClient(p, 'outdated', 'มีเวอร์ชันใหม่ (ปิดอัปเดตอัตโนมัติอยู่)', info.version); continue; }
-        if (!info.inGame) { setClient(p, 'waiting', 'รอให้ตัวละครอยู่ในเกมก่อน', info.version); continue; }
+        // If user clicked "⚡ กดอัปเดต (ไม่รีเกม)" inside the game HUD, perform hot-update immediately even when Auto-Update is OFF!
+        if (info.requestedUpdate) {
+          status.phase = 'updating';
+          await reloadClient(p, info, target);
+          pending--;
+          continue;
+        }
+        if (!status.enabled) {
+          if (target.version && info.pendingNotifiedVersion !== target.version) {
+            try { await evalProfilePort(p.debugPort, buildPushUpdateBannerJs(target.version), 2500); } catch (_) {}
+          }
+          setClient(p, 'outdated', `🔔 มีเวอร์ชันใหม่ v${target.version || ''} (รอกดอัปเดตเอง · ไม่รีเกม)`, info.version);
+          continue;
+        }
+        if (!info.inGame) { setClient(p, 'waiting', 'รอให้หน้าเกมโหลดเสร็จก่อน', info.version); continue; }
         if (failedTargets[p.id] && failedTargets[p.id].key === target.key) {
-          setClient(p, 'error', 'อัปเดตจอนี้ไม่สำเร็จรอบก่อน — ไม่รีเฟรชซ้ำอัตโนมัติ (กด "ตรวจตอนนี้" เพื่อลองใหม่)', info.version);
+          setClient(p, 'error', 'อัปเดตจอนี้ไม่สำเร็จรอบก่อน — กดปุ่ม 🔄 เพื่ออัปเดตแบบไม่รีเกมใหม่', info.version);
           continue;
         }
         if (info.busy.length) { setClient(p, 'waiting', `รอจังหวะปลอดภัย: ${info.busy.join(', ')}`, info.version); continue; }
@@ -390,9 +443,9 @@ function createBotAutoUpdater({ loadProfiles, evalProfilePort, getGameDir, dataD
   }
 
   function start() {
-    // First check after 10s so Manager quickly detects latest payload without blocking initial startup.
-    setTimeout(() => { checkNow(); setInterval(() => checkGitHub().then(waitForRaw), POLL_MS); }, 10 * 1000);
-    setInterval(() => { return updateCycle(); }, TICK_MS);
+    // First check after 6s so Manager quickly detects latest payload without blocking initial startup.
+    setTimeout(() => { checkNow(); setInterval(() => checkGitHub().then(waitForRaw), POLL_MS); }, 6 * 1000);
+    setInterval(() => { return updateCycle(); }, 4000);
   }
 
   async function handleRoute(req, res, pathname, sendJSON) {
@@ -406,7 +459,11 @@ function createBotAutoUpdater({ loadProfiles, evalProfilePort, getGameDir, dataD
       await new Promise(r => req.on('end', r));
       try {
         const p = JSON.parse(body || '{}');
-        if (typeof p.enabled === 'boolean') { status.enabled = p.enabled; persist(); }
+        if (typeof p.enabled === 'boolean') {
+          status.enabled = p.enabled;
+          persist();
+          setTimeout(() => { updateCycle().catch(() => {}); }, 100);
+        }
         sendJSON({ success: true, enabled: status.enabled });
       } catch (e) {
         sendJSON({ success: false, error: 'Invalid JSON' }, 400);

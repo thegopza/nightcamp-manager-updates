@@ -4,10 +4,10 @@
 
   const STATE_LABEL = {
     'up-to-date': ['✅', 'ล่าสุดแล้ว'],
-    done: ['✅', 'อัปเดตแล้ว'],
-    outdated: ['⚠️', 'มีเวอร์ชันใหม่'],
+    done: ['✅', 'อัปเดตแล้ว (ไม่รีเกม)'],
+    outdated: ['🔔', 'มีเวอร์ชันใหม่'],
     waiting: ['⏳', 'รอจังหวะ'],
-    reloading: ['🔄', 'กำลังรีเฟรช'],
+    reloading: ['⚡', 'กำลังอัปเดต (ไม่รีเกม)'],
     resuming: ['▶️', 'รอบอททำงานต่อ'],
     error: ['❌', 'มีปัญหา']
   };
@@ -27,6 +27,7 @@
   let firstSeen = null;  // { webBuild, serverStartedAt } of the page currently loaded
   let reloadPending = false;
   let pill = null;
+  let quickAllBtn = null;
   let panel = null;
   let activeFilter = 'all'; // 'all' | 'pending' | 'ok' | 'error'
 
@@ -35,20 +36,37 @@
     if (!actions || pill) return;
     const wrap = document.createElement('div');
     wrap.className = 'bu-wrap';
+    wrap.style.display = 'inline-flex';
+    wrap.style.alignItems = 'center';
+    wrap.style.gap = '6px';
     wrap.innerHTML = `
-      <button type="button" class="btn btn-ghost bu-pill" title="อัปเดตบอทและ Manager อัตโนมัติ">
-        <span class="bu-dot"></span><span class="bu-text">Auto-update</span>
+      <button type="button" class="btn btn-ghost bu-pill" title="ตั้งค่า Auto-Update Script (เปิด/ปิด) และอัปเดตสคริปต์แบบไม่รีเกม">
+        <span class="bu-dot"></span><span class="bu-text">Auto-Update Script</span>
+      </button>
+      <button type="button" class="btn bu-quick-all-btn" hidden title="อัปเดต Script ทุกจอแบบ Hot-Reload ทันที (ไม่รีหน้าเกม / ไม่หลุดคิว)" style="background: linear-gradient(135deg, #eab308, #ca8a04); border: 1px solid #facc15; color: #fff; font-size: 11.5px; font-weight: 800; padding: 5px 10px; border-radius: 999px; cursor: pointer; white-space: nowrap;">
+        ⚡ อัปเดตทุกจอ
       </button>
       <div class="bu-panel" hidden></div>`;
     const refresh = document.getElementById('btn-refresh');
     actions.insertBefore(wrap, refresh || null);
     pill = wrap.querySelector('.bu-pill');
+    quickAllBtn = wrap.querySelector('.bu-quick-all-btn');
     panel = wrap.querySelector('.bu-panel');
     pill.addEventListener('click', e => {
       e.stopPropagation();
       panel.hidden = !panel.hidden;
       render();
     });
+    if (quickAllBtn) {
+      quickAllBtn.addEventListener('click', async e => {
+        e.stopPropagation();
+        quickAllBtn.disabled = true;
+        quickAllBtn.textContent = '⏳ กำลังอัปเดตทุกจอ...';
+        await fetch('/api/bot-update/force-all', { method: 'POST' }).catch(() => null);
+        setTimeout(() => { quickAllBtn.disabled = false; load(); }, 1500);
+        setTimeout(load, 3500);
+      });
+    }
     document.addEventListener('click', e => {
       if (!wrap.contains(e.target)) panel.hidden = true;
     });
@@ -193,22 +211,34 @@
     const errList = clientEntries.filter(c => c.state === 'error');
     const pending = pendingList.length;
     const hasError = errList.length > 0 || Boolean(status.lastError);
-    const tone = !status.enabled ? 'off' : hasError ? 'err' : (status.phase !== 'idle' || pending) ? 'busy' : 'ok';
+    const tone = (!status.enabled && pending > 0) ? 'busy' : !status.enabled ? 'off' : hasError ? 'err' : (status.phase !== 'idle' || pending) ? 'busy' : 'ok';
+    const l = status.latest;
 
     pill.className = `btn btn-ghost bu-pill ${tone}`;
     pill.querySelector('.bu-text').textContent =
-      !status.enabled ? 'Auto-update ปิด'
-        : status.phase === 'waiting-cdn' ? 'รอ GitHub ส่งไฟล์ใหม่'
-          : status.phase === 'settling' ? `มีบอทใหม่ · อัปเดต ${new Date(status.settleUntil).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}`
-          : pending ? `กำลังอัปเดต (${pending})`
-            : (mgr && mgr.pending && mgr.pending.length) || reloadPending ? 'มีอัปเดต Manager'
-              : 'Auto-update';
+      (!status.enabled && pending > 0) ? `🔔 มี Script ใหม่ v${l?.version || ''} (${pending} จอ)`
+        : !status.enabled ? 'Auto-Update Script: ปิด'
+          : status.phase === 'waiting-cdn' ? 'รอ GitHub ส่งไฟล์ใหม่'
+            : status.phase === 'settling' ? `มีบอทใหม่ · อัปเดต ${new Date(status.settleUntil).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}`
+              : pending ? `⚡ กำลังอัปเดต (${pending})`
+                : (mgr && mgr.pending && mgr.pending.length) || reloadPending ? 'มีอัปเดต Manager'
+                  : `Auto-Update Script: เปิด${l?.version ? ' (v' + l.version + ')' : ''}`;
+
+    if (quickAllBtn) {
+      if (pending > 0 || errList.length > 0) {
+        quickAllBtn.hidden = false;
+        if (!quickAllBtn.disabled) {
+          quickAllBtn.textContent = `⚡ อัปเดตทุกจอ (${pending + errList.length})`;
+        }
+      } else {
+        quickAllBtn.hidden = true;
+      }
+    }
 
     if (panel.hidden) return;
     if (!force && window.PmUiGuard && window.PmUiGuard.deferIfInteracting('bu-panel', panel, () => render(false))) {
       return;
     }
-    const l = status.latest;
     const filteredClients = activeFilter === 'pending'
       ? pendingList
       : activeFilter === 'ok'
@@ -221,44 +251,44 @@
       <!-- Top Sticky Header with Immediate Check & Update Button -->
       <div class="bu-top-bar">
         <div class="bu-top-title">
-          <b>🔄 ระบบอัปเดตอัตโนมัติ</b>
+          <b>⚡ ระบบอัปเดต Script (ไม่รีเกม / ไม่หลุดคิว)</b>
           <small>เช็กล่าสุด ${ago(status.lastCheckAt)}</small>
         </div>
         <div class="bu-top-actions">
-          <button type="button" class="bu-action-btn primary" data-bu="check" title="เช็กเวอร์ชันล่าสุดและสั่งอัปเดตทันที">
-            🔍 เช็กและอัปเดตตอนนี้
+          <button type="button" class="bu-action-btn primary" data-bu="check" title="เช็กเวอร์ชันล่าสุดเดี๋ยวนี้">
+            🔍 เช็กอัปเดต
           </button>
           <button type="button" class="bu-close-btn" data-bu="close" title="ปิดหน้าต่าง">✕</button>
         </div>
       </div>
 
       <!-- Bot Auto-Update Summary Card -->
-      <div class="bu-card">
+      <div class="bu-card ${(!status.enabled && pending > 0) ? 'bu-card-warn' : ''}">
         <div class="bu-card-head">
           <div class="bu-card-title">
-            <span>🤖 สคริปต์บอทเกม (bot.js)</span>
+            <span>🤖 Auto-Update Script (bot.js)</span>
             ${l && l.version ? `<span class="bu-badge info">v${esc(l.version)}</span>` : ''}
-            <span class="bu-badge ${status.ready && l && status.ready.sha === l.sha ? 'ok' : 'warn'}">
-              ${status.ready && l && status.ready.sha === l.sha ? '✅ พร้อมใช้งาน' : status.phase === 'waiting-cdn' ? '⏳ รอ CDN' : 'พร้อมตรวจสอบ'}
+            <span class="bu-badge ${status.enabled ? 'ok' : 'warn'}">
+              ${status.enabled ? '🟢 เปิดอัปเดตอัตโนมัติ' : '⏸️ ปิด (แจ้งเตือนให้กดเอง)'}
             </span>
           </div>
-          <button type="button" class="bu-switch ${status.enabled ? 'on' : ''}" data-bu="toggle" title="เปิด/ปิด Auto-update บอท"><span></span></button>
+          <button type="button" class="bu-switch ${status.enabled ? 'on' : ''}" data-bu="toggle" title="เปิด/ปิด Auto-Update Script"><span></span></button>
         </div>
         <div class="bu-card-body">
           ${l
             ? `<div class="bu-commit-line"><code>${esc(l.sha.slice(0, 7))}</code> <span>${esc(l.message)}</span> <small style="color:#64748b;">(${ago(l.date)})</small></div>`
-            : `<div class="bu-muted">ยังไม่ได้เช็กเวอร์ชัน (กดปุ่ม "เช็กและอัปเดตตอนนี้" ด้านบนได้เลย)</div>`}
-          ${status.phase === 'settling' && status.settleUntil
-            ? `<div class="bu-meta-line" style="color:#fcd34d;">⏳ จะรีเฟรชจออัตโนมัติเวลา ${new Date(status.settleUntil).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} หรือกดปุ่มด้านล่างเพื่ออัปเดตทันที</div>`
-            : `<div class="bu-meta-line">เช็กอัตโนมัติทุก ${status.pollMinutes || 5} นาที · รีเฟรชทีละจอเฉพาะตอนปลอดภัยแล้วบอทฟาร์มต่อเอง</div>`}
+            : `<div class="bu-muted">ยังไม่ได้เช็กเวอร์ชัน (กดปุ่ม "เช็กอัปเดต" ด้านบนได้เลย)</div>`}
+          <div class="bu-meta-line">
+            ${status.enabled
+              ? '⚡ <b>เปิดอยู่:</b> อัปเดต Script เข้าจอเกมอัตโนมัติแบบ Hot-Reload (ไม่รีหน้าเกม / ไม่รี Browser / ไม่หลุดเข้าคิว)'
+              : '🔔 <b>ปิดอยู่:</b> จะไม่ทำการอัปเดตเอง แต่จะขึ้นแถบแจ้งเตือนในจอเกมและหน้า Manager ให้กดอัปเดตเองได้ทันที'}
+          </div>
           ${status.lastError ? `<div class="bu-error">⚠️ ${esc(status.lastError)}</div>` : ''}
-          ${(pending > 0 || errList.length > 0) ? `
-            <div class="bu-card-actions">
-              <button type="button" class="bu-action-btn warn" data-bu="force-all">
-                ⚡ บังคับรีเฟรชจอที่ยังไม่อัปเดตทันที (${pending + errList.length} จอ)
-              </button>
-            </div>
-          ` : ''}
+          <div class="bu-card-actions" style="display:flex; gap:6px; flex-wrap:wrap; margin-top:6px;">
+            <button type="button" class="bu-action-btn ${pending > 0 ? 'warn' : 'primary'}" data-bu="force-all">
+              ⚡ อัปเดต Script ทุกจอทันที (ไม่รีเกม)${(pending + errList.length) > 0 ? ` · ${pending + errList.length} จอ` : ''}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -293,13 +323,13 @@
                 <span class="bu-client-name">${icon} ${esc(c.name)}${c.version ? ` <em class="bu-ver">v${esc(c.version)}</em>` : ''}</span>
                 <small class="bu-client-note">${esc(c.note || label)}</small>
               </div>
-              <button type="button" class="bu-client-reload" data-bu="reload-one" data-id="${esc(c.id)}" title="สั่งรีเฟรชอัปเดตจอ ${esc(c.name)} ทันที">🔄</button>
+              <button type="button" class="bu-client-reload" data-bu="reload-one" data-id="${esc(c.id)}" title="อัปเดต Script จอ ${esc(c.name)} ทันที (ไม่รีเกม)">⚡</button>
             </div>`;
         }).join('') : `<div class="bu-muted" style="grid-column: 1 / -1; text-align: center; padding: 16px 8px;">ไม่มีรายการจอในหมวดนี้</div>`}
       </div>
 
       <div class="bu-foot">
-        <small>💡 กดปุ่ม 🔄 ท้ายรายชื่อจอเพื่อสั่งรีเฟรชเฉพาะจอนั้นได้ทันที</small>
+        <small>💡 กดปุ่ม ⚡ ท้ายรายชื่อจอ (หรือกดในจอเกม) เพื่ออัปเดตเฉพาะจอนั้นโดยไม่รีเกม</small>
         <button type="button" class="btn btn-ghost btn-sm" data-bu="check">เช็กตอนนี้</button>
       </div>`;
     if (window.PmUiGuard) window.PmUiGuard.setHtmlIfChanged(panel, panelHtml);

@@ -4431,9 +4431,28 @@ function updateClassDropdownsInEditor() {
   };
   updateC3Preview();
 
+  const syncTriggerClassesWithDropdowns = () => {
+    if (!activeEditingPlan || !Array.isArray(activeEditingPlan.triggers)) return;
+    const c1 = activeEditingPlan.class1Target || 'priest';
+    const c2 = activeEditingPlan.class2Target || 'bishop';
+    for (const trig of activeEditingPlan.triggers) {
+      if (!trig) continue;
+      if (trig.type === 'job_level') {
+        const cls = String(trig.classId || '').toLowerCase();
+        if (cls === 'traveler' || cls === 'novice') {
+          (trig.actions || []).forEach(a => { if (a && a.type === 'change_class') a.targetClass = c1; });
+        } else if (CLASS_TREE_MAP[cls]) {
+          trig.classId = c1;
+          (trig.actions || []).forEach(a => { if (a && a.type === 'change_class') a.targetClass = c2; });
+        }
+      }
+    }
+    if (typeof renderPlanWorkflowCanvas === 'function') renderPlanWorkflowCanvas();
+  };
+
   c1Sel.onchange = () => {
     activeEditingPlan.class1Target = c1Sel.value;
-    const newTree = CLASS_TREE_MAP[c1Sel.value] || CLASS_TREE_MAP['archer'];
+    const newTree = CLASS_TREE_MAP[c1Sel.value] || CLASS_TREE_MAP['priest'] || CLASS_TREE_MAP['archer'];
     c2Sel.innerHTML = newTree.secondClasses.map(sc => `
       <option value="${sc.id}">${sc.name}</option>
     `).join('');
@@ -4441,6 +4460,7 @@ function updateClassDropdownsInEditor() {
     c2Sel.value = activeEditingPlan.class2Target;
     skillMetaCache = null;
     updateC3Preview();
+    syncTriggerClassesWithDropdowns();
     if (typeof markPlanDirty === 'function') markPlanDirty();
     updatePlanEditorBadges();
   };
@@ -4449,6 +4469,7 @@ function updateClassDropdownsInEditor() {
     activeEditingPlan.class2Target = c2Sel.value;
     skillMetaCache = null;
     updateC3Preview();
+    syncTriggerClassesWithDropdowns();
     if (typeof markPlanDirty === 'function') markPlanDirty();
     updatePlanEditorBadges();
   };

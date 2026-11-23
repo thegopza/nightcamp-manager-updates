@@ -318,67 +318,76 @@ const META_PLAN_STAT_EXTENSIONS = {
   }
 };
 
-function buildDefaultNightcampWolfHunterPlan() {
+function buildDefaultNightcampPriestPlan() {
   return {
-    id: "plan_nc_wolfhunter_1_50",
-    name: "🐺 [ตัวอย่างแนะนำ] นักธนู ➔ นักล่าหมาป่า (สายยิงรัว+เหยี่ยว+หมาป่า 0 มานา Lv.1–50+)",
-    description: "ฟาร์มง่ายที่สุด ไม่ใช้มานา: ยิงปกติติดยิงเบิ้ล + เหยี่ยวโฉบฟรีไม่สน DEF + หมาป่าช่วยแทงค์และกัดรัว อัป Stat ตามเพดานเลเวล (30+0.55×Lv) ได้ผล 100%",
+    id: "plan_nc_priest_bishop_1_50",
+    name: "✨ [แนะนำอันดับ 1] พระ ➔ บิชอป ➔ นักบุญแสงดาว (สายเวทแสงอมตะ ฮีล+ระเบิดรอบตัว+บาเรีย ไม่เปลืองยา Lv.1–80+)",
+    description: "สายฟาร์มโซโล่ที่เก่งและถึกที่สุดใน Season 2: ฮีลตัวเอง+ระเบิดแสงรอบตัว 340% MATK (0s CD) + บาเรียดูดซับดาเมจ + บัฟเร่งมานา 2 เท่า + แสงศักดิ์สิทธิ์แรง x2 กับมอนสุสาน/ความมืด ไม่ต้องซื้อยาแดง",
     autoQuestEnabled: true,
     autoJobChange: true,
     autoStatSkillEnabled: true,
-    class1Target: "archer",
+    class1Target: "priest",
     class1JobLevel: 10,
-    class2Target: "wolfhunter",
+    class2Target: "bishop",
     class2JobLevel: 50,
-    class3Target: "packalpha",
+    class3Target: "starsaint",
     statBuild: {
       queue: [
-        { stat: "DEX", to: 30 },
-        { stat: "AGI", to: 30 },
-        { stat: "LUK", to: 24 },
-        { stat: "DEX", to: 45 },
-        { stat: "AGI", to: 45 },
-        { stat: "LUK", to: 36 },
-        { stat: "VIT", to: 20 },
+        { stat: "INT", to: 30 },
+        { stat: "DEX", to: 24 },
+        { stat: "VIT", to: 24 },
+        { stat: "INT", to: 45 },
+        { stat: "DEX", to: 36 },
+        { stat: "VIT", to: 36 },
+        { stat: "INT", to: 60 },
+        { stat: "DEX", to: 48 },
+        { stat: "VIT", to: 48 },
+        { stat: "INT", to: 80 },
         { stat: "DEX", to: 60 },
-        { stat: "AGI", to: 60 },
-        { stat: "LUK", to: 48 },
-        { stat: "DEX", to: 80 },
-        { stat: "AGI", to: 80 },
-        { stat: "LUK", to: 60 },
-        { stat: "VIT", to: 40 }
+        { stat: "VIT", to: 60 }
       ],
-      targets: { STR: 1, AGI: 80, VIT: 40, INT: 1, DEX: 80, LUK: 60 },
-      priorityOrder: ["DEX", "AGI", "LUK", "VIT", "INT", "STR"]
+      targets: { STR: 1, AGI: 1, VIT: 60, INT: 80, DEX: 60, LUK: 1 },
+      priorityOrder: ["INT", "VIT", "DEX", "LUK", "AGI", "STR"]
     },
     skillBuild: {
       skillPointQueue: [
+        // Traveler (9 pts)
         "mastery", "mastery", "mastery", "mastery", "mastery",
         "body", "body", "body", "body",
-        "ar_bowmastery", "ar_bowmastery", "ar_bowmastery", "ar_bowmastery", "ar_bowmastery",
-        "ar_doubleshot", "ar_doubleshot", "ar_doubleshot", "ar_doubleshot", "ar_doubleshot",
-        "ar_bowmastery", "ar_bowmastery", "ar_bowmastery", "ar_bowmastery", "ar_bowmastery",
-        "ar_doubleshot", "ar_doubleshot", "ar_doubleshot", "ar_doubleshot", "ar_doubleshot",
-        "ar_owl", "ar_owl", "ar_owl", "ar_owl", "ar_owl", "ar_owl", "ar_owl", "ar_owl", "ar_owl", "ar_owl",
-        "ar_concentrate", "ar_concentrate", "ar_concentrate", "ar_concentrate", "ar_concentrate",
-        "mastery", "mastery", "mastery", "mastery", "mastery",
-        "body", "body", "body", "body", "body", "body",
-        "double", "double", "double",
-        "wh_blitz", "wh_blitz",
-        "wh_autoblitz", "wh_autoblitz", "wh_autoblitz", "wh_autoblitz", "wh_autoblitz",
-        "wh_steelcrow", "wh_steelcrow", "wh_steelcrow", "wh_steelcrow", "wh_steelcrow",
-        "wh_autoblitz", "wh_autoblitz", "wh_autoblitz", "wh_autoblitz", "wh_autoblitz",
-        "wh_wolf", "wh_wolf", "wh_wolf", "wh_wolf",
-        "wh_alpha", "wh_alpha", "wh_alpha", "wh_alpha", "wh_alpha",
-        "wh_bond", "wh_bond", "wh_bond", "wh_bond", "wh_bond", "wh_bond", "wh_bond", "wh_bond", "wh_bond", "wh_bond",
-        "wh_wolfrush", "wh_wolfrush", "wh_wolfrush", "wh_wolfrush", "wh_wolfrush",
-        "wh_wolf", "wh_wolf", "wh_wolf", "wh_wolf", "wh_wolf",
-        "wh_howl", "wh_howl", "wh_howl"
+        // Class 1 Priest (49 pts)
+        "holylight", "holylight", "holylight", "holylight", "holylight", "holylight", "holylight", "holylight", "holylight",
+        "pr_heal", "pr_heal", "pr_heal", "pr_heal",
+        "blessing", "blessing", "blessing", "blessing",
+        "pr_agi", "pr_agi", "pr_agi", "pr_agi", "pr_agi",
+        "pr_demonbane", "pr_demonbane", "pr_demonbane", "pr_demonbane",
+        "magnus", "magnus", "magnus", "magnus", "magnus",
+        "pr_protect", "pr_protect", "pr_protect", "pr_protect", "pr_protect",
+        "pr_angelus", "pr_angelus", "pr_angelus",
+        "pr_heal", "pr_heal", "pr_heal", "pr_heal", "pr_heal",
+        "blessing", "blessing", "blessing", "blessing", "blessing",
+        // Class 2 Bishop (49 pts)
+        "bi_heal", "bi_heal", "bi_heal", "bi_heal", "bi_heal", "bi_heal", "bi_heal", "bi_heal", "bi_heal",
+        "bi_barrier", "bi_barrier", "bi_barrier", "bi_barrier", "bi_barrier",
+        "bi_meditatio", "bi_meditatio", "bi_meditatio", "bi_meditatio", "bi_meditatio",
+        "bi_magnificat", "bi_magnificat", "bi_magnificat", "bi_magnificat", "bi_magnificat",
+        "bi_sanctuary", "bi_sanctuary", "bi_sanctuary", "bi_sanctuary", "bi_sanctuary",
+        "bi_turnundead", "bi_turnundead", "bi_turnundead", "bi_turnundead", "bi_turnundead",
+        "bi_turnundead", "bi_turnundead", "bi_turnundead", "bi_turnundead", "bi_turnundead",
+        "bi_miracle", "bi_miracle", "bi_miracle", "bi_miracle", "bi_miracle",
+        "bi_barrier", "bi_barrier", "bi_barrier", "bi_barrier", "bi_barrier",
+        // Class 3 Star Saint (49 pts)
+        "ss_faith", "ss_faith", "ss_faith", "ss_faith", "ss_faith", "ss_faith", "ss_faith", "ss_faith", "ss_faith", "ss_faith",
+        "ss_heal", "ss_heal", "ss_heal", "ss_heal", "ss_heal", "ss_heal", "ss_heal", "ss_heal", "ss_heal", "ss_heal",
+        "ss_turn", "ss_turn", "ss_turn", "ss_turn", "ss_turn", "ss_turn", "ss_turn", "ss_turn", "ss_turn", "ss_turn",
+        "ss_sanct", "ss_sanct", "ss_sanct", "ss_sanct", "ss_sanct", "ss_sanct", "ss_sanct", "ss_sanct", "ss_sanct", "ss_sanct",
+        "ss_awaken", "ss_awaken", "ss_awaken", "ss_awaken", "ss_awaken",
+        "ss_lex", "ss_lex", "ss_lex", "ss_lex"
       ],
       plannedLevels: {
-        mastery: 10, body: 10,
-        ar_bowmastery: 10, ar_doubleshot: 10, ar_owl: 10, ar_concentrate: 5, double: 3,
-        wh_blitz: 2, wh_autoblitz: 10, wh_steelcrow: 5, wh_wolf: 9, wh_alpha: 5, wh_bond: 10, wh_wolfrush: 5, wh_howl: 3
+        mastery: 5, body: 4,
+        holylight: 10, pr_heal: 10, blessing: 10, pr_agi: 5, pr_demonbane: 4, magnus: 5, pr_protect: 5, pr_angelus: 3,
+        bi_heal: 10, bi_barrier: 10, bi_meditatio: 5, bi_magnificat: 5, bi_sanctuary: 5, bi_turnundead: 10, bi_miracle: 5,
+        ss_faith: 10, ss_heal: 10, ss_turn: 10, ss_sanct: 10, ss_awaken: 5, ss_lex: 4
       },
       facets: {}
     },
@@ -398,7 +407,7 @@ function buildDefaultNightcampWolfHunterPlan() {
         classId: "traveler",
         targetLevel: 10,
         actions: [
-          { id: "act_nc_c1", type: "change_class", targetClass: "archer" },
+          { id: "act_nc_c1", type: "change_class", targetClass: "priest" },
           { id: "act_nc_eq2", type: "equip_best", itemName: "" }
         ]
       },
@@ -407,7 +416,7 @@ function buildDefaultNightcampWolfHunterPlan() {
         type: "base_level",
         targetLevel: 12,
         actions: [
-          { id: "act_nc_sell12", type: "sell_trip", sellMaterials: true, redQty: 30, blueQty: 10 },
+          { id: "act_nc_sell12", type: "sell_trip", sellMaterials: true, redQty: 15, blueQty: 20 },
           { id: "act_nc_aq12", type: "auto_quest", questMode: "until_level", untilLevel: 25, untilQuest: "MQ25" }
         ]
       },
@@ -416,7 +425,7 @@ function buildDefaultNightcampWolfHunterPlan() {
         type: "base_level",
         targetLevel: 25,
         actions: [
-          { id: "act_nc_map25", type: "change_map", targetMap: "woods", targetMonster: "" },
+          { id: "act_nc_map25", type: "change_map", targetMap: "graveyard", targetMonster: "" },
           { id: "act_nc_eq25", type: "equip_best", itemName: "" }
         ]
       },
@@ -425,17 +434,17 @@ function buildDefaultNightcampWolfHunterPlan() {
         type: "base_level",
         targetLevel: 35,
         actions: [
-          { id: "act_nc_sell35", type: "sell_trip", sellMaterials: true, redQty: 50, blueQty: 15 },
-          { id: "act_nc_map35", type: "change_map", targetMap: "burnt", targetMonster: "" }
+          { id: "act_nc_sell35", type: "sell_trip", sellMaterials: true, redQty: 15, blueQty: 25 },
+          { id: "act_nc_map35", type: "change_map", targetMap: "crypt1", targetMonster: "" }
         ]
       },
       {
         id: "trig_nc_job50_c1",
         type: "job_level",
-        classId: "archer",
+        classId: "priest",
         targetLevel: 50,
         actions: [
-          { id: "act_nc_c2", type: "change_class", targetClass: "wolfhunter" },
+          { id: "act_nc_c2", type: "change_class", targetClass: "bishop" },
           { id: "act_nc_eq_c2", type: "equip_best", itemName: "" }
         ]
       },
@@ -444,7 +453,7 @@ function buildDefaultNightcampWolfHunterPlan() {
         type: "base_level",
         targetLevel: 46,
         actions: [
-          { id: "act_nc_map46", type: "change_map", targetMap: "peak", targetMonster: "" },
+          { id: "act_nc_map46", type: "change_map", targetMap: "crypt2", targetMonster: "" },
           { id: "act_nc_aq46", type: "auto_quest", questMode: "all", untilLevel: 70, untilQuest: "ALL" }
         ]
       }
@@ -454,23 +463,193 @@ function buildDefaultNightcampWolfHunterPlan() {
   };
 }
 
+function buildDefaultNightcampPriestWispPlan() {
+  return {
+    id: "plan_nc_priest_wisp_1_50",
+    name: "🧚 [แนะนำสายฟาร์มไว] พระ ➔ ผู้เลี้ยงดวงไฟ ➔ ผู้เลี้ยงดวงดาว (ดวงไฟวิญญาณ 5 ดวงยิงออโต้ฟรี + ระเบิดหมู่ + โล่ฮีล Lv.1–80+)",
+    description: "ถือกระดิ่งวิญญาณ + โล่: ดวงไฟวิญญาณ 5 ดวงลอยรอบตัวยิงมอนเองฟรี (0 SP) + แปะดวงไฟระเบิดหมู่ทุก 0.3 วิ + ดวงไฟโอบกายเป็นโล่และฮีลตัวเองอัตโนมัติ",
+    autoQuestEnabled: true,
+    autoJobChange: true,
+    autoStatSkillEnabled: true,
+    class1Target: "priest",
+    class1JobLevel: 10,
+    class2Target: "wisp",
+    class2JobLevel: 50,
+    class3Target: "starshepherd",
+    statBuild: {
+      queue: [
+        { stat: "INT", to: 30 },
+        { stat: "AGI", to: 24 },
+        { stat: "VIT", to: 20 },
+        { stat: "DEX", to: 20 },
+        { stat: "INT", to: 45 },
+        { stat: "AGI", to: 36 },
+        { stat: "VIT", to: 30 },
+        { stat: "DEX", to: 30 },
+        { stat: "INT", to: 65 },
+        { stat: "AGI", to: 50 },
+        { stat: "VIT", to: 45 },
+        { stat: "DEX", to: 45 },
+        { stat: "INT", to: 80 }
+      ],
+      targets: { STR: 1, AGI: 50, VIT: 45, INT: 80, DEX: 45, LUK: 1 },
+      priorityOrder: ["INT", "AGI", "VIT", "DEX", "LUK", "STR"]
+    },
+    skillBuild: {
+      skillPointQueue: [
+        // Traveler (9 pts)
+        "mastery", "mastery", "mastery", "mastery", "mastery",
+        "body", "body", "body", "body",
+        // Class 1 Priest (49 pts): includes pr_macemastery Lv 3 + pr_duple Lv 10 to unlock ws_call & auto-proc holy light
+        "holylight", "holylight", "holylight", "holylight", "holylight", "holylight", "holylight", "holylight", "holylight",
+        "pr_heal", "pr_heal", "pr_heal", "pr_heal",
+        "blessing", "blessing", "blessing", "blessing",
+        "pr_agi", "pr_agi", "pr_agi", "pr_agi", "pr_agi",
+        "pr_macemastery", "pr_macemastery", "pr_macemastery",
+        "pr_duple", "pr_duple", "pr_duple", "pr_duple", "pr_duple", "pr_duple", "pr_duple", "pr_duple", "pr_duple", "pr_duple",
+        "pr_protect", "pr_protect", "pr_protect", "pr_protect", "pr_protect",
+        "blessing", "blessing", "blessing", "blessing", "blessing",
+        "pr_agi", "pr_agi", "pr_agi", "pr_agi",
+        // Class 2 Wisp (49 pts)
+        "ws_flock", "ws_flock", "ws_flock", "ws_flock", "ws_flock", "ws_flock", "ws_flock", "ws_flock", "ws_flock",
+        "ws_swarm", "ws_swarm", "ws_swarm", "ws_swarm", "ws_swarm", "ws_swarm", "ws_swarm", "ws_swarm", "ws_swarm", "ws_swarm",
+        "ws_heart", "ws_heart", "ws_heart", "ws_heart", "ws_heart",
+        "ws_call", "ws_call", "ws_call", "ws_call", "ws_call",
+        "ws_mark", "ws_mark", "ws_mark", "ws_mark", "ws_mark",
+        "ws_rush", "ws_rush", "ws_rush", "ws_rush", "ws_rush", "ws_rush", "ws_rush", "ws_rush", "ws_rush", "ws_rush",
+        "ws_night", "ws_night", "ws_night", "ws_night", "ws_night",
+        // Class 3 Star Shepherd (49 pts)
+        "st_merge", "st_merge", "st_merge", "st_merge", "st_merge", "st_merge", "st_merge", "st_merge", "st_merge", "st_merge",
+        "st_mark", "st_mark", "st_mark", "st_mark", "st_mark", "st_mark", "st_mark", "st_mark", "st_mark", "st_mark",
+        "st_rush", "st_rush", "st_rush", "st_rush", "st_rush", "st_rush", "st_rush", "st_rush", "st_rush", "st_rush",
+        "st_latch", "st_latch", "st_latch", "st_latch", "st_latch", "st_latch", "st_latch", "st_latch", "st_latch", "st_latch",
+        "st_awaken", "st_awaken", "st_awaken", "st_awaken", "st_awaken",
+        "st_burst", "st_burst", "st_burst", "st_burst"
+      ],
+      plannedLevels: {
+        mastery: 5, body: 4,
+        holylight: 10, pr_heal: 5, blessing: 10, pr_agi: 9, pr_macemastery: 3, pr_duple: 10, pr_protect: 5,
+        ws_flock: 10, ws_swarm: 10, ws_heart: 5, ws_call: 5, ws_mark: 5, ws_rush: 10, ws_night: 5, ws_latch: 1
+      },
+      facets: {}
+    },
+    triggers: buildDefaultNightcampPriestPlan().triggers.map(t =>
+      t.id === "trig_nc_job50_c1"
+        ? { ...t, actions: [{ id: "act_nc_c2", type: "change_class", targetClass: "wisp" }, { id: "act_nc_eq_c2", type: "equip_best", itemName: "" }] }
+        : t
+    ),
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  };
+}
+
+function buildDefaultNightcampPriestMonkPlan() {
+  return {
+    id: "plan_nc_priest_monk_1_50",
+    name: "👊 [แนะนำสายพระบู๊ประชิด] พระ ➔ นักพรต ➔ ปรมาจารย์หมัดดาวตก (กายเหล็กถึก 45% + หมัดสามดาว + คอมโบ 0 มานา Lv.1–80+)",
+    description: "พระสายหมัดประชิด HP สูง: กายเหล็กลดดาเมจ 45% + หมัดสามดาวติดลูกปราณฟรี + ชุดหมัดพายุไม่เสีย SP หลังหมัดสามดาว + ฝ่ามือทะลวงปราณคริติคอล 100%",
+    autoQuestEnabled: true,
+    autoJobChange: true,
+    autoStatSkillEnabled: true,
+    class1Target: "priest",
+    class1JobLevel: 10,
+    class2Target: "monk",
+    class2JobLevel: 50,
+    class3Target: "meteorfist",
+    statBuild: {
+      queue: [
+        { stat: "STR", to: 30 },
+        { stat: "AGI", to: 28 },
+        { stat: "VIT", to: 22 },
+        { stat: "DEX", to: 20 },
+        { stat: "STR", to: 45 },
+        { stat: "AGI", to: 42 },
+        { stat: "VIT", to: 34 },
+        { stat: "DEX", to: 30 },
+        { stat: "STR", to: 65 },
+        { stat: "AGI", to: 60 },
+        { stat: "VIT", to: 45 },
+        { stat: "DEX", to: 42 },
+        { stat: "STR", to: 80 }
+      ],
+      targets: { STR: 80, AGI: 60, VIT: 45, INT: 1, DEX: 42, LUK: 1 },
+      priorityOrder: ["STR", "AGI", "VIT", "DEX", "LUK", "INT"]
+    },
+    skillBuild: {
+      skillPointQueue: [
+        // Traveler (9 pts)
+        "mastery", "mastery", "mastery", "mastery", "mastery",
+        "body", "body", "body", "body",
+        // Class 1 Priest (49 pts)
+        "pr_macemastery", "pr_macemastery", "pr_macemastery", "pr_macemastery", "pr_macemastery",
+        "pr_duple", "pr_duple", "pr_duple", "pr_duple", "pr_duple", "pr_duple", "pr_duple", "pr_duple", "pr_duple", "pr_duple",
+        "pr_macemastery", "pr_macemastery", "pr_macemastery", "pr_macemastery", "pr_macemastery",
+        "pr_heal", "pr_heal", "pr_heal", "pr_heal",
+        "blessing", "blessing", "blessing", "blessing", "blessing", "blessing", "blessing", "blessing", "blessing",
+        "pr_agi", "pr_agi", "pr_agi", "pr_agi", "pr_agi", "pr_agi", "pr_agi", "pr_agi", "pr_agi", "pr_agi",
+        "pr_protect", "pr_protect", "pr_protect", "pr_protect", "pr_protect", "pr_protect",
+        // Class 2 Monk (49 pts)
+        "mo_spheres", "mo_spheres", "mo_spheres", "mo_spheres", "mo_spheres",
+        "mo_triple", "mo_triple", "mo_triple", "mo_triple", "mo_triple", "mo_triple", "mo_triple", "mo_triple", "mo_triple", "mo_triple",
+        "mo_ironfist", "mo_ironfist", "mo_ironfist", "mo_ironfist", "mo_ironfist",
+        "mo_ironbody", "mo_ironbody", "mo_ironbody", "mo_ironbody", "mo_ironbody",
+        "mo_chi", "mo_chi", "mo_chi", "mo_chi",
+        "mo_palms", "mo_palms", "mo_palms", "mo_palms", "mo_palms",
+        "mo_combo", "mo_combo", "mo_combo", "mo_combo", "mo_combo", "mo_combo", "mo_combo", "mo_combo", "mo_combo", "mo_combo",
+        "mo_fury", "mo_fury", "mo_fury", "mo_fury", "mo_fury"
+      ],
+      plannedLevels: {
+        mastery: 5, body: 4,
+        pr_macemastery: 10, pr_duple: 10, pr_heal: 5, blessing: 10, pr_agi: 10, pr_protect: 6,
+        mo_spheres: 5, mo_triple: 10, mo_ironfist: 5, mo_ironbody: 5, mo_chi: 5, mo_palms: 5, mo_combo: 10, mo_fury: 5
+      },
+      facets: {}
+    },
+    triggers: buildDefaultNightcampPriestPlan().triggers.map(t =>
+      t.id === "trig_nc_job50_c1"
+        ? { ...t, actions: [{ id: "act_nc_c2", type: "change_class", targetClass: "monk" }, { id: "act_nc_eq_c2", type: "equip_best", itemName: "" }] }
+        : t
+    ),
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  };
+}
+
+function buildDefaultNightcampWolfHunterPlan() {
+  return buildDefaultNightcampPriestPlan();
+}
+
 function normalizePlansData(raw) {
   if (raw && Array.isArray(raw.profiles)) {
     let migrated = false;
-    // Migrate old Aetheria starter plan ("plan_starter_archer" with Gakkung Bow) to Nightcamp Wolf Hunter plan
-    const aetheriaIdx = raw.profiles.findIndex(p => p && p.id === "plan_starter_archer");
-    if (aetheriaIdx !== -1) {
-      const ncPlan = buildDefaultNightcampWolfHunterPlan();
-      raw.profiles[aetheriaIdx] = ncPlan;
-      if (raw.assignments) {
-        for (const k of Object.keys(raw.assignments)) {
-          if (raw.assignments[k] === "plan_starter_archer") raw.assignments[k] = ncPlan.id;
+    // Migrate old Aetheria starter plan ("plan_starter_archer") or old weak Wolf Hunter default plan ("plan_nc_wolfhunter_1_50") to S-Tier Priest -> Bishop plan
+    for (const legacyId of ["plan_starter_archer", "plan_nc_wolfhunter_1_50"]) {
+      const legacyIdx = raw.profiles.findIndex(p => p && p.id === legacyId);
+      if (legacyIdx !== -1) {
+        const ncPlan = buildDefaultNightcampPriestPlan();
+        raw.profiles[legacyIdx] = ncPlan;
+        if (raw.assignments) {
+          for (const k of Object.keys(raw.assignments)) {
+            if (raw.assignments[k] === legacyId) raw.assignments[k] = ncPlan.id;
+          }
         }
+        migrated = true;
       }
-      migrated = true;
     }
     if (raw.profiles.length === 0) {
-      raw.profiles.push(buildDefaultNightcampWolfHunterPlan());
+      raw.profiles.push(buildDefaultNightcampPriestPlan());
+      migrated = true;
+    }
+    if (!raw.profiles.some(p => p && p.id === "plan_nc_priest_bishop_1_50")) {
+      raw.profiles.unshift(buildDefaultNightcampPriestPlan());
+      migrated = true;
+    }
+    if (!raw.profiles.some(p => p && p.id === "plan_nc_priest_wisp_1_50")) {
+      raw.profiles.push(buildDefaultNightcampPriestWispPlan());
+      migrated = true;
+    }
+    if (!raw.profiles.some(p => p && p.id === "plan_nc_priest_monk_1_50")) {
+      raw.profiles.push(buildDefaultNightcampPriestMonkPlan());
       migrated = true;
     }
     for (const p of raw.profiles) {
@@ -504,7 +683,11 @@ function normalizePlansData(raw) {
     return result;
   }
 
-  const defaultProfiles = [buildDefaultNightcampWolfHunterPlan()];
+  const defaultProfiles = [
+    buildDefaultNightcampPriestPlan(),
+    buildDefaultNightcampPriestWispPlan(),
+    buildDefaultNightcampPriestMonkPlan()
+  ];
   const assignments = {};
   return { profiles: defaultProfiles, assignments };
 }
@@ -12389,9 +12572,9 @@ public class PmFocus {
           id: "plan_" + Date.now(),
           name: (payload.name || "New Plan").trim(),
           description: payload.description || "",
-          class1Target: payload.class1Target || "archer",
-          class2Target: payload.class2Target || "wolfhunter",
-          class3Target: payload.class3Target || "packalpha",
+          class1Target: payload.class1Target || "priest",
+          class2Target: payload.class2Target || "bishop",
+          class3Target: payload.class3Target || "starsaint",
           autoQuestEnabled: payload.autoQuestEnabled !== false,
           autoJobChange: payload.autoJobChange !== false,
           autoStatSkillEnabled: payload.autoStatSkillEnabled !== false,
@@ -12432,9 +12615,9 @@ public class PmFocus {
           ...plansData.profiles[idx],
           name: payload.name !== undefined ? payload.name.trim() : plansData.profiles[idx].name,
           description: payload.description !== undefined ? payload.description : plansData.profiles[idx].description,
-          class1Target: payload.class1Target !== undefined ? payload.class1Target : (plansData.profiles[idx].class1Target || "archer"),
-          class2Target: payload.class2Target !== undefined ? payload.class2Target : (plansData.profiles[idx].class2Target || "wolfhunter"),
-          class3Target: payload.class3Target !== undefined ? payload.class3Target : (plansData.profiles[idx].class3Target || "packalpha"),
+          class1Target: payload.class1Target !== undefined ? payload.class1Target : (plansData.profiles[idx].class1Target || "priest"),
+          class2Target: payload.class2Target !== undefined ? payload.class2Target : (plansData.profiles[idx].class2Target || "bishop"),
+          class3Target: payload.class3Target !== undefined ? payload.class3Target : (plansData.profiles[idx].class3Target || "starsaint"),
           autoQuestEnabled: typeof payload.autoQuestEnabled === 'boolean' ? payload.autoQuestEnabled : (plansData.profiles[idx].autoQuestEnabled !== false),
           autoJobChange: typeof payload.autoJobChange === 'boolean' ? payload.autoJobChange : (plansData.profiles[idx].autoJobChange !== false),
           autoStatSkillEnabled: typeof payload.autoStatSkillEnabled === 'boolean' ? payload.autoStatSkillEnabled : (plansData.profiles[idx].autoStatSkillEnabled !== false),

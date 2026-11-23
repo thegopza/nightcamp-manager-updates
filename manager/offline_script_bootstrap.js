@@ -22,7 +22,7 @@
     '__inspectNightcampRuntime', 'getCharacterName', 'syncAllHudInputsFromConfig',
     '__setAutoRespawnEnabled', '__setSmartGearEnabled', '__setPotionConfig', '__setSmartAutoQuestEnabled',
     '__setUpgradeBotAiEnabled', '__setAutoSellConfig', '__setSellConfig', '__setTargetFarmMap',
-    '__setPerfConfig', '__applyScriptPlan', '__triggerPotionRestockTripNow', '__triggerAutoSellTripNow']);
+    '__setPerfConfig', '__setPendingScriptUpdate', '__applyScriptPlan', '__triggerPotionRestockTripNow', '__triggerAutoSellTripNow']);
   const safeStops = new Set(['stopMasterBot', 'stopPelicanBot']);
   const facade = new Proxy(host, {
     get(target, key) {
@@ -119,9 +119,31 @@
       return { success: false, code: failed };
     }
   }
+  async function hotUpgrade(input) {
+    try {
+      const next = await verify(input?.envelope || input?.ticket);
+      const source = typeof input.payload === 'string' ? input.payload : input.payload?.source;
+      if (typeof source !== 'string' || encoder.encode(source).byteLength > 4 * 1024 * 1024) throw Error('INVALID_PAYLOAD');
+      const digest = await host.crypto.subtle.digest('SHA-256', encoder.encode(source));
+      const hash = Array.from(new Uint8Array(digest), x => x.toString(16).padStart(2, '0')).join('');
+      if (hash !== next.payloadHash) throw Error('PAYLOAD_HASH_MISMATCH');
+      const initialize = new Function('runtime', source);
+      claims = next;
+      phase = 'ready';
+      host.__pmPayloadInitialized = true;
+      host.__forceNightcampHotReload = true;
+      host.__pmHotPayloadHash = next.payloadHash;
+      host.__ncPendingScriptUpdate = null;
+      host.__ncRequestSelfHotUpdate = false;
+      initialize(runtime);
+      return { success: true, version: next.version, payloadHash: next.payloadHash };
+    } catch (error) {
+      return { success: false, code: error.message };
+    }
+  }
   async function renew() { return { success: true, offline: true }; }
   Object.defineProperty(host, '__pmScriptBootstrap', { value: Object.freeze({
-    accept, renew,
+    accept, renew, hotUpgrade,
     status: () => ({ protocol: 2, mode: 'friends-offline', phase, runtimeNonce, activated: !!host.__pmPayloadInitialized, busy: busy(), version: claims?.version || null,
       slotId: claims?.slotId || null, payloadHash: claims?.payloadHash || null,
       expiresAt: claims?.expiresAt || null, graceUntil: claims?.graceUntil || null, code: failed })
