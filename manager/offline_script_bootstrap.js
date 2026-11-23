@@ -22,7 +22,7 @@
     '__inspectNightcampRuntime', 'getCharacterName', 'syncAllHudInputsFromConfig',
     '__setAutoRespawnEnabled', '__setSmartGearEnabled', '__setPotionConfig', '__setSmartAutoQuestEnabled',
     '__setUpgradeBotAiEnabled', '__setAutoSellConfig', '__setSellConfig', '__setTargetFarmMap',
-    '__applyScriptPlan', '__triggerPotionRestockTripNow', '__triggerAutoSellTripNow']);
+    '__setPerfConfig', '__applyScriptPlan', '__triggerPotionRestockTripNow', '__triggerAutoSellTripNow']);
   const safeStops = new Set(['stopMasterBot', 'stopPelicanBot']);
   const facade = new Proxy(host, {
     get(target, key) {
