@@ -2160,6 +2160,9 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
     if (profileId && machineId) {
       saved[`pelican_${profileId}__aetheria_machine`] = machineId;
     }
+    if (!saved['nightcamp.lang']) {
+      saved['nightcamp.lang'] = 'th';
+    }
     const orderedSaved = {};
     const isPriorityStorageKey = k => k.endsWith('_cfg') || k.endsWith('_config') || k.endsWith('__script_plan') || k.endsWith('__plan_script_enabled') || k.endsWith('__auto_loop') || k.endsWith('__farm_map') || k.endsWith('__target_map') || k.endsWith('__aetheria_device') || k.endsWith('__aetheria_machine') || k.indexOf('__nc__') !== -1 || k.startsWith('__ss:');
     for (const [k, v] of Object.entries(saved)) {
@@ -2982,6 +2985,9 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
       if(!current(c,token))return;
       const result=await health(c);
       if(!classify(c,result)) {
+        if (isRealSession && typeof code === 'string' && !code.includes('__pmScriptBootstrap.accept(')) {
+          c.attempts = Math.max(0, c.attempts - 1);
+        }
         diagnostic(c,'partial-runtime',{code:'POSTCONDITION_MISSING'});
         if (c.attempts < 3 && !c.retryTimer) {
           c.retryTimer=setTimeout(()=>{c.retryTimer=null;injectBot(c);},retryDelays[Math.max(0,c.attempts-1)]||2500);
@@ -3752,6 +3758,11 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
                   return reply(200, { success: true, result: { success: true } });
                 }
               }
+              if (c.retryTimer) {
+                clearTimeout(c.retryTimer);
+                c.retryTimer = null;
+              }
+              c.attempts = 0;
               await injectBot(c).catch(() => {});
               if (diagnostics.get(c.profileId)?.state === 'ready') {
                 return reply(200, { success: true, result: { success: true } });

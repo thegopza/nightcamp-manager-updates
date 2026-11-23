@@ -74,7 +74,7 @@
     const c = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes(ticket.claims)));
     if (c.protocol !== 2 || c.mode !== 'friends-offline' || !/^\d+\.\d+\.\d+$/.test(c.version) ||
       !/^[a-f0-9]{64}$/.test(c.payloadHash) || !Number.isSafeInteger(c.size) || c.size < 1 || c.size > 4 * 1024 * 1024 ||
-      !Number.isSafeInteger(c.issuedAt) || c.issuedAt < 1 || c.issuedAt > now() + 30000) throw Error('INVALID_RELEASE');
+      !Number.isSafeInteger(c.issuedAt) || c.issuedAt < 1 || c.issuedAt > now() + 30 * 86400 * 1000) throw Error('INVALID_RELEASE');
     const key = await host.crypto.subtle.importKey('jwk', PUBLIC_KEYS[ticket.keyId], { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify']);
     if (!await host.crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, key,
       bytes(ticket.signature), encoder.encode('PmheeAether.offline-release.v1\n' + ticket.claims))) throw Error('INVALID_SIGNATURE');
