@@ -11847,6 +11847,7 @@ public class PmFocus {
     // GET /api/autofarm/state
     if (req.method === "GET" && pathname === "/api/autofarm/state") {
       const afState = loadAutoFarmState();
+      let afDirty = false;
       const enriched = await mapWithConcurrency(
         afState.profiles,
         8,
@@ -11875,18 +11876,37 @@ public class PmFocus {
                 };
               }
             } else {
-              if (liveState.charName && liveState.charName !== p.lastCharName) {
+              if (liveState.authConfig && (liveState.authConfig.registerDone || liveState.authConfig.verifiedLoginAt) && liveState.authConfig.username) {
+                const confirmedEmail = String(liveState.authConfig.username).trim();
+                if (confirmedEmail && confirmedEmail !== p.account) {
+                  p.account = confirmedEmail;
+                  afDirty = true;
+                }
+                if (liveState.authConfig.password && String(liveState.authConfig.password).trim() !== credentials.getPassword(p.id)) {
+                  credentials.setPassword(p.id, String(liveState.authConfig.password).trim());
+                }
+              }
+              if (liveState.charName && liveState.charName !== "Traveler" && liveState.charName !== p.lastCharName) {
                 p.lastCharName = liveState.charName;
+                p.charName = liveState.charName;
+                p.name = p.isReceiver ? `👑 ตัวรับเงิน (${liveState.charName})` : `🌾 ฟาร์ม (${liveState.charName})`;
                 p.autoRegister = false;
+                afDirty = true;
               }
               if (liveState.charClass && liveState.charClass !== p.lastCharClass) {
                 p.lastCharClass = liveState.charClass;
               }
-              if (liveState.zeny != null && liveState.screenPhase === "in_game") {
-                p.lastZeny = Number(liveState.zeny);
+              if (liveState.zeny != null && (liveState.screenPhase === "in_game" || Number(liveState.zeny) > 0)) {
+                if (p.lastZeny !== Number(liveState.zeny)) {
+                  p.lastZeny = Number(liveState.zeny);
+                  afDirty = true;
+                }
               }
-              if (liveState.baseLv != null && liveState.screenPhase === "in_game") {
-                p.lastBaseLv = Number(liveState.baseLv);
+              if (liveState.baseLv != null && (liveState.screenPhase === "in_game" || Number(liveState.baseLv) > 1)) {
+                if (p.lastBaseLv !== Number(liveState.baseLv)) {
+                  p.lastBaseLv = Number(liveState.baseLv);
+                  afDirty = true;
+                }
               }
               if (liveState.zeroRender !== undefined) {
                 windowStates[p.id] = { isHidden: Boolean(liveState.zeroRender), zeroRender: Boolean(liveState.zeroRender), updatedAt: Date.now() };
@@ -11905,6 +11925,9 @@ public class PmFocus {
           };
         }
       );
+      if (typeof afDirty !== "undefined" && afDirty) {
+        saveAutoFarmState(afState);
+      }
       return sendJSON({
         success: true,
         config: afState.config,
@@ -11976,24 +11999,28 @@ public class PmFocus {
             while (afState.profiles.some(p => p.id === newId)) {
               newId = "af_" + Date.now() + "_" + Math.floor(Math.random() * 10000);
             }
-            const email = (count === 1 && data.account && String(data.account).trim())
+            // Same as Aetheria: Do NOT pre-generate email/password/charName on queue creation unless explicitly provided!
+            // Instead, leave them blank so the bot generates & verifies them live during signup/character creation (and auto-rerolls if duplicate),
+            // then confirms the verified ID/Pass/CharName back to the profile card!
+            const hasExplicitAccount = Boolean(count === 1 && data.account && String(data.account).trim());
+            const email = hasExplicitAccount
               ? (String(data.account).trim().includes("@") ? String(data.account).trim() : String(data.account).trim() + "@gmail.com")
-              : genUserId(usedEmails);
-            usedEmails.add(email.toLowerCase());
+              : "";
             const pw = (count === 1 && data.loginPassword && String(data.loginPassword).trim())
               ? String(data.loginPassword).trim()
-              : genPassword();
+              : "";
             const cName = (count === 1 && data.charName && String(data.charName).trim())
               ? String(data.charName).trim().slice(0, 12)
-              : genCharName(usedChars);
-            usedChars.add(cName.toLowerCase());
+              : "";
 
             const seqNum = afState.profiles.length + 1;
             const isFirstReceiver = afState.profiles.length === 0 || (count === 1 && data.isReceiver === true);
             const prof = {
               id: newId,
               isAutoFarmProfile: true,
-              name: isFirstReceiver ? `👑 ตัวรับเงิน (${cName})` : `🌾 ฟาร์ม #${seqNum} (${cName})`,
+              name: isFirstReceiver
+                ? (cName ? `👑 ตัวรับเงิน (${cName})` : `👑 ตัวรับเงิน (รอสุ่มสมัคร)`)
+                : (cName ? `🌾 ฟาร์ม #${seqNum} (${cName})` : `🌾 ฟาร์ม #${seqNum} (รอคิวสมัคร)`),
               account: email,
               charName: cName,
               serverName,
@@ -12001,7 +12028,7 @@ public class PmFocus {
               autoLoginEnabled: true,
               autoResumeBot: true,
               autoRegister: !(count === 1 && data.autoRegister === false),
-              generatedAccount: true,
+              generatedAccount: !hasExplicitAccount,
               charClass: "Archer",
               isReceiver: isFirstReceiver,
               passed: false,
@@ -12009,7 +12036,7 @@ public class PmFocus {
               tradedCoins: 0,
               createdAt: Date.now()
             };
-            credentials.setPassword(newId, pw);
+            if (pw) credentials.setPassword(newId, pw);
             afState.profiles.push(prof);
             if (isFirstReceiver) {
               afState.config.receiverProfileId = newId;
@@ -13130,13 +13157,31 @@ async function runAutoFarmOrchestratorTick() {
     } else if (receiverProfile.debugPort) {
       const recLive = await queryClientState(receiverProfile.debugPort).catch(() => null);
       if (recLive && !recLive.error) {
-        if (recLive.charName && recLive.charName !== receiverProfile.lastCharName) {
+        if (recLive.authConfig && (recLive.authConfig.registerDone || recLive.authConfig.verifiedLoginAt) && recLive.authConfig.username) {
+          const confirmedEmail = String(recLive.authConfig.username).trim();
+          if (confirmedEmail && confirmedEmail !== receiverProfile.account) {
+            receiverProfile.account = confirmedEmail;
+            stateChanged = true;
+          }
+          if (recLive.authConfig.password && String(recLive.authConfig.password).trim() !== credentials.getPassword(receiverProfile.id)) {
+            credentials.setPassword(receiverProfile.id, String(recLive.authConfig.password).trim());
+          }
+        }
+        if (recLive.charName && recLive.charName !== "Traveler" && recLive.charName !== receiverProfile.lastCharName) {
           receiverProfile.lastCharName = recLive.charName;
+          receiverProfile.charName = recLive.charName;
+          receiverProfile.name = `👑 ตัวรับเงิน (${recLive.charName})`;
           receiverProfile.autoRegister = false;
           stateChanged = true;
         }
-        if (recLive.zeny != null && recLive.screenPhase === "in_game") {
+        if (recLive.zeny != null && (recLive.screenPhase === "in_game" || Number(recLive.zeny) > 0)) {
           receiverProfile.lastZeny = Number(recLive.zeny);
+        }
+        if (recLive.baseLv != null && (recLive.screenPhase === "in_game" || Number(recLive.baseLv) > 1)) {
+          receiverProfile.lastBaseLv = Number(recLive.baseLv);
+        }
+        if (Array.isArray(recLive.autoFarmLv20?.marketListings)) {
+          afState.config.receiverMarketListings = recLive.autoFarmLv20.marketListings;
         }
         await evalProfilePort(receiverProfile.debugPort, `(() => {
           if (typeof window.__setAutoFarmLv20Config === 'function') {
@@ -13158,6 +13203,7 @@ async function runAutoFarmOrchestratorTick() {
     }
 
     const receiverCharName = String(receiverProfile.lastCharName || receiverProfile.charName || "").trim();
+    const receiverMarketListings = Array.isArray(afState.config.receiverMarketListings) ? afState.config.receiverMarketListings : [];
 
     // 2. Check Open Farmer Profiles for Completion & Sync Config
     const toDeleteIds = [];
@@ -13169,13 +13215,25 @@ async function runAutoFarmOrchestratorTick() {
       const live = await queryClientState(p.debugPort).catch(() => null);
       if (!live || live.error) continue;
 
-      if (live.charName && live.charName !== p.lastCharName) {
+      if (live.authConfig && (live.authConfig.registerDone || live.authConfig.verifiedLoginAt) && live.authConfig.username) {
+        const confirmedEmail = String(live.authConfig.username).trim();
+        if (confirmedEmail && confirmedEmail !== p.account) {
+          p.account = confirmedEmail;
+          stateChanged = true;
+        }
+        if (live.authConfig.password && String(live.authConfig.password).trim() !== credentials.getPassword(p.id)) {
+          credentials.setPassword(p.id, String(live.authConfig.password).trim());
+        }
+      }
+      if (live.charName && live.charName !== "Traveler" && live.charName !== p.lastCharName) {
         p.lastCharName = live.charName;
+        p.charName = live.charName;
+        p.name = `🌾 ฟาร์ม (${live.charName})`;
         p.autoRegister = false;
         stateChanged = true;
       }
-      if (live.zeny != null && live.screenPhase === "in_game") p.lastZeny = Number(live.zeny);
-      if (live.baseLv != null && live.screenPhase === "in_game") p.lastBaseLv = Number(live.baseLv);
+      if (live.zeny != null && (live.screenPhase === "in_game" || Number(live.zeny) > 0)) p.lastZeny = Number(live.zeny);
+      if (live.baseLv != null && (live.screenPhase === "in_game" || Number(live.baseLv) > 1)) p.lastBaseLv = Number(live.baseLv);
 
       if (live.autoFarmLv20 && live.autoFarmLv20.tradeCompleted === true && !p.passed) {
         const traded = Number(live.autoFarmLv20.tradedCoins || 0);
@@ -13185,12 +13243,12 @@ async function runAutoFarmOrchestratorTick() {
 
         if (afState.config.completionAction === "delete") {
           toDeleteIds.push(p.id);
-          afState.config.lastStatusText = `🗑️ ${p.lastCharName || p.charName || p.name} เทรดเงิน ${traded.toLocaleString()} เหรียญสำเร็จ -> ลบโปรไฟล์อัตโนมัติแล้ว`;
+          afState.config.lastStatusText = `🗑️ ${p.lastCharName || p.charName || p.name} ดึงของตลาดกลางโอนเงิน ${traded.toLocaleString()} เหรียญสำเร็จ -> ลบโปรไฟล์อัตโนมัติแล้ว`;
         } else {
           p.passed = true;
           p.passedAt = Date.now();
           p.tradedCoins = traded;
-          afState.config.lastStatusText = `🏆 ${p.lastCharName || p.charName || p.name} เทรดเงิน ${traded.toLocaleString()} เหรียญให้ ${receiverCharName || "ตัวรับเงิน"} สำเร็จ -> PASS!`;
+          afState.config.lastStatusText = `🏆 ${p.lastCharName || p.charName || p.name} ดึงของตลาดกลางโอนเงิน ${traded.toLocaleString()} เหรียญให้ ${receiverCharName || "ตัวรับเงิน"} สำเร็จ -> PASS!`;
         }
         stateChanged = true;
         continue;
@@ -13203,6 +13261,7 @@ async function runAutoFarmOrchestratorTick() {
             role: 'farmer',
             targetLevel: ${targetLevel},
             receiverCharName: ${JSON.stringify(receiverCharName)},
+            receiverMarketListings: ${JSON.stringify(receiverMarketListings)},
             tradeChannel: ${tradeChannel}
           });
         }

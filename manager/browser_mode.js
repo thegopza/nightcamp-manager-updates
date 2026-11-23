@@ -17,7 +17,7 @@ const { spawn, execFile } = require('child_process');
 const GAME_URL = 'https://play.nightcamp.app/';
 const BOT_URL = 'https://raw.githubusercontent.com/thegopza/nightcamp-bot/main/bot.js';
 const DEFAULT_CDP_PORT = 9500;
-const MAX_SCREENS_PER_DEVICE = 2;
+const MAX_SCREENS_PER_DEVICE = 1;
 const UUID_V4_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SHA256_HEX_RE = /^[0-9a-f]{64}$/i;
 function deriveMachineId(seed) {
@@ -354,7 +354,7 @@ function extractPelicanStorageFromLevelDb(levelDbDir, fallbackProfileId = null) 
     if (!kStr || typeof vStr !== 'string' || !kStr.startsWith('pelican_')) return;
     const isAuth = kStr.endsWith('__auth_cfg') || kStr === 'pelican_auth_cfg';
     const isSell = kStr.endsWith('__sell_cfg') || kStr === 'pelican_sell_cfg';
-    const m = kStr.match(/^pelican_(profile_[a-zA-Z0-9_]+)__/);
+    const m = kStr.match(/^pelican_((?:profile|af)_[a-zA-Z0-9_]+)__/);
     if (m && m[1]) {
       const pid = m[1];
       if (!byProfile[pid]) byProfile[pid] = {};
@@ -4163,7 +4163,7 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
             if (allKeys && typeof allKeys === 'object') {
               for (const [k, v] of Object.entries(allKeys)) {
                 if (typeof v !== 'string') continue;
-                const m = k.match(/^pelican_(profile_[a-zA-Z0-9_]+)__/);
+                const m = k.match(/^pelican_((?:profile|af)_[a-zA-Z0-9_]+)__/);
                 if (m && m[1]) {
                   if (!byProfile[m[1]]) byProfile[m[1]] = {};
                   if (k.endsWith('__auth_cfg') && byProfile[m[1]][k]) {

@@ -7399,11 +7399,20 @@ window.switchMainTab = switchMainTab;
     grid.innerHTML = afProfiles.map((p, idx) => {
       const isRec = Boolean(receiverProf && p.id === receiverProf.id);
       const live = p.liveState || null;
-      const charName = (live && live.charName) || p.lastCharName || p.charName || `ตัวละคร #${idx + 1}`;
-      const baseLv = (live && live.baseLv != null) ? live.baseLv : (p.lastBaseLv || 1);
+      const rawChar = (live && live.charName && live.charName !== "Traveler") ? live.charName : (p.lastCharName || p.charName || "");
+      const charName = rawChar || (p.isRunning ? "กำลังสุ่มสร้างตัวละคร..." : "⏳ รอสุ่มสร้างตัวละคร");
+      const baseLv = (live && live.baseLv != null && live.baseLv > 1) ? live.baseLv : (p.lastBaseLv || (live && live.baseLv) || 1);
       const jobLv = (live && live.jobLv != null) ? live.jobLv : null;
       const className = (live && (live.jobName || live.className)) || p.jobClass || "นักธนู";
-      const zeny = (live && live.zeny != null && live.screenPhase === "in_game") ? live.zeny : (p.lastZeny != null ? p.lastZeny : (live && live.zeny != null ? live.zeny : null));
+      const zeny = (live && live.zeny != null && (live.screenPhase === "in_game" || Number(live.zeny) > 0))
+        ? live.zeny
+        : (p.lastZeny != null ? p.lastZeny : (live && live.zeny != null ? live.zeny : null));
+      const displayEmail = (live && live.authConfig && (live.authConfig.registerDone || live.authConfig.verifiedLoginAt) && live.authConfig.username)
+        ? live.authConfig.username
+        : (p.account || (p.isRunning ? "กำลังสุ่มสมัคร @gmail.com..." : "⏳ รอสุ่มสมัคร @gmail ตอนเปิดจอ"));
+      const displayPass = (live && live.authConfig && (live.authConfig.registerDone || live.authConfig.verifiedLoginAt) && live.authConfig.password)
+        ? live.authConfig.password
+        : (p.loginPassword || (p.account ? "********" : "⏳ รอยืนยันหลังสมัครสำเร็จ"));
       const mapName = (live && live.map) ? live.map : (p.isRunning ? "กำลังเข้าเกม..." : "รอเปิดจอ");
       const chText = (live && live.channel) ? ` • CH.${live.channel}` : "";
       const hpPct = (live && live.hpMax > 0) ? Math.min(100, Math.max(0, Math.round((live.hp / live.hpMax) * 100))) : (p.isRunning ? 100 : 0);
@@ -7414,8 +7423,8 @@ window.switchMainTab = switchMainTab;
       const afStatus = (live && live.autoFarmLv20 && live.autoFarmLv20.statusText)
         || (live && live.botStatus)
         || (isRec
-          ? (p.isRunning ? `👑 ออนไลน์รอรับเงินเทรดอยู่ (แนล ${afConfig.tradeChannel || 1})` : "👑 ตัวรับเงินหลัก (กำลังเปิดจอค้างไว้รอรับเงิน...)")
-          : (p.passed ? `✅ เทรดเงินสำเร็จแล้ว (${Number(p.tradedCoins || 0).toLocaleString()} เหรียญ)` : "⏳ รอคิวเปิดฟาร์ม..."));
+          ? (p.isRunning ? `👑 เปิดร้านตลาดกลางรอรับเงินอยู่` : "👑 ตัวรับเงินหลัก (กำลังเปิดจอค้างไว้รอรับเงิน...)")
+          : (p.passed ? `✅ ดึงของตลาดกลางโอนเงินสำเร็จ (${Number(p.tradedCoins || 0).toLocaleString()} เหรียญ)` : "⏳ รอคิวเปิดจอ (จะสุ่มสมัคร ID & สร้างตัวละครตอนเปิดจอ)..."));
       const isZeroRender = Boolean((p.windowState && p.windowState.zeroRender) || (live && live.zeroRender));
       const borderColor = isRec
         ? "rgba(251,191,36,0.65)"
@@ -7487,14 +7496,14 @@ window.switchMainTab = switchMainTab;
           <!-- EMAIL & PASSWORD BOX -->
           <div style="background:rgba(2,6,23,0.65);border:1px solid rgba(148,163,184,0.18);border-radius:9px;padding:8px 10px;font-size:11.5px;display:flex;justify-content:space-between;align-items:center;gap:8px;">
             <div style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
-              <div style="color:#cbd5e1;">📧 <span style="font-family:monospace;color:#f8fafc;font-weight:700;">${escHtml(p.account || "-")}</span></div>
-              <div style="color:#94a3b8;margin-top:2px;">🔑 <span style="font-family:monospace;color:#a7f3d0;">${escHtml(p.loginPassword || "********")}</span></div>
+              <div style="color:#cbd5e1;">📧 <span style="font-family:monospace;color:${p.account ? "#f8fafc" : "#94a3b8"};font-weight:700;">${escHtml(displayEmail)}</span></div>
+              <div style="color:#94a3b8;margin-top:2px;">🔑 <span style="font-family:monospace;color:${p.loginPassword ? "#a7f3d0" : "#64748b"};">${escHtml(displayPass)}</span></div>
             </div>
             <div style="display:flex;gap:4px;flex-shrink:0;">
               <button type="button" class="btn btn-secondary btn-sm" style="padding:4px 7px;font-size:11px;" title="แก้ไข ID / รหัส / ชื่อตัวละคร / เซิร์ฟเวอร์" onclick="window.__afEditProfile('${p.id}')">
                 ✏️ แก้ไข
               </button>
-              <button type="button" class="btn btn-secondary btn-sm" style="padding:4px 7px;font-size:11px;" onclick="window.__afCopyCreds('${escHtml(p.account || "")}','${escHtml(p.loginPassword || "")}','${escHtml(charName)}')">
+              <button type="button" class="btn btn-secondary btn-sm" style="padding:4px 7px;font-size:11px;" onclick="window.__afCopyCreds('${escHtml(displayEmail)}','${escHtml(displayPass)}','${escHtml(charName)}')">
                 📋 คัดลอก
               </button>
             </div>
