@@ -99,6 +99,9 @@ function createPlanSync({ loadPlans, savePlans, loadProfiles, evalProfilePort })
         }
       }
     } catch (e) {}
+    if (typeof window.__applyScriptPlan === 'function') {
+      try { window.__applyScriptPlan(window.__currentScriptPlan, ${en}); } catch (e) {}
+    }
     if (!${en} && typeof window.cleanupPlanTransientState === 'function') {
       try { window.cleanupPlanTransientState('ปิด Plan Script'); } catch (e) {}
     }
@@ -111,8 +114,9 @@ function createPlanSync({ loadPlans, savePlans, loadProfiles, evalProfilePort })
     const m = pathname.match(/^\/api\/profiles\/([^/]+)\/(plan-state|plan-enabled)$/);
     if (!m) return false;
     const profile = loadProfiles().find(p => p.id === m[1]);
-    if (!profile || !profile.debugPort) { sendJSON({ success: false, error: 'จอนี้ออฟไลน์อยู่' }); return true; }
+    if (!profile) { sendJSON({ success: false, error: 'ไม่พบโปรไฟล์นี้' }); return true; }
     if (m[2] === 'plan-state' && req.method === 'GET') {
+      if (!profile.debugPort) { sendJSON({ success: false, error: 'จอนี้ออฟไลน์อยู่' }); return true; }
       const r = await evalProfilePort(profile.debugPort, STATE_JS, 3000);
       sendJSON(r && r.success && r.result ? { success: true, ...r.result } : { success: false, error: 'จอนี้ออฟไลน์หรือบอทยังไม่พร้อม' });
       return true;
@@ -126,12 +130,30 @@ function createPlanSync({ loadPlans, savePlans, loadProfiles, evalProfilePort })
       try {
         const fresh = loadPlans();
         if (!fresh.userDisabled) fresh.userDisabled = {};
-        if (en) delete fresh.userDisabled[profile.id];
-        else fresh.userDisabled[profile.id] = true;
+        if (!fresh.pendingEnable) fresh.pendingEnable = {};
+        if (en) {
+          delete fresh.userDisabled[profile.id];
+          fresh.pendingEnable[profile.id] = true;
+        } else {
+          fresh.userDisabled[profile.id] = true;
+          delete fresh.pendingEnable[profile.id];
+        }
         savePlans(fresh);
       } catch (_) {}
+      if (!profile.debugPort) {
+        sendJSON({ success: true, enabled: en, pending: true });
+        return true;
+      }
       const r = await evalProfilePort(profile.debugPort, enableJs(en), 3000);
-      sendJSON(r && r.success && r.result ? r.result : { success: false, error: 'สั่งงานจอนี้ไม่สำเร็จ' });
+      if (r && r.success && r.result) {
+        try {
+          const fresh = loadPlans();
+          if (fresh.pendingEnable) { delete fresh.pendingEnable[profile.id]; savePlans(fresh); }
+        } catch (_) {}
+        sendJSON(r.result);
+      } else {
+        sendJSON({ success: true, enabled: en, pending: true });
+      }
       return true;
     }
     return false;

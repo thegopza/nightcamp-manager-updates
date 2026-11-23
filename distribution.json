@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "sourceCommit": "40d1b91669d0c598fe1cc31bb5184d98902cf00d",
+  "sourceCommit": "e64b6eaf1c6fe32535ab517c4cce467f91228572",
   "files": [
     {
       "path": "manager/asset_cache.js",
@@ -8,7 +8,7 @@
     },
     {
       "path": "manager/auth_sync.js",
-      "sha256": "5db8f13bb2c52835a9bc2df0a55234a1c900f9fd15e061e55c675936ee8c0645"
+      "sha256": "9ec6e86217fdf0c1ee0464de0387f0c2d53bc0f1a589fdb02bd243b8df5e1bd0"
     },
     {
       "path": "manager/bot_auto_update.js",
@@ -116,7 +116,7 @@
     },
     {
       "path": "manager/plan_sync.js",
-      "sha256": "3edab94731acfa2243e32d40d1a721c63a74851f1c5145896981f6c834e10e15"
+      "sha256": "da1f76905af97c1aaf4a5a984484e708a7e852e65a640f6b9809cb64a06e0beb"
     },
     {
       "path": "manager/premium_api.js",

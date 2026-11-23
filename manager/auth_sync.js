@@ -1041,13 +1041,27 @@ function createAuthSync({
       lastPushedQueueDigest.delete(profile.id);
     }
 
+    // If the user entered an ID + Password that did not exist yet on the server and the client switched to register:true
+    // to sign up that exact ID + Password, let it finish registering without overwriting register:false!
+    if (profile.account && cur.username === profile.account && cur.register && !cur.registerDone && !cur.registerError) {
+      return;
+    }
+
+    // If Manager charName was left blank and the client generated/adopted a character name on this account, save lastCharName
+    if (profile.account && cur.username === profile.account && !profile.charName && (cur.charName || cur.charNameCfg)) {
+      const detectedChar = cur.charName || cur.charNameCfg;
+      if (detectedChar && profile.lastCharName !== detectedChar) {
+        updateProfile(profile.id, { lastCharName: detectedChar });
+      }
+    }
+
     // Only push Manager credentials to the client when Manager actually has both account and password
     if (profile.account && pw(profile) && (
       profile.loginSyncPending ||
       cur.username !== profile.account ||
       cur.password !== pw(profile) ||
       (profile.serverName !== undefined && cur.serverName !== (profile.serverName || '')) ||
-      (profile.charName !== undefined && cur.charNameCfg !== (profile.charName || '')) ||
+      (Boolean(profile.charName) && cur.charNameCfg !== profile.charName) ||
       (profile.autoLoginEnabled !== undefined && cur.enabled !== (profile.autoLoginEnabled !== false)) ||
       (profile.autoResumeBot !== undefined && cur.autoResumeBot !== Boolean(profile.autoResumeBot))
     )) {
@@ -1057,8 +1071,8 @@ function createAuthSync({
         username: profile.account,
         password: pw(profile),
         serverName: profile.serverName || '',
-        charName: profile.charName || '',
-        autoResumeBot: Boolean(profile.autoResumeBot),
+        ...(profile.charName ? { charName: profile.charName } : {}),
+        autoResumeBot: profile.autoResumeBot !== false,
         register: false,
         generatedUser: !!profile.generatedAccount,
         ...(profile.loginSyncPending ? { registerDone: true, autoCreateChar: true, autoResumeBot: true } : {})
