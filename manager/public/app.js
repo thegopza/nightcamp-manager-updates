@@ -8436,10 +8436,10 @@ function renderNightcampServerOptions(selectedServer) {
   const cur = String(selectedServer || '');
   const opts = [
     { value: '', label: '🌐 อัตโนมัติ (เซิร์ฟแรกที่ว่าง)' },
-    { value: 'Nightfall', label: 'Nightfall' },
-    { value: 'Moonlight', label: 'Moonlight' },
-    { value: 'Stardust', label: 'Stardust' },
-    { value: 'Sunflare', label: 'Sunflare' }
+    { value: 'Moonlight', label: 'S1 · Moonlight' },
+    { value: 'Stardust', label: 'S2 · Stardust' },
+    { value: 'Nightfall', label: 'S3 · Nightfall' },
+    { value: 'Sunflare', label: 'S4 · Sunflare' }
   ];
   return opts.map(o => `<option value="${escapeHTML(o.value)}"${o.value === cur ? ' selected' : ''}>${escapeHTML(o.label)}</option>`).join('');
 }

@@ -255,17 +255,24 @@ const READ_JS = `(() => {
     c.serverName = domSrv;
     try { localStorage.setItem('pelican_auth_cfg', JSON.stringify(c)); } catch (_) {}
   }
+  const isSignedInEmail = Boolean(window.NC?.Online?.account?.kind && window.NC.Online.account.kind !== 'device');
   const inGame = Boolean(
-    window.NC?.OnlineLobby?.entered === true ||
-    document.querySelector('.char-card:not(.empty)') ||
-    (typeof window.getCurrentMapName === 'function' && window.getCurrentMapName() && window.getCurrentMapName() !== 'ไม่ทราบ') ||
-    window.__charName
+    isSignedInEmail && (
+      window.NC?.OnlineLobby?.entered === true ||
+      (Array.isArray(window.NC?.OnlineLobby?.slots?.slots) && window.NC.OnlineLobby.slots.slots.some(s => s && !s.empty))
+    )
   );
   let charName = '';
   try {
-    const live = typeof window.getLiveCharacterData === 'function' ? window.getLiveCharacterData() : null;
-    const ncName = window.NC?.OnlineLobby?.entered ? (document.querySelector('#sq .hud [data-f="name"], #cname')?.textContent || '').trim() : '';
-    charName = String((live && (live.name || live.characterName)) || (ncName && ncName !== '…' ? ncName : '') || window.__charName || c.charName || '').trim();
+    if (isSignedInEmail && window.NC?.OnlineLobby?.entered === true) {
+      const pName = String(window.NC?.game?.player?.name || '').trim();
+      const ncName = (document.querySelector('#sq .hud [data-f="name"], #cname')?.textContent || '').trim();
+      const rawName = (pName && pName !== '…') ? pName : ((ncName && ncName !== '…') ? ncName : '');
+      charName = rawName;
+    } else if (isSignedInEmail && Array.isArray(window.NC?.OnlineLobby?.slots?.slots)) {
+      const firstFilled = window.NC.OnlineLobby.slots.slots.find(s => s && !s.empty && s.name);
+      if (firstFilled) charName = String(firstFilled.name).trim();
+    }
   } catch (_) {}
   const activeEl = document.activeElement;
   const isEditingAuth = Boolean(
@@ -273,8 +280,7 @@ const READ_JS = `(() => {
       activeEl.id === 'p-auth-user' ||
       activeEl.id === 'p-auth-pass' ||
       activeEl.id === 'p-auth-char' ||
-      activeEl.id === 'p-auth-server' ||
-      (typeof activeEl.closest === 'function' && (activeEl.closest('form.login-form') || activeEl.closest('#nightcamp-hud') || activeEl.closest('#sq [data-p="door"]')))
+      activeEl.id === 'p-auth-server'
     )
   );
   return {
@@ -409,8 +415,7 @@ const pushJs = cfg => `(() => {
   const isEditingAuth = Boolean(
     activeEl && (
       activeEl.id === 'p-auth-user' ||
-      activeEl.id === 'p-auth-pass' ||
-      (typeof activeEl.closest === 'function' && activeEl.closest('form.login-form'))
+      activeEl.id === 'p-auth-pass'
     )
   );
   if (patch.forceResetAuth) {

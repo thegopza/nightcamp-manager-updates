@@ -56,7 +56,7 @@ const CLIENT_PROBE_JS = `(() => {
   return {
     loadedAt: Math.round(performance.timeOrigin),
     version: window.__nightcampBotVersion || window.__pelicanBotVersion || null,
-    payloadHash: window.__pmScriptBootstrap?.status?.()?.payloadHash || null,
+    payloadHash: window.__pmHotPayloadHash || window.__pmScriptBootstrap?.status?.()?.payloadHash || null,
     inGame: Boolean(document.getElementById('nightcamp-hud') || nameEl || typeof window.__getClientLiveState === 'function' || (map && !map.startsWith('ไม่ทราบ'))),
     running: Boolean(window.__isBotRunning),
     busy
@@ -235,6 +235,35 @@ function createBotAutoUpdater({ loadProfiles, evalProfilePort, getGameDir, dataD
     refreshInFlight = true;
     try {
       const wasRunning = Boolean(info.running);
+      // 1. Try zero-downtime hot-upgrade in memory first (avoids kicking Nightcamp players into server queue!)
+      try {
+        const managed = typeof getCachedManagedRelease === 'function' ? getCachedManagedRelease() : null;
+        let hotCode = (managed && typeof managed.code === 'string' && managed.code.length > 1000) ? managed.code : '';
+        if (!hotCode) {
+          const rootBot = path.join(path.resolve(__dirname, '..'), 'bot.js');
+          if (fs.existsSync(rootBot)) hotCode = fs.readFileSync(rootBot, 'utf8');
+        }
+        if (hotCode && hotCode.length > 1000) {
+          setClient(p, 'reloading', 'กำลังอัปเดตบอทแบบ Hot-Reload (ไม่รีเฟรชหน้าเกม)...');
+          const hotExpr = `(() => {
+            window.__forceNightcampHotReload = true;
+            window.__pmHotPayloadHash = ${JSON.stringify(target.sha || null)};
+            (0, eval)(${JSON.stringify(hotCode)});
+            return { version: window.__nightcampBotVersion || window.__pelicanBotVersion || null };
+          })()`;
+          await evalProfilePort(p.debugPort, hotExpr, 6000);
+          const hotNow = await probe(p);
+          if (hotNow && isCurrentFor(target, hotNow)) {
+            if (failedTargets[p.id]) { delete failedTargets[p.id]; persist(); }
+            if (wasRunning && !hotNow.running) {
+              await evalProfilePort(p.debugPort, START_BOT_JS, 4000);
+            }
+            setClient(p, 'done', wasRunning ? 'อัปเดตแล้ว บอททำงานต่อ (Hot-Reload)' : 'อัปเดตแล้ว (Hot-Reload)', hotNow.version);
+            return true;
+          }
+        }
+      } catch (_) {}
+
       setClient(p, 'reloading', 'กำลังรีเฟรชหน้าเกม...');
       // Wait for the dispatch to settle even when unload makes the eval time out.
       try {
