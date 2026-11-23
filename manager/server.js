@@ -6050,7 +6050,22 @@ const botAutoUpdater = createBotAutoUpdater({
   dataDir: path.join(__dirname, "data")
 });
 // Auto-login / auto-register: game clients get their profile's ID + password (manager/auth_sync.js)
-const authSync = createAuthSync({ loadProfiles: loadAllRuntimeProfiles, saveProfiles: saveAllRuntimeProfiles, evalProfilePort, credentials, proxyRegister, requireOnlineWindowForQueue: true });
+const authSync = createAuthSync({
+  loadProfiles: loadAllRuntimeProfiles,
+  saveProfiles: saveAllRuntimeProfiles,
+  evalProfilePort,
+  credentials,
+  proxyRegister,
+  requireOnlineWindowForQueue: true,
+  waveOptions: {
+    minBatchSize: 10,
+    maxBatchSize: 20,
+    minCooldownMs: 3000,
+    maxCooldownMs: 6000,
+    minStaggerMs: 800,
+    maxStaggerMs: 1800
+  }
+});
 // Per-screen IP queue & split-tunnel forwarder (1 IP : 6 screens default)
 const screenProxy = createScreenProxyManager({
   dataDir: path.join(__dirname, "data"),
@@ -11867,10 +11882,10 @@ public class PmFocus {
               if (liveState.charClass && liveState.charClass !== p.lastCharClass) {
                 p.lastCharClass = liveState.charClass;
               }
-              if (liveState.zeny != null) {
+              if (liveState.zeny != null && liveState.screenPhase === "in_game") {
                 p.lastZeny = Number(liveState.zeny);
               }
-              if (liveState.baseLv != null) {
+              if (liveState.baseLv != null && liveState.screenPhase === "in_game") {
                 p.lastBaseLv = Number(liveState.baseLv);
               }
               if (liveState.zeroRender !== undefined) {
@@ -11880,6 +11895,7 @@ public class PmFocus {
           }
           return {
             ...p,
+            port: p.debugPort,
             isRunning: alive,
             loginPassword: credentials.getPassword(p.id) || "",
             hasLoginPassword: Boolean(credentials.getPassword(p.id)),
@@ -11911,11 +11927,20 @@ public class PmFocus {
           if (data.tradeChannel !== undefined) afState.config.tradeChannel = Math.max(1, Math.min(20, Number(data.tradeChannel) || 1));
           if (data.completionAction !== undefined) afState.config.completionAction = data.completionAction === "delete" ? "delete" : "pass";
           if (data.planId !== undefined) afState.config.planId = String(data.planId || "default_archer_wolf").trim();
-          // Also propagate serverName to un-registered profiles if requested
+          // Propagate serverName to all non-passed Auto-Farm profiles and re-seed their storage
           if (data.serverName) {
+            const recProf = afState.profiles.find(p => p.id === afState.config.receiverProfileId) || afState.profiles.find(p => p.isReceiver) || afState.profiles[0] || null;
+            const recChar = recProf ? (recProf.lastCharName || recProf.charName || "") : "";
             for (const p of afState.profiles) {
-              if (p.autoRegister && !p.lastCharName) {
+              if (!p.passed) {
                 p.serverName = afState.config.serverName;
+                seedAutoFarmBrowserStorage(p, (recProf && p.id === recProf.id) ? "receiver" : "farmer", recChar, afState.config);
+                if (p.debugPort && browserMode && typeof browserMode.isOpen === "function" && browserMode.isOpen(p.id)) {
+                  evalProfilePort(p.debugPort, `(() => {
+                    if (typeof window.__setAuthConfig === 'function') window.__setAuthConfig({ serverName: ${JSON.stringify(afState.config.serverName)} });
+                    return true;
+                  })()`, 2000).catch(() => {});
+                }
               }
             }
           }
@@ -12052,6 +12077,40 @@ public class PmFocus {
         await evalProfilePort(target.debugPort, `if (typeof window.__setAutoFarmLv20Config === 'function') window.__setAutoFarmLv20Config({ tradeCompleted: false });`, 2500).catch(() => {});
       }
       return sendJSON({ success: true, profile: target });
+    }
+
+    // POST /api/autofarm/profiles/:id/update (Update individual Auto-Farm card account/password/charName/serverName)
+    if (req.method === "POST" && pathname.match(/^\/api\/autofarm\/profiles\/[^/]+\/update$/)) {
+      const id = pathname.split("/")[4];
+      let body = "";
+      req.on("data", c => { body += c; if (Buffer.byteLength(body, "utf8") > 32768) req.destroy(); });
+      req.on("end", () => {
+        try {
+          const data = JSON.parse(body || "{}");
+          const afState = loadAutoFarmState();
+          const target = afState.profiles.find(p => p.id === id);
+          if (!target) return sendJSON({ success: false, error: "ไม่พบโปรไฟล์นี้" }, 404);
+          if (data.account !== undefined) target.account = String(data.account || "").trim();
+          if (data.loginPassword !== undefined && String(data.loginPassword || "").trim()) {
+            credentials.setPassword(target.id, String(data.loginPassword || "").trim());
+          }
+          if (data.charName !== undefined && String(data.charName || "").trim()) {
+            target.charName = String(data.charName || "").trim();
+            target.lastCharName = String(data.charName || "").trim();
+          }
+          if (data.serverName !== undefined && String(data.serverName || "").trim()) {
+            target.serverName = String(data.serverName || "").trim();
+          }
+          const recProf = afState.profiles.find(p => p.id === afState.config.receiverProfileId) || afState.profiles.find(p => p.isReceiver) || afState.profiles[0] || null;
+          const recChar = recProf ? (recProf.lastCharName || recProf.charName || "") : "";
+          seedAutoFarmBrowserStorage(target, (recProf && target.id === recProf.id) ? "receiver" : "farmer", recChar, afState.config);
+          saveAutoFarmState(afState);
+          return sendJSON({ success: true, profile: target });
+        } catch (e) {
+          return sendJSON({ success: false, error: e.message }, 400);
+        }
+      });
+      return;
     }
 
     // POST /api/autofarm/profiles/bulk-delete (Delete passed or all non-receiver profiles)
@@ -12967,6 +13026,21 @@ public class PmFocus {
   });
 });
 
+const KNOWN_NC_SERVER_URLS = {
+  moonlight: "https://d2a61hdgyafpnr.cloudfront.net",
+  stardust: "https://dyshge8p0zgba.cloudfront.net",
+  nightfall: "https://d2997ztpjqsywh.cloudfront.net",
+  sunflare: "https://d1feuao0oi57id.cloudfront.net"
+};
+
+function resolveNightcampServerUrl(serverName) {
+  const s = String(serverName || "Nightfall").trim().toLowerCase();
+  for (const [k, url] of Object.entries(KNOWN_NC_SERVER_URLS)) {
+    if (s.includes(k)) return url;
+  }
+  return KNOWN_NC_SERVER_URLS.nightfall;
+}
+
 function seedAutoFarmBrowserStorage(profile, role, receiverCharName, afConfig) {
   if (!profile || !profile.id) return;
   try {
@@ -12979,11 +13053,13 @@ function seedAutoFarmBrowserStorage(profile, role, receiverCharName, afConfig) {
     }
     const pfx = `pelican_${profile.id}__`;
     const pw = credentials.getPassword(profile.id) || "";
+    const chosenServerName = profile.serverName || (afConfig && afConfig.serverName) || "Nightfall";
+    const chosenServerUrl = resolveNightcampServerUrl(chosenServerName);
     const authObj = {
       enabled: true,
       username: profile.account || "",
       password: pw,
-      serverName: profile.serverName || (afConfig && afConfig.serverName) || "Nightfall",
+      serverName: chosenServerName,
       charName: profile.lastCharName || profile.charName || "",
       autoResumeBot: true,
       register: Boolean(profile.autoRegister && !profile.lastCharName),
@@ -13002,6 +13078,8 @@ function seedAutoFarmBrowserStorage(profile, role, receiverCharName, afConfig) {
     };
     data[`${pfx}auth_cfg`] = JSON.stringify(authObj);
     data[`${pfx}autofarm_lv20_cfg`] = JSON.stringify(afObj);
+    data[`${pfx}nc__nightcamp.online.server`] = chosenServerUrl;
+    data[`${pfx}nc__nightcamp.online.lastPlayed`] = chosenServerUrl;
     data[`${pfx}auto_loop`] = "true";
     data[`${pfx}plan_enabled`] = "true";
     data[`${pfx}smart_auto_quest`] = "true";
@@ -13043,11 +13121,12 @@ async function runAutoFarmOrchestratorTick() {
     const targetLevel = Math.max(1, Number(afState.config.targetLevel) || 20);
     const tradeChannel = Math.max(1, Number(afState.config.tradeChannel) || 1);
 
-    // 1. Ensure Receiver Profile is Open and Configured
+    // 1. Ensure Receiver Profile (จอ 1) is ALWAYS Open First & Staying Online Waiting to Receive Coins
     if (!browserMode.isOpen(receiverProfile.id)) {
-      afState.config.lastStatusText = `👑 กำลังเปิดจอตัวรับเงิน: ${receiverProfile.lastCharName || receiverProfile.charName || receiverProfile.name}...`;
+      afState.config.lastStatusText = `👑 กำลังเปิดจอตัวรับเงิน (จอ 1): ${receiverProfile.lastCharName || receiverProfile.charName || receiverProfile.name}...`;
       saveAutoFarmState(afState);
       await launchAutoFarmProfile(receiverProfile, "receiver", "", afState.config).catch(() => {});
+      return;
     } else if (receiverProfile.debugPort) {
       const recLive = await queryClientState(receiverProfile.debugPort).catch(() => null);
       if (recLive && !recLive.error) {
@@ -13056,7 +13135,7 @@ async function runAutoFarmOrchestratorTick() {
           receiverProfile.autoRegister = false;
           stateChanged = true;
         }
-        if (recLive.zeny != null) {
+        if (recLive.zeny != null && recLive.screenPhase === "in_game") {
           receiverProfile.lastZeny = Number(recLive.zeny);
         }
         await evalProfilePort(receiverProfile.debugPort, `(() => {
@@ -13095,8 +13174,8 @@ async function runAutoFarmOrchestratorTick() {
         p.autoRegister = false;
         stateChanged = true;
       }
-      if (live.zeny != null) p.lastZeny = Number(live.zeny);
-      if (live.baseLv != null) p.lastBaseLv = Number(live.baseLv);
+      if (live.zeny != null && live.screenPhase === "in_game") p.lastZeny = Number(live.zeny);
+      if (live.baseLv != null && live.screenPhase === "in_game") p.lastBaseLv = Number(live.baseLv);
 
       if (live.autoFarmLv20 && live.autoFarmLv20.tradeCompleted === true && !p.passed) {
         const traded = Number(live.autoFarmLv20.tradedCoins || 0);

@@ -7287,6 +7287,13 @@ window.switchMainTab = switchMainTab;
     }
   }
 
+  const escHtml = (s) => String(s == null ? "" : s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
   function renderAutoFarmDashboard() {
     bindAutoFarmEvents();
     const tabCount = document.getElementById("tab-count-autofarm");
@@ -7327,8 +7334,11 @@ window.switchMainTab = switchMainTab;
     if (mRec) {
       if (receiverProf) {
         const rName = (receiverProf.liveState && receiverProf.liveState.charName) || receiverProf.lastCharName || receiverProf.charName || receiverProf.name;
-        const rZeny = (receiverProf.liveState && receiverProf.liveState.zeny != null) ? receiverProf.liveState.zeny : receiverProf.lastZeny;
-        mRec.textContent = `${rName}${rZeny != null ? " • 💰 " + Number(rZeny).toLocaleString() : ""}`;
+        const rZeny = (receiverProf.liveState && receiverProf.liveState.screenPhase === "in_game" && receiverProf.liveState.zeny != null)
+          ? receiverProf.liveState.zeny
+          : (receiverProf.lastZeny != null ? receiverProf.lastZeny : (receiverProf.liveState && receiverProf.liveState.zeny != null ? receiverProf.liveState.zeny : 0));
+        const rOnline = receiverProf.isRunning ? " 🟢" : " ⚪";
+        mRec.textContent = `${rName}${rOnline} • 💰 ${Number(rZeny || 0).toLocaleString()}`;
       } else {
         mRec.textContent = "ยังไม่มีโปรไฟล์";
       }
@@ -7391,9 +7401,21 @@ window.switchMainTab = switchMainTab;
       const live = p.liveState || null;
       const charName = (live && live.charName) || p.lastCharName || p.charName || `ตัวละคร #${idx + 1}`;
       const baseLv = (live && live.baseLv != null) ? live.baseLv : (p.lastBaseLv || 1);
-      const zeny = (live && live.zeny != null) ? live.zeny : (p.lastZeny != null ? p.lastZeny : null);
-      const mapName = (live && live.map) ? live.map : "รอเปิดจอ";
-      const afStatus = (live && live.autoFarmLv20 && live.autoFarmLv20.statusText) || (live && live.botStatus) || (p.passed ? `✅ เทรดเงินสำเร็จแล้ว (${Number(p.tradedCoins || 0).toLocaleString()} เหรียญ)` : "⏳ รอคิวเปิดฟาร์ม...");
+      const jobLv = (live && live.jobLv != null) ? live.jobLv : null;
+      const className = (live && (live.jobName || live.className)) || p.jobClass || "นักธนู";
+      const zeny = (live && live.zeny != null && live.screenPhase === "in_game") ? live.zeny : (p.lastZeny != null ? p.lastZeny : (live && live.zeny != null ? live.zeny : null));
+      const mapName = (live && live.map) ? live.map : (p.isRunning ? "กำลังเข้าเกม..." : "รอเปิดจอ");
+      const chText = (live && live.channel) ? ` • CH.${live.channel}` : "";
+      const hpPct = (live && live.hpMax > 0) ? Math.min(100, Math.max(0, Math.round((live.hp / live.hpMax) * 100))) : (p.isRunning ? 100 : 0);
+      const spPct = (live && live.spMax > 0) ? Math.min(100, Math.max(0, Math.round((live.sp / live.spMax) * 100))) : (p.isRunning ? 100 : 0);
+      const hpText = (live && live.hpMax > 0) ? `${live.hp}/${live.hpMax}` : (p.isRunning ? "100%" : "--");
+      const spText = (live && live.spMax > 0) ? `${live.sp}/${live.spMax}` : (p.isRunning ? "100%" : "--");
+      const weightPct = (live && live.weightPct != null) ? `${live.weightPct}%` : "--";
+      const afStatus = (live && live.autoFarmLv20 && live.autoFarmLv20.statusText)
+        || (live && live.botStatus)
+        || (isRec
+          ? (p.isRunning ? `👑 ออนไลน์รอรับเงินเทรดอยู่ (แนล ${afConfig.tradeChannel || 1})` : "👑 ตัวรับเงินหลัก (กำลังเปิดจอค้างไว้รอรับเงิน...)")
+          : (p.passed ? `✅ เทรดเงินสำเร็จแล้ว (${Number(p.tradedCoins || 0).toLocaleString()} เหรียญ)` : "⏳ รอคิวเปิดฟาร์ม..."));
       const isZeroRender = Boolean((p.windowState && p.windowState.zeroRender) || (live && live.zeroRender));
       const borderColor = isRec
         ? "rgba(251,191,36,0.65)"
@@ -7423,16 +7445,42 @@ window.switchMainTab = switchMainTab;
                   🌐 ${escHtml(p.serverName || afConfig.serverName || "Nightfall")}
                 </span>
                 <span style="padding:2px 7px;border-radius:6px;font-size:10.5px;font-weight:800;background:${p.isRunning ? "rgba(16,185,129,0.2)" : "rgba(100,116,139,0.2)"};color:${p.isRunning ? "#34d399" : "#94a3b8"};">
-                  ${p.isRunning ? "🟢 เปิดจออยู่" : "⚪ ปิดจอ"}
+                  ${p.isRunning ? `🟢 ออนไลน์ :${p.port || ""}` : "⚪ ปิดจอ"}
                 </span>
               </div>
-              <div style="font-size:15.5px;font-weight:800;color:#f8fafc;margin-top:6px;">
-                👤 ${escHtml(charName)} <span style="font-size:12.5px;color:#38bdf8;font-weight:800;">(Lv.${baseLv}/${afConfig.targetLevel || 20})</span>
+              <div style="font-size:15.5px;font-weight:800;color:#f8fafc;margin-top:6px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                <span>👤 ${escHtml(charName)}</span>
+                <span style="font-size:12px;color:#38bdf8;font-weight:800;">Lv.${baseLv}/${afConfig.targetLevel || 20}${jobLv != null ? ` • Job.${jobLv}` : ""}</span>
+                <span style="font-size:11px;color:#cbd5e1;background:rgba(51,65,85,0.65);padding:1px 6px;border-radius:5px;">${escHtml(className)}</span>
               </div>
             </div>
-            <div style="text-align:right;">
-              <div style="font-size:13.5px;font-weight:800;color:#fbbf24;">💰 ${zeny != null ? Number(zeny).toLocaleString() : "--"}</div>
-              <div style="font-size:11px;color:#94a3b8;">📍 ${escHtml(mapName)}</div>
+            <div style="text-align:right;flex-shrink:0;">
+              <div style="font-size:14px;font-weight:900;color:#fbbf24;">💰 ${zeny != null ? Number(zeny).toLocaleString() : "0"}</div>
+              <div style="font-size:11px;color:#94a3b8;">📍 ${escHtml(mapName)}${escHtml(chText)}</div>
+            </div>
+          </div>
+
+          <!-- HP / SP / WEIGHT BARS (CLIENT CARD STATS) -->
+          <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:center;background:rgba(2,6,23,0.45);border:1px solid rgba(148,163,184,0.14);border-radius:8px;padding:6px 9px;font-size:10.5px;">
+            <div>
+              <div style="display:flex;justify-content:space-between;color:#fca5a5;font-weight:700;margin-bottom:2px;">
+                <span>❤️ HP</span><span>${escHtml(hpText)}</span>
+              </div>
+              <div style="height:5px;background:rgba(15,23,42,0.9);border-radius:99px;overflow:hidden;">
+                <div style="height:100%;width:${hpPct}%;background:linear-gradient(90deg,#ef4444,#f87171);"></div>
+              </div>
+            </div>
+            <div>
+              <div style="display:flex;justify-content:space-between;color:#93c5fd;font-weight:700;margin-bottom:2px;">
+                <span>💧 SP</span><span>${escHtml(spText)}</span>
+              </div>
+              <div style="height:5px;background:rgba(15,23,42,0.9);border-radius:99px;overflow:hidden;">
+                <div style="height:100%;width:${spPct}%;background:linear-gradient(90deg,#3b82f6,#60a5fa);"></div>
+              </div>
+            </div>
+            <div style="text-align:right;color:#cbd5e1;font-weight:700;padding-left:4px;">
+              <div>⚖️ น้ำหนัก</div>
+              <div style="color:#f8fafc;">${escHtml(weightPct)}</div>
             </div>
           </div>
 
@@ -7442,13 +7490,18 @@ window.switchMainTab = switchMainTab;
               <div style="color:#cbd5e1;">📧 <span style="font-family:monospace;color:#f8fafc;font-weight:700;">${escHtml(p.account || "-")}</span></div>
               <div style="color:#94a3b8;margin-top:2px;">🔑 <span style="font-family:monospace;color:#a7f3d0;">${escHtml(p.loginPassword || "********")}</span></div>
             </div>
-            <button type="button" class="btn btn-secondary btn-sm" style="padding:4px 8px;font-size:11px;flex-shrink:0;" onclick="window.__afCopyCreds('${escHtml(p.account || "")}','${escHtml(p.loginPassword || "")}','${escHtml(charName)}')">
-              📋 คัดลอก
-            </button>
+            <div style="display:flex;gap:4px;flex-shrink:0;">
+              <button type="button" class="btn btn-secondary btn-sm" style="padding:4px 7px;font-size:11px;" title="แก้ไข ID / รหัส / ชื่อตัวละคร / เซิร์ฟเวอร์" onclick="window.__afEditProfile('${p.id}')">
+                ✏️ แก้ไข
+              </button>
+              <button type="button" class="btn btn-secondary btn-sm" style="padding:4px 7px;font-size:11px;" onclick="window.__afCopyCreds('${escHtml(p.account || "")}','${escHtml(p.loginPassword || "")}','${escHtml(charName)}')">
+                📋 คัดลอก
+              </button>
+            </div>
           </div>
 
           <!-- LIVE BOT STATUS -->
-          <div style="background:rgba(15,118,110,0.14);border:1px solid rgba(20,184,166,0.28);border-radius:8px;padding:7px 10px;font-size:11.5px;color:#99f6e4;font-weight:600;">
+          <div style="background:${isRec ? "rgba(245,158,11,0.12)" : "rgba(15,118,110,0.14)"};border:1px solid ${isRec ? "rgba(251,191,36,0.32)" : "rgba(20,184,166,0.28)"};border-radius:8px;padding:7px 10px;font-size:11.5px;color:${isRec ? "#fde68a" : "#99f6e4"};font-weight:600;">
             ${escHtml(afStatus)}
           </div>
 
@@ -7487,6 +7540,33 @@ window.switchMainTab = switchMainTab;
       `;
     }).join("");
   }
+
+  window.__afEditProfile = async function (profileId) {
+    const p = afProfiles.find(x => x.id === profileId);
+    if (!p) return;
+    const newAccount = window.prompt("📧 แก้ไข E-mail / ID (เว้นว่างเพื่อให้บอทสุ่มสมัครใหม่):", p.account || "");
+    if (newAccount === null) return;
+    const newPass = window.prompt("🔑 แก้ไขรหัสผ่าน:", p.loginPassword || "");
+    if (newPass === null) return;
+    const newChar = window.prompt("👤 แก้ไขชื่อตัวละคร:", p.lastCharName || p.charName || "");
+    if (newChar === null) return;
+    const newServer = window.prompt("🌐 เซิร์ฟเวอร์ (Nightfall, Moonlight, Stardust, Sunflare):", p.serverName || afConfig.serverName || "Nightfall");
+    if (newServer === null) return;
+    const res = await fetch(`${API_BASE}/api/autofarm/profiles/${encodeURIComponent(profileId)}/update`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        account: newAccount.trim(),
+        loginPassword: newPass.trim(),
+        charName: newChar.trim(),
+        serverName: newServer.trim() || "Nightfall"
+      })
+    }).then(r => r.json());
+    if (res && res.success) {
+      if (typeof showToast === "function") showToast("✅ บันทึกข้อมูลโปรไฟล์เรียบร้อยแล้ว", "success");
+      await loadAutoFarmDashboard(true);
+    }
+  };
 
   window.__afCopyCreds = function (email, pass, charName) {
     const txt = `${email}:${pass} (${charName})`;
