@@ -165,16 +165,40 @@ function genUserId(existingSet) {
       raw.length <= 14 &&
       /^[a-z][a-z0-9_]{5,13}$/.test(raw) &&
       !/^pm[a-z0-9]{8}$/.test(raw) &&
-      !usedUserIds.has(raw) &&
-      !(existingSet && existingSet.has(raw))
+      !usedUserIds.has(raw + '@gmail.com') &&
+      !(existingSet && existingSet.has(raw + '@gmail.com'))
     ) {
-      usedUserIds.add(raw);
-      return raw;
+      const email = raw + '@gmail.com';
+      usedUserIds.add(email);
+      return email;
     }
   }
-  const fallback = (genProceduralThaiName().slice(0, 8) + String(rInt(1000, 99999))).slice(0, 14);
+  const fallback = (genProceduralThaiName().slice(0, 8) + String(rInt(1000, 99999))).slice(0, 14) + '@gmail.com';
   usedUserIds.add(fallback);
   return fallback;
+}
+
+const usedCharNames = new Set();
+function genCharName(existingSet) {
+  const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : '';
+  const patterns = [
+    () => cap(pickOne(USER_STEMS)) + cap(pickOne(USER_NICKS)),
+    () => cap(pickOne(USER_NICKS)) + cap(pickOne(USER_STEMS)),
+    () => cap(genProceduralThaiName()),
+    () => cap(pickOne(USER_STEMS)) + String(rInt(10, 99)),
+    () => cap(pickOne(USER_NICKS)) + cap(pickOne(USER_TAGS)) + (rInt(0, 1) ? String(rInt(1, 99)) : ''),
+    () => cap(genPronounceableWord()) + (rInt(0, 1) ? cap(pickOne(USER_TAGS)) : '')
+  ];
+  for (let i = 0; i < 60; i++) {
+    let name = pickOne(patterns)().replace(/[^A-Za-z0-9]/g, '');
+    if (name.length > 12) name = name.slice(0, 12);
+    const low = name.toLowerCase();
+    if (name.length >= 4 && !usedCharNames.has(low) && !(existingSet && existingSet.has(low))) {
+      usedCharNames.add(low);
+      return name;
+    }
+  }
+  return 'Kira' + String(rInt(1000, 9999));
 }
 
 function genPassword() {
@@ -534,6 +558,9 @@ function createAuthSync({
   }
 
   function requestRegisterWaveAccess(profile, allProfiles) {
+    return { allowed: true, waveId: 1 };
+  }
+  function _legacyRequestRegisterWaveAccess(profile, allProfiles) {
     const now = nowFn();
     reconcileWaveState(allProfiles);
     const pid = profile.id;
@@ -687,9 +714,12 @@ function createAuthSync({
     let c = pendingCreds.get(profile.id);
     const hasAccount = !!(profile.account && profile.account.trim());
     if (!c || (hasAccount && c.username !== profile.account.trim())) {
+      let uname = hasAccount ? profile.account.trim() : genUserId(existingAccounts());
+      if (uname && !uname.includes('@')) uname = uname + '@gmail.com';
       c = {
-        username: hasAccount ? profile.account.trim() : genUserId(existingAccounts()),
+        username: uname,
         password: pw(profile) || genPassword(),
+        charName: (profile.charName && profile.charName.trim()) || genCharName(),
         generatedUser: !hasAccount || !!profile.generatedAccount || !!profile.autoRegister
       };
       pendingCreds.set(profile.id, c);
@@ -797,9 +827,7 @@ function createAuthSync({
     if (!profile.debugPort && !profile.autoRegister) return;
     if (!profile.debugPort && !profile.autoRegister && !(profile.account && pw(profile))) return;
 
-    const proxyAvailable = !profile.proxyFallbackBrowser && proxyRegister && (
-      typeof proxyRegister.isEnabled === 'function' && proxyRegister.isEnabled()
-    );
+    const proxyAvailable = false;
 
     const r = profile.debugPort ? await evalProfilePort(profile.debugPort, READ_JS, 2500) : null;
     const cur = r && r.success ? r.result : null;
@@ -980,6 +1008,7 @@ function createAuthSync({
       const cred = getCandidateCreds(profile);
       const pushRes = await evalProfilePort(profile.debugPort, pushJs({
         enabled: true, autoResumeBot: true, username: cred.username, password: cred.password,
+        serverName: profile.serverName || '', charName: profile.charName || cred.charName || '',
         register: true, registerDone: false, autoCreateChar: true, generatedUser: !!cred.generatedUser,
         ...(identityChangedAt > 0 ? { forceResetAuth: true } : {})
       }), 3000);
@@ -1093,4 +1122,4 @@ function createAuthSync({
   return { start, tick, syncOne, resetProxyFallback, resetProfileRegistration, getRegisterQueueSnapshot };
 }
 
-module.exports = { createAuthSync, genUserId, genPassword };
+module.exports = { createAuthSync, genUserId, genPassword, genCharName };

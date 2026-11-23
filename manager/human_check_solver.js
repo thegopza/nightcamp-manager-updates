@@ -60,6 +60,7 @@ function createHumanCheckSolver({ dataDir, requestJSON: testRequest, serviceUrl:
   let accessNote = '';
   let username = null;
   let isUserAccount = false;
+  let secretAccess = { autofarm: false, features: { autofarm: false }, statuses: { autofarm: 'none' } };
   let loggedOutExplicitly = false;
   try {
     const saved = JSON.parse(fs.readFileSync(accountFile, 'utf8'));
@@ -83,6 +84,7 @@ function createHumanCheckSolver({ dataDir, requestJSON: testRequest, serviceUrl:
       if (typeof savedAccess.accessNote === 'string') accessNote = savedAccess.accessNote;
       if (!username && typeof savedAccess.username === 'string' && savedAccess.username) username = savedAccess.username;
       if (!isUserAccount && savedAccess.isUserAccount) isUserAccount = true;
+      if (savedAccess.secretAccess && typeof savedAccess.secretAccess === 'object') secretAccess = savedAccess.secretAccess;
     }
   } catch (_) {}
   try{const saved=JSON.parse(fs.readFileSync(walletSnapshotFile,'utf8'));if(saved.origin===base.origin&&saved.accountId===account?.accountId&&Number.isSafeInteger(saved.balanceUnits)){balanceUnits=saved.balanceUnits;points=balanceUnits/100;if(Array.isArray(saved.topupHistory))topupHistory=saved.topupHistory;if(saved.machineMerit&&typeof saved.machineMerit==='object')machineMerit=saved.machineMerit;}}catch(_){}
@@ -141,6 +143,14 @@ function createHumanCheckSolver({ dataDir, requestJSON: testRequest, serviceUrl:
         changed = true;
       }
     }
+    if (result.secretAccess && typeof result.secretAccess === 'object') {
+      const prevJson = JSON.stringify(secretAccess || {});
+      const nextJson = JSON.stringify(result.secretAccess);
+      if (prevJson !== nextJson) {
+        secretAccess = result.secretAccess;
+        changed = true;
+      }
+    }
     if (changed) {
       try {
         atomicWrite(accessStateFile, {
@@ -154,6 +164,7 @@ function createHumanCheckSolver({ dataDir, requestJSON: testRequest, serviceUrl:
           accessNote,
           username,
           isUserAccount,
+          secretAccess,
           updatedAt: Date.now()
         });
       } catch (_) {}
@@ -177,6 +188,7 @@ function createHumanCheckSolver({ dataDir, requestJSON: testRequest, serviceUrl:
       accessNote,
       username,
       isUserAccount,
+      secretAccess,
       requiresLogin: computeRequiresLogin(),
       accountId: account?.accountId || null
     };

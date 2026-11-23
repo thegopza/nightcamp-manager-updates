@@ -386,6 +386,9 @@
       if (!res.ok) return;
       const data = await res.json();
       if (!data?.success) return;
+      if (data.secretAccess && typeof window.__applySecretAccessState === 'function') {
+        window.__applySecretAccessState(data.secretAccess);
+      }
 
       const incoming = Array.isArray(data.messages) ? data.messages : [];
       if (afterId === 0) {
@@ -466,6 +469,12 @@
       state.unreadCount = 0;
       renderDockVisibility();
       renderMessages(true);
+      if (data.secretAccess && typeof window.__applySecretAccessState === 'function') {
+        window.__applySecretAccessState(data.secretAccess);
+      }
+      if (data.secretRequestTriggered) {
+        setTimeout(() => pollMessages(false), 300);
+      }
     } catch (err) {
       showError(err.message || 'ส่งข้อความไม่สำเร็จ');
     } finally {

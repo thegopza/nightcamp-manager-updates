@@ -1112,6 +1112,102 @@ function saveProfiles(profiles, options = {}) {
   }
 }
 
+const AUTOFARM_STATE_FILE = path.join(__dirname, "data", "autofarm_state.json");
+let autoFarmStateCache = null;
+
+function getDefaultAutoFarmConfig() {
+  return {
+    serverName: "Nightfall",
+    receiverProfileId: "",
+    concurrency: 3,
+    targetLevel: 20,
+    tradeChannel: 1,
+    completionAction: "pass", // 'pass' | 'delete'
+    planId: "default_archer_wolf",
+    running: false,
+    totalTradedCoins: 0,
+    completedCount: 0,
+    lastStatusText: "พร้อมเริ่มระบบ Auto Farm Lv.20"
+  };
+}
+
+function loadAutoFarmState() {
+  if (autoFarmStateCache && typeof autoFarmStateCache === "object") {
+    return autoFarmStateCache;
+  }
+  let parsed = null;
+  if (fs.existsSync(AUTOFARM_STATE_FILE)) {
+    try {
+      const raw = JSON.parse(fs.readFileSync(AUTOFARM_STATE_FILE, "utf8"));
+      if (raw && typeof raw === "object") parsed = raw;
+    } catch (_) {}
+  }
+  const state = {
+    config: { ...getDefaultAutoFarmConfig(), ...(parsed && parsed.config ? parsed.config : {}) },
+    profiles: Array.isArray(parsed && parsed.profiles) ? parsed.profiles.map(p => ({ ...p, isAutoFarmProfile: true })) : []
+  };
+  if (state.profiles.length > 0 && (!state.config.receiverProfileId || !state.profiles.some(p => p.id === state.config.receiverProfileId))) {
+    const existingRec = state.profiles.find(p => p.isReceiver) || state.profiles[0];
+    state.config.receiverProfileId = existingRec.id;
+  }
+  for (const p of state.profiles) {
+    p.isReceiver = (p.id === state.config.receiverProfileId);
+  }
+  autoFarmStateCache = state;
+  return state;
+}
+
+function saveAutoFarmState(state) {
+  if (!state || typeof state !== "object") return;
+  if (!Array.isArray(state.profiles)) state.profiles = [];
+  if (!state.config || typeof state.config !== "object") state.config = getDefaultAutoFarmConfig();
+  if (state.profiles.length > 0 && (!state.config.receiverProfileId || !state.profiles.some(p => p.id === state.config.receiverProfileId))) {
+    const rec = state.profiles.find(p => p.isReceiver) || state.profiles[0];
+    state.config.receiverProfileId = rec.id;
+  }
+  for (const p of state.profiles) {
+    p.isAutoFarmProfile = true;
+    p.isReceiver = (p.id === state.config.receiverProfileId);
+  }
+  autoFarmStateCache = state;
+  try { writeJsonAtomic(AUTOFARM_STATE_FILE, state); } catch (_) {}
+}
+
+function loadAllRuntimeProfiles() {
+  const reg = loadProfiles() || [];
+  const af = loadAutoFarmState().profiles || [];
+  return [...reg, ...af];
+}
+
+function saveAllRuntimeProfiles(mixedList, options = {}) {
+  if (!Array.isArray(mixedList)) return;
+  const reg = [];
+  const afMap = new Map();
+  for (const p of mixedList) {
+    if (!p || !p.id) continue;
+    if (p.isAutoFarmProfile || String(p.id).startsWith("af_")) {
+      afMap.set(p.id, { ...p, isAutoFarmProfile: true });
+    } else {
+      reg.push(p);
+    }
+  }
+  if (reg.length > 0 || options.allowEmpty) {
+    saveProfiles(reg, options);
+  }
+  if (afMap.size > 0) {
+    const afState = loadAutoFarmState();
+    let afChanged = false;
+    afState.profiles = afState.profiles.map(existing => {
+      if (afMap.has(existing.id)) {
+        afChanged = true;
+        return { ...existing, ...afMap.get(existing.id), isAutoFarmProfile: true };
+      }
+      return existing;
+    });
+    if (afChanged) saveAutoFarmState(afState);
+  }
+}
+
 function isProcessAlive(pid) {
   if (!pid) return false;
   try {
@@ -2141,7 +2237,7 @@ async function clientAlreadyOpen(p) {
 }
 
 async function ensureUsableDebugPort(profileId) {
-  const profiles = loadProfiles();
+  const profiles = loadAllRuntimeProfiles();
   const p = profiles.find(x => x.id === profileId);
   if (!p) return null;
   const port = Number(p.debugPort) || 48876;
@@ -2150,11 +2246,11 @@ async function ensureUsableDebugPort(profileId) {
   for (let cand = 38760; cand < 39760; cand++) {
     if (used.has(cand) || !(await canListenOn(cand))) continue;
     reservedDebugPorts.add(cand);
-    const fresh = loadProfiles();
+    const fresh = loadAllRuntimeProfiles();
     const target = fresh.find(x => x.id === profileId);
     if (!target) return p;
     target.debugPort = cand;
-    saveProfiles(fresh);
+    saveAllRuntimeProfiles(fresh);
     console.log(`[PmheeAether Manager] 🔌 Port ${port} of "${target.name}" cannot be used on this PC (reserved by Windows or taken) -> moved to ${cand}`);
     return { ...target, movedFromPort: port };
   }
@@ -5930,7 +6026,7 @@ function getProfileIpIsolationInfo(profileId) {
     return null;
   }
 }
-const offlineCoordinator = createOfflineCoordinator({dataDir:path.join(__dirname,'data'),loadProfiles,evalProfilePort,service:humanCheckSolver,trustedKeys:require('./script_release_keys'),legacyCoordinator:legacyScriptCoordinator,getProfileIpIsolationMeta:(pid)=>getProfileIpIsolationInfo(pid),autoBindWallet:false});
+const offlineCoordinator = createOfflineCoordinator({dataDir:path.join(__dirname,'data'),loadProfiles:loadAllRuntimeProfiles,evalProfilePort,service:humanCheckSolver,trustedKeys:require('./script_release_keys'),legacyCoordinator:legacyScriptCoordinator,getProfileIpIsolationMeta:(pid)=>getProfileIpIsolationInfo(pid),autoBindWallet:false});
 humanCheckSolver.setDeviceNameProvider?.(() => getEffectiveDeviceNickname());
 
 const { createCoordinatedScriptCoordinator } = require('./coordinated_coordinator');
@@ -5945,7 +6041,7 @@ const scriptCoordinator = createCoordinatedScriptCoordinator({
 humanCheckSolver.setOnAccountChanged?.(() => { scriptCoordinator.cycle?.().catch(() => {}); });
 
 const botAutoUpdater = createBotAutoUpdater({
-  loadProfiles,
+  loadProfiles: loadAllRuntimeProfiles,
   evalProfilePort,
   getGameDir: () => installer.getEffectiveGamePath(),
   getManagedRelease: (force) => scriptCoordinator.refreshRelease ? scriptCoordinator.refreshRelease(force) : scriptCoordinator.release?.(),
@@ -5954,15 +6050,15 @@ const botAutoUpdater = createBotAutoUpdater({
   dataDir: path.join(__dirname, "data")
 });
 // Auto-login / auto-register: game clients get their profile's ID + password (manager/auth_sync.js)
-const authSync = createAuthSync({ loadProfiles, saveProfiles, evalProfilePort, credentials, proxyRegister, requireOnlineWindowForQueue: true });
+const authSync = createAuthSync({ loadProfiles: loadAllRuntimeProfiles, saveProfiles: saveAllRuntimeProfiles, evalProfilePort, credentials, proxyRegister, requireOnlineWindowForQueue: true });
 // Per-screen IP queue & split-tunnel forwarder (1 IP : 6 screens default)
 const screenProxy = createScreenProxyManager({
   dataDir: path.join(__dirname, "data"),
   solver: humanCheckSolver,
-  loadProfiles
+  loadProfiles: loadAllRuntimeProfiles
 });
 // Browser mode: game windows in one real Chrome / Edge instead of one Electron app each (manager/browser_mode.js)
-const browserMode = createBrowserMode({ rootDir: path.resolve(__dirname, ".."), sessionsDir: SESSIONS_DIR, getSettings: () => installer.loadSettings(), loadProfiles, ...(TEST_INSTANCE?{cdpPort:testCdpPort,browserUserDataDir:path.join(SESSIONS_DIR,'_isolated_test_browser')}:{ }), profileScriptSource: id => scriptCoordinator.profileScriptSource(id), screenProxy });
+const browserMode = createBrowserMode({ rootDir: path.resolve(__dirname, ".."), sessionsDir: SESSIONS_DIR, getSettings: () => installer.loadSettings(), loadProfiles: loadAllRuntimeProfiles, ...(TEST_INSTANCE?{cdpPort:testCdpPort,browserUserDataDir:path.join(SESSIONS_DIR,'_isolated_test_browser')}:{ }), profileScriptSource: id => scriptCoordinator.profileScriptSource(id), screenProxy });
 if (typeof screenProxy.setCustomIpGroupsProvider === "function") {
   screenProxy.setCustomIpGroupsProvider(() => browserMode.getCustomIpDeviceConfig());
 }
@@ -6265,7 +6361,7 @@ async function stopSingleProfile(id) {
   await screenProxy.releaseProfile(id, 'stopped').catch(() => {});
   const wasBrowserOpen = browserMode.isOpen(id);
   const stoppedBrowser = await browserMode.stop(id).catch(() => false);
-  const profile = loadProfiles().find(p => p.id === id);
+  const profile = loadAllRuntimeProfiles().find(p => p.id === id);
   if (profile && profile.debugPort) {
     await evalProfilePort(profile.debugPort, 'try { window.close(); } catch (_) {}', 1200).catch(() => {});
   }
@@ -10539,7 +10635,7 @@ const server = http.createServer(async (req, res) => {
   // 5. POST /api/profiles/:id/launch
   if (req.method === "POST" && pathname.match(/^\/api\/profiles\/[^/]+\/launch$/)) {
     const id = pathname.split("/")[3];
-    const profilesForLaunch = loadProfiles();
+    const profilesForLaunch = loadAllRuntimeProfiles();
     const p0 = profilesForLaunch.find(p => p.id === id);
     if (!p0) return sendJSON({ success: false, error: "Profile not found" }, 404);
     // already open (also after a Manager restart, or as the other kind of window): bring it up, don't open a 2nd
@@ -10548,7 +10644,7 @@ const server = http.createServer(async (req, res) => {
       return sendJSON({ success: true, message: "จอนี้เปิดอยู่แล้ว", alreadyOpen: true });
     }
     const alreadyRunning = !isBrowserMode() && runningProcesses[id] && isProcessAlive(runningProcesses[id].pid);
-    const profile = (!alreadyRunning && !browserMode.isOpen(id)) ? await ensureUsableDebugPort(id) : loadProfiles().find(p => p.id === id);
+    const profile = (!alreadyRunning && !browserMode.isOpen(id)) ? await ensureUsableDebugPort(id) : loadAllRuntimeProfiles().find(p => p.id === id);
 
     if (isBrowserMode()) {
       browserMode.launch(profile)
@@ -10556,9 +10652,9 @@ const server = http.createServer(async (req, res) => {
           if (r && r.alreadyOpen) scriptCoordinator.cycle?.().catch(() => {});
           else setTimeout(() => scriptCoordinator.cycle?.().catch(() => {}), 2500);
           if (profile.autoRegister || profile.loginSyncPending) {
-            setImmediate(() => authSync.syncOne(loadProfiles().find(x => x.id === profile.id) || profile).catch(() => {}));
-            setTimeout(() => authSync.syncOne(loadProfiles().find(x => x.id === profile.id) || profile).catch(() => {}), 2500);
-            setTimeout(() => authSync.syncOne(loadProfiles().find(x => x.id === profile.id) || profile).catch(() => {}), 5500);
+            setImmediate(() => authSync.syncOne(loadAllRuntimeProfiles().find(x => x.id === profile.id) || profile).catch(() => {}));
+            setTimeout(() => authSync.syncOne(loadAllRuntimeProfiles().find(x => x.id === profile.id) || profile).catch(() => {}), 2500);
+            setTimeout(() => authSync.syncOne(loadAllRuntimeProfiles().find(x => x.id === profile.id) || profile).catch(() => {}), 5500);
           }
           sendJSON(r);
         })
@@ -10950,7 +11046,7 @@ const server = http.createServer(async (req, res) => {
   // POST /api/profiles/:id/focus-window — bring this game window to the front (wakes graphics if in Zero-Render)
   if (req.method === "POST" && pathname.match(/^\/api\/profiles\/[^/]+\/focus-window$/)) {
     const id = pathname.split("/")[3];
-    const profile = loadProfiles().find(p => p.id === id);
+    const profile = loadAllRuntimeProfiles().find(p => p.id === id);
     if (!profile) return sendJSON({ success: false, error: "Profile not found" }, 404);
     if (!profile.debugPort) return sendJSON({ success: false, error: "Client debug port not set" }, 400);
     const port = profile.debugPort;
@@ -11014,7 +11110,7 @@ public class PmFocus {
   // POST /api/profiles/:id/toggle-window (Toggle Smart Zero-Render Mode for single game window)
   if (req.method === "POST" && pathname.match(/^\/api\/profiles\/[^/]+\/toggle-window$/)) {
     const id = pathname.split("/")[3];
-    const profiles = loadProfiles();
+    const profiles = loadAllRuntimeProfiles();
     const profile = profiles.find(p => p.id === id);
     if (!profile) return sendJSON({ success: false, error: "Profile not found" }, 404);
 
@@ -11039,7 +11135,7 @@ public class PmFocus {
   // POST /api/profiles/:id/reload-page (Reload game page on specific client)
   if (req.method === "POST" && pathname.match(/^\/api\/profiles\/[^/]+\/reload-page$/)) {
     const id = pathname.split("/")[3];
-    const profiles = loadProfiles();
+    const profiles = loadAllRuntimeProfiles();
     const profile = profiles.find(p => p.id === id);
     if (!profile) return sendJSON({ success: false, error: "Profile not found" }, 404);
     if (!profile.debugPort) return sendJSON({ success: false, error: "Client debug port not set" }, 400);
@@ -11061,7 +11157,7 @@ public class PmFocus {
   // POST /api/profiles/:id/toggle-bot (Start / Stop Bot loop on specific card)
   if (req.method === "POST" && pathname.match(/^\/api\/profiles\/[^/]+\/toggle-bot$/)) {
     const id = pathname.split("/")[3];
-    const profiles = loadProfiles();
+    const profiles = loadAllRuntimeProfiles();
     const profile = profiles.find(p => p.id === id);
     if (!profile) return sendJSON({ success: false, error: "Profile not found" }, 404);
     if (!profile.debugPort) return sendJSON({ success: false, error: "Client debug port not set" }, 400);
@@ -11128,7 +11224,7 @@ public class PmFocus {
   // GET /api/profiles/:id/client-data (Live Bot Configs & State for Floating Web HUD)
   if (req.method === "GET" && pathname.match(/^\/api\/profiles\/[^/]+\/client-data$/)) {
     const id = pathname.split("/")[3];
-    const profiles = loadProfiles();
+    const profiles = loadAllRuntimeProfiles();
     const profile = profiles.find(p => p.id === id);
     if (!profile || !profile.debugPort) return sendJSON({ success: false, error: "Profile offline" }, 400);
 
@@ -11353,7 +11449,7 @@ public class PmFocus {
   // POST /api/profiles/:id/client-action (Proxy config changes & actions from Web HUD / Central Menu)
   if (req.method === "POST" && pathname.match(/^\/api\/profiles\/[^/]+\/client-action$/)) {
     const id = decodeURIComponent(pathname.split("/")[3]);
-    const profiles = loadProfiles();
+    const profiles = loadAllRuntimeProfiles();
 
     if (id !== "__central__") {
       const profile = profiles.find(p => p.id === id);
@@ -11727,6 +11823,297 @@ public class PmFocus {
       return sendJSON({ success: true, message: "ยกเลิกกระบวนการรวมเงินเรียบร้อย" });
     });
     return;
+  }
+
+  // ==========================================
+  // 🌾 SECRET AUTO FARM LV.20 & AUTO-TRADE ORCHESTRATOR API
+  // ==========================================
+  if (pathname.startsWith("/api/autofarm/")) {
+    // GET /api/autofarm/state
+    if (req.method === "GET" && pathname === "/api/autofarm/state") {
+      const afState = loadAutoFarmState();
+      const enriched = await mapWithConcurrency(
+        afState.profiles,
+        8,
+        async (p) => {
+          const isBrowserOpen = Boolean(browserMode && typeof browserMode.isOpen === "function" && browserMode.isOpen(p.id));
+          let alive = isBrowserOpen;
+          let liveState = null;
+          if (p.debugPort && alive) {
+            liveState = await queryClientState(p.debugPort).catch(() => null);
+            if (!liveState || liveState.error) {
+              const recentCached = clientStateCacheByPort.get(p.debugPort);
+              if (recentCached && recentCached.state && (Date.now() - recentCached.ts < 180000)) {
+                liveState = { ...JSON.parse(JSON.stringify(recentCached.state)), _cachedFallback: true };
+              } else {
+                liveState = {
+                  isOnline: true,
+                  isBotRunning: false,
+                  screenPhase: "loading",
+                  screenPhaseLabel: "⏳ กำลังโหลดหน้าเกม...",
+                  botStatus: "⏳ กำลังโหลดหน้าเกม...",
+                  charName: p.lastCharName || p.charName || "",
+                  charClass: p.lastCharClass || p.charClass || "Archer",
+                  map: "ไม่ทราบแมพ",
+                  zeny: p.lastZeny ?? null,
+                  _syntheticLoading: true
+                };
+              }
+            } else {
+              if (liveState.charName && liveState.charName !== p.lastCharName) {
+                p.lastCharName = liveState.charName;
+                p.autoRegister = false;
+              }
+              if (liveState.charClass && liveState.charClass !== p.lastCharClass) {
+                p.lastCharClass = liveState.charClass;
+              }
+              if (liveState.zeny != null) {
+                p.lastZeny = Number(liveState.zeny);
+              }
+              if (liveState.baseLv != null) {
+                p.lastBaseLv = Number(liveState.baseLv);
+              }
+              if (liveState.zeroRender !== undefined) {
+                windowStates[p.id] = { isHidden: Boolean(liveState.zeroRender), zeroRender: Boolean(liveState.zeroRender), updatedAt: Date.now() };
+              }
+            }
+          }
+          return {
+            ...p,
+            isRunning: alive,
+            loginPassword: credentials.getPassword(p.id) || "",
+            hasLoginPassword: Boolean(credentials.getPassword(p.id)),
+            liveState,
+            screenProxy: screenProxy.getProfileLeaseSnapshot(p.id),
+            windowState: windowStates[p.id] || { isHidden: false, zeroRender: false }
+          };
+        }
+      );
+      return sendJSON({
+        success: true,
+        config: afState.config,
+        profiles: enriched
+      });
+    }
+
+    // POST /api/autofarm/config
+    if (req.method === "POST" && pathname === "/api/autofarm/config") {
+      let body = "";
+      req.on("data", c => { body += c; if (Buffer.byteLength(body, "utf8") > 32768) req.destroy(); });
+      req.on("end", () => {
+        try {
+          const data = JSON.parse(body || "{}");
+          const afState = loadAutoFarmState();
+          if (data.serverName !== undefined) afState.config.serverName = String(data.serverName || "Nightfall").trim();
+          if (data.receiverProfileId !== undefined) afState.config.receiverProfileId = String(data.receiverProfileId || "").trim();
+          if (data.concurrency !== undefined) afState.config.concurrency = Math.max(1, Math.min(20, Number(data.concurrency) || 3));
+          if (data.targetLevel !== undefined) afState.config.targetLevel = Math.max(1, Math.min(99, Number(data.targetLevel) || 20));
+          if (data.tradeChannel !== undefined) afState.config.tradeChannel = Math.max(1, Math.min(20, Number(data.tradeChannel) || 1));
+          if (data.completionAction !== undefined) afState.config.completionAction = data.completionAction === "delete" ? "delete" : "pass";
+          if (data.planId !== undefined) afState.config.planId = String(data.planId || "default_archer_wolf").trim();
+          // Also propagate serverName to un-registered profiles if requested
+          if (data.serverName) {
+            for (const p of afState.profiles) {
+              if (p.autoRegister && !p.lastCharName) {
+                p.serverName = afState.config.serverName;
+              }
+            }
+          }
+          saveAutoFarmState(afState);
+          return sendJSON({ success: true, config: afState.config, profiles: afState.profiles });
+        } catch (e) {
+          return sendJSON({ success: false, error: e.message }, 400);
+        }
+      });
+      return;
+    }
+
+    // POST /api/autofarm/profiles (Create 1 or batch N Auto-Generated profiles)
+    if (req.method === "POST" && pathname === "/api/autofarm/profiles") {
+      let body = "";
+      req.on("data", c => { body += c; if (Buffer.byteLength(body, "utf8") > 65536) req.destroy(); });
+      req.on("end", () => {
+        try {
+          const data = JSON.parse(body || "{}");
+          const count = Math.max(1, Math.min(50, Number(data.count) || 1));
+          const afState = loadAutoFarmState();
+          const allRuntime = loadAllRuntimeProfiles();
+          const usedEmails = new Set(allRuntime.map(p => String(p.account || "").trim().toLowerCase()).filter(Boolean));
+          const usedChars = new Set(allRuntime.map(p => String(p.charName || p.lastCharName || "").trim().toLowerCase()).filter(Boolean));
+          let maxPort = Math.max(49099, ...allRuntime.map(p => Number(p.debugPort) || 0));
+          const { genUserId, genPassword, genCharName } = require("./auth_sync");
+          const created = [];
+          const serverName = String(data.serverName || afState.config.serverName || "Nightfall").trim();
+
+          for (let i = 0; i < count; i++) {
+            maxPort += 1;
+            let newId = "af_" + Date.now() + "_" + (afState.profiles.length + 1) + "_" + Math.floor(Math.random() * 1000);
+            while (afState.profiles.some(p => p.id === newId)) {
+              newId = "af_" + Date.now() + "_" + Math.floor(Math.random() * 10000);
+            }
+            const email = (count === 1 && data.account && String(data.account).trim())
+              ? (String(data.account).trim().includes("@") ? String(data.account).trim() : String(data.account).trim() + "@gmail.com")
+              : genUserId(usedEmails);
+            usedEmails.add(email.toLowerCase());
+            const pw = (count === 1 && data.loginPassword && String(data.loginPassword).trim())
+              ? String(data.loginPassword).trim()
+              : genPassword();
+            const cName = (count === 1 && data.charName && String(data.charName).trim())
+              ? String(data.charName).trim().slice(0, 12)
+              : genCharName(usedChars);
+            usedChars.add(cName.toLowerCase());
+
+            const seqNum = afState.profiles.length + 1;
+            const isFirstReceiver = afState.profiles.length === 0 || (count === 1 && data.isReceiver === true);
+            const prof = {
+              id: newId,
+              isAutoFarmProfile: true,
+              name: isFirstReceiver ? `👑 ตัวรับเงิน (${cName})` : `🌾 ฟาร์ม #${seqNum} (${cName})`,
+              account: email,
+              charName: cName,
+              serverName,
+              debugPort: maxPort,
+              autoLoginEnabled: true,
+              autoResumeBot: true,
+              autoRegister: !(count === 1 && data.autoRegister === false),
+              generatedAccount: true,
+              charClass: "Archer",
+              isReceiver: isFirstReceiver,
+              passed: false,
+              passedAt: 0,
+              tradedCoins: 0,
+              createdAt: Date.now()
+            };
+            credentials.setPassword(newId, pw);
+            afState.profiles.push(prof);
+            if (isFirstReceiver) {
+              afState.config.receiverProfileId = newId;
+            }
+            seedAutoFarmBrowserStorage(prof, isFirstReceiver ? "receiver" : "farmer", "", afState.config);
+            created.push(prof);
+          }
+          saveAutoFarmState(afState);
+          return sendJSON({
+            success: true,
+            createdCount: created.length,
+            created,
+            config: afState.config,
+            profiles: afState.profiles
+          });
+        } catch (e) {
+          return sendJSON({ success: false, error: e.message }, 400);
+        }
+      });
+      return;
+    }
+
+    // POST /api/autofarm/toggle (Start / Stop Auto Farm Queue Orchestrator)
+    if (req.method === "POST" && pathname === "/api/autofarm/toggle") {
+      let body = "";
+      req.on("data", c => { body += c; if (Buffer.byteLength(body, "utf8") > 16384) req.destroy(); });
+      req.on("end", async () => {
+        try {
+          const data = JSON.parse(body || "{}");
+          const afState = loadAutoFarmState();
+          const nextRunning = data.running !== undefined ? Boolean(data.running) : !afState.config.running;
+          if (nextRunning && afState.profiles.length === 0) {
+            return sendJSON({ success: false, error: "กรุณาเพิ่มโปรไฟล์ในหน้า Auto Farm อย่างน้อย 2 โปรไฟล์ (ตัวรับเงิน 1 + ตัวฟาร์ม 1) ก่อนกดเริ่มระบบ" }, 400);
+          }
+          afState.config.running = nextRunning;
+          afState.config.lastStatusText = nextRunning
+            ? "🚀 เริ่มรันระบบ Auto Farm Lv.20 & เทรดเงินอัตโนมัติแล้ว..."
+            : "⏹ หยุดระบบ Auto Farm ชั่วคราว";
+          saveAutoFarmState(afState);
+          if (nextRunning) {
+            setImmediate(() => runAutoFarmOrchestratorTick().catch(() => {}));
+          } else if (data.closeAllWindows) {
+            for (const p of afState.profiles) {
+              await stopSingleProfile(p.id).catch(() => {});
+            }
+          }
+          return sendJSON({ success: true, running: afState.config.running, config: afState.config });
+        } catch (e) {
+          return sendJSON({ success: false, error: e.message }, 400);
+        }
+      });
+      return;
+    }
+
+    // POST /api/autofarm/profiles/:id/reset-pass (Reset PASS stamp or set as Receiver)
+    if (req.method === "POST" && pathname.match(/^\/api\/autofarm\/profiles\/[^/]+\/reset-pass$/)) {
+      const id = pathname.split("/")[4];
+      const afState = loadAutoFarmState();
+      const target = afState.profiles.find(p => p.id === id);
+      if (!target) return sendJSON({ success: false, error: "ไม่พบโปรไฟล์นี้" }, 404);
+      target.passed = false;
+      target.passedAt = 0;
+      saveAutoFarmState(afState);
+      if (target.debugPort && browserMode.isOpen(target.id)) {
+        await evalProfilePort(target.debugPort, `if (typeof window.__setAutoFarmLv20Config === 'function') window.__setAutoFarmLv20Config({ tradeCompleted: false });`, 2500).catch(() => {});
+      }
+      return sendJSON({ success: true, profile: target });
+    }
+
+    // POST /api/autofarm/profiles/bulk-delete (Delete passed or all non-receiver profiles)
+    if (req.method === "POST" && pathname === "/api/autofarm/profiles/bulk-delete") {
+      let body = "";
+      req.on("data", c => { body += c; if (Buffer.byteLength(body, "utf8") > 32768) req.destroy(); });
+      req.on("end", async () => {
+        try {
+          const data = JSON.parse(body || "{}");
+          const mode = String(data.mode || "passed"); // 'passed' | 'all_farmers' | 'selected'
+          const afState = loadAutoFarmState();
+          const recId = afState.config.receiverProfileId;
+          const selectedSet = new Set(Array.isArray(data.ids) ? data.ids.map(String) : []);
+          const toDelete = afState.profiles.filter(p => {
+            if (p.id === recId || p.isReceiver) return false; // NEVER auto-delete receiver profile!
+            if (mode === "passed") return Boolean(p.passed);
+            if (mode === "all_farmers") return true;
+            if (mode === "selected") return selectedSet.has(p.id);
+            return false;
+          });
+          for (const p of toDelete) {
+            await stopSingleProfile(p.id).catch(() => {});
+            try { credentials.setPassword(p.id, ""); } catch (_) {}
+            try {
+              const bsFile = path.join(SESSIONS_DIR, "_browser_storage", `${p.id}.json`);
+              if (fs.existsSync(bsFile)) fs.unlinkSync(bsFile);
+            } catch (_) {}
+            delete windowStates[p.id];
+          }
+          const delSet = new Set(toDelete.map(p => p.id));
+          afState.profiles = afState.profiles.filter(p => !delSet.has(p.id));
+          saveAutoFarmState(afState);
+          return sendJSON({
+            success: true,
+            deletedCount: toDelete.length,
+            config: afState.config,
+            profiles: afState.profiles
+          });
+        } catch (e) {
+          return sendJSON({ success: false, error: e.message }, 400);
+        }
+      });
+      return;
+    }
+
+    // DELETE /api/autofarm/profiles/:id
+    if (req.method === "DELETE" && pathname.match(/^\/api\/autofarm\/profiles\/[^/]+$/)) {
+      const id = pathname.split("/")[4];
+      const afState = loadAutoFarmState();
+      const idx = afState.profiles.findIndex(p => p.id === id);
+      if (idx === -1) return sendJSON({ success: false, error: "Profile not found" }, 404);
+      await stopSingleProfile(id).catch(() => {});
+      try { credentials.setPassword(id, ""); } catch (_) {}
+      try {
+        const bsFile = path.join(SESSIONS_DIR, "_browser_storage", `${id}.json`);
+        if (fs.existsSync(bsFile)) fs.unlinkSync(bsFile);
+      } catch (_) {}
+      delete windowStates[id];
+      afState.profiles.splice(idx, 1);
+      saveAutoFarmState(afState);
+      return sendJSON({ success: true, config: afState.config, profiles: afState.profiles });
+    }
   }
 
   // ==========================================
@@ -12580,6 +12967,221 @@ public class PmFocus {
   });
 });
 
+function seedAutoFarmBrowserStorage(profile, role, receiverCharName, afConfig) {
+  if (!profile || !profile.id) return;
+  try {
+    const bsDir = path.join(SESSIONS_DIR, "_browser_storage");
+    if (!fs.existsSync(bsDir)) fs.mkdirSync(bsDir, { recursive: true });
+    const bsFile = path.join(bsDir, `${profile.id}.json`);
+    let data = {};
+    if (fs.existsSync(bsFile)) {
+      try { data = JSON.parse(fs.readFileSync(bsFile, "utf8")) || {}; } catch (_) { data = {}; }
+    }
+    const pfx = `pelican_${profile.id}__`;
+    const pw = credentials.getPassword(profile.id) || "";
+    const authObj = {
+      enabled: true,
+      username: profile.account || "",
+      password: pw,
+      serverName: profile.serverName || (afConfig && afConfig.serverName) || "Nightfall",
+      charName: profile.lastCharName || profile.charName || "",
+      autoResumeBot: true,
+      register: Boolean(profile.autoRegister && !profile.lastCharName),
+      registerDone: Boolean(!profile.autoRegister || profile.lastCharName),
+      autoCreateChar: true,
+      generatedUser: true,
+      lastManagerPushAt: Date.now()
+    };
+    const afObj = {
+      enabled: true,
+      role: role || (profile.isReceiver ? "receiver" : "farmer"),
+      targetLevel: Number(afConfig && afConfig.targetLevel) || 20,
+      receiverCharName: receiverCharName || "",
+      tradeChannel: Number(afConfig && afConfig.tradeChannel) || 1,
+      tradeCompleted: Boolean(profile.passed)
+    };
+    data[`${pfx}auth_cfg`] = JSON.stringify(authObj);
+    data[`${pfx}autofarm_lv20_cfg`] = JSON.stringify(afObj);
+    data[`${pfx}auto_loop`] = "true";
+    data[`${pfx}plan_enabled`] = "true";
+    data[`${pfx}smart_auto_quest`] = "true";
+    writeJsonAtomic(bsFile, data);
+  } catch (_) {}
+}
+
+async function launchAutoFarmProfile(profile, role, receiverCharName, afConfig) {
+  if (!profile || !profile.id) return false;
+  seedAutoFarmBrowserStorage(profile, role, receiverCharName, afConfig);
+  const readyProf = await ensureUsableDebugPort(profile.id);
+  const targetProf = readyProf || profile;
+  await browserMode.launch(targetProf);
+  setTimeout(() => scriptCoordinator.cycle?.().catch(() => {}), 2000);
+  setTimeout(() => authSync.syncOne(loadAllRuntimeProfiles().find(x => x.id === targetProf.id) || targetProf).catch(() => {}), 2200);
+  setTimeout(() => authSync.syncOne(loadAllRuntimeProfiles().find(x => x.id === targetProf.id) || targetProf).catch(() => {}), 5000);
+  return true;
+}
+
+let autoFarmTickBusy = false;
+async function runAutoFarmOrchestratorTick() {
+  if (autoFarmTickBusy || TEST_INSTANCE) return;
+  const afState = loadAutoFarmState();
+  if (!afState || !afState.config || !afState.config.running) return;
+  autoFarmTickBusy = true;
+  try {
+    const profiles = afState.profiles;
+    if (!Array.isArray(profiles) || profiles.length === 0) {
+      afState.config.running = false;
+      afState.config.lastStatusText = "⚠️ ยังไม่มีโปรไฟล์ในหน้า Auto Farm";
+      saveAutoFarmState(afState);
+      return;
+    }
+    const receiverProfile = profiles.find(p => p.id === afState.config.receiverProfileId) || profiles.find(p => p.isReceiver) || profiles[0];
+    afState.config.receiverProfileId = receiverProfile.id;
+    receiverProfile.isReceiver = true;
+
+    let stateChanged = false;
+    const targetLevel = Math.max(1, Number(afState.config.targetLevel) || 20);
+    const tradeChannel = Math.max(1, Number(afState.config.tradeChannel) || 1);
+
+    // 1. Ensure Receiver Profile is Open and Configured
+    if (!browserMode.isOpen(receiverProfile.id)) {
+      afState.config.lastStatusText = `👑 กำลังเปิดจอตัวรับเงิน: ${receiverProfile.lastCharName || receiverProfile.charName || receiverProfile.name}...`;
+      saveAutoFarmState(afState);
+      await launchAutoFarmProfile(receiverProfile, "receiver", "", afState.config).catch(() => {});
+    } else if (receiverProfile.debugPort) {
+      const recLive = await queryClientState(receiverProfile.debugPort).catch(() => null);
+      if (recLive && !recLive.error) {
+        if (recLive.charName && recLive.charName !== receiverProfile.lastCharName) {
+          receiverProfile.lastCharName = recLive.charName;
+          receiverProfile.autoRegister = false;
+          stateChanged = true;
+        }
+        if (recLive.zeny != null) {
+          receiverProfile.lastZeny = Number(recLive.zeny);
+        }
+        await evalProfilePort(receiverProfile.debugPort, `(() => {
+          if (typeof window.__setAutoFarmLv20Config === 'function') {
+            window.__setAutoFarmLv20Config({
+              enabled: true,
+              role: 'receiver',
+              targetLevel: ${targetLevel},
+              tradeChannel: ${tradeChannel}
+            });
+          }
+          if (!window.__isBotRunning && typeof window.startMasterBot === 'function') {
+            window.__autoLoopEnabled = true;
+            window.__isBotRunning = true;
+            window.startMasterBot();
+          }
+          return true;
+        })()`, 2500).catch(() => {});
+      }
+    }
+
+    const receiverCharName = String(receiverProfile.lastCharName || receiverProfile.charName || "").trim();
+
+    // 2. Check Open Farmer Profiles for Completion & Sync Config
+    const toDeleteIds = [];
+    for (const p of profiles) {
+      if (!p || p.id === receiverProfile.id) continue;
+      p.isReceiver = false;
+      if (!browserMode.isOpen(p.id) || !p.debugPort) continue;
+
+      const live = await queryClientState(p.debugPort).catch(() => null);
+      if (!live || live.error) continue;
+
+      if (live.charName && live.charName !== p.lastCharName) {
+        p.lastCharName = live.charName;
+        p.autoRegister = false;
+        stateChanged = true;
+      }
+      if (live.zeny != null) p.lastZeny = Number(live.zeny);
+      if (live.baseLv != null) p.lastBaseLv = Number(live.baseLv);
+
+      if (live.autoFarmLv20 && live.autoFarmLv20.tradeCompleted === true && !p.passed) {
+        const traded = Number(live.autoFarmLv20.tradedCoins || 0);
+        afState.config.totalTradedCoins = Number(afState.config.totalTradedCoins || 0) + traded;
+        afState.config.completedCount = Number(afState.config.completedCount || 0) + 1;
+        await stopSingleProfile(p.id).catch(() => {});
+
+        if (afState.config.completionAction === "delete") {
+          toDeleteIds.push(p.id);
+          afState.config.lastStatusText = `🗑️ ${p.lastCharName || p.charName || p.name} เทรดเงิน ${traded.toLocaleString()} เหรียญสำเร็จ -> ลบโปรไฟล์อัตโนมัติแล้ว`;
+        } else {
+          p.passed = true;
+          p.passedAt = Date.now();
+          p.tradedCoins = traded;
+          afState.config.lastStatusText = `🏆 ${p.lastCharName || p.charName || p.name} เทรดเงิน ${traded.toLocaleString()} เหรียญให้ ${receiverCharName || "ตัวรับเงิน"} สำเร็จ -> PASS!`;
+        }
+        stateChanged = true;
+        continue;
+      }
+
+      await evalProfilePort(p.debugPort, `(() => {
+        if (typeof window.__setAutoFarmLv20Config === 'function') {
+          window.__setAutoFarmLv20Config({
+            enabled: true,
+            role: 'farmer',
+            targetLevel: ${targetLevel},
+            receiverCharName: ${JSON.stringify(receiverCharName)},
+            tradeChannel: ${tradeChannel}
+          });
+        }
+        if (!window.__isBotRunning && typeof window.startMasterBot === 'function') {
+          window.__autoLoopEnabled = true;
+          window.__isBotRunning = true;
+          window.startMasterBot();
+        }
+        return true;
+      })()`, 2500).catch(() => {});
+    }
+
+    if (toDeleteIds.length > 0) {
+      for (const delId of toDeleteIds) {
+        try { credentials.setPassword(delId, ""); } catch (_) {}
+        try {
+          const bsFile = path.join(SESSIONS_DIR, "_browser_storage", `${delId}.json`);
+          if (fs.existsSync(bsFile)) fs.unlinkSync(bsFile);
+        } catch (_) {}
+        delete windowStates[delId];
+      }
+      const delSet = new Set(toDeleteIds);
+      afState.profiles = afState.profiles.filter(p => !delSet.has(p.id));
+      stateChanged = true;
+    }
+
+    // 3. Fill Concurrency Slots with Next Un-Passed Farmer Profile
+    const maxConcurrent = Math.max(1, Math.min(20, Number(afState.config.concurrency) || 3));
+    const activeFarmers = afState.profiles.filter(p => p.id !== receiverProfile.id && !p.passed && browserMode.isOpen(p.id));
+    const waitingFarmers = afState.profiles.filter(p => p.id !== receiverProfile.id && !p.passed && !browserMode.isOpen(p.id));
+    const passedFarmers = afState.profiles.filter(p => p.id !== receiverProfile.id && p.passed);
+
+    if (activeFarmers.length < maxConcurrent && waitingFarmers.length > 0) {
+      const nextFarmer = waitingFarmers[0];
+      afState.config.lastStatusText = `🚀 เปิดจอฟาร์มคิวถัดไป: ${nextFarmer.lastCharName || nextFarmer.charName || nextFarmer.name} (กำลังฟาร์ม ${activeFarmers.length + 1}/${maxConcurrent} ID)`;
+      saveAutoFarmState(afState);
+      await launchAutoFarmProfile(nextFarmer, "farmer", receiverCharName, afState.config).catch(() => {});
+      return;
+    }
+
+    if (activeFarmers.length === 0 && waitingFarmers.length === 0 && afState.profiles.length > 1) {
+      afState.config.running = false;
+      afState.config.lastStatusText = `🎉 ฟาร์ม Lv.${targetLevel} และเทรดเงินครบทุกโปรไฟล์แล้ว! (สำเร็จ ${passedFarmers.length} ID • รวม ${Number(afState.config.totalTradedCoins || 0).toLocaleString()} เหรียญ)`;
+      stateChanged = true;
+    } else if (activeFarmers.length > 0) {
+      afState.config.lastStatusText = `🌾 กำลังฟาร์ม ${activeFarmers.length}/${maxConcurrent} ID • รอคิว ${waitingFarmers.length} ID • PASS แล้ว ${passedFarmers.length} ID`;
+    }
+
+    if (stateChanged) {
+      saveAutoFarmState(afState);
+    }
+  } catch (err) {
+    console.warn("[AutoFarm Orchestrator] tick error:", err.message);
+  } finally {
+    autoFarmTickBusy = false;
+  }
+}
+
 server.listen(PORT, "127.0.0.1", () => {
   scriptCoordinator.start();
   if (!TEST_INSTANCE || process.env.PMHEE_ENABLE_FLEET_WORKER === '1') remoteFleet.start();
@@ -12587,6 +13189,9 @@ server.listen(PORT, "127.0.0.1", () => {
   if(!TEST_INSTANCE)managerUpdater.start();
   planSync.start();
   if(!TEST_INSTANCE)authSync.start();
+  if (!TEST_INSTANCE) {
+    setInterval(() => { runAutoFarmOrchestratorTick().catch(() => {}); }, 3500);
+  }
   if (!TEST_INSTANCE) {
     syncScreenProxyForOpenProfiles().catch(() => {});
   }

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "sourceCommit": "aa8fd705e8f1c6c5a6840e185fcf4a6039a92f0e",
+  "sourceCommit": "77596db6f1c66c986b4c8ccd23ec040d9991d23e",
   "files": [
     {
       "path": "manager/asset_cache.js",
@@ -8,7 +8,7 @@
     },
     {
       "path": "manager/auth_sync.js",
-      "sha256": "4b1ca0b313e0aabd4ac54af844a6716f32c7ea480f1f07a9cd6d7b7725e1a78f"
+      "sha256": "baaae5e487513828bdab1caa3edc42e576ed6033bcecfd0b6dbe1a300d6222d7"
     },
     {
       "path": "manager/bot_auto_update.js",
@@ -64,7 +64,7 @@
     },
     {
       "path": "manager/human_check_solver.js",
-      "sha256": "68be10b9e8e90d85c119c07dde51ac47ee817fe13a6d679b2dfe62d2760adee3"
+      "sha256": "b385404c59cb884c287b5943b0c551b9cb11ee4c35c60fef90c3f7eaf4ceadd2"
     },
     {
       "path": "manager/image_board_solver.js",
@@ -140,7 +140,7 @@
     },
     {
       "path": "manager/public/app.js",
-      "sha256": "79bb1e9bca54789e31f45d22ba8adc980c5db2c3ad42553428080777bf92a94c"
+      "sha256": "5b68db20d0bf59c18b0360bec6dd7a00634e5c8db3a8d17c38876e6dace9561c"
     },
     {
       "path": "manager/public/bot_update.css",
@@ -208,7 +208,7 @@
     },
     {
       "path": "manager/public/index.html",
-      "sha256": "1b9b25d7281b8a817d9efec1767f0261d19e13db0a3e4820d27622579573a562"
+      "sha256": "b2b33607d985bfdb103d86cd1aae5f8648055bf92aac6a2f251c677122158365"
     },
     {
       "path": "manager/public/inventory_market.css",
@@ -280,7 +280,7 @@
     },
     {
       "path": "manager/public/support_chat.js",
-      "sha256": "ab4d90111b31ebf81514ff3ce26ee0df3211be2e560c677102595d04f56a104b"
+      "sha256": "ce05edd71a146570d6ea1a0cad03de136dbcece46a4df6dd3a8adf1dbad842f2"
     },
     {
       "path": "manager/public/tower_manager.js",
@@ -320,7 +320,7 @@
     },
     {
       "path": "manager/server.js",
-      "sha256": "e8adeb61e20c9f9f89685f5458b781a1d416ccd807173d425e8c8d53ebbac0c9"
+      "sha256": "d9b3246c6a40799de76e358124dbbc00c45796382fe6515c8341820e4e8b044b"
     },
     {
       "path": "manager/test_isolation.js",

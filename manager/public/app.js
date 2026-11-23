@@ -5989,6 +5989,9 @@ function initDeviceNickname() {
     if (typeof res.requiresLogin === "boolean") currentRequiresLogin = res.requiresLogin;
     if (res.accessRequestedAt !== undefined) currentAccessRequestedAt = res.accessRequestedAt;
     if (typeof res.accessNote === "string") currentAccessNote = res.accessNote;
+    if (res.secretAccess && typeof window.__applySecretAccessState === "function") {
+      window.__applySecretAccessState(res.secretAccess);
+    }
 
     if (typeof res.requiresLogin === "boolean" || typeof res.accessStatus === "string") {
       initialAccessHydrated = true;
@@ -7068,10 +7071,481 @@ function switchMainTab(tabName) {
     if (window.FleetZeny && typeof window.FleetZeny.onTabShown === "function") {
       window.FleetZeny.onTabShown();
     }
+  } else if (tabName === "autofarm") {
+    if (typeof window.loadAutoFarmDashboard === "function") {
+      window.loadAutoFarmDashboard(true);
+    }
   }
   window.dispatchEvent(new CustomEvent("pm-main-tab-changed", { detail: { tabName } }));
 }
 window.switchMainTab = switchMainTab;
+
+// ==========================================
+// 🌾 SECRET AUTO FARM LV.20 & AUTO-TRADE DASHBOARD
+// ==========================================
+(() => {
+  let secretAutoFarmUnlocked = false;
+  let afConfig = {
+    serverName: "Nightfall",
+    receiverProfileId: "",
+    concurrency: 3,
+    targetLevel: 20,
+    tradeChannel: 1,
+    completionAction: "pass",
+    running: false,
+    totalTradedCoins: 0,
+    completedCount: 0,
+    lastStatusText: ""
+  };
+  let afProfiles = [];
+  let afLoadBusy = false;
+  let afEventsBound = false;
+
+  window.__applySecretAccessState = function (secretAccess) {
+    if (!secretAccess || typeof secretAccess !== "object") return;
+    const nextUnlocked = Boolean(secretAccess.autofarm || (secretAccess.features && secretAccess.features.autofarm));
+    const tabBtn = document.getElementById("tab-btn-autofarm");
+    if (tabBtn) {
+      tabBtn.style.display = nextUnlocked ? "" : "none";
+    }
+    if (nextUnlocked && !secretAutoFarmUnlocked) {
+      secretAutoFarmUnlocked = true;
+      loadAutoFarmDashboard(false);
+    } else if (!nextUnlocked && secretAutoFarmUnlocked) {
+      secretAutoFarmUnlocked = false;
+      const curTab = localStorage.getItem("manager.activeTab");
+      if (curTab === "autofarm" && typeof window.switchMainTab === "function") {
+        window.switchMainTab("profiles");
+      }
+    }
+  };
+
+  async function saveAutoFarmConfig(extraPatch = {}) {
+    const serverEl = document.getElementById("af-cfg-server");
+    const recEl = document.getElementById("af-cfg-receiver");
+    const concEl = document.getElementById("af-cfg-concurrency");
+    const lvEl = document.getElementById("af-cfg-target-lv");
+    const chEl = document.getElementById("af-cfg-trade-ch");
+    const compEl = document.getElementById("af-cfg-completion");
+
+    const payload = {
+      serverName: (serverEl && serverEl.value.trim()) || afConfig.serverName || "Nightfall",
+      receiverProfileId: (recEl && recEl.value) || afConfig.receiverProfileId || "",
+      concurrency: Math.max(1, Math.min(15, Number(concEl && concEl.value) || 3)),
+      targetLevel: Math.max(5, Math.min(99, Number(lvEl && lvEl.value) || 20)),
+      tradeChannel: Math.max(1, Math.min(20, Number(chEl && chEl.value) || 1)),
+      completionAction: (compEl && compEl.value) || "pass",
+      ...extraPatch
+    };
+    const res = await fetch(`${API_BASE}/api/autofarm/config`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    }).then(r => r.json());
+    if (res && res.success) {
+      afConfig = res.config || afConfig;
+      await loadAutoFarmDashboard(false);
+      if (typeof showToast === "function") showToast("💾 บันทึกตั้งค่าระบบ Auto Farm เรียบร้อยแล้ว", "success");
+    }
+  }
+
+  function bindAutoFarmEvents() {
+    if (afEventsBound) return;
+    afEventsBound = true;
+
+    const bindChange = (id) => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener("change", () => saveAutoFarmConfig().catch(() => {}));
+    };
+    bindChange("af-cfg-server");
+    bindChange("af-cfg-receiver");
+    bindChange("af-cfg-concurrency");
+    bindChange("af-cfg-target-lv");
+    bindChange("af-cfg-trade-ch");
+    bindChange("af-cfg-completion");
+
+    const saveBtn = document.getElementById("af-btn-save-cfg");
+    if (saveBtn) saveBtn.onclick = () => saveAutoFarmConfig().catch(() => {});
+
+    const addBtn = document.getElementById("af-btn-add-profiles");
+    if (addBtn) {
+      addBtn.onclick = async () => {
+        const cntEl = document.getElementById("af-add-count");
+        const srvEl = document.getElementById("af-cfg-server");
+        const count = Math.max(1, Math.min(50, Number(cntEl && cntEl.value) || 1));
+        const serverName = (srvEl && srvEl.value.trim()) || afConfig.serverName || "Nightfall";
+        addBtn.disabled = true;
+        try {
+          const res = await fetch(`${API_BASE}/api/autofarm/profiles`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ count, serverName })
+          }).then(r => r.json());
+          if (res && res.success) {
+            if (typeof showToast === "function") {
+              showToast(`➕ สร้างโปรไฟล์ Auto-Gen (@gmail.com + ชื่อตัวละคร) จำนวน ${res.createdCount} โปรไฟล์แล้ว!`, "success");
+            }
+            await loadAutoFarmDashboard(true);
+          } else if (typeof showToast === "function") {
+            showToast(res?.error || "เพิ่มโปรไฟล์ไม่สำเร็จ", "error");
+          }
+        } finally {
+          addBtn.disabled = false;
+        }
+      };
+    }
+
+    const toggleBtn = document.getElementById("af-btn-toggle-run");
+    if (toggleBtn) {
+      toggleBtn.onclick = async () => {
+        toggleBtn.disabled = true;
+        try {
+          await saveAutoFarmConfig().catch(() => {});
+          const nextRunning = !afConfig.running;
+          const res = await fetch(`${API_BASE}/api/autofarm/toggle`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ running: nextRunning })
+          }).then(r => r.json());
+          if (res && res.success) {
+            afConfig = res.config || afConfig;
+            if (typeof showToast === "function") {
+              showToast(afConfig.running ? "🚀 เริ่มรันคิว Auto Farm Lv.20 อัตโนมัติแล้ว!" : "⏸ หยุดพักคิว Auto Farm แล้ว", "info");
+            }
+            await loadAutoFarmDashboard(true);
+          } else if (typeof showToast === "function") {
+            showToast(res?.error || "ไม่สามารถสลับสถานะ Auto Farm ได้", "error");
+          }
+        } finally {
+          toggleBtn.disabled = false;
+        }
+      };
+    }
+
+    const stopCloseBtn = document.getElementById("af-btn-stop-close");
+    if (stopCloseBtn) {
+      stopCloseBtn.onclick = async () => {
+        if (!window.confirm("ยืนยันหยุดระบบ Auto Farm และปิดหน้าต่างเกมในหมวด Auto Farm ทั้งหมดหรือไม่?")) return;
+        stopCloseBtn.disabled = true;
+        try {
+          const res = await fetch(`${API_BASE}/api/autofarm/toggle`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ running: false, closeAllWindows: true })
+          }).then(r => r.json());
+          if (res && res.success) {
+            afConfig = res.config || afConfig;
+            if (typeof showToast === "function") showToast("⏹ หยุดระบบและปิดหน้าต่าง Auto Farm ทั้งหมดแล้ว", "info");
+            await loadAutoFarmDashboard(true);
+          }
+        } finally {
+          stopCloseBtn.disabled = false;
+        }
+      };
+    }
+
+    const delPassedBtn = document.getElementById("af-btn-delete-passed");
+    if (delPassedBtn) {
+      delPassedBtn.onclick = async () => {
+        const passedCnt = afProfiles.filter(p => !p.isReceiver && p.passed).length;
+        if (passedCnt === 0) {
+          if (typeof showToast === "function") showToast("ยังไม่มีโปรไฟล์ที่ประทับตรา PASS", "info");
+          return;
+        }
+        if (!window.confirm(`ยืนยันลบโปรไฟล์ที่เทรดเงินเสร็จแล้ว (PASS) จำนวน ${passedCnt} โปรไฟล์หรือไม่? (ไม่ลบตัวรับเงิน)`)) return;
+        const res = await fetch(`${API_BASE}/api/autofarm/profiles/bulk-delete`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mode: "passed" })
+        }).then(r => r.json());
+        if (res && res.success) {
+          if (typeof showToast === "function") showToast(`🧹 ลบโปรไฟล์ที่ PASS แล้ว ${res.deletedCount} โปรไฟล์เรียบร้อย`, "success");
+          await loadAutoFarmDashboard(true);
+        }
+      };
+    }
+
+    const delFarmersBtn = document.getElementById("af-btn-delete-farmers");
+    if (delFarmersBtn) {
+      delFarmersBtn.onclick = async () => {
+        const farmerCnt = afProfiles.filter(p => !p.isReceiver).length;
+        if (farmerCnt === 0) {
+          if (typeof showToast === "function") showToast("ไม่มีโปรไฟล์ตัวฟาร์มให้ลบ", "info");
+          return;
+        }
+        if (!window.confirm(`ยืนยันลบโปรไฟล์ตัวฟาร์มทั้งหมด ${farmerCnt} โปรไฟล์หรือไม่? (ระบบจะเก็บโปรไฟล์ตัวรับเงินไว้)`)) return;
+        const res = await fetch(`${API_BASE}/api/autofarm/profiles/bulk-delete`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mode: "all_farmers" })
+        }).then(r => r.json());
+        if (res && res.success) {
+          if (typeof showToast === "function") showToast(`🗑️ ลบโปรไฟล์ตัวฟาร์มทั้งหมด ${res.deletedCount} โปรไฟล์แล้ว (เก็บตัวรับเงินไว้)`, "success");
+          await loadAutoFarmDashboard(true);
+        }
+      };
+    }
+  }
+
+  function renderAutoFarmDashboard() {
+    bindAutoFarmEvents();
+    const tabCount = document.getElementById("tab-count-autofarm");
+    if (tabCount) tabCount.textContent = String(afProfiles.length || 0);
+
+    const runBadge = document.getElementById("af-run-badge");
+    if (runBadge) {
+      if (afConfig.running) {
+        runBadge.textContent = "🟢 กำลังรันฟาร์มอัตโนมัติ";
+        runBadge.style.background = "rgba(16,185,129,0.22)";
+        runBadge.style.color = "#6ee7b7";
+        runBadge.style.borderColor = "rgba(16,185,129,0.5)";
+      } else {
+        runBadge.textContent = "⏸ หยุดพัก";
+        runBadge.style.background = "rgba(148,163,184,0.18)";
+        runBadge.style.color = "#cbd5e1";
+        runBadge.style.borderColor = "rgba(148,163,184,0.35)";
+      }
+    }
+
+    const toggleBtn = document.getElementById("af-btn-toggle-run");
+    if (toggleBtn) {
+      toggleBtn.textContent = afConfig.running ? "⏸ หยุดพักคิว Auto Farm" : "▶ เริ่มรันระบบ Auto Farm";
+      toggleBtn.className = afConfig.running ? "btn btn-warning" : "btn btn-success";
+    }
+
+    const statusText = document.getElementById("af-status-text");
+    if (statusText && afConfig.lastStatusText) {
+      statusText.textContent = afConfig.lastStatusText;
+    }
+
+    const receiverProf = afProfiles.find(p => p.id === afConfig.receiverProfileId) || afProfiles.find(p => p.isReceiver) || afProfiles[0] || null;
+    const activeFarmers = afProfiles.filter(p => (!receiverProf || p.id !== receiverProf.id) && !p.passed && p.isRunning);
+    const waitingFarmers = afProfiles.filter(p => (!receiverProf || p.id !== receiverProf.id) && !p.passed && !p.isRunning);
+    const passedFarmers = afProfiles.filter(p => (!receiverProf || p.id !== receiverProf.id) && p.passed);
+
+    const mRec = document.getElementById("af-metric-receiver");
+    if (mRec) {
+      if (receiverProf) {
+        const rName = (receiverProf.liveState && receiverProf.liveState.charName) || receiverProf.lastCharName || receiverProf.charName || receiverProf.name;
+        const rZeny = (receiverProf.liveState && receiverProf.liveState.zeny != null) ? receiverProf.liveState.zeny : receiverProf.lastZeny;
+        mRec.textContent = `${rName}${rZeny != null ? " • 💰 " + Number(rZeny).toLocaleString() : ""}`;
+      } else {
+        mRec.textContent = "ยังไม่มีโปรไฟล์";
+      }
+    }
+    const mQueue = document.getElementById("af-metric-queue");
+    if (mQueue) mQueue.textContent = `เปิด ${activeFarmers.length}/${afConfig.concurrency || 3} • รอคิว ${waitingFarmers.length} ID`;
+    const mPassed = document.getElementById("af-metric-passed");
+    if (mPassed) mPassed.textContent = `${passedFarmers.length} / ${Math.max(0, afProfiles.length - (receiverProf ? 1 : 0))} โปรไฟล์`;
+    const mCoins = document.getElementById("af-metric-coins");
+    if (mCoins) mCoins.textContent = `${Number(afConfig.totalTradedCoins || 0).toLocaleString()} เหรียญ`;
+
+    // Sync config inputs if user is not actively typing in them
+    const syncInput = (id, val) => {
+      const el = document.getElementById(id);
+      if (el && document.activeElement !== el && val !== undefined && val !== null) {
+        el.value = String(val);
+      }
+    };
+    syncInput("af-cfg-server", afConfig.serverName || "Nightfall");
+    syncInput("af-cfg-concurrency", afConfig.concurrency || 3);
+    syncInput("af-cfg-target-lv", afConfig.targetLevel || 20);
+    syncInput("af-cfg-trade-ch", afConfig.tradeChannel || 1);
+    syncInput("af-cfg-completion", afConfig.completionAction || "pass");
+
+    const recSelect = document.getElementById("af-cfg-receiver");
+    if (recSelect && document.activeElement !== recSelect) {
+      recSelect.innerHTML = "";
+      if (afProfiles.length === 0) {
+        const opt = document.createElement("option");
+        opt.value = "";
+        opt.textContent = "-- เพิ่มโปรไฟล์ก่อน (จอ 1 จะเป็นตัวรับเงิน) --";
+        recSelect.appendChild(opt);
+      } else {
+        afProfiles.forEach((p, idx) => {
+          const opt = document.createElement("option");
+          opt.value = p.id;
+          const cName = (p.liveState && p.liveState.charName) || p.lastCharName || p.charName || p.name;
+          opt.textContent = `จอ ${idx + 1}: ${cName} (${p.account || "auto"})`;
+          if (receiverProf && p.id === receiverProf.id) opt.selected = true;
+          recSelect.appendChild(opt);
+        });
+      }
+    }
+
+    const grid = document.getElementById("af-profiles-grid");
+    if (!grid) return;
+    if (afProfiles.length === 0) {
+      grid.innerHTML = `
+        <div style="grid-column:1/-1;text-align:center;padding:42px 20px;background:rgba(15,23,42,0.65);border:1.5px dashed rgba(148,163,184,0.28);border-radius:14px;color:#94a3b8;">
+          <div style="font-size:34px;margin-bottom:8px;">🌾</div>
+          <div style="font-size:15px;font-weight:800;color:#e2e8f0;margin-bottom:4px;">ยังไม่มีโปรไฟล์ในคิวระบบ Auto Farm</div>
+          <div style="font-size:12.5px;">เลือกเซิร์ฟเวอร์ กรอกจำนวนโปรไฟล์ที่ต้องการ (เช่น 20 โปรไฟล์) แล้วกดปุ่ม <b>"➕ สร้างโปรไฟล์เข้าคิว"</b> ด้านบนได้เลยครับ (จอที่ 1 จะถูกตั้งเป็นตัวรับเงินเทรดอัตโนมัติ)</div>
+        </div>
+      `;
+      return;
+    }
+
+    grid.innerHTML = afProfiles.map((p, idx) => {
+      const isRec = Boolean(receiverProf && p.id === receiverProf.id);
+      const live = p.liveState || null;
+      const charName = (live && live.charName) || p.lastCharName || p.charName || `ตัวละคร #${idx + 1}`;
+      const baseLv = (live && live.baseLv != null) ? live.baseLv : (p.lastBaseLv || 1);
+      const zeny = (live && live.zeny != null) ? live.zeny : (p.lastZeny != null ? p.lastZeny : null);
+      const mapName = (live && live.map) ? live.map : "รอเปิดจอ";
+      const afStatus = (live && live.autoFarmLv20 && live.autoFarmLv20.statusText) || (live && live.botStatus) || (p.passed ? `✅ เทรดเงินสำเร็จแล้ว (${Number(p.tradedCoins || 0).toLocaleString()} เหรียญ)` : "⏳ รอคิวเปิดฟาร์ม...");
+      const isZeroRender = Boolean((p.windowState && p.windowState.zeroRender) || (live && live.zeroRender));
+      const borderColor = isRec
+        ? "rgba(251,191,36,0.65)"
+        : (p.passed ? "rgba(16,185,129,0.65)" : (p.isRunning ? "rgba(56,189,248,0.55)" : "rgba(148,163,184,0.22)"));
+
+      const passOverlayHtml = p.passed ? `
+        <div style="position:absolute;inset:0;pointer-events:none;display:flex;align-items:center;justify-content:center;z-index:12;background:rgba(2,6,23,0.28);border-radius:14px;">
+          <div style="transform:rotate(-16deg);background:linear-gradient(135deg,rgba(5,150,105,0.94),rgba(16,185,129,0.94));border:2.5px solid #a7f3d0;color:#ffffff;padding:8px 28px;border-radius:10px;font-size:22px;font-weight:900;letter-spacing:2px;box-shadow:0 12px 30px rgba(0,0,0,0.65),0 0 24px rgba(16,185,129,0.55);text-transform:uppercase;">
+            ✅ PASS
+            <div style="font-size:10.5px;font-weight:800;letter-spacing:0.3px;color:#d1fae5;text-align:center;margin-top:1px;">
+              เทรด ${Number(p.tradedCoins || 0).toLocaleString()} เหรียญแล้ว
+            </div>
+          </div>
+        </div>
+      ` : "";
+
+      return `
+        <div class="profile-card" style="position:relative;overflow:hidden;border:1.5px solid ${borderColor};background:linear-gradient(160deg,rgba(15,23,42,0.96),rgba(9,14,28,0.96));border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:10px;">
+          ${passOverlayHtml}
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+            <div>
+              <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                <span style="padding:2px 8px;border-radius:6px;font-size:11px;font-weight:800;background:${isRec ? "rgba(245,158,11,0.22)" : "rgba(56,189,248,0.16)"};color:${isRec ? "#fde68a" : "#7dd3fc"};border:1px solid ${isRec ? "rgba(251,191,36,0.45)" : "rgba(56,189,248,0.35)"};">
+                  ${isRec ? `👑 จอ ${idx + 1} • ตัวรับเงินเทรด` : `🌾 จอ ${idx + 1} • ตัวฟาร์ม`}
+                </span>
+                <span style="padding:2px 7px;border-radius:6px;font-size:10.5px;font-weight:700;background:rgba(148,163,184,0.15);color:#cbd5e1;">
+                  🌐 ${escHtml(p.serverName || afConfig.serverName || "Nightfall")}
+                </span>
+                <span style="padding:2px 7px;border-radius:6px;font-size:10.5px;font-weight:800;background:${p.isRunning ? "rgba(16,185,129,0.2)" : "rgba(100,116,139,0.2)"};color:${p.isRunning ? "#34d399" : "#94a3b8"};">
+                  ${p.isRunning ? "🟢 เปิดจออยู่" : "⚪ ปิดจอ"}
+                </span>
+              </div>
+              <div style="font-size:15.5px;font-weight:800;color:#f8fafc;margin-top:6px;">
+                👤 ${escHtml(charName)} <span style="font-size:12.5px;color:#38bdf8;font-weight:800;">(Lv.${baseLv}/${afConfig.targetLevel || 20})</span>
+              </div>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-size:13.5px;font-weight:800;color:#fbbf24;">💰 ${zeny != null ? Number(zeny).toLocaleString() : "--"}</div>
+              <div style="font-size:11px;color:#94a3b8;">📍 ${escHtml(mapName)}</div>
+            </div>
+          </div>
+
+          <!-- EMAIL & PASSWORD BOX -->
+          <div style="background:rgba(2,6,23,0.65);border:1px solid rgba(148,163,184,0.18);border-radius:9px;padding:8px 10px;font-size:11.5px;display:flex;justify-content:space-between;align-items:center;gap:8px;">
+            <div style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+              <div style="color:#cbd5e1;">📧 <span style="font-family:monospace;color:#f8fafc;font-weight:700;">${escHtml(p.account || "-")}</span></div>
+              <div style="color:#94a3b8;margin-top:2px;">🔑 <span style="font-family:monospace;color:#a7f3d0;">${escHtml(p.loginPassword || "********")}</span></div>
+            </div>
+            <button type="button" class="btn btn-secondary btn-sm" style="padding:4px 8px;font-size:11px;flex-shrink:0;" onclick="window.__afCopyCreds('${escHtml(p.account || "")}','${escHtml(p.loginPassword || "")}','${escHtml(charName)}')">
+              📋 คัดลอก
+            </button>
+          </div>
+
+          <!-- LIVE BOT STATUS -->
+          <div style="background:rgba(15,118,110,0.14);border:1px solid rgba(20,184,166,0.28);border-radius:8px;padding:7px 10px;font-size:11.5px;color:#99f6e4;font-weight:600;">
+            ${escHtml(afStatus)}
+          </div>
+
+          <!-- ACTION BUTTONS -->
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:auto;position:relative;z-index:15;">
+            ${p.isRunning ? `
+              <button type="button" class="btn btn-danger btn-sm" style="flex:1;padding:6px 8px;font-size:11.5px;" onclick="stopClient('${p.id}').then(()=>window.loadAutoFarmDashboard(true))">
+                ⏹ ปิดจอ
+              </button>
+              <button type="button" class="btn btn-secondary btn-sm" style="padding:6px 8px;font-size:11.5px;" onclick="focusWindow('${p.id}')">
+                🖥️ แสดงภาพ
+              </button>
+              <button type="button" class="btn btn-secondary btn-sm" style="padding:6px 8px;font-size:11.5px;" onclick="toggleWindow('${p.id}').then(()=>window.loadAutoFarmDashboard(true))">
+                ${isZeroRender ? "⚡ เปิดกราฟิก" : "⚡ พักกราฟิก"}
+              </button>
+            ` : `
+              <button type="button" class="btn btn-primary btn-sm" style="flex:1;padding:6px 8px;font-size:11.5px;" onclick="launchClient('${p.id}').then(()=>setTimeout(()=>window.loadAutoFarmDashboard(true),1200))">
+                🚀 เปิดจอนี้
+              </button>
+            `}
+            ${!isRec ? `
+              <button type="button" class="btn btn-secondary btn-sm" style="padding:6px 8px;font-size:11px;" title="ตั้งโปรไฟล์นี้เป็นตัวรับเงินเทรด" onclick="window.__afSetReceiver('${p.id}')">
+                👑 ตั้งรับเงิน
+              </button>
+            ` : ""}
+            ${p.passed ? `
+              <button type="button" class="btn btn-secondary btn-sm" style="padding:6px 8px;font-size:11px;color:#fcd34d;" title="ล้างสถานะ PASS เพื่อนำกลับเข้าคิวฟาร์มใหม่" onclick="window.__afResetPass('${p.id}')">
+                🔄 รีเซ็ต PASS
+              </button>
+            ` : ""}
+            <button type="button" class="btn btn-danger btn-sm" style="padding:6px 8px;font-size:11px;" title="ลบโปรไฟล์นี้" onclick="window.__afDeleteProfile('${p.id}','${escHtml(charName)}')">
+              🗑️
+            </button>
+          </div>
+        </div>
+      `;
+    }).join("");
+  }
+
+  window.__afCopyCreds = function (email, pass, charName) {
+    const txt = `${email}:${pass} (${charName})`;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(txt).catch(() => {});
+    }
+    if (typeof showToast === "function") showToast(`📋 คัดลอก ${txt} แล้ว`, "info");
+  };
+
+  window.__afSetReceiver = async function (profileId) {
+    await saveAutoFarmConfig({ receiverProfileId: profileId });
+  };
+
+  window.__afResetPass = async function (profileId) {
+    const res = await fetch(`${API_BASE}/api/autofarm/profiles/${encodeURIComponent(profileId)}/reset-pass`, {
+      method: "POST"
+    }).then(r => r.json());
+    if (res && res.success) {
+      if (typeof showToast === "function") showToast("🔄 รีเซ็ตสถานะ PASS เรียบร้อยแล้ว", "success");
+      await loadAutoFarmDashboard(true);
+    }
+  };
+
+  window.__afDeleteProfile = async function (profileId, charName) {
+    if (!window.confirm(`ยืนยันลบโปรไฟล์ "${charName}" ออกจากหน้า Auto Farm หรือไม่?`)) return;
+    const res = await fetch(`${API_BASE}/api/autofarm/profiles/${encodeURIComponent(profileId)}`, {
+      method: "DELETE"
+    }).then(r => r.json());
+    if (res && res.success) {
+      if (typeof showToast === "function") showToast(`🗑️ ลบโปรไฟล์ "${charName}" แล้ว`, "info");
+      await loadAutoFarmDashboard(true);
+    }
+  };
+
+  async function loadAutoFarmDashboard(force = false) {
+    if (afLoadBusy && !force) return;
+    afLoadBusy = true;
+    try {
+      const res = await fetch(`${API_BASE}/api/autofarm/state`, { cache: "no-store" }).then(r => r.json());
+      if (res && res.success) {
+        afConfig = res.config || afConfig;
+        afProfiles = Array.isArray(res.profiles) ? res.profiles : [];
+        renderAutoFarmDashboard();
+      }
+    } catch (_) {
+    } finally {
+      afLoadBusy = false;
+    }
+  }
+
+  window.loadAutoFarmDashboard = loadAutoFarmDashboard;
+
+  setInterval(() => {
+    const activeTab = localStorage.getItem("manager.activeTab");
+    if (activeTab === "autofarm" || (afConfig && afConfig.running)) {
+      loadAutoFarmDashboard(false);
+    }
+  }, 2500);
+})();
 
 (() => {
   let saved = null;
