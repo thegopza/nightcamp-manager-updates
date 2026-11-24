@@ -9254,29 +9254,29 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
     <div class="p-card" style="background:linear-gradient(145deg, rgba(19,78,74,0.42), rgba(49,46,129,0.34)); border:1px solid rgba(45,212,191,0.5); border-radius:8px; padding:8px; display:flex; flex-direction:column; gap:6px; font-size:10px;">
       <div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
         <label style="display:flex; align-items:center; gap:6px; font-size:11.5px; font-weight:800; color:#e9d5ff; cursor:pointer;" title="เมื่อกลับค่ายจะนำไอเทมตามรายการ WL ตลาดด้านล่างไปตั้งขายอัตโนมัติ พร้อมป้องกันไม่ให้ขายทิ้งร้าน NPC">
-          <input type="checkbox" id="p-nc-cm-autosell-enabled" ${(st.cmarketAutoSellConfig?.enabled) ? 'checked' : ''} style="accent-color:#14b8a6; width:15px; height:15px;">
+          <input type="checkbox" id="p-nc-cm-autosell-enabled" ${(state?.cmarketAutoSellConfig?.enabled) ? 'checked' : ''} style="accent-color:#14b8a6; width:15px; height:15px;">
           <span>เปิดใช้งาน Auto-Sell ตลาด</span>
         </label>
-        <span id="p-nc-cm-quota-badge" style="font-size:10px; font-weight:800; color:#7dd3fc; background:rgba(2,6,23,0.72); border:1px solid rgba(56,189,248,0.48); border-radius:5px; padding:2px 7px; white-space:nowrap;">โควตา: ${Number(st.cmarketSummary?.openSlotCount ?? 0)}/${Number(st.cmarketSummary?.maxSlots ?? 12)}</span>
+        <span id="p-nc-cm-quota-badge" style="font-size:10px; font-weight:800; color:#7dd3fc; background:rgba(2,6,23,0.72); border:1px solid rgba(56,189,248,0.48); border-radius:5px; padding:2px 7px; white-space:nowrap;">โควตา: ${Number(state?.cmarketSummary?.openSlotCount ?? 0)}/${Number(state?.cmarketSummary?.maxSlots ?? 12)}</span>
       </div>
 
       <div style="display:flex; align-items:center; gap:5px; border-top:1px solid rgba(148,163,184,0.18); padding-top:5px;">
         <span style="font-size:10px; color:#c4b5fd; font-weight:700; white-space:nowrap;">⚖️ กลยุทธ์:</span>
         <select id="p-nc-cm-price-strategy" style="flex:1; min-width:0; background:#090d16; border:1px solid rgba(129,140,248,0.5); color:#e0e7ff; border-radius:4px; font-size:10px; font-weight:700; padding:3px 5px;">
-          <option value="undercut_1" ${(st.cmarketAutoSellConfig?.priceStrategy || 'undercut_1') === 'undercut_1' ? 'selected' : ''}>ตัดราคาต่ำสุด 1g (ข้ามราคาล่อ)</option>
-          <option value="lowest" ${st.cmarketAutoSellConfig?.priceStrategy === 'lowest' ? 'selected' : ''}>เท่ากับราคาต่ำสุดในตลาด</option>
-          <option value="median" ${st.cmarketAutoSellConfig?.priceStrategy === 'median' ? 'selected' : ''}>ราคากลางสมดุล (FairTrade)</option>
-          <option value="band_max" ${st.cmarketAutoSellConfig?.priceStrategy === 'band_max' ? 'selected' : ''}>ราคาเพดานสูงสุด</option>
+          <option value="undercut_1" ${(state?.cmarketAutoSellConfig?.priceStrategy || 'undercut_1') === 'undercut_1' ? 'selected' : ''}>ตัดราคาต่ำสุด 1g (ข้ามราคาล่อ)</option>
+          <option value="lowest" ${state?.cmarketAutoSellConfig?.priceStrategy === 'lowest' ? 'selected' : ''}>เท่ากับราคาต่ำสุดในตลาด</option>
+          <option value="median" ${state?.cmarketAutoSellConfig?.priceStrategy === 'median' ? 'selected' : ''}>ราคากลางสมดุล (FairTrade)</option>
+          <option value="band_max" ${state?.cmarketAutoSellConfig?.priceStrategy === 'band_max' ? 'selected' : ''}>ราคาเพดานสูงสุด</option>
         </select>
       </div>
 
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px; font-size:9.5px; color:#cbd5e1;">
         <label style="display:flex; align-items:center; gap:4px; cursor:pointer;">
-          <input type="checkbox" id="p-nc-cm-auto-claim" ${st.cmarketAutoSellConfig?.autoClaimMail !== false ? 'checked' : ''} style="accent-color:#10b981;">
+          <input type="checkbox" id="p-nc-cm-auto-claim" ${state?.cmarketAutoSellConfig?.autoClaimMail !== false ? 'checked' : ''} style="accent-color:#10b981;">
           <span>📬 รับเงินจดหมายออโต้</span>
         </label>
         <label style="display:flex; align-items:center; gap:4px; cursor:pointer;">
-          <input type="checkbox" id="p-nc-cm-auto-unlist" ${st.cmarketAutoSellConfig?.autoUnlistExpired !== false ? 'checked' : ''} style="accent-color:#38bdf8;">
+          <input type="checkbox" id="p-nc-cm-auto-unlist" ${state?.cmarketAutoSellConfig?.autoUnlistExpired !== false ? 'checked' : ''} style="accent-color:#38bdf8;">
           <span>🔄 ถอนของหมดเวลาออโต้</span>
         </label>
       </div>
@@ -9305,7 +9305,7 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
       </div>
 
       <div id="p-nc-cm-autosell-status" style="font-size:9.5px; color:#a5b4fc; background:rgba(2,6,23,0.55); border-radius:5px; padding:4px 6px; line-height:1.35;">
-        ${escapeHTML(st.cmarketLastLog || '🛡️ ของใน WL ตลาดจะไม่ถูกขายร้าน NPC · กดเพิ่มในหน้าไอเทมในเกมได้ด้วย')}
+        ${escapeHTML(state?.cmarketLastLog || '🛡️ ของใน WL ตลาดจะไม่ถูกขายร้าน NPC · กดเพิ่มในหน้าไอเทมในเกมได้ด้วย')}
       </div>
 
       <button type="button" class="p-btn" id="p-btn-nc-open-cmarket-modal" style="margin:0; width:100%; background:rgba(79,70,229,0.26); border:1px solid rgba(129,140,248,0.5); color:#c7d2fe; border-radius:6px; font-size:10px; font-weight:700; padding:5px; cursor:pointer;">
