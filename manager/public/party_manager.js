@@ -16,6 +16,13 @@
     g: '🤝 เกาะกลุ่ม (เดินเควส/ด้ายแดง)',
     s: '🏃 แยกตีอิสระ'
   };
+  const AUTO_MODE_OPTS = [
+    { value: 'auto', label: '✨ อัตโนมัติ (ตามอาชีพ)' },
+    { value: 'farm', label: '⚔️ ฟาร์ม / ตีมอนปกติ' },
+    { value: 'support_fight', label: '✨ ซัพ + ช่วยตี' },
+    { value: 'support_only', label: '🛡️ ซัพอย่างเดียว (ไม่ใช้สกิลตี)' }
+  ];
+  const AUTO_MODE_LABEL = AUTO_MODE_OPTS.reduce((acc, o) => { acc[o.value] = o.label; return acc; }, {});
   const CROWN = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 7.5l4.2 3.6L12 4l4.8 7.1L21 7.5l-1.8 10.2H4.8L3 7.5zm2 12.2h14v1.8H5v-1.8z"/></svg>';
   const CROWN_SM = CROWN.replace('<svg', '<svg width="16" height="16"');
   const HAND_ON_SVG = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 11V6a1.5 1.5 0 0 0-3 0v4"/><path d="M15 10V4.5a1.5 1.5 0 0 0-3 0V10"/><path d="M12 9.5V5.5a1.5 1.5 0 0 0-3 0V11"/><path d="M9 11V7.5a1.5 1.5 0 0 0-3 0V15a6 6 0 0 0 6 6h2a5 5 0 0 0 5-5v-5a1.5 1.5 0 0 0-3 0"/></svg>';
@@ -162,16 +169,22 @@
     const row = document.createElement('div');
     row.className = 'pt-row' + (isLeader ? ' leader' : '');
     row.dataset.rowKey = isLeader ? 'leader:' + m.id : 'member:' + m.id;
+    const autoModeHtml = AUTO_MODE_OPTS.map(o => `<option value="${esc(o.value)}">${esc(o.label)}</option>`).join('');
     row.innerHTML = `
-      <div class="pt-ava" data-act="inspect-char" data-id="${esc(m.id)}" title="คลิกเพื่อดูข้อมูลตัวละคร / อุปกรณ์ / กระเป๋า" style="cursor:pointer; position:relative; overflow:hidden;"></div>
-      <div class="pt-who" data-act="inspect-char" data-id="${esc(m.id)}" title="คลิกเพื่อดูข้อมูลตัวละคร / อุปกรณ์ / กระเป๋า" style="cursor:pointer;">
-        <div class="pt-name"><span class="pt-name-txt"></span><span class="pt-lv" hidden></span><span class="pt-noloot-tag" hidden>ไม่เก็บของ</span></div>
-        <div class="pt-sub"></div>
+      <div class="pt-row-top">
+        <div class="pt-ava" data-act="inspect-char" data-id="${esc(m.id)}" title="คลิกเพื่อดูข้อมูลตัวละคร / อุปกรณ์ / กระเป๋า" style="cursor:pointer; position:relative; overflow:hidden;"></div>
+        <div class="pt-who" data-act="inspect-char" data-id="${esc(m.id)}" title="คลิกเพื่อดูข้อมูลตัวละคร / อุปกรณ์ / กระเป๋า" style="cursor:pointer;">
+          <div class="pt-name"><span class="pt-name-txt"></span><span class="pt-lv" hidden></span><span class="pt-noloot-tag" hidden>ไม่เก็บของ</span></div>
+          <div class="pt-sub"></div>
+        </div>
+        <span class="pt-status"></span>
+        ${isLeader ? '' : `<button class="pt-rm" type="button" title="เอาออกจากตี้" data-act="remove" data-party="${esc(pid)}" data-id="${esc(m.id)}">✕</button>`}
       </div>
-      <button class="pt-noloot" type="button" data-act="toggle-noloot" data-party="${esc(pid)}" data-id="${esc(m.id)}"></button>
-      ${isLeader ? '' : `<select class="pt-follow-select" data-set="memberFollow" data-party="${esc(pid)}" data-member="${esc(m.id)}" title="เลือกโหมดร่วมกลุ่มด้ายแดง / เดินตาม"></select>`}
-      <span class="pt-status"></span>
-      ${isLeader ? '' : `<button class="pt-rm" type="button" title="เอาออกจากตี้" data-act="remove" data-party="${esc(pid)}" data-id="${esc(m.id)}">✕</button>`}`;
+      <div class="pt-row-controls">
+        <button class="pt-noloot" type="button" data-act="toggle-noloot" data-party="${esc(pid)}" data-id="${esc(m.id)}"></button>
+        <select class="pt-automode-select" data-set="memberAutoMode" data-party="${esc(pid)}" data-member="${esc(m.id)}" title="ปรับโหมดฟาร์ม / ซัพพอร์ตรายบุคคล (เลือก 'ซัพอย่างเดียว' เพื่อไม่เปลืองมานาใช้สกิลดาเมจ)">${autoModeHtml}</select>
+        ${isLeader ? '' : `<select class="pt-follow-select" data-set="memberFollow" data-party="${esc(pid)}" data-member="${esc(m.id)}" title="เลือกโหมดร่วมกลุ่มด้ายแดง / เดินตาม"></select>`}
+      </div>`;
     patchMemberRowEl(row, m, p, isLeader);
     return row;
   }
@@ -230,6 +243,17 @@
       if (noLootBtn.title !== nlTitle) noLootBtn.title = nlTitle;
     }
     setText(row.querySelector('.pt-sub'), sub);
+    const autoSel = row.querySelector('.pt-automode-select');
+    if (autoSel) {
+      if (autoSel.dataset.party !== String(pid)) autoSel.dataset.party = String(pid);
+      if (autoSel.dataset.member !== String(m.id)) autoSel.dataset.member = String(m.id);
+      const curAuto = AUTO_MODE_LABEL[m.autoFarmMode] ? m.autoFarmMode : 'auto';
+      const isBusySel = window.PmUiGuard ? window.PmUiGuard.isSelectBusy(autoSel) : (document.activeElement === autoSel);
+      if (!isBusySel && autoSel.value !== curAuto) autoSel.value = curAuto;
+      autoSel.classList.toggle('is-sup-only', curAuto === 'support_only');
+      autoSel.classList.toggle('is-sup-fight', curAuto === 'support_fight');
+      autoSel.classList.toggle('is-farm', curAuto === 'farm');
+    }
     const followSel = row.querySelector('.pt-follow-select');
     if (followSel) {
       if (followSel.dataset.party !== String(pid)) followSel.dataset.party = String(pid);
@@ -329,6 +353,11 @@
       <div class="pt-toggles">
         <label class="pt-toggle"><input type="checkbox" data-set="syncMap" data-party="${esc(p.id)}" ${p.syncMap ? 'checked' : ''}>ซิงค์แมพ + CH คนน้อยสุด</label>
         <label class="pt-toggle"><input type="checkbox" data-set="autoFill" data-party="${esc(p.id)}" ${p.autoFill ? 'checked' : ''}>เติมสมาชิกอัตโนมัติ (5 คน)</label>
+        <label class="pt-toggle" title="สแกนอุปกรณ์ในกระเป๋าของทุกคนในตี้ หากอีกตัวใส่ดีกว่า (ตาม Smart Gear) จะล็อกกันขายและเทรดส่งให้กันอัตโนมัติ (เฉพาะไอดีพรีเมียม Lv.20+)"><input type="checkbox" data-set="shareGear" data-party="${esc(p.id)}" ${p.shareGear ? 'checked' : ''}>🎁 แชร์ของ Smart Gear อัตโนมัติในตี้</label>
+      </div>
+      <div class="pt-gearshare-bar">
+        <button class="pt-gearshare-btn" type="button" data-act="share-gear-now" data-party="${esc(p.id)}">🎁 เช็ค &amp; เทรดของ Smart Gear ในตี้ตอนนี้</button>
+        <div class="pt-gearshare-note" hidden></div>
       </div>
       <div class="pt-notes" hidden></div>`;
     patchCardEl(el, p);
@@ -447,6 +476,24 @@
     if (syncCb && syncCb.checked !== Boolean(p.syncMap)) syncCb.checked = Boolean(p.syncMap);
     const fillCb = cardEl.querySelector('input[data-set="autoFill"]');
     if (fillCb && fillCb.checked !== Boolean(p.autoFill)) fillCb.checked = Boolean(p.autoFill);
+    const shareCb = cardEl.querySelector('input[data-set="shareGear"]');
+    if (shareCb && shareCb.checked !== Boolean(p.shareGear)) shareCb.checked = Boolean(p.shareGear);
+
+    const shareBtn = cardEl.querySelector('.pt-gearshare-btn');
+    if (shareBtn) {
+      shareBtn.disabled = Boolean(p.sharingGear);
+      setText(shareBtn, p.sharingGear ? '⏳ กำลังสแกน & เทรดของในตี้...' : '🎁 เช็ค & เทรดของ Smart Gear ในตี้ตอนนี้');
+    }
+    const shareNoteEl = cardEl.querySelector('.pt-gearshare-note');
+    if (shareNoteEl) {
+      if (p.lastGearShareNote) {
+        shareNoteEl.hidden = false;
+        setText(shareNoteEl, p.lastGearShareNote);
+      } else {
+        shareNoteEl.hidden = true;
+        setText(shareNoteEl, '');
+      }
+    }
 
     // Notes & Outsider kick alert
     const notesBox = cardEl.querySelector('.pt-notes');
@@ -459,7 +506,7 @@
         if (outsiders.length) {
           notesHtml += `<div class="pt-note" style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:4px;padding:5px 8px;background:rgba(239,68,68,0.14);border:1px solid rgba(248,113,113,0.45);border-radius:6px;">` +
             `<span style="color:#fca5a5;font-weight:700;">👤 คนนอกในตี้: ${esc(outsiders.join(', '))}</span>` +
-            `<button type="button" data-act="kick-outsiders" data-pid="${esc(p.id)}" style="padding:3px 9px;border:1px solid #f87171;border-radius:5px;background:#dc2626;color:#fff;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">👢 เตะคนนอก</button>` +
+            `<button type="button" data-act="kick-outsiders" data-party="${esc(p.id)}" style="padding:3px 9px;border:1px solid #f87171;border-radius:5px;background:#dc2626;color:#fff;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">👢 เตะคนนอก</button>` +
             `</div>`;
         }
         setHtml(notesBox, notesHtml);
@@ -673,6 +720,8 @@
       let payload;
       if (t.dataset.set === 'memberFollow') {
         payload = { memberFollow: { profileId: t.dataset.member, mode: t.value } };
+      } else if (t.dataset.set === 'memberAutoMode') {
+        payload = { memberAutoMode: { profileId: t.dataset.member, mode: t.value } };
       } else {
         const v = t.type === 'checkbox' ? t.checked : t.value;
         payload = { [t.dataset.set]: v };
@@ -681,6 +730,10 @@
       if (r.success === false) toast(r.error || 'บันทึกไม่สำเร็จ', 'error');
       else if (t.dataset.set === 'memberFollow') {
         toast('อัปเดตโหมดเดินตี้ของสมาชิกแล้ว', 'success');
+      } else if (t.dataset.set === 'memberAutoMode') {
+        toast('ปรับโหมดฟาร์ม/ซัพเป็น "' + (AUTO_MODE_LABEL[t.value] || t.value) + '" แล้ว', 'success');
+      } else if (t.dataset.set === 'shareGear') {
+        toast(t.checked ? '🎁 เปิดแชร์ของ Smart Gear อัตโนมัติในตี้แล้ว' : 'ปิดแชร์ของ Smart Gear อัตโนมัติในตี้แล้ว', 'success');
       } else if (t.dataset.set === 'expMode') {
         toast('อัปเดตกติกา EXP ปาร์ตี้เป็น "' + (EXP[t.value] || t.value) + '" แล้ว', 'success');
       } else if (t.dataset.set === 'lootMode') {
@@ -748,6 +801,17 @@
       const r = await api('/' + pid + '/kick-outsiders', {});
       const kickedTxt = Array.isArray(r.kicked) && r.kicked.length ? ('เตะคนนอกออกแล้ว: ' + r.kicked.join(', ')) : 'ตรวจสอบและเคลียร์ช่องปาร์ตี้แล้ว';
       toast(r.success === false ? (r.error || 'เตะคนนอกไม่สำเร็จ') : kickedTxt, r.success === false ? 'error' : 'success');
+    } else if (b.dataset.act === 'share-gear-now') {
+      b.disabled = true;
+      busy = true;
+      try {
+        const r = await api('/' + pid + '/share-gear-now', {});
+        const msg = (r && r.shareResult && r.shareResult.message) || r.error || 'ตรวจสอบของในตี้เรียบร้อยแล้ว';
+        toast(msg, r.success === false ? 'error' : 'success');
+      } finally {
+        busy = false;
+        b.disabled = false;
+      }
     } else if (b.dataset.act === 'summon') {
       const r = await api('/' + pid + '/summon', {});
       toast(r.success === false ? (r.error || 'รวมทีมไม่สำเร็จ') : 'สั่งรวมกลุ่มด้ายแดง & ซิงค์แมพเควสตี้แล้ว', r.success === false ? 'error' : 'success');

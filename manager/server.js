@@ -1611,6 +1611,42 @@ function applyV209BuiltinPlanUpgrade(p) {
   return true;
 }
 
+// v2.1.7: Fast-Climb Party 5 route — moves up 2–4 levels earlier to stay inside Nightcamp's optimal +0..+4 level-gap zone
+// while preserving canonical trigger IDs so already-completed lower-level sell trips never re-trigger.
+const PARTY5_FAST_LEVELS_BY_MAP = {
+  graveyard: 12,
+  giantbones: 22,
+  coffinhollow: 29,
+  crypt1: 35,
+  crypt2: 44,
+  poisonvillage: 54,
+  silentfarm: 61,
+  nightmarket: 69,
+  warehouses: 76,
+  shipgrave: 84
+};
+
+function applyV217FastParty5Upgrade(p) {
+  if (!p || typeof p !== "object") return false;
+  if (!/^plan_nc_party5_/.test(String(p.id || ""))) return false;
+  if ((Number(p.planSchemaVersion) || 0) >= 217) return false;
+  const trigs = Array.isArray(p.triggers) ? p.triggers : [];
+  let changed = false;
+  for (const t of trigs) {
+    if (!t || t.type !== "base_level" || !Array.isArray(t.actions)) continue;
+    const mapAct = t.actions.find(a => a && a.type === "change_map" && a.targetMap);
+    if (!mapAct) continue;
+    const fastLv = PARTY5_FAST_LEVELS_BY_MAP[String(mapAct.targetMap).toLowerCase()];
+    if (typeof fastLv === "number" && Number(t.targetLevel) !== fastLv) {
+      t.targetLevel = fastLv;
+      changed = true;
+    }
+  }
+  p.planSchemaVersion = 217;
+  if (changed) p.updatedAt = Date.now();
+  return true;
+}
+
 function normalizePlansData(raw) {
   if (raw && Array.isArray(raw.profiles)) {
     let migrated = false;
@@ -1758,6 +1794,7 @@ function normalizePlansData(raw) {
     }
     for (const p of raw.profiles) {
       if (applyV209BuiltinPlanUpgrade(p)) migrated = true;
+      if (applyV217FastParty5Upgrade(p)) migrated = true;
     }
     const result = {
       profiles: raw.profiles,
@@ -1786,7 +1823,10 @@ function normalizePlansData(raw) {
     buildDefaultNightcampParty5Slot5BardPlan(),
     buildDefaultNightcampParty5Slot5LightkeeperPlan()
   ];
-  defaultProfiles.forEach(applyV209BuiltinPlanUpgrade);
+  defaultProfiles.forEach(p => {
+    applyV209BuiltinPlanUpgrade(p);
+    applyV217FastParty5Upgrade(p);
+  });
     const assignments = {};
   return { profiles: defaultProfiles, assignments };
 }

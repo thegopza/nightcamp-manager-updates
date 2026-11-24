@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "sourceCommit": "6fbeed71548ea513bed1cf01369ca067702a40d7",
+  "sourceCommit": "9cea4391d4656402b27cec03e4c5a18eeaf9959c",
   "files": [
     {
       "path": "manager/asset_cache.js",
@@ -112,7 +112,7 @@
     },
     {
       "path": "manager/party_api.js",
-      "sha256": "f337966d3221ce591d6c32c549b241a0452a82304ab82b2d840d93718bb9d09b"
+      "sha256": "b2dabc37d2edc3b5a62541356ff0acbee42e46f4bf36dde18e66cf474b7f6ef3"
     },
     {
       "path": "manager/plan_sync.js",
@@ -224,7 +224,7 @@
     },
     {
       "path": "manager/public/index.html",
-      "sha256": "6a49ea05b63a8758feb602c8397e639f0e5d5a132fe2d77462e56f455b99e76a"
+      "sha256": "e29a65db3f35f06cfd8da3c1132c115ee0426f26191b818c5ab53d1c25fb1908"
     },
     {
       "path": "manager/public/inventory_market.css",
@@ -256,11 +256,11 @@
     },
     {
       "path": "manager/public/party_manager.css",
-      "sha256": "ab63ce4fbcaa410f3eafc9987ff74c21ea2415d5a758e3876715ac703590d6be"
+      "sha256": "05f58c3b8a256a8433cef0db52b22b3402df1ded0fe21435eb5b3419857c4f87"
     },
     {
       "path": "manager/public/party_manager.js",
-      "sha256": "965cf00d31b207cd26d7863c05a343b9ab99b5894bd77e327e58024f9af9e976"
+      "sha256": "5b178c39d12ebdfecbe147101789657ae8ac3fc8b6dc3a9059f8b116c84bec61"
     },
     {
       "path": "manager/public/patcher_module.js",
@@ -304,7 +304,7 @@
     },
     {
       "path": "manager/public/update_log.js",
-      "sha256": "6047b10910caacf1881777bff73dc3831eefd47fc3bdd5d20f0facba4ab5875d"
+      "sha256": "c11a53dffecfe1c0c60e36366bfaba3a57923cdf0de9f6db3ae1d5855af0d9d7"
     },
     {
       "path": "manager/public/wiki/calc.js",
@@ -348,7 +348,7 @@
     },
     {
       "path": "manager/server.js",
-      "sha256": "35460d2895a85f67c843c806a18b2d24584d18a6cea733f04d0c788b5027c7b7"
+      "sha256": "fd6fd37462d744729f04a32313d1bbc6bcc01a02d11e3e84414bb9f37cf8b3e4"
     },
     {
       "path": "manager/test_isolation.js",

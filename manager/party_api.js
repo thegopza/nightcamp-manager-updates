@@ -28,9 +28,11 @@ const MAX_MEMBERS = 5;
 const EXP_MODES = ['individual', 'even-share'];
 const LOOT_MODES = ['personal', 'turn', 'round-robin', 'leader'];
 const GROUP_MODES = ['g', 's'];
+const AUTO_FARM_MODES = ['auto', 'farm', 'support_fight', 'support_only'];
 const BUSY_FLAGS = ['__isNavigating', '__isWalkingToMap', '__isShopping', '__isRecovering', '__isConsolidating',
   '__isChangingJob', '__isAutoSellingNow', '__isManualSelling', '__isStoring', '__isGearRefining',
-  '__isMarketScanning', '__isWeightScrollBusy', '__isCheckingPostSellChannel', '__pendingPostSellChannelCheck'];
+  '__isMarketScanning', '__isWeightScrollBusy', '__isCheckingPostSellChannel', '__pendingPostSellChannelCheck',
+  '__isPartyGearTrading'];
 
 const TIMING = {
   tickMs: 4500,
@@ -51,7 +53,9 @@ const TIMING = {
   memberMoveWaitMs: 120000,
   leaderMoveWaitMs: 45000,
   unfollowCooldownMs: 20000,
-  followCooldownMs: 8000
+  followCooldownMs: 8000,
+  gearShareIntervalMs: 90000,
+  gearSharePairCooldownMs: 180000
 };
 
 // ---------------------------------------------------------------- in-page snippets
@@ -161,6 +165,9 @@ const READ_JS = `(() => {
     keptFarmMap: window.__keptFarmMap || null,
     botRunning: window.__isBotRunning === true,
     noLootMode: Boolean(window.__noLootMode || (live && live.noLootMode)),
+    autoFarmMode: (typeof window.__getMemberAutoFarmMode === 'function' ? window.__getMemberAutoFarmMode().mode : (window.__memberAutoFarmMode || 'auto')),
+    effectiveAutoFarmMode: (typeof window.__getMemberAutoFarmMode === 'function' ? window.__getMemberAutoFarmMode().effectiveMode : (live && live.effectiveAutoFarmMode) || 'farm'),
+    isSupportJob: Boolean((typeof window.__getMemberAutoFarmMode === 'function' && window.__getMemberAutoFarmMode().isSupportJob) || (live && live.isSupportJob)),
     returningToPriest: window.__returningToPriest === true,
     priestBuffingTarget: window.__priestBuffingTarget || null,
     lastPostSellChannelSwitch: window.__lastPostSellChannelSwitch || null,
@@ -251,6 +258,33 @@ const ACTIONS = {
       }
     } catch (e) {}
     return { success: true, noLootMode: val };
+  })()`,
+  setAutoFarmMode: mode => `(() => {
+    const m = ${JSON.stringify(String(mode || 'auto'))};
+    if (typeof window.__setMemberAutoFarmMode === 'function') return window.__setMemberAutoFarmMode(m);
+    window.__memberAutoFarmMode = m;
+    try { localStorage.setItem('pelican_member_auto_farm_mode', m); } catch (e) {}
+    return { success: true, mode: m };
+  })()`,
+  setProtectedGearUids: uids => `(() => {
+    if (typeof window.__setPartyProtectedGearUids === 'function') return window.__setPartyProtectedGearUids(${JSON.stringify(Array.isArray(uids) ? uids : [])});
+    return { success: false };
+  })()`,
+  getShareableGear: () => `(() => {
+    if (typeof window.__getShareableBagGearForParty === 'function') return window.__getShareableBagGearForParty();
+    return { ok: false, reason: 'no-helper', items: [] };
+  })()`,
+  evaluateGearUpgrades: cands => `(() => {
+    if (typeof window.__evaluateGearUpgradesForMe === 'function') return window.__evaluateGearUpgradesForMe(${JSON.stringify(Array.isArray(cands) ? cands : [])});
+    return { ok: false, reason: 'no-helper', upgrades: [] };
+  })()`,
+  tradeSend: (targetName, copyUids) => `(async () => {
+    if (typeof window.__executePartyGearTradeSend === 'function') return await window.__executePartyGearTradeSend(${JSON.stringify(String(targetName || ''))}, ${JSON.stringify(Array.isArray(copyUids) ? copyUids : [])});
+    return { ok: false, error: 'no-helper' };
+  })()`,
+  tradeReceive: senderName => `(async () => {
+    if (typeof window.__executePartyGearTradeReceive === 'function') return await window.__executePartyGearTradeReceive(${JSON.stringify(String(senderName || ''))});
+    return { ok: false, error: 'no-helper' };
   })()`,
   setMap: (map, walkNow) => `(() => {
     const map = ${JSON.stringify(map)};
@@ -431,6 +465,22 @@ function resolveFollowTarget(party, memberId, profiles, states) {
   return { mode, targetId, targetName, targetSnap };
 }
 
+function normalizeAutoFarmMode(mode) {
+  const m = String(mode || 'auto').trim().toLowerCase();
+  return AUTO_FARM_MODES.includes(m) ? m : 'auto';
+}
+
+function sanitizeAutoModes(party) {
+  const raw = party && party.autoModes && typeof party.autoModes === 'object' ? party.autoModes : {};
+  const out = {};
+  const validIds = [party && party.leaderId].concat((party && party.memberIds) || []).filter(Boolean).map(String);
+  for (const id of validIds) {
+    const am = normalizeAutoFarmMode(raw[id]);
+    if (am !== 'auto') out[id] = am;
+  }
+  return out;
+}
+
 function sanitizeParty(p) {
   const leaderId = String(p.leaderId);
   const memberIds = Array.isArray(p.memberIds) ? p.memberIds.map(String).filter(id => id && id !== leaderId).slice(0, MAX_MEMBERS - 1) : [];
@@ -446,10 +496,13 @@ function sanitizeParty(p) {
     syncMap: p.syncMap !== false,
     autoFill: p.autoFill !== false,
     priestFlow: Boolean(p.priestFlow === true),
+    shareGear: Boolean(p.shareGear === true),
     followModes: {},
+    autoModes: {},
     createdAt: Number(p.createdAt) || Date.now()
   };
   base.followModes = sanitizeFollowModes(Object.assign({}, base, { followModes: p.followModes }));
+  base.autoModes = sanitizeAutoModes(Object.assign({}, base, { autoModes: p.autoModes }));
   return base;
 }
 
@@ -518,7 +571,7 @@ function createPartyService(opts) {
     return memberRt.get(k);
   };
   const prt = pid => {
-    if (!runtime.has(pid)) runtime.set(pid, { notes: [], settingsAt: 0, fallbackAt: 0, leaveAt: 0, lastTickAt: 0, gatherAt: 0, gathering: false, pendingChannel: null, gatherNote: null, channelNote: null, lastPostSellFollowAt: 0, settledChannelAt: 0, settledByMemberName: null });
+    if (!runtime.has(pid)) runtime.set(pid, { notes: [], settingsAt: 0, fallbackAt: 0, leaveAt: 0, lastTickAt: 0, gatherAt: 0, gathering: false, pendingChannel: null, gatherNote: null, channelNote: null, lastPostSellFollowAt: 0, settledChannelAt: 0, settledByMemberName: null, gearShareAt: 0, sharingGear: false, lastGearShareNote: null, gearSharePairAt: {} });
     return runtime.get(pid);
   };
   const srt = id => {
@@ -1063,6 +1116,22 @@ function createPartyService(opts) {
       }
     }
 
+    // Sync persisted per-member Auto Farm/Support mode (`auto` | `farm` | `support_fight` | `support_only`)
+    {
+      const autoModesMap = (party.autoModes && typeof party.autoModes === 'object') ? party.autoModes : {};
+      for (const id of [party.leaderId].concat(party.memberIds)) {
+        const wantMode = normalizeAutoFarmMode(autoModesMap[id]);
+        const P = profiles.get(id), S = states.get(id);
+        if (P && S && S.ok && S.autoFarmMode && S.autoFarmMode !== wantMode) {
+          const r = await act(P, ACTIONS.setAutoFarmMode(wantMode), 'sync-auto-mode');
+          if (r.ok) {
+            S.autoFarmMode = wantMode;
+            if (r.result && r.result.effectiveMode) S.effectiveAutoFarmMode = r.result.effectiveMode;
+          }
+        }
+      }
+    }
+
     // Per-member follow / assist mode:
     // - 'none' (default): cancel the game's follow (e.g. after รวมทีม) so the member farms the map independently
     //   (unless it is temporarily walking back to the Priest for buffs: S.returningToPriest === true).
@@ -1324,7 +1393,165 @@ function createPartyService(opts) {
       }
     }
 
+    // Periodic Party Smart Gear Auto-Share (opt-in via party.shareGear)
+    if (party.shareGear === true && !rt.sharingGear && !rt.gathering && !isBusy() && (now() - (rt.gearShareAt || 0) >= T.gearShareIntervalMs)) {
+      runPartyGearShareCheck(party, profiles, false).catch(e => log('gear-share error', e.message));
+    }
+
     rt.notes = notes;
+  }
+
+  async function runPartyGearShareCheck(party, profiles, manual = false) {
+    const rt = prt(party.id);
+    if (rt.sharingGear) return { ok: false, busy: true, message: 'กำลังเช็ค/เทรดของในตี้อยู่แล้ว' };
+    rt.sharingGear = true;
+    rt.gearShareAt = now();
+    try {
+      const memberIds = [party.leaderId].concat(party.memberIds || []);
+      const snapshots = new Map();
+      for (const id of memberIds) {
+        const P = profiles.get(id), S = states.get(id);
+        if (!P || !S || !S.ok || !S.name) continue;
+        if (Array.isArray(S.busy) && S.busy.length > 0) continue;
+        const r = await act(P, ACTIONS.getShareableGear(), 'gear-share-scan', 8000);
+        if (r.ok && r.result && r.result.ok) {
+          snapshots.set(String(id), Object.assign({ profileId: String(id) }, r.result));
+        }
+      }
+
+      const tradable = [...snapshots.values()].filter(x => x.canTrade && x.premium && x.mapId && x.ch > 0);
+      if (tradable.length < 2) {
+        const msg = tradable.length === 0
+          ? '⚠️ ไม่มีสมาชิกพรีเมียม Lv.20+ ที่ออนไลน์พร้อมเทรด'
+          : '⏳ รอสมาชิกพรีเมียมอย่างน้อย 2 คนออนไลน์อยู่แมพและแชนแนลเดียวกัน';
+        if (manual) rt.lastGearShareNote = msg;
+        return { ok: true, traded: 0, matches: 0, message: msg };
+      }
+
+      // Group tradable members by (mapId, ch) so only teammates standing on the same map & CH evaluate/trade with each other
+      const byLoc = new Map();
+      for (const m of tradable) {
+        const k = m.mapId + ':' + m.ch;
+        if (!byLoc.has(k)) byLoc.set(k, []);
+        byLoc.get(k).push(m);
+      }
+
+      // Evaluate upgrades for each receiver from teammates' bags in the same (mapId, ch)
+      const claimsByItemKey = new Map(); // `${senderId}:${u}` -> best { senderId, senderName, receiverId, receiverName, item }
+      for (const group of byLoc.values()) {
+        if (group.length < 2) continue;
+        for (const rec of group) {
+          const cands = [];
+          for (const snd of group) {
+            if (snd.profileId === rec.profileId) continue;
+            for (const it of (snd.items || [])) {
+              cands.push(Object.assign({}, it, { senderId: snd.profileId, senderName: snd.name }));
+            }
+          }
+          if (!cands.length) continue;
+          const recP = profiles.get(rec.profileId);
+          if (!recP) continue;
+          const ev = await act(recP, ACTIONS.evaluateGearUpgrades(cands), 'gear-share-eval', 8000);
+          if (!ev.ok || !ev.result || !Array.isArray(ev.result.upgrades)) continue;
+          for (const up of ev.result.upgrades) {
+            const itemKey = `${up.senderId}:${up.u}`;
+            const prev = claimsByItemKey.get(itemKey);
+            if (!prev || (up.priority || 0) > (prev.item.priority || 0)) {
+              claimsByItemKey.set(itemKey, {
+                senderId: String(up.senderId),
+                senderName: up.senderName || '',
+                receiverId: rec.profileId,
+                receiverName: rec.name || '',
+                item: up
+              });
+            }
+          }
+        }
+      }
+
+      // Sync protected gear UIDs to EVERY scanned member so Uncle Coco NEVER sells/stashes teammate upgrades!
+      const protectedBySender = new Map();
+      for (const claim of claimsByItemKey.values()) {
+        if (!protectedBySender.has(claim.senderId)) protectedBySender.set(claim.senderId, []);
+        protectedBySender.get(claim.senderId).push(Number(claim.item.u));
+      }
+      for (const id of snapshots.keys()) {
+        const P = profiles.get(id);
+        if (!P) continue;
+        const uids = protectedBySender.get(id) || [];
+        await act(P, ACTIONS.setProtectedGearUids(uids), 'gear-share-protect', 5000);
+      }
+
+      const allClaims = [...claimsByItemKey.values()];
+      if (!allClaims.length) {
+        const msg = `✅ สแกน ${tradable.length} ตัวในตี้แล้ว: ยังไม่มีของที่เพื่อนตี้ใส่ดีกว่า`;
+        if (manual || !rt.lastGearShareNote) rt.lastGearShareNote = msg;
+        return { ok: true, traded: 0, matches: 0, message: msg };
+      }
+
+      // Group claims by (senderId -> receiverId) pair and pick the highest-priority ready pair (1 trade per check)
+      const byPair = new Map();
+      for (const cl of allClaims) {
+        const pk = `${cl.senderId}->${cl.receiverId}`;
+        if (!byPair.has(pk)) byPair.set(pk, { senderId: cl.senderId, senderName: cl.senderName, receiverId: cl.receiverId, receiverName: cl.receiverName, claims: [], maxPriority: 0 });
+        const grp = byPair.get(pk);
+        grp.claims.push(cl.item);
+        if ((cl.item.priority || 0) > grp.maxPriority) grp.maxPriority = cl.item.priority || 0;
+      }
+
+      const pairs = [...byPair.values()].sort((a, b) => b.maxPriority - a.maxPriority);
+      if (!rt.gearSharePairAt || typeof rt.gearSharePairAt !== 'object') rt.gearSharePairAt = {};
+      const readyPair = pairs.find(pr => {
+        if (manual) return true;
+        const pk = `${pr.senderId}->${pr.receiverId}`;
+        return (now() - (rt.gearSharePairAt[pk] || 0)) >= T.gearSharePairCooldownMs;
+      });
+
+      if (!readyPair) {
+        const top = pairs[0];
+        const msg = `🛡️ ล็อกของให้เพื่อนไว้แล้ว ${allClaims.length} ชิ้น (รอคูลดาวน์เทรด ${top.senderName} → ${top.receiverName})`;
+        if (manual) rt.lastGearShareNote = msg;
+        return { ok: true, traded: 0, matches: allClaims.length, message: msg };
+      }
+
+      const senderP = profiles.get(readyPair.senderId);
+      const receiverP = profiles.get(readyPair.receiverId);
+      if (!senderP || !receiverP) return { ok: false, error: 'missing-profile' };
+
+      const batch = readyPair.claims.sort((a, b) => (b.priority || 0) - (a.priority || 0)).slice(0, 4);
+      const copyUids = batch.map(x => Number(x.u));
+      const labels = batch.map(x => `${x.name}${x.ref > 0 ? ' +' + x.ref : ''}`);
+      const pairKey = `${readyPair.senderId}->${readyPair.receiverId}`;
+      rt.gearSharePairAt[pairKey] = now();
+      rt.lastGearShareNote = `🤝 กำลังเทรด ${labels.join(', ')} (${readyPair.senderName} → ${readyPair.receiverName})...`;
+
+      // Start receiver listener slightly before sender sends `ask` so no event is ever missed!
+      const recvPromise = act(receiverP, ACTIONS.tradeReceive(readyPair.senderName), 'party-gear-recv', 45000);
+      await sleep(300);
+      const sendPromise = act(senderP, ACTIONS.tradeSend(readyPair.receiverName, copyUids), 'party-gear-send', 45000);
+      const [sendRes, recvRes] = await Promise.all([sendPromise, recvPromise]);
+
+      const sendOk = Boolean(sendRes && sendRes.ok && sendRes.result && sendRes.result.ok);
+      const recvOk = Boolean(recvRes && recvRes.ok && recvRes.result && recvRes.result.ok);
+      if (sendOk && recvOk) {
+        // Clear traded UIDs from sender's protected list
+        const remaining = (protectedBySender.get(readyPair.senderId) || []).filter(u => !copyUids.includes(u));
+        await act(senderP, ACTIONS.setProtectedGearUids(remaining), 'gear-share-unprotect', 5000);
+        const msg = `🎁 เทรดสำเร็จ: ${readyPair.senderName} → ${readyPair.receiverName} (${labels.join(', ')})`;
+        rt.lastGearShareNote = msg;
+        log('gear-share-ok', msg);
+        return { ok: true, traded: batch.length, matches: allClaims.length, from: readyPair.senderName, to: readyPair.receiverName, items: labels, message: msg };
+      }
+
+      const errTxt = (sendRes?.result?.error || sendRes?.error || recvRes?.result?.error || recvRes?.error || 'ไม่สำเร็จ');
+      const msg = `⚠️ เทรด ${readyPair.senderName} → ${readyPair.receiverName} ไม่สำเร็จ (${errTxt}) · ล็อกของไว้ให้แล้ว`;
+      rt.lastGearShareNote = msg;
+      log('gear-share-fail', msg);
+      return { ok: false, traded: 0, matches: allClaims.length, error: errTxt, message: msg };
+    } finally {
+      rt.sharingGear = false;
+      rt.gearShareAt = now();
+    }
   }
 
   // Bring everyone onto the Anchor's CH (Priest when present on the farm map, otherwise Leader):
@@ -1600,11 +1827,15 @@ function createPartyService(opts) {
       else { status = 'inviting'; text = 'กำลังชวน'; }
     } else if (S && S.reason === 'not-in-game') { status = 'offline'; text = 'ยังไม่เข้าเกม'; }
     const noLoot = Boolean(Array.isArray(party.noLootIds) && party.noLootIds.includes(String(id)));
+    const autoFarmMode = normalizeAutoFarmMode(party.autoModes && party.autoModes[id]);
     return {
       id, profileName: P ? P.name : id, charName: (S && S.name) || (P && P.lastCharName) || null,
       charClass: (S && S.classId) || (P ? P.lastCharClass || null : null), level: S && S.level, mapName: S && S.mapName, channel: S && S.channel,
       followMode: ft.isAnchorPriest ? 'leader' : ft.mode, followTargetId: ft.targetId, followTargetName: ft.targetName, following: (S && S.follow) || null,
       noLoot,
+      autoFarmMode,
+      effectiveAutoFarmMode: (S && S.effectiveAutoFarmMode) || (autoFarmMode === 'auto' ? 'farm' : autoFarmMode),
+      isSupportJob: Boolean(S && S.isSupportJob),
       status, statusText: text
     };
   }
@@ -1622,7 +1853,11 @@ function createPartyService(opts) {
       return {
         id: p.id, index: i + 1, expMode: p.expMode, lootMode: p.lootMode, groupMode: p.groupMode || 'g', syncMap: p.syncMap, autoFill: p.autoFill,
         priestFlow: Boolean(p.priestFlow === true),
+        shareGear: Boolean(p.shareGear === true),
+        sharingGear: Boolean(rt.sharingGear),
+        lastGearShareNote: rt.lastGearShareNote || null,
         followModes: p.followModes || {},
+        autoModes: p.autoModes || {},
         noLootIds: Array.isArray(p.noLootIds) ? p.noLootIds : [],
         leader: Object.assign(memberView(p, p.leaderId, profiles, L), L && L.ok ? { status: 'leader', statusText: L.party && L.party.leader === L.name ? 'หัวตี้' : 'หัวตี้ (ยังไม่มีสมาชิก)' } : {}),
         members: p.memberIds.map(id => memberView(p, id, profiles, L)),
@@ -1654,6 +1889,9 @@ function createPartyService(opts) {
       if (P && S && S.ok && S.noLootMode) {
         const r = await act(P, ACTIONS.setNoLoot(false), 'clear-noloot');
         if (r.ok) S.noLootMode = false;
+      }
+      if (P && S && S.ok) {
+        await act(P, ACTIONS.setProtectedGearUids([]), 'clear-protected-gear');
       }
     }
     let leaderName = null;
@@ -1732,7 +1970,7 @@ function createPartyService(opts) {
       sendJSON(Object.assign(view(), { created: party.id }));
       return true;
     }
-    const m = pathname.match(/^\/api\/parties\/([^/]+)\/(settings|add-member|remove-member|summon|delete)$/);
+    const m = pathname.match(/^\/api\/parties\/([^/]+)\/(settings|add-member|remove-member|kick-outsiders|share-gear-now|summon|delete)$/);
     if (!m || req.method !== 'POST') return false;
     const party = parties.find(p => p.id === m[1]);
     if (!party) { sendJSON({ success: false, error: 'ไม่พบตี้นี้' }, 404); return true; }
@@ -1744,6 +1982,26 @@ function createPartyService(opts) {
       if (body.syncMap !== undefined) party.syncMap = !!body.syncMap;
       if (body.autoFill !== undefined) party.autoFill = !!body.autoFill;
       if (body.priestFlow !== undefined) party.priestFlow = !!body.priestFlow;
+      if (body.shareGear !== undefined) party.shareGear = !!body.shareGear;
+      if (body.memberAutoMode && typeof body.memberAutoMode === 'object') {
+        const pidTarget = String(body.memberAutoMode.profileId || '');
+        const validIds = [party.leaderId].concat(party.memberIds || []);
+        if (!validIds.includes(pidTarget)) { sendJSON({ success: false, error: 'จอนี้ไม่ได้อยู่ในตี้' }, 400); return true; }
+        if (!party.autoModes) party.autoModes = {};
+        const am = normalizeAutoFarmMode(body.memberAutoMode.mode);
+        if (am === 'auto') delete party.autoModes[pidTarget];
+        else party.autoModes[pidTarget] = am;
+        party.autoModes = sanitizeAutoModes(party);
+        const profiles = profileMap();
+        const P = profiles.get(pidTarget), S = states.get(pidTarget);
+        if (P && P.debugPort) {
+          const r = await act(P, ACTIONS.setAutoFarmMode(am), 'set-auto-mode');
+          if (r.ok && S) {
+            S.autoFarmMode = am;
+            if (r.result && r.result.effectiveMode) S.effectiveAutoFarmMode = r.result.effectiveMode;
+          }
+        }
+      }
       if (body.followModes && typeof body.followModes === 'object') {
         party.followModes = Object.assign({}, party.followModes || {}, body.followModes);
         party.followModes = sanitizeFollowModes(party);
@@ -1821,7 +2079,9 @@ function createPartyService(opts) {
       if (!party.memberIds.includes(id)) { sendJSON({ success: false, error: 'จอนี้ไม่ได้อยู่ในตี้' }, 400); return true; }
       party.memberIds = party.memberIds.filter(x => x !== id);
       if (Array.isArray(party.noLootIds)) party.noLootIds = party.noLootIds.filter(x => x !== id);
+      if (party.autoModes && party.autoModes[id]) delete party.autoModes[id];
       party.followModes = sanitizeFollowModes(party);
+      party.autoModes = sanitizeAutoModes(party);
       if (!party.excludedIds.includes(id)) party.excludedIds.push(id);
       save();
       const profiles = profileMap();
@@ -1832,6 +2092,9 @@ function createPartyService(opts) {
       if (S && S.ok && S.noLootMode) {
         const r = await act(profiles.get(id), ACTIONS.setNoLoot(false), 'clear-noloot');
         if (r.ok) S.noLootMode = false;
+      }
+      if (S && S.ok) {
+        await act(profiles.get(id), ACTIONS.setProtectedGearUids([]), 'clear-protected-gear');
       }
       if (S && S.ok && S.follow) {
         const r = await act(profiles.get(id), ACTIONS.stopFollow(), 'stop-follow');
@@ -1860,6 +2123,12 @@ function createPartyService(opts) {
       }
       setTimeout(() => tick().catch(() => {}), 400);
       sendJSON(Object.assign(view(), { success: true, kicked }));
+      return true;
+    }
+    if (m[2] === 'share-gear-now') {
+      await refreshStates(true);
+      const shareResult = await runPartyGearShareCheck(party, profileMap(), true);
+      sendJSON(Object.assign(view(), { success: shareResult.ok !== false, shareResult }));
       return true;
     }
     if (m[2] === 'summon') {
