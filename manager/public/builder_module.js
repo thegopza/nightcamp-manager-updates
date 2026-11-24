@@ -55,7 +55,9 @@ const SKILLS_DATABASE = {
     {
       "id": "q",
       "name": "ฟาดเต็มแรง",
-      "thai": "กดใช้",
+      "thai": "สกิลกดใช้",
+      "icon": "ic_q",
+      "iconUrl": "https://play.nightcamp.app/cas/f9667b4b1340.webp",
       "maxLevel": 10,
       "freeLevel": 0,
       "kind": "active",
@@ -64,7 +66,9 @@ const SKILLS_DATABASE = {
     {
       "id": "e",
       "name": "พุ่งใบไม้",
-      "thai": "กดใช้",
+      "thai": "สกิลกดใช้",
+      "icon": "ic_e",
+      "iconUrl": "https://play.nightcamp.app/cas/69629f74feda.webp",
       "maxLevel": 10,
       "freeLevel": 0,
       "kind": "active",
@@ -73,28 +77,34 @@ const SKILLS_DATABASE = {
     {
       "id": "mastery",
       "name": "ชำนาญอาวุธ",
-      "thai": "กดใช้",
+      "thai": "สกิลติดตัว",
+      "icon": "ic_mastery",
+      "iconUrl": "https://play.nightcamp.app/cas/363c32fc05af.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
       "desc": "ATK +4 (เลเวลละ +4)"
     },
     {
       "id": "body",
       "name": "ร่างกายแข็งแกร่ง",
-      "thai": "กดใช้",
+      "thai": "สกิลติดตัว",
+      "icon": "ic_body",
+      "iconUrl": "https://play.nightcamp.app/cas/62e539312f6b.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
       "desc": "HP สูงสุด +2% · ฟื้น HP +10%"
     },
     {
       "id": "mind",
       "name": "สมาธิแน่วแน่",
-      "thai": "กดใช้",
+      "thai": "สกิลติดตัว",
+      "icon": "ic_mind",
+      "iconUrl": "https://play.nightcamp.app/cas/8249d5bd4ad7.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
       "desc": "SP สูงสุด +2% · ฟื้น SP +10%"
     }
   ],
@@ -103,19 +113,25 @@ const SKILLS_DATABASE = {
       "id": "bash",
       "name": "ฟันสะท้านเหล็ก",
       "thai": "สายดาบ",
+      "icon": "sk_bash",
+      "iconUrl": "https://play.nightcamp.app/cas/0ff35733ae1e.webp",
       "maxLevel": 10,
       "freeLevel": 1,
       "kind": "active",
-      "desc": "[มีฟรี Lv.1] · ฟาดดาบครั้งใหญ่ข้างหน้า 100% ของ ATK ทำให้มึน 1.2 วิ"
+      "weaponBonus": "อาวุธมือเดียว (ไม่ถือโล่) (แรงขึ้น 20%)",
+      "desc": "ฟาดดาบครั้งใหญ่ข้างหน้า 100% ของ ATK ทำให้มึน 1.2 วิ"
     },
     {
       "id": "kn_bowling",
       "name": "หมุนฟาดกระเด็น",
       "thai": "สายดาบ",
+      "icon": "sk_kn_bowling",
+      "iconUrl": "https://play.nightcamp.app/cas/fbddefb0f18c.webp",
       "maxLevel": 10,
       "freeLevel": 0,
       "kind": "active",
       "req": "ฟันสะท้านเหล็ก Lv.5",
+      "weaponBonus": "ดาบใหญ่ (โดน 2 ครั้ง)",
       "prereq": [
         {
           "skill": "bash",
@@ -128,19 +144,25 @@ const SKILLS_DATABASE = {
       "id": "kn_swordmastery",
       "name": "ชำนาญดาบ",
       "thai": "สายดาบ",
+      "icon": "sk_kn_swordmastery",
+      "iconUrl": "https://play.nightcamp.app/cas/4c99ad85f49c.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
+      "weaponReq": "ดาบ ดาบใหญ่ ดาบคู่ ขวาน ขวานยักษ์ หรือกระบอง",
       "desc": "ถือดาบ ดาบใหญ่ ดาบคู่ ขวาน ขวานยักษ์ หรือกระบอง: ATK +2% ความแม่น +1"
     },
     {
       "id": "kn_quicken",
       "name": "เร่งเพลงดาบ",
       "thai": "สายคลั่งศึก",
+      "icon": "sk_kn_quicken",
+      "iconUrl": "https://play.nightcamp.app/cas/ccbb9e65e006.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "buff",
       "req": "ชำนาญดาบ Lv.3",
+      "weaponReq": "ดาบมือเดียว หรือ ดาบใหญ่ หรือ ดาบคู่ หรือ ขวานยักษ์",
       "prereq": [
         {
           "skill": "kn_swordmastery",
@@ -153,10 +175,13 @@ const SKILLS_DATABASE = {
       "id": "kn_cleave",
       "name": "ฟันกวาด",
       "thai": "สายคลั่งศึก",
+      "icon": "sk_kn_cleave",
+      "iconUrl": "https://play.nightcamp.app/cas/a68456268555.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
       "req": "เร่งเพลงดาบ Lv.1",
+      "weaponBonus": "ดาบใหญ่ (กวาดแรงขึ้น 30%)",
       "prereq": [
         {
           "skill": "kn_quicken",
@@ -169,9 +194,11 @@ const SKILLS_DATABASE = {
       "id": "kn_aurablade",
       "name": "ดาบเรืองพลัง",
       "thai": "สายคลั่งศึก",
+      "icon": "sk_kn_aurablade",
+      "iconUrl": "https://play.nightcamp.app/cas/dc7f4ec1692e.webp",
       "maxLevel": 5,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "buff",
       "req": "ชำนาญดาบ Lv.5",
       "prereq": [
         {
@@ -185,9 +212,12 @@ const SKILLS_DATABASE = {
       "id": "kn_berserk",
       "name": "บ้าคลั่ง",
       "thai": "สายคลั่งศึก",
+      "icon": "sk_kn_berserk",
+      "iconUrl": "https://play.nightcamp.app/cas/a33f84c60ab6.webp",
       "maxLevel": 5,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "buff",
+      "ult": true,
       "req": "เร่งเพลงดาบ Lv.5, ฟันกวาด Lv.3",
       "prereq": [
         {
@@ -205,24 +235,31 @@ const SKILLS_DATABASE = {
       "id": "guard",
       "name": "โล่แสงศักดิ์สิทธิ์",
       "thai": "สายผู้พิทักษ์",
+      "icon": "sk_guard",
+      "iconUrl": "https://play.nightcamp.app/cas/a03cf20dacbb.webp",
       "maxLevel": 10,
       "freeLevel": 1,
-      "kind": "active",
-      "desc": "[มีฟรี Lv.1] · โดมแสงคุ้มกัน 5.3 วิ รับดาเมจลดลง 33%"
+      "kind": "buff",
+      "weaponReq": "โล่",
+      "desc": "โดมแสงคุ้มกัน 5.3 วิ รับดาเมจลดลง 33%"
     },
     {
       "id": "kn_ironskin",
       "name": "ผิวเหล็ก",
       "thai": "สายผู้พิทักษ์",
+      "icon": "sk_kn_ironskin",
+      "iconUrl": "https://play.nightcamp.app/cas/d2450dc8d2d1.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
       "desc": "DEF +1 · HP สูงสุด +1% · ฟื้น HP +8%"
     },
     {
       "id": "kn_provoke",
       "name": "ตะโกนท้าทาย",
       "thai": "สายผู้พิทักษ์",
+      "icon": "sk_kn_provoke",
+      "iconUrl": "https://play.nightcamp.app/cas/98343938228e.webp",
       "maxLevel": 5,
       "freeLevel": 0,
       "kind": "active",
@@ -232,9 +269,12 @@ const SKILLS_DATABASE = {
       "id": "judgment",
       "name": "ดาบแสงพิพากษา",
       "thai": "สายผู้พิทักษ์",
+      "icon": "sk_judgment",
+      "iconUrl": "https://play.nightcamp.app/cas/940b6851b3ac.webp",
       "maxLevel": 5,
       "freeLevel": 0,
       "kind": "active",
+      "ult": true,
       "req": "โล่แสงศักดิ์สิทธิ์ Lv.5, ผิวเหล็ก Lv.3",
       "prereq": [
         {
@@ -252,19 +292,24 @@ const SKILLS_DATABASE = {
       "id": "magnum",
       "name": "ระเบิดเพลิงรอบกาย",
       "thai": "สายเพลิงหอก",
+      "icon": "sk_magnum",
+      "iconUrl": "https://play.nightcamp.app/cas/540dbc961e64.webp",
       "maxLevel": 10,
       "freeLevel": 1,
       "kind": "active",
-      "desc": "[มีฟรี Lv.1] · เปลวไฟระเบิดรอบตัว 100% ของ ATK ผลักศัตรู · อาวุธติดไฟ 4 วิ (ตีเป็นธาตุไฟ)"
+      "desc": "เปลวไฟระเบิดรอบตัว 100% ของ ATK ผลักศัตรู · อาวุธติดไฟ 4 วิ (ตีเป็นธาตุไฟ)"
     },
     {
       "id": "kn_pierce",
       "name": "แทงสามจังหวะ",
       "thai": "สายเพลิงหอก",
+      "icon": "sk_kn_pierce",
+      "iconUrl": "https://play.nightcamp.app/cas/b0f93a4a1024.webp",
       "maxLevel": 10,
       "freeLevel": 0,
       "kind": "active",
       "req": "ระเบิดเพลิงรอบกาย Lv.3",
+      "weaponReq": "หอก หรือ หอกยาว",
       "prereq": [
         {
           "skill": "magnum",
@@ -279,19 +324,25 @@ const SKILLS_DATABASE = {
       "id": "fireball",
       "name": "ลูกไฟ",
       "thai": "สายไฟ",
+      "icon": "sk_fireball",
+      "iconUrl": "https://play.nightcamp.app/cas/a8c712c01659.webp",
       "maxLevel": 10,
       "freeLevel": 1,
       "kind": "active",
-      "desc": "[มีฟรี Lv.1] · ยิงลูกไฟระเบิดเป็นวง 100% ของ MATK"
+      "weaponBonus": "คทา (MATK +8% ร่ายเร็วขึ้น 10%)",
+      "desc": "ยิงลูกไฟระเบิดเป็นวง 100% ของ MATK"
     },
     {
       "id": "mg_firewall",
       "name": "กำแพงไฟ",
       "thai": "สายไฟ",
+      "icon": "sk_mg_firewall",
+      "iconUrl": "https://play.nightcamp.app/cas/d7df693d12cd.webp",
       "maxLevel": 5,
       "freeLevel": 0,
       "kind": "active",
       "req": "ลูกไฟ Lv.4",
+      "weaponBonus": "คทา (ร่ายเร็วขึ้น 10%)",
       "prereq": [
         {
           "skill": "fireball",
@@ -304,28 +355,36 @@ const SKILLS_DATABASE = {
       "id": "mg_fireheart",
       "name": "ใจเพลิง",
       "thai": "สายไฟ",
+      "icon": "sk_mg_fireheart",
+      "iconUrl": "https://play.nightcamp.app/cas/7e6deeb02023.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
       "desc": "ดาเมจไฟ +2% · โอกาสติดเผา +3% · Lv5 เผาซ้อน 2 ชั้น"
     },
     {
       "id": "frostdiver",
       "name": "หอกน้ำแข็ง",
       "thai": "สายน้ำแข็ง",
+      "icon": "sk_frostdiver",
+      "iconUrl": "https://play.nightcamp.app/cas/7cb53171dd56.webp",
       "maxLevel": 10,
       "freeLevel": 1,
       "kind": "active",
-      "desc": "[มีฟรี Lv.1] · แนวหนามน้ำแข็งพุ่งไปข้างหน้า 100% ของ MATK แช่แข็ง 1.6 วิ"
+      "weaponBonus": "คทา (MATK +8% ร่ายเร็วขึ้น 10%)",
+      "desc": "แนวหนามน้ำแข็งพุ่งไปข้างหน้า 100% ของ MATK แช่แข็ง 1.6 วิ"
     },
     {
       "id": "mg_frostnova",
       "name": "วงน้ำแข็ง",
       "thai": "สายน้ำแข็ง",
+      "icon": "sk_mg_frostnova",
+      "iconUrl": "https://play.nightcamp.app/cas/3d9801c199ac.webp",
       "maxLevel": 5,
       "freeLevel": 0,
       "kind": "active",
       "req": "หอกน้ำแข็ง Lv.4",
+      "weaponBonus": "คทา (ร่ายเร็วขึ้น 10%)",
       "prereq": [
         {
           "skill": "frostdiver",
@@ -338,56 +397,87 @@ const SKILLS_DATABASE = {
       "id": "mg_iceheart",
       "name": "ใจน้ำแข็ง",
       "thai": "สายน้ำแข็ง",
+      "icon": "sk_mg_iceheart",
+      "iconUrl": "https://play.nightcamp.app/cas/247cd394fe8e.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
       "desc": "ดาเมจน้ำ +3% · Lv5 ศัตรูเย็นเฉียบซ้อน 3 ชั้นแล้วแข็ง · Lv10 ตัวที่แข็งรับดาเมจเพิ่ม 20%"
     },
     {
       "id": "thunder",
       "name": "สายฟ้าฟาด",
-      "thai": "สายสายฟ้า",
+      "thai": "สายฟ้า",
+      "icon": "sk_thunder",
+      "iconUrl": "https://play.nightcamp.app/cas/126997a76614.webp",
       "maxLevel": 10,
       "freeLevel": 1,
       "kind": "active",
-      "desc": "[มีฟรี Lv.1] · สายฟ้าผ่าศัตรู 3 ตัว ตัวละ 100% ของ MATK"
+      "weaponBonus": "คทา (MATK +8% ร่ายเร็วขึ้น 10%)",
+      "desc": "สายฟ้าผ่าศัตรู 3 ตัว ตัวละ 100% ของ MATK"
     },
     {
       "id": "mg_stormheart",
       "name": "ใจสายฟ้า",
-      "thai": "สายสายฟ้า",
+      "thai": "สายฟ้า",
+      "icon": "sk_mg_stormheart",
+      "iconUrl": "https://play.nightcamp.app/cas/ea8ca2d9d657.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
       "desc": "ดาเมจลม/สายฟ้า +3% · โอกาสช็อต +2% · Lv5 ช็อตแล้วรับดาเมจสายฟ้าเพิ่ม"
     },
     {
       "id": "meteor",
       "name": "มหาเวทธาตุ",
-      "thai": "กดใช้",
+      "thai": "สกิลกดใช้",
+      "icon": "sk_meteor",
+      "iconUrl": "https://play.nightcamp.app/cas/b518dfac413d.webp",
       "maxLevel": 5,
       "freeLevel": 0,
       "kind": "active",
+      "ult": true,
       "req": "ใจเพลิง Lv.5 หรือ ใจน้ำแข็ง Lv.5 หรือ ใจสายฟ้า Lv.5",
+      "reqAny": true,
+      "weaponBonus": "คทา (ร่ายเร็วขึ้น 15%)",
+      "prereq": [
+        {
+          "skill": "mg_fireheart",
+          "level": 5
+        },
+        {
+          "skill": "mg_iceheart",
+          "level": 5
+        },
+        {
+          "skill": "mg_stormheart",
+          "level": 5
+        }
+      ],
       "desc": "อุกกาบาต 6 ลูกถล่มพื้นที่ ลูกละ 100% ของ MATK ธาตุไฟ · ใจธาตุที่เลเวลสูงสุดกำหนดสีวงเวท"
     },
     {
       "id": "mg_staffmastery",
       "name": "ชำนาญคทา",
       "thai": "สายเวทเร็ว",
+      "icon": "sk_mg_staffmastery",
+      "iconUrl": "https://play.nightcamp.app/cas/2a35de5a8ee9.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
       "desc": "ถือคทาหรือออร์บ: ตีปกติเป็นดาเมจเวทจาก MATK แรงขึ้น 4% ความเร็วโจมตี +1% · นำ ATK 2% มารวมเป็น MATK · Lv5 ลูกแก้วทะลุ 1 ตัว · Lv10 ตีปกติยิงลูกที่สอง (40%)"
     },
     {
       "id": "mg_autospell",
       "name": "ร่ายอัตโนมัติ",
       "thai": "สายเวทเร็ว",
+      "icon": "sk_mg_autospell",
+      "iconUrl": "https://play.nightcamp.app/cas/be807c5eb5ca.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
       "req": "ชำนาญคทา Lv.3",
+      "weaponBonus": "ออร์บ (โอกาสร่าย ×1.5)",
       "prereq": [
         {
           "skill": "mg_staffmastery",
@@ -400,9 +490,11 @@ const SKILLS_DATABASE = {
       "id": "mg_memorize",
       "name": "จดจำเวท",
       "thai": "สายเวทเร็ว",
+      "icon": "sk_mg_memorize",
+      "iconUrl": "https://play.nightcamp.app/cas/170cda175707.webp",
       "maxLevel": 5,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "buff",
       "req": "ฟื้นฟูมานา Lv.3",
       "prereq": [
         {
@@ -416,9 +508,11 @@ const SKILLS_DATABASE = {
       "id": "mg_sprecovery",
       "name": "ฟื้นฟูมานา",
       "thai": "สายเวทเร็ว",
+      "icon": "sk_mg_sprecovery",
+      "iconUrl": "https://play.nightcamp.app/cas/fa0ee93a2865.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
       "desc": "ฟื้น SP +8% · SP สูงสุด +1% · Lv10 ร่ายอัตโนมัติคืน SP นิดหน่อย"
     }
   ],
@@ -427,18 +521,23 @@ const SKILLS_DATABASE = {
       "id": "ar_bowmastery",
       "name": "ชำนาญธนู",
       "thai": "สายยิงรัว",
+      "icon": "sk_ar_bowmastery",
+      "iconUrl": "https://play.nightcamp.app/cas/52863416a6b9.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
+      "weaponReq": "ธนู",
       "desc": "ถือธนู: ATK +1.5% คริติคอล +0.5% · Lv10 ยิงปกติทุกดอกที่ 5 ยิงคู่ แรงขึ้น 50%"
     },
     {
       "id": "ar_concentrate",
       "name": "สมาธิเล็ง",
       "thai": "สายยิงรัว",
+      "icon": "sk_ar_concentrate",
+      "iconUrl": "https://play.nightcamp.app/cas/387c67c14cca.webp",
       "maxLevel": 5,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "buff",
       "req": "ตาเหยี่ยว Lv.3",
       "prereq": [
         {
@@ -452,10 +551,13 @@ const SKILLS_DATABASE = {
       "id": "ar_doubleshot",
       "name": "ยิงเบิ้ล",
       "thai": "สายยิงรัว",
+      "icon": "sk_ar_doubleshot",
+      "iconUrl": "https://play.nightcamp.app/cas/63ca9412ce70.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
       "req": "ชำนาญธนู Lv.1",
+      "weaponReq": "ธนู",
       "prereq": [
         {
           "skill": "ar_bowmastery",
@@ -468,28 +570,36 @@ const SKILLS_DATABASE = {
       "id": "double",
       "name": "ยิงคู่",
       "thai": "สายแม่นยำ",
+      "icon": "sk_double",
+      "iconUrl": "https://play.nightcamp.app/cas/d765e1788c1f.webp",
       "maxLevel": 10,
       "freeLevel": 1,
       "kind": "active",
-      "desc": "[มีฟรี Lv.1] · ยิงลูกธนูแสง 2 ดอกติดกัน ดอกละ 100% ของ ATK"
+      "weaponReq": "ธนู",
+      "desc": "ยิงลูกธนูแสง 2 ดอกติดกัน ดอกละ 100% ของ ATK"
     },
     {
       "id": "ar_owl",
       "name": "ตาเหยี่ยว",
       "thai": "สายแม่นยำ",
+      "icon": "sk_ar_owl",
+      "iconUrl": "https://play.nightcamp.app/cas/9f903348985d.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
       "desc": "DEX +1 · ความแม่น +1"
     },
     {
       "id": "ar_charge",
       "name": "ธนูกระแทก",
       "thai": "สายแม่นยำ",
+      "icon": "sk_ar_charge",
+      "iconUrl": "https://play.nightcamp.app/cas/babbb2e86a0c.webp",
       "maxLevel": 5,
       "freeLevel": 0,
       "kind": "active",
       "req": "ยิงคู่ Lv.3",
+      "weaponReq": "ธนู",
       "prereq": [
         {
           "skill": "double",
@@ -502,29 +612,50 @@ const SKILLS_DATABASE = {
       "id": "starshot",
       "name": "ธนูดาราพิฆาต",
       "thai": "สายแม่นยำ",
+      "icon": "sk_starshot",
+      "iconUrl": "https://play.nightcamp.app/cas/d10321ccd028.webp",
       "maxLevel": 5,
       "freeLevel": 0,
       "kind": "active",
+      "ult": true,
       "req": "ยิงคู่ Lv.5 หรือ ห่าฝนธนู Lv.5",
+      "reqAny": true,
+      "weaponReq": "ธนู",
+      "prereq": [
+        {
+          "skill": "double",
+          "level": 5
+        },
+        {
+          "skill": "shower",
+          "level": 5
+        }
+      ],
       "desc": "ชาร์จแล้วยิงลำแสงดาราทะลวงทั้งแนว 100% ของ ATK"
     },
     {
       "id": "shower",
       "name": "ห่าฝนธนู",
       "thai": "สายห่าศร",
+      "icon": "sk_shower",
+      "iconUrl": "https://play.nightcamp.app/cas/8f142e734e36.webp",
       "maxLevel": 10,
       "freeLevel": 1,
       "kind": "active",
-      "desc": "[มีฟรี Lv.1] · ธนู 20 ดอกตกใส่พื้นที่ข้างหน้า ดอกละ 60% ของ ATK"
+      "weaponReq": "ธนู",
+      "desc": "ธนู 20 ดอกตกใส่พื้นที่ข้างหน้า ดอกละ 60% ของ ATK"
     },
     {
       "id": "ar_multishot",
       "name": "ยิงกระจาย",
       "thai": "สายห่าศร",
+      "icon": "sk_ar_multishot",
+      "iconUrl": "https://play.nightcamp.app/cas/f97f4a399768.webp",
       "maxLevel": 10,
       "freeLevel": 0,
       "kind": "active",
       "req": "ห่าฝนธนู Lv.3",
+      "weaponReq": "ธนู",
       "prereq": [
         {
           "skill": "shower",
@@ -537,15 +668,20 @@ const SKILLS_DATABASE = {
       "id": "gale",
       "name": "ธนูพายุทะลวง",
       "thai": "สายพรานพฤกษา",
+      "icon": "sk_gale",
+      "iconUrl": "https://play.nightcamp.app/cas/48666fd20883.webp",
       "maxLevel": 10,
       "freeLevel": 1,
       "kind": "active",
-      "desc": "[มีฟรี Lv.1] · ลูกธนูพันพายุทะลุทุกตัวในแนว 100% ของ ATK ผลักกระเด็น"
+      "weaponReq": "ธนู",
+      "desc": "ลูกธนูพันพายุทะลุทุกตัวในแนว 100% ของ ATK ผลักกระเด็น"
     },
     {
       "id": "ar_snare",
       "name": "กับดักเถาวัลย์",
       "thai": "สายพรานพฤกษา",
+      "icon": "sk_ar_snare",
+      "iconUrl": "https://play.nightcamp.app/cas/3c5faf13d7a7.webp",
       "maxLevel": 5,
       "freeLevel": 0,
       "kind": "active",
@@ -564,28 +700,37 @@ const SKILLS_DATABASE = {
       "id": "ro_double",
       "name": "โจมตีสองครั้ง",
       "thai": "สายคมมีด",
+      "icon": "sk_ro_double",
+      "iconUrl": "https://play.nightcamp.app/cas/3b9f3c436806.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
+      "weaponReq": "มีดคู่",
       "desc": "ถือมีดคู่: ตีปกติมีโอกาส 4% โดน 2 เท่า"
     },
     {
       "id": "ro_dagger",
       "name": "ชำนาญมีด",
       "thai": "สายคมมีด",
+      "icon": "sk_ro_dagger",
+      "iconUrl": "https://play.nightcamp.app/cas/2230777d4295.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
+      "weaponReq": "มีดคู่",
       "desc": "ถือมีดคู่: หลบหลีก +1 ATK +1% ความเร็วโจมตี +1% · Lv10 ความเร็วโจมตีเพิ่มอีก 10%"
     },
     {
       "id": "ro_vital",
       "name": "จุดตาย",
       "thai": "สายคมมีด",
+      "icon": "sk_ro_vital",
+      "iconUrl": "https://play.nightcamp.app/cas/90a585a53db2.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
       "req": "ชำนาญมีด Lv.3",
+      "weaponReq": "มีดคู่",
       "prereq": [
         {
           "skill": "ro_dagger",
@@ -598,25 +743,43 @@ const SKILLS_DATABASE = {
       "id": "sonic",
       "name": "พายุคมเงา",
       "thai": "สายคมมีด",
+      "icon": "sk_sonic",
+      "iconUrl": "https://play.nightcamp.app/cas/13707b65dc50.webp",
       "maxLevel": 5,
       "freeLevel": 0,
       "kind": "active",
+      "ult": true,
       "req": "โจมตีสองครั้ง Lv.5 หรือ แทงข้างหลัง Lv.5",
+      "reqAny": true,
+      "prereq": [
+        {
+          "skill": "ro_double",
+          "level": 5
+        },
+        {
+          "skill": "ro_backstab",
+          "level": 5
+        }
+      ],
       "desc": "วาร์ปฟันรัว 8 ครั้ง ครั้งละ 100% ของ ATK ปิดท้ายฟันกากบาท x2.5"
     },
     {
       "id": "envenom",
       "name": "ฟันพิษ",
       "thai": "สายพิษ",
+      "icon": "sk_envenom",
+      "iconUrl": "https://play.nightcamp.app/cas/0725a89d5d42.webp",
       "maxLevel": 10,
       "freeLevel": 1,
       "kind": "active",
-      "desc": "[มีฟรี Lv.1] · ฟันไขว้ 2 ครั้ง ครั้งละ 100% ของ ATK ติดพิษ 3 วิ"
+      "desc": "ฟันไขว้ 2 ครั้ง ครั้งละ 100% ของ ATK ติดพิษ 3 วิ"
     },
     {
       "id": "venomdust",
       "name": "ม่านควันพิษ",
       "thai": "สายพิษ",
+      "icon": "sk_venomdust",
+      "iconUrl": "https://play.nightcamp.app/cas/ddad6015af0b.webp",
       "maxLevel": 10,
       "freeLevel": 0,
       "kind": "active",
@@ -633,27 +796,33 @@ const SKILLS_DATABASE = {
       "id": "ro_venomheart",
       "name": "ใจพิษ",
       "thai": "สายพิษ",
+      "icon": "sk_ro_venomheart",
+      "iconUrl": "https://play.nightcamp.app/cas/438a51cf0871.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
       "desc": "พิษจากตีปกติแรงขึ้น 5% · ดาเมจพิษ +2% · ตีปกติโอกาสติดพิษ 2% · Lv10 ศัตรูที่ติดพิษตีเราเบาลง"
     },
     {
       "id": "shadowstep",
       "name": "ก้าวเงา",
       "thai": "สายเงา",
+      "icon": "sk_shadowstep",
+      "iconUrl": "https://play.nightcamp.app/cas/bba74b881544.webp",
       "maxLevel": 10,
       "freeLevel": 1,
       "kind": "active",
-      "desc": "[มีฟรี Lv.1] · หายตัวไปโผล่ข้างหลังศัตรู 100% ของ ATK · ตีปกติครั้งถัดไปคริติคอลแน่นอน"
+      "desc": "หายตัวไปโผล่ข้างหลังศัตรู 100% ของ ATK · ตีปกติครั้งถัดไปคริติคอลแน่นอน"
     },
     {
       "id": "ro_hide",
       "name": "ซ่อนตัว",
       "thai": "สายเงา",
+      "icon": "sk_ro_hide",
+      "iconUrl": "https://play.nightcamp.app/cas/4356e065ff8a.webp",
       "maxLevel": 5,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "buff",
       "req": "ก้าวเงา Lv.3",
       "prereq": [
         {
@@ -667,10 +836,13 @@ const SKILLS_DATABASE = {
       "id": "ro_backstab",
       "name": "แทงข้างหลัง",
       "thai": "สายเงา",
+      "icon": "sk_ro_backstab",
+      "iconUrl": "https://play.nightcamp.app/cas/cd1552e9548f.webp",
       "maxLevel": 10,
       "freeLevel": 0,
       "kind": "active",
       "req": "ซ่อนตัว Lv.2",
+      "weaponBonus": "มีดคู่ (แรงขึ้น 20%)",
       "prereq": [
         {
           "skill": "ro_hide",
@@ -682,7 +854,9 @@ const SKILLS_DATABASE = {
     {
       "id": "ro_steal",
       "name": "ขโมยของ",
-      "thai": "กดใช้",
+      "thai": "สกิลกดใช้",
+      "icon": "sk_ro_steal",
+      "iconUrl": "https://play.nightcamp.app/cas/be2255e522fc.webp",
       "maxLevel": 5,
       "freeLevel": 0,
       "kind": "active",
@@ -694,15 +868,19 @@ const SKILLS_DATABASE = {
       "id": "pr_heal",
       "name": "แสงเยียวยา",
       "thai": "สายฟื้นฟู",
+      "icon": "sk_heal",
+      "iconUrl": "https://play.nightcamp.app/cas/6f7f1c5b1006.webp",
       "maxLevel": 10,
       "freeLevel": 1,
       "kind": "active",
-      "desc": "[มีฟรี Lv.1] · ฟื้น HP ตัวเองและเพื่อนในปาร์ตี้รอบตัว 9% ของ HP สูงสุด + ตามพลังเวท · มอนอมตะ/ความมืดรอบตัวโดนแสง 100% ของ MATK"
+      "desc": "ฟื้น HP ตัวเองและเพื่อนในปาร์ตี้รอบตัว 9% ของ HP สูงสุด + ตามพลังเวท · มอนอมตะ/ความมืดรอบตัวโดนแสง 100% ของ MATK"
     },
     {
       "id": "pr_resurrect",
       "name": "ชุบชีวิต",
       "thai": "สายฟื้นฟู",
+      "icon": "sk_pr_resurrect",
+      "iconUrl": "https://play.nightcamp.app/cas/cd0f2f6a4693.webp",
       "maxLevel": 5,
       "freeLevel": 0,
       "kind": "active",
@@ -719,27 +897,33 @@ const SKILLS_DATABASE = {
       "id": "pr_protect",
       "name": "พรคุ้มครอง",
       "thai": "สายฟื้นฟู",
+      "icon": "sk_pr_protect",
+      "iconUrl": "https://play.nightcamp.app/cas/aee682080606.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
       "desc": "MDEF +1 · DEF +0 · รับดาเมจลดลง 0.8%"
     },
     {
       "id": "blessing",
       "name": "พรศักดิ์สิทธิ์",
       "thai": "สายบัฟทีม",
+      "icon": "sk_blessing",
+      "iconUrl": "https://play.nightcamp.app/cas/47b8f0b2202f.webp",
       "maxLevel": 10,
       "freeLevel": 1,
-      "kind": "active",
-      "desc": "[มีฟรี Lv.1] · ตัวเองและเพื่อนรอบตัว 66 วิ: STR INT DEX +1 (ได้ทั้ง ATK MATK ความแม่น และร่ายเร็วขึ้น)"
+      "kind": "buff",
+      "desc": "ตัวเองและเพื่อนรอบตัว 66 วิ: STR INT DEX +1 (ได้ทั้ง ATK MATK ความแม่น และร่ายเร็วขึ้น)"
     },
     {
       "id": "pr_agi",
       "name": "เพิ่มความเร็ว",
       "thai": "สายบัฟทีม",
+      "icon": "sk_pr_agi",
+      "iconUrl": "https://play.nightcamp.app/cas/673b1d24f4dd.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "buff",
       "req": "แสงเยียวยา Lv.3",
       "prereq": [
         {
@@ -753,9 +937,11 @@ const SKILLS_DATABASE = {
       "id": "pr_angelus",
       "name": "พรเกราะกาย",
       "thai": "สายบัฟทีม",
+      "icon": "sk_pr_angelus",
+      "iconUrl": "https://play.nightcamp.app/cas/cd099f023ba7.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "buff",
       "req": "พรคุ้มครอง Lv.3",
       "prereq": [
         {
@@ -769,9 +955,11 @@ const SKILLS_DATABASE = {
       "id": "pr_gloria",
       "name": "บทสรรเสริญโชค",
       "thai": "สายบัฟทีม",
+      "icon": "sk_pr_gloria",
+      "iconUrl": "https://play.nightcamp.app/cas/2ee7d4ef0e28.webp",
       "maxLevel": 5,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "buff",
       "req": "พรศักดิ์สิทธิ์ Lv.3",
       "prereq": [
         {
@@ -785,9 +973,11 @@ const SKILLS_DATABASE = {
       "id": "pr_suffragium",
       "name": "พรเร่งร่าย",
       "thai": "สายบัฟทีม",
+      "icon": "sk_pr_suffragium",
+      "iconUrl": "https://play.nightcamp.app/cas/fb4ac848d835.webp",
       "maxLevel": 5,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "buff",
       "req": "พรศักดิ์สิทธิ์ Lv.5",
       "prereq": [
         {
@@ -801,28 +991,37 @@ const SKILLS_DATABASE = {
       "id": "holylight",
       "name": "แสงศักดิ์สิทธิ์",
       "thai": "สายแสง",
+      "icon": "sk_holylight",
+      "iconUrl": "https://play.nightcamp.app/cas/cc8177ded1bf.webp",
       "maxLevel": 10,
       "freeLevel": 1,
       "kind": "active",
-      "desc": "[มีฟรี Lv.1] · ลำแสงจากฟ้าฟาดลงศัตรูใกล้เมาส์ 100% ของ MATK ธาตุแสง"
+      "weaponBonus": "คทา (MATK +8%)",
+      "desc": "ลำแสงจากฟ้าฟาดลงศัตรูใกล้เมาส์ 100% ของ MATK ธาตุแสง"
     },
     {
       "id": "pr_demonbane",
       "name": "ปราบมาร",
       "thai": "สายแสง",
+      "icon": "sk_pr_demonbane",
+      "iconUrl": "https://play.nightcamp.app/cas/abb2930e2d80.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
       "desc": "ดาเมจต่อมอนอมตะและความมืด +4%"
     },
     {
       "id": "magnus",
       "name": "วงเวทแสงขับมาร",
       "thai": "สายแสง",
+      "icon": "sk_magnus",
+      "iconUrl": "https://play.nightcamp.app/cas/090206b448ab.webp",
       "maxLevel": 5,
       "freeLevel": 0,
       "kind": "active",
+      "ult": true,
       "req": "แสงศักดิ์สิทธิ์ Lv.5, ปราบมาร Lv.3",
+      "weaponBonus": "คทา (ร่ายเร็วขึ้น 10%)",
       "prereq": [
         {
           "skill": "holylight",
@@ -839,9 +1038,11 @@ const SKILLS_DATABASE = {
       "id": "pr_aspersio",
       "name": "อาวุธแสงชำระ",
       "thai": "สายพระนักสู้",
+      "icon": "sk_pr_aspersio",
+      "iconUrl": "https://play.nightcamp.app/cas/17cc58f611b6.webp",
       "maxLevel": 5,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "buff",
       "req": "แสงศักดิ์สิทธิ์ Lv.3",
       "prereq": [
         {
@@ -855,18 +1056,23 @@ const SKILLS_DATABASE = {
       "id": "pr_macemastery",
       "name": "ชำนาญกระบอง",
       "thai": "สายพระนักสู้",
+      "icon": "sk_pr_macemastery",
+      "iconUrl": "https://play.nightcamp.app/cas/fde9cb95a516.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
+      "weaponReq": "กระบอง",
       "desc": "ถือกระบอง: ตีปกติแรงขึ้น 3% ความเร็วโจมตี +1% · Lv10 ตีครั้งที่ 5 ฟื้น HP เพื่อนที่เลือดน้อยสุด"
     },
     {
       "id": "pr_duple",
       "name": "ลงทัณฑ์",
       "thai": "สายพระนักสู้",
+      "icon": "sk_pr_duple",
+      "iconUrl": "https://play.nightcamp.app/cas/d3a7dcf09d4e.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
       "req": "ชำนาญกระบอง Lv.3",
       "prereq": [
         {
@@ -882,15 +1088,19 @@ const SKILLS_DATABASE = {
       "id": "pal_strike",
       "name": "ฟันศักดิ์สิทธิ์",
       "thai": "สายแสงศักดิ์สิทธิ์",
+      "icon": "sk_pal_strike",
+      "iconUrl": "https://play.nightcamp.app/cas/554be8d48e2e.webp",
       "maxLevel": 10,
       "freeLevel": 1,
       "kind": "active",
-      "desc": "[มีฟรี Lv.1] · ฟันดาบแสงข้างหน้า 100% ของ ATK/MATK (ที่สูงกว่า) ธาตุแสง ฟื้น HP 2.3% ต่อศัตรูที่โดน (สูงสุด 3 ตัว)"
+      "desc": "ฟันดาบแสงข้างหน้า 100% ของ ATK/MATK (ที่สูงกว่า) ธาตุแสง ฟื้น HP 2.3% ต่อศัตรูที่โดน (สูงสุด 3 ตัว)"
     },
     {
       "id": "pal_cross",
       "name": "แสงกากบาทเผาผลาญ",
       "thai": "สายแสงศักดิ์สิทธิ์",
+      "icon": "sk_pal_cross",
+      "iconUrl": "https://play.nightcamp.app/cas/538d6bb6d226.webp",
       "maxLevel": 10,
       "freeLevel": 0,
       "kind": "active",
@@ -911,18 +1121,23 @@ const SKILLS_DATABASE = {
       "id": "pal_faith",
       "name": "ศรัทธา",
       "thai": "สายแสงศักดิ์สิทธิ์",
+      "icon": "sk_pal_faith",
+      "iconUrl": "https://play.nightcamp.app/cas/8d1789619a53.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
       "desc": "HP สูงสุด +2% · รับดาเมจลดลง 1% · MDEF +0 · Lv10 แสงกากบาทเผาผลาญไม่เสีย HP"
     },
     {
       "id": "pal_heaven",
       "name": "ดาบสวรรค์พิพากษา",
       "thai": "สายแสงศักดิ์สิทธิ์",
+      "icon": "sk_pal_heaven",
+      "iconUrl": "https://play.nightcamp.app/cas/937ce8033877.webp",
       "maxLevel": 5,
       "freeLevel": 0,
       "kind": "active",
+      "ult": true,
       "req": "แสงกากบาทเผาผลาญ Lv.5, ศรัทธา Lv.5",
       "prereq": [
         {
@@ -940,10 +1155,14 @@ const SKILLS_DATABASE = {
       "id": "pal_holyblade",
       "name": "ดาบแสงสถิต",
       "thai": "สายดาบศักดิ์สิทธิ์",
+      "icon": "sk_pal_holyblade",
+      "iconUrl": "https://play.nightcamp.app/cas/c68b3dc32be0.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
       "req": "ชำนาญดาบ Lv.5",
+      "weaponReq": "อาวุธมือเดียว",
+      "weaponBonus": "กระบอง (แสงแรงขึ้น 20%)",
       "prereq": [
         {
           "skill": "kn_swordmastery",
@@ -956,10 +1175,13 @@ const SKILLS_DATABASE = {
       "id": "pal_zeal",
       "name": "ศรัทธาร้อนแรง",
       "thai": "สายดาบศักดิ์สิทธิ์",
+      "icon": "sk_pal_zeal",
+      "iconUrl": "https://play.nightcamp.app/cas/04c39a5be8ac.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "buff",
       "req": "เร่งเพลงดาบ Lv.5",
+      "weaponReq": "อาวุธมือเดียว",
       "prereq": [
         {
           "skill": "kn_quicken",
@@ -972,10 +1194,13 @@ const SKILLS_DATABASE = {
       "id": "pal_faithblade",
       "name": "ดาบแห่งศรัทธา",
       "thai": "สายดาบศักดิ์สิทธิ์",
+      "icon": "sk_pal_faithblade",
+      "iconUrl": "https://play.nightcamp.app/cas/1d050f59f436.webp",
       "maxLevel": 5,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
       "req": "บ้าคลั่ง Lv.3",
+      "weaponReq": "อาวุธมือเดียว",
       "prereq": [
         {
           "skill": "kn_berserk",
@@ -988,10 +1213,13 @@ const SKILLS_DATABASE = {
       "id": "pal_shieldchain",
       "name": "โล่พิฆาต",
       "thai": "สายปราการโล่",
+      "icon": "sk_pal_shieldchain",
+      "iconUrl": "https://play.nightcamp.app/cas/4d7a813ed0cf.webp",
       "maxLevel": 10,
       "freeLevel": 0,
       "kind": "active",
       "req": "โล่แสงศักดิ์สิทธิ์ Lv.5",
+      "weaponReq": "โล่",
       "prereq": [
         {
           "skill": "guard",
@@ -1004,10 +1232,13 @@ const SKILLS_DATABASE = {
       "id": "pal_aegis",
       "name": "โล่อีจิส",
       "thai": "สายปราการโล่",
+      "icon": "sk_pal_aegis",
+      "iconUrl": "https://play.nightcamp.app/cas/efeae29be705.webp",
       "maxLevel": 5,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "buff",
       "req": "โล่แสงศักดิ์สิทธิ์ Lv.5",
+      "weaponReq": "โล่",
       "prereq": [
         {
           "skill": "guard",
@@ -1020,10 +1251,13 @@ const SKILLS_DATABASE = {
       "id": "pal_reflect",
       "name": "โล่สะท้อน",
       "thai": "สายปราการโล่",
+      "icon": "sk_pal_reflect",
+      "iconUrl": "https://play.nightcamp.app/cas/f21a0147339b.webp",
       "maxLevel": 5,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "buff",
       "req": "โล่อีจิส Lv.3",
+      "weaponReq": "โล่",
       "prereq": [
         {
           "skill": "pal_aegis",
@@ -1036,9 +1270,11 @@ const SKILLS_DATABASE = {
       "id": "pal_devotion",
       "name": "สายใยพิทักษ์",
       "thai": "สายพิทักษ์ทีม",
+      "icon": "sk_pal_devotion",
+      "iconUrl": "https://play.nightcamp.app/cas/085c590ff46f.webp",
       "maxLevel": 5,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "buff",
       "req": "ศรัทธา Lv.3",
       "prereq": [
         {
@@ -1052,6 +1288,8 @@ const SKILLS_DATABASE = {
       "id": "pal_layhands",
       "name": "มือแห่งแสง",
       "thai": "สายพิทักษ์ทีม",
+      "icon": "sk_pal_layhands",
+      "iconUrl": "https://play.nightcamp.app/cas/c9f81aadc828.webp",
       "maxLevel": 10,
       "freeLevel": 0,
       "kind": "active",
@@ -1070,19 +1308,27 @@ const SKILLS_DATABASE = {
       "id": "dk_thrust",
       "name": "แทงเพลิงมังกร",
       "thai": "สายศาสตร์หอก",
+      "icon": "sk_dk_thrust",
+      "iconUrl": "https://play.nightcamp.app/cas/21309d4da5de.webp",
       "maxLevel": 10,
       "freeLevel": 1,
       "kind": "active",
-      "desc": "[มีฟรี Lv.1] · แทงหอกพ่นไฟเป็นแนวยาว 100% ของ ATK ธาตุไฟ โดนทุกตัวในแนว"
+      "weaponReq": "หอก หรือ หอกยาว",
+      "weaponBonus": "หอกยาว (แรงขึ้น 20%)",
+      "desc": "แทงหอกพ่นไฟเป็นแนวยาว 100% ของ ATK ธาตุไฟ โดนทุกตัวในแนว"
     },
     {
       "id": "dk_spiral",
       "name": "หอกเกลียวสว่าน",
       "thai": "สายศาสตร์หอก",
+      "icon": "sk_dk_spiral",
+      "iconUrl": "https://play.nightcamp.app/cas/c49a296ba829.webp",
       "maxLevel": 10,
       "freeLevel": 0,
       "kind": "active",
       "req": "แทงเพลิงมังกร Lv.5, ชำนาญหอก Lv.3",
+      "weaponReq": "หอก หรือ หอกยาว",
+      "weaponBonus": "หอกยาว (แรงขึ้น 20%)",
       "prereq": [
         {
           "skill": "dk_thrust",
@@ -1099,6 +1345,8 @@ const SKILLS_DATABASE = {
       "id": "dk_charge",
       "name": "จู่โจมพุ่งทะลวง",
       "thai": "สายศาสตร์หอก",
+      "icon": "sk_dk_charge",
+      "iconUrl": "https://play.nightcamp.app/cas/994b6aee49eb.webp",
       "maxLevel": 5,
       "freeLevel": 0,
       "kind": "active",
@@ -1115,19 +1363,25 @@ const SKILLS_DATABASE = {
       "id": "dk_spearmastery",
       "name": "ชำนาญหอก",
       "thai": "สายศาสตร์หอก",
+      "icon": "sk_dk_spearmastery",
+      "iconUrl": "https://play.nightcamp.app/cas/81147c84a241.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
+      "weaponReq": "หอก หรือ หอกยาว",
       "desc": "ถือหอกหรือหอกยาว: ATK +2% ความแม่น +1"
     },
     {
       "id": "dk_quicken",
       "name": "เร่งหอก",
       "thai": "สายหอกรัว",
+      "icon": "sk_dk_quicken",
+      "iconUrl": "https://play.nightcamp.app/cas/7e5520de372b.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "buff",
       "req": "ชำนาญหอก Lv.3",
+      "weaponReq": "หอกยาว",
       "prereq": [
         {
           "skill": "dk_spearmastery",
@@ -1140,10 +1394,13 @@ const SKILLS_DATABASE = {
       "id": "dk_tail",
       "name": "หางมังกร",
       "thai": "สายหอกรัว",
+      "icon": "sk_dk_tail",
+      "iconUrl": "https://play.nightcamp.app/cas/e7f4db1bb880.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
       "req": "เร่งหอก Lv.1",
+      "weaponReq": "หอก หรือ หอกยาว",
       "prereq": [
         {
           "skill": "dk_quicken",
@@ -1156,9 +1413,11 @@ const SKILLS_DATABASE = {
       "id": "dk_fury",
       "name": "โทสะมังกร",
       "thai": "สายหอกรัว",
+      "icon": "sk_dk_fury",
+      "iconUrl": "https://play.nightcamp.app/cas/57f16e223c02.webp",
       "maxLevel": 5,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "buff",
       "req": "ชำนาญหอก Lv.3",
       "prereq": [
         {
@@ -1172,10 +1431,13 @@ const SKILLS_DATABASE = {
       "id": "dk_breath",
       "name": "ลมหายใจมังกร",
       "thai": "สายเพลิงมังกร",
+      "icon": "sk_dk_breath",
+      "iconUrl": "https://play.nightcamp.app/cas/b421bcd3596d.webp",
       "maxLevel": 10,
       "freeLevel": 0,
       "kind": "active",
       "req": "ระเบิดเพลิงรอบกาย Lv.5",
+      "weaponBonus": "โล่ (ไฟแรงขึ้น 10%)",
       "prereq": [
         {
           "skill": "magnum",
@@ -1188,6 +1450,8 @@ const SKILLS_DATABASE = {
       "id": "dk_leap",
       "name": "มังกรทะยาน",
       "thai": "สายเพลิงมังกร",
+      "icon": "sk_dk_leap",
+      "iconUrl": "https://play.nightcamp.app/cas/2e735e535e1c.webp",
       "maxLevel": 5,
       "freeLevel": 0,
       "kind": "active",
@@ -1204,9 +1468,11 @@ const SKILLS_DATABASE = {
       "id": "dk_blood",
       "name": "เลือดมังกร",
       "thai": "สายเพลิงมังกร",
+      "icon": "sk_dk_blood",
+      "iconUrl": "https://play.nightcamp.app/cas/99f2e860f2bb.webp",
       "maxLevel": 5,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
       "req": "ลมหายใจมังกร Lv.5",
       "prereq": [
         {
@@ -1220,9 +1486,12 @@ const SKILLS_DATABASE = {
       "id": "dk_roar",
       "name": "วิญญาณมังกรคำราม",
       "thai": "สายเพลิงมังกร",
+      "icon": "sk_dk_roar",
+      "iconUrl": "https://play.nightcamp.app/cas/c395a39d20ec.webp",
       "maxLevel": 5,
       "freeLevel": 0,
       "kind": "active",
+      "ult": true,
       "req": "ลมหายใจมังกร Lv.5, เลือดมังกร Lv.3",
       "prereq": [
         {
@@ -1240,6 +1509,8 @@ const SKILLS_DATABASE = {
       "id": "dk_wyvern",
       "name": "ไวเวิร์นคู่ใจ",
       "thai": "สายไวเวิร์น",
+      "icon": "sk_dk_wyvern",
+      "iconUrl": "https://play.nightcamp.app/cas/89a7974d8ef0.webp",
       "maxLevel": 10,
       "freeLevel": 0,
       "kind": "active",
@@ -1253,336 +1524,13 @@ const SKILLS_DATABASE = {
       "desc": "เรียกไวเวิร์นน้อย 22 วิ บินตามและพ่นลูกไฟ ลูกละ 100% ของ ATK/MATK · ยิ่งอัพยิ่งตัวโต · โตทุกเลเวล"
     }
   ],
-  "swordmaster": [
-    {
-      "id": "sm_twin",
-      "name": "ดาบคู่ประสาน",
-      "thai": "สายเพลงดาบคู่",
-      "maxLevel": 10,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "เร่งเพลงดาบ Lv.3",
-      "prereq": [
-        {
-          "skill": "kn_quicken",
-          "level": 3
-        }
-      ],
-      "desc": "ถือดาบคู่: ตีปกติฟันสองมือ มือซ้ายแรง 37% ความเร็วโจมตี +1% · ทุกครั้งที่ 4 ทิ้งรอยดาบ · Lv5 รอยที่ครบ 3 วิระเบิดเอง 45% · Lv10 ทุกครั้งที่ 4 ทิ้ง 2 รอย"
-    },
-    {
-      "id": "sm_moondance",
-      "name": "ระบำใบมีดใต้จันทร์",
-      "thai": "สายเพลงดาบคู่",
-      "maxLevel": 10,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "ดาบคู่ประสาน Lv.3",
-      "prereq": [
-        {
-          "skill": "sm_twin",
-          "level": 3
-        }
-      ],
-      "desc": "30 วิ: ตีโดนได้ชั้นระบำ สูงสุด 10 ชั้น ชั้นละความเร็วโจมตี +1.5% · ครบ 10 ชั้นตีปกติทุกครั้งทิ้งรอยดาบ · Lv5 เปลี่ยนเป้าแล้วชั้นไม่หาย · Lv10 ครบ 10 ชั้นคริ +10"
-    },
-    {
-      "id": "sm_bladerain",
-      "name": "สายฝนดาบ",
-      "thai": "สายเพลงดาบคู่",
-      "maxLevel": 10,
-      "freeLevel": 1,
-      "kind": "active",
-      "desc": "[มีฟรี Lv.1] · ฟันรัว 6 ครั้ง ครั้งละ 100% ของ ATK ทุกครั้งทิ้งรอยดาบ · Lv5 ไม่เดินช้าลงระหว่างฟัน · Lv10 ครั้งสุดท้ายดึงรอยดาบทั้งหมดมาระเบิดที่เป้า"
-    },
-    {
-      "id": "sm_thousand",
-      "name": "จันทร์พันดาบ",
-      "thai": "สายเพลงดาบคู่",
-      "maxLevel": 5,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "ระบำใบมีดใต้จันทร์ Lv.5, สายฝนดาบ Lv.5",
-      "prereq": [
-        {
-          "skill": "sm_moondance",
-          "level": 5
-        },
-        {
-          "skill": "sm_bladerain",
-          "level": 5
-        }
-      ],
-      "desc": "เงาดาบ 8 เล่มโคจรรอบตัว 16 วิ ตีปกติแต่ละครั้งเงาดาบ 2 เล่มพุ่งตาม เล่มละ 100% ของ ATK · Lv5 เงาดาบแรงขึ้นทุกเลเวล"
-    },
-    {
-      "id": "sm_duel",
-      "name": "ท้าดวล",
-      "thai": "สายเจตจำนงนักดาบ",
-      "maxLevel": 5,
-      "freeLevel": 0,
-      "kind": "active",
-      "desc": "ท้าเป้า 1 ตัว 12 วิ มันหันมาตีเรา เราทำดาเมจใส่มัน +4% · ชนะดวลได้ \"เกียรตินักดาบ\" ATK +5% 20 วิ ซ้อนได้ 3 ชั้น · Lv5 ดาเมจใส่คู่ดวล +20%"
-    },
-    {
-      "id": "sm_eye",
-      "name": "สายตานักดาบ",
-      "thai": "สายเจตจำนงนักดาบ",
-      "maxLevel": 10,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "ชำนาญดาบ Lv.3",
-      "prereq": [
-        {
-          "skill": "kn_swordmastery",
-          "level": 3
-        }
-      ],
-      "desc": "ถือดาบ: ดาเมจคริ +2% ความแม่น +2 · รอยดาบระเบิดคริได้ · Lv10 ดาเมจคริ +20%"
-    },
-    {
-      "id": "sm_enchant",
-      "name": "ใส่ธาตุดาบ",
-      "thai": "สายดาบเวท",
-      "maxLevel": 10,
-      "freeLevel": 0,
-      "kind": "active",
-      "desc": "60 วิ: ใส่ธาตุไฟ น้ำแข็ง หรือสายฟ้าให้ดาบ (กดซ้ำเพื่อสลับธาตุ) ตีปกติเพิ่ม MATK 46% ธาตุนั้น ติดสถานะของธาตุ · ตีปกติทุกครั้งที่ 3 ทิ้งรอยดาบ · Lv5 สลับธาตุแล้วฮิตธาตุครั้งแรกแรงขึ้น 30% · Lv10 ใส่ได้ 2 ธาตุพร้อมกัน"
-    },
-    {
-      "id": "sm_wave",
-      "name": "คลื่นดาบเวท",
-      "thai": "สายดาบเวท",
-      "maxLevel": 10,
-      "freeLevel": 1,
-      "kind": "active",
-      "desc": "[มีฟรี Lv.1] · ฟันปล่อยคลื่นเวทธาตุของดาบไป 500 100% ของ ATK+MATK ทิ้งรอยดาบบนตัวที่โดน · Lv5 คลื่นทะลุ · Lv10 ปล่อย 3 คลื่นเป็นพัด"
-    },
-    {
-      "id": "sm_float",
-      "name": "ดาบเวทลอย",
-      "thai": "สายดาบเวท",
-      "maxLevel": 10,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "คลื่นดาบเวท Lv.3, ใส่ธาตุดาบ Lv.3",
-      "prereq": [
-        {
-          "skill": "sm_wave",
-          "level": 3
-        },
-        {
-          "skill": "sm_enchant",
-          "level": 3
-        }
-      ],
-      "desc": "ดาบเวท 2 เล่มลอยรอบตัว 20 วิ พุ่งใส่เป้าที่เราตีทุก 1 วิ เล่มละ 100% ของ MATK ธาตุของดาบ · จำนวนเล่มเพิ่มทุก 4 เลเวล (2 → 4)"
-    },
-    {
-      "id": "sm_heart",
-      "name": "ใจดาบเวท",
-      "thai": "สายดาบเวท",
-      "maxLevel": 5,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "ใส่ธาตุดาบ Lv.5",
-      "prereq": [
-        {
-          "skill": "sm_enchant",
-          "level": 5
-        }
-      ],
-      "desc": "ATK กับ MATK ยืมค่ากันและกัน: ท่า ATK+MATK แรงขึ้นราว 20% · Lv1 ATK กับ MATK ยืมกันและกัน 20% · Lv3 รอยดาบระเบิดเป็นธาตุ · Lv5 ชักดาบแล้วดาบเวทลอยทุกเล่มพุ่งพร้อมกัน"
-    },
-    {
-      "id": "sm_iai",
-      "name": "ชักดาบผ่ารอย",
-      "thai": "สายท่าชักดาบ",
-      "maxLevel": 10,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "คลื่นดาบเวท Lv.1",
-      "prereq": [
-        {
-          "skill": "sm_wave",
-          "level": 1
-        }
-      ],
-      "desc": "ชาร์จ 0.6 วิ แล้วพุ่งฟันเป็นเส้น 400 100% ของ ATK ×1.6 รอยดาบบนเส้นทางระเบิดทั้งหมด รอยละ 60% · มือว่าง (ไม่ถือโล่): แรงขึ้น 44% รวมโบนัสอาวุธ · Lv10 ฆ่าได้คืนคูลดาวน์ครึ่งหนึ่ง"
-    },
-    {
-      "id": "sm_focus",
-      "name": "สมาธิดาบ",
-      "thai": "สายท่าชักดาบ",
-      "maxLevel": 5,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "ชักดาบผ่ารอย Lv.3",
-      "prereq": [
-        {
-          "skill": "sm_iai",
-          "level": 3
-        }
-      ],
-      "desc": "ไม่ได้ตี 2 วิ ท่าชักดาบครั้งถัดไปคริแน่นอน · Lv1 ไม่ได้ตี 2 วิ ชักดาบครั้งถัดไปคริแน่นอน · Lv3 ชาร์จเร็วขึ้น 30% · Lv5 รอยดาบจากท่าชักดาบแรง ×1.5"
-    }
-  ],
-  "berserker": [
-    {
-      "id": "bk_crosscut",
-      "name": "ฟันกากบาท",
-      "thai": "สายเพลงดาบใหญ่",
-      "maxLevel": 10,
-      "freeLevel": 1,
-      "kind": "active",
-      "desc": "[มีฟรี Lv.1] · พุ่งเข้าหาเป้าแล้วฟันไขว้ 2 ครั้ง ครั้งละ 100% ของ ATK ลงเลือด 2 ชั้น (15% ATK ต่อวิต่อชั้น 5 วิ สูงสุด 5 ชั้น) โทสะ +15 · Lv5 ฟันครั้งที่ 3 · Lv10 พุ่งทะลุ"
-    },
-    {
-      "id": "bk_whirlwind",
-      "name": "ดาบพายุหมุน",
-      "thai": "สายเพลงดาบใหญ่",
-      "maxLevel": 10,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "ฟันกากบาท Lv.3",
-      "prereq": [
-        {
-          "skill": "bk_crosscut",
-          "level": 3
-        }
-      ],
-      "desc": "ใช้โทสะ 1 ช่อง หมุนดาบ 2.5 วิ ตีทุกตัวรอบตัว 5 ครั้งต่อวิ ครั้งละ 100% ของ ATK · Lv5 ดูดศัตรูเข้ามา · Lv10 ปิดด้วยฟันกวาด 300%"
-    },
-    {
-      "id": "bk_guillotine",
-      "name": "ฟันประหาร",
-      "thai": "สายเพลงดาบใหญ่",
-      "maxLevel": 10,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "ฟันกากบาท Lv.5",
-      "prereq": [
-        {
-          "skill": "bk_crosscut",
-          "level": 5
-        }
-      ],
-      "desc": "ใช้โทสะทุกช่อง กระโดดสับลง 100% ของ ATK × 1 / 1.5 / 2.2 ตามช่อง · ศัตรูเลือดต่ำกว่า 30% หรือมึนโดนสองเท่า · ระเบิดเลือดไหลชั้นละ 60% · ฆ่าได้คืน 1 ช่องและคูลดาวน์ · แรงขึ้นตามช่องโทสะ ×1 / 1.5 / 2.2"
-    },
-    {
-      "id": "bk_smash",
-      "name": "ทุบสะสมพลัง",
-      "thai": "สายทลายพสุธา",
-      "maxLevel": 10,
-      "freeLevel": 1,
-      "kind": "active",
-      "desc": "[มีฟรี Lv.1] · ง้างสะสมพลัง 0.7 วิ (อมตะระหว่างง้าง) แล้วทุบเป็นกรวย 100% ของ ATK ธาตุดิน โทสะ +16 · ค้อน: มึน 2 วิ · ขวาน: ลงเลือด 3 ชั้น · Lv10 แรงเพิ่ม 40% แลก HP 5%"
-    },
-    {
-      "id": "bk_leap",
-      "name": "กระโดดทุบธรณี",
-      "thai": "สายทลายพสุธา",
-      "maxLevel": 10,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "ทุบสะสมพลัง Lv.3",
-      "prereq": [
-        {
-          "skill": "bk_smash",
-          "level": 3
-        }
-      ],
-      "desc": "ใช้โทสะทุกช่อง กระโดดไปไกล 350 ทุบลง 100% ของ ATK × ตามช่อง ศัตรูล้ม 1 วิ · 2 ช่องขึ้นไป: พื้นแตกสั่น 3 วิ ตีทุก 0.5 วิ 60% ศัตรูช้าลง · 2 ช่องขึ้นไป พื้นแตกสั่น 3 วิ"
-    },
-    {
-      "id": "bk_hurl",
-      "name": "ขว้างอาวุธ",
-      "thai": "สายทลายพสุธา",
-      "maxLevel": 10,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "ทุบสะสมพลัง Lv.1",
-      "prereq": [
-        {
-          "skill": "bk_smash",
-          "level": 1
-        }
-      ],
-      "desc": "ขว้างอาวุธไป 500 แล้ววกกลับ โดนทั้งขาไปขากลับ ครั้งละ 100% ของ ATK โทสะ +12 · ขวาน: ลงเลือด · ค้อน: มึน 0.8 วิ และดึงศัตรูเข้ามา · ขวาน ลงเลือด · ค้อน มึนและดึง"
-    },
-    {
-      "id": "bk_frenzy",
-      "name": "เลือดเดือด",
-      "thai": "สายโลหิตคลั่ง",
-      "maxLevel": 10,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "เร่งเพลงดาบ Lv.1",
-      "prereq": [
-        {
-          "skill": "kn_quicken",
-          "level": 1
-        }
-      ],
-      "desc": "ตีเป้าเดิมติดกันได้ชั้นเลือดเดือด ชั้นละความเร็วโจมตี +2% สูงสุด 10 ชั้น คริ +0.5 · ครบ 10 ชั้น โอกาสตีเบิ้ล 16.8% · ค้อน: ทุก 4 ครั้งมึน 0.5 วิ · ขวาน: คริได้ชั้นเพิ่ม · ครบ 10 ชั้นตีเบิ้ล"
-    },
-    {
-      "id": "bk_pact",
-      "name": "สัญญาเลือด",
-      "thai": "สายโลหิตคลั่ง",
-      "maxLevel": 5,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "เลือดเดือด Lv.3",
-      "prereq": [
-        {
-          "skill": "bk_frenzy",
-          "level": 3
-        }
-      ],
-      "desc": "ATK +1% และความเร็วโจมตี +2% ทุก 3% ของ HP ที่หายไป (สูงสุด 25% / 50%) · Lv1 เลือดน้อยแรงขึ้น · Lv3 รอดตาย 1 ครั้งต่อ 60 วิ · Lv5 จ่าย HP แทนโทสะ ดูดเลือด"
-    },
-    {
-      "id": "bk_titan",
-      "name": "พิโรธไททัน",
-      "thai": "สายโลหิตคลั่ง",
-      "maxLevel": 5,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "ฟันประหาร Lv.5 หรือ กระโดดทุบธรณี Lv.5",
-      "desc": "ใช้โทสะทั้งหมด (อย่างน้อย 1 ช่อง) ตัวโตเป็นยักษ์ 6 วิ + 2 วิต่อช่อง รับดาเมจลด 25% ศัตรูรอบตัวช้าลง ตีปกติส่งคลื่นกระแทก 100% ของ ATK · ท่าปิดไม่ใช้โทสะและนับเป็น 3 ช่อง · จบแล้วระเบิด 400% และ 8 วิไม่ได้โทสะ · ร่างยักษ์ ตีปกติส่งคลื่นกระแทก"
-    },
-    {
-      "id": "bk_warcry",
-      "name": "คำรามศึก",
-      "thai": "สายจ่าฝูง",
-      "maxLevel": 10,
-      "freeLevel": 0,
-      "kind": "active",
-      "desc": "20 วิ: ทีม ATK +6% · ตัวเองความเร็วโจมตี +1% · โทสะ +30 · ศัตรูรอบตัวรับดาเมจ +15% 6 วิ"
-    },
-    {
-      "id": "bk_roar",
-      "name": "คำรามท้ารบ",
-      "thai": "สายจ่าฝูง",
-      "maxLevel": 5,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "คำรามศึก Lv.3",
-      "prereq": [
-        {
-          "skill": "bk_warcry",
-          "level": 3
-        }
-      ],
-      "desc": "ดึงศัตรูรอบตัว 320 เข้ามา มันตีเบาลง 20% 4 วิ · ต่อตัวที่ดึงได้ รับดาเมจลด 4% (สูงสุด 20%) 6 วิ และโทสะ +5 · ดึงศัตรูแล้วรับดาเมจลดลง"
-    }
-  ],
   "archmage": [
     {
       "id": "am_chain",
       "name": "สายฟ้าลูกโซ่",
       "thai": "สายพายุอสนี",
+      "icon": "sk_am_chain",
+      "iconUrl": "https://play.nightcamp.app/cas/34142f98f715.webp",
       "maxLevel": 10,
       "freeLevel": 0,
       "kind": "active",
@@ -1599,6 +1547,8 @@ const SKILLS_DATABASE = {
       "id": "am_lordthunder",
       "name": "เจ้าแห่งอสนี",
       "thai": "สายพายุอสนี",
+      "icon": "sk_am_lordthunder",
+      "iconUrl": "https://play.nightcamp.app/cas/764bfd9dfc38.webp",
       "maxLevel": 10,
       "freeLevel": 0,
       "kind": "active",
@@ -1615,9 +1565,11 @@ const SKILLS_DATABASE = {
       "id": "am_overcharge",
       "name": "ประจุล้น",
       "thai": "สายพายุอสนี",
+      "icon": "sk_am_overcharge",
+      "iconUrl": "https://play.nightcamp.app/cas/c795b9b7b20f.webp",
       "maxLevel": 1,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
       "req": "ใจสายฟ้า Lv.10",
       "prereq": [
         {
@@ -1631,9 +1583,11 @@ const SKILLS_DATABASE = {
       "id": "am_orbwater",
       "name": "ลูกแก้วน้ำ",
       "thai": "สายผสานธาตุ",
+      "icon": "sk_am_orbwater",
+      "iconUrl": "https://play.nightcamp.app/cas/79bfac828159.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "buff",
       "req": "ร่ายอัตโนมัติ Lv.1",
       "prereq": [
         {
@@ -1647,9 +1601,11 @@ const SKILLS_DATABASE = {
       "id": "am_orbwind",
       "name": "ลูกแก้วลม",
       "thai": "สายผสานธาตุ",
+      "icon": "sk_am_orbwind",
+      "iconUrl": "https://play.nightcamp.app/cas/fb00e08d9129.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "buff",
       "req": "ร่ายอัตโนมัติ Lv.1",
       "prereq": [
         {
@@ -1663,9 +1619,11 @@ const SKILLS_DATABASE = {
       "id": "am_orbfire",
       "name": "ลูกแก้วไฟ",
       "thai": "สายผสานธาตุ",
+      "icon": "sk_am_orbfire",
+      "iconUrl": "https://play.nightcamp.app/cas/9dd6b9b146a8.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "buff",
       "req": "ร่ายอัตโนมัติ Lv.1",
       "prereq": [
         {
@@ -1679,18 +1637,24 @@ const SKILLS_DATABASE = {
       "id": "am_chainreact",
       "name": "ปฏิกิริยาลูกโซ่",
       "thai": "สายผสานธาตุ",
+      "icon": "sk_am_chainreact",
+      "iconUrl": "https://play.nightcamp.app/cas/2335007f22a8.webp",
       "maxLevel": 5,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
+      "req": "ลูกแก้ว 2 ลูก Lv 5",
+      "reqText": "ลูกแก้ว 2 ลูก Lv 5",
       "desc": "ปฏิกิริยาธาตุแรงขึ้น 6% · เวทจากร่ายอัตโนมัติหรือเวทคู่ที่เกิดปฏิกิริยา โอกาส 10% ร่ายอัตโนมัติต่อทันทีด้วยลูกแก้วถัดไป (ต่อได้ 3 ครั้ง) · Lv3 ปฏิกิริยาแพร่ · Lv5 ปฏิกิริยาใหม่ 2 แบบ"
     },
     {
       "id": "am_doublecast",
       "name": "เวทคู่",
       "thai": "สายเวทรัวหลอมธาตุ",
+      "icon": "sk_am_doublecast",
+      "iconUrl": "https://play.nightcamp.app/cas/97cb6b42bf91.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
       "req": "ร่ายอัตโนมัติ Lv.5",
       "prereq": [
         {
@@ -1704,10 +1668,13 @@ const SKILLS_DATABASE = {
       "id": "am_arcaneflux",
       "name": "ประกายเวท",
       "thai": "สายเวทรัวหลอมธาตุ",
+      "icon": "sk_am_arcaneflux",
+      "iconUrl": "https://play.nightcamp.app/cas/1c13fcaa1250.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "buff",
       "req": "ชำนาญคทา Lv.5",
+      "weaponReq": "คทา หรือ ออร์บ",
       "prereq": [
         {
           "skill": "mg_staffmastery",
@@ -1720,15 +1687,21 @@ const SKILLS_DATABASE = {
       "id": "am_convergence",
       "name": "หลอมรวมธาตุ",
       "thai": "สายเวทรัวหลอมธาตุ",
+      "icon": "sk_am_convergence",
+      "iconUrl": "https://play.nightcamp.app/cas/e5f5aa093de8.webp",
       "maxLevel": 5,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
+      "req": "ใจธาตุ 2 ธาตุ Lv 5",
+      "reqText": "ใจธาตุ 2 ธาตุ Lv 5",
       "desc": "ร่ายธาตุต่างจากครั้งก่อน ดาเมจเวท +8% ซ้อนได้ 3 ชั้น (6 วิ) · Lv1 ร่ายธาตุต่างจากครั้งก่อน ดาเมจ +8% ซ้อน 3 ชั้น · Lv3 ปฏิกิริยาธาตุแรงขึ้น 50% · Lv5 ปฏิกิริยาธาตุทุกครั้งคืน SP 0.5% ของ SP สูงสุด"
     },
     {
       "id": "am_trinity",
       "name": "มหาเวทสามธาตุ",
       "thai": "สายมหาเวทสามธาตุ",
+      "icon": "sk_am_trinity",
+      "iconUrl": "https://play.nightcamp.app/cas/0b0d3111a76a.webp",
       "maxLevel": 5,
       "freeLevel": 0,
       "kind": "active",
@@ -1739,7 +1712,7 @@ const SKILLS_DATABASE = {
           "level": 3
         }
       ],
-      "desc": "ไฟ น้ำแข็ง สายฟ้าหมุนรอบตัว 6 วิ ทุกสกิลที่ร่ายนับเป็นสองธาตุ ปลดเวทผสมทุกครั้ง · ลูกแก้วธาตุยิงศัตรูใกล้สุดทุก 0.6 วิ 100% ของ MATK · ทุกสกิลที่ร่ายนับเป็นสองธาตุ"
+      "desc": "ไฟ น้ำแข็ง สายฟ้าหมุนรอบตัว 6 วิ ทุกสกิลที่ร่ายนับเป็นสองธาตุ ปลดเวทผสมทุกครั้ง · ลูกแก้วธาตุยิงศัตรูใกล้สุดทุก 0.6 วิ 100% ของ MATK"
     }
   ],
   "warlock": [
@@ -1747,15 +1720,19 @@ const SKILLS_DATABASE = {
       "id": "wl_soulfire",
       "name": "ไฟวิญญาณ",
       "thai": "สายไฟวิญญาณ",
+      "icon": "sk_wl_soulfire",
+      "iconUrl": "https://play.nightcamp.app/cas/c09a6ccf4c78.webp",
       "maxLevel": 10,
       "freeLevel": 1,
       "kind": "active",
-      "desc": "[มีฟรี Lv.1] · ลูกไฟวิญญาณระเบิดเป็นวง 100% ของ MATK และติดพิษ 3 วิ"
+      "desc": "ลูกไฟวิญญาณระเบิดเป็นวง 100% ของ MATK และติดพิษ 3 วิ"
     },
     {
       "id": "wl_soulburn",
       "name": "คำสาปเผาวิญญาณ",
       "thai": "สายไฟวิญญาณ",
+      "icon": "sk_wl_soulburn",
+      "iconUrl": "https://play.nightcamp.app/cas/604f9769d3f0.webp",
       "maxLevel": 10,
       "freeLevel": 0,
       "kind": "active",
@@ -1772,9 +1749,11 @@ const SKILLS_DATABASE = {
       "id": "wl_harvest",
       "name": "เก็บเกี่ยววิญญาณ",
       "thai": "สายไฟวิญญาณ",
+      "icon": "sk_wl_harvest",
+      "iconUrl": "https://play.nightcamp.app/cas/adaf7df048ed.webp",
       "maxLevel": 5,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
       "req": "ไฟวิญญาณ Lv.5",
       "prereq": [
         {
@@ -1788,9 +1767,12 @@ const SKILLS_DATABASE = {
       "id": "wl_parade",
       "name": "ขบวนแห่วิญญาณ",
       "thai": "สายไฟวิญญาณ",
+      "icon": "sk_wl_parade",
+      "iconUrl": "https://play.nightcamp.app/cas/09fc08a56200.webp",
       "maxLevel": 5,
       "freeLevel": 0,
       "kind": "active",
+      "ult": true,
       "req": "ไฟวิญญาณ Lv.5, เก็บเกี่ยววิญญาณ Lv.3",
       "prereq": [
         {
@@ -1808,10 +1790,13 @@ const SKILLS_DATABASE = {
       "id": "wl_swing",
       "name": "ตะเกียงแกว่ง",
       "thai": "สายตะเกียงแกว่ง",
+      "icon": "sk_wl_swing",
+      "iconUrl": "https://play.nightcamp.app/cas/b30b591922ed.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
       "req": "ชำนาญคทา Lv.3",
+      "weaponReq": "ตะเกียง",
       "prereq": [
         {
           "skill": "mg_staffmastery",
@@ -1824,10 +1809,13 @@ const SKILLS_DATABASE = {
       "id": "wl_drain",
       "name": "ดูดวิญญาณ",
       "thai": "สายตะเกียงแกว่ง",
+      "icon": "sk_wl_drain",
+      "iconUrl": "https://play.nightcamp.app/cas/97a04d070924.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
       "req": "ตะเกียงแกว่ง Lv.1",
+      "weaponReq": "ตะเกียง",
       "prereq": [
         {
           "skill": "wl_swing",
@@ -1840,10 +1828,13 @@ const SKILLS_DATABASE = {
       "id": "wl_blaze",
       "name": "ตะเกียงเดือด",
       "thai": "สายตะเกียงแกว่ง",
+      "icon": "sk_wl_blaze",
+      "iconUrl": "https://play.nightcamp.app/cas/a0e588b96310.webp",
       "maxLevel": 5,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "buff",
       "req": "ตะเกียงแกว่ง Lv.3",
+      "weaponReq": "ตะเกียง",
       "prereq": [
         {
           "skill": "wl_swing",
@@ -1856,19 +1847,25 @@ const SKILLS_DATABASE = {
       "id": "wl_chains",
       "name": "โซ่คำสาป",
       "thai": "สายคำสาป",
+      "icon": "sk_wl_chains",
+      "iconUrl": "https://play.nightcamp.app/cas/915fd8d5e587.webp",
       "maxLevel": 5,
       "freeLevel": 0,
       "kind": "active",
+      "weaponBonus": "คทา / ออร์บ (แรงขึ้น 15%)",
       "desc": "โซ่รูนผุดที่เมาส์ 100% ของ MATK ตรึงศัตรู 1.6 วิ และรับดาเมจเพิ่ม 15% นาน 6 วิ"
     },
     {
       "id": "wl_hex",
       "name": "ตราคำสาปมรณะ",
       "thai": "สายคำสาป",
+      "icon": "sk_wl_hex",
+      "iconUrl": "https://play.nightcamp.app/cas/4df95f7f1ca3.webp",
       "maxLevel": 10,
       "freeLevel": 0,
       "kind": "active",
       "req": "โซ่คำสาป Lv.3",
+      "weaponBonus": "คทา / ออร์บ (แรงขึ้น 15%)",
       "prereq": [
         {
           "skill": "wl_chains",
@@ -1881,9 +1878,11 @@ const SKILLS_DATABASE = {
       "id": "wl_pact",
       "name": "สัญญาแห่งความมืด",
       "thai": "สายคำสาป",
+      "icon": "sk_wl_pact",
+      "iconUrl": "https://play.nightcamp.app/cas/f79306c1d997.webp",
       "maxLevel": 5,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "buff",
       "req": "โซ่คำสาป Lv.1",
       "prereq": [
         {
@@ -1897,19 +1896,25 @@ const SKILLS_DATABASE = {
       "id": "wl_wisps",
       "name": "เรียกวิญญาณ",
       "thai": "สายภูตตะเกียง",
+      "icon": "sk_wl_wisps",
+      "iconUrl": "https://play.nightcamp.app/cas/7b8bf1083437.webp",
       "maxLevel": 10,
       "freeLevel": 0,
       "kind": "active",
+      "weaponBonus": "ตะเกียง (ซัมมอนแรงขึ้น 20%)",
       "desc": "วิญญาณน้อย 3 ดวงวนรอบตัว 13 วิ ยิงศัตรูใกล้ ๆ ทุกวินาที ดวงละ 100% ของ MATK · อยู่นานขึ้นและแรงขึ้นทุกเลเวล · 3 ดวง (ปรมาจารย์ตะเกียง Lv3: 4 ดวง)"
     },
     {
       "id": "wl_lantern",
       "name": "ภูตตะเกียง",
       "thai": "สายภูตตะเกียง",
+      "icon": "sk_wl_lantern",
+      "iconUrl": "https://play.nightcamp.app/cas/2eb5048c2d24.webp",
       "maxLevel": 10,
       "freeLevel": 0,
       "kind": "active",
       "req": "เรียกวิญญาณ Lv.3",
+      "weaponBonus": "ตะเกียง (ซัมมอนแรงขึ้น 20%)",
       "prereq": [
         {
           "skill": "wl_wisps",
@@ -1922,9 +1927,11 @@ const SKILLS_DATABASE = {
       "id": "wl_lanternmastery",
       "name": "ปรมาจารย์ตะเกียง",
       "thai": "สายภูตตะเกียง",
+      "icon": "sk_wl_lanternmastery",
+      "iconUrl": "https://play.nightcamp.app/cas/48c1fafa9e9f.webp",
       "maxLevel": 5,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
       "req": "ภูตตะเกียง Lv.3",
       "prereq": [
         {
@@ -1935,310 +1942,18 @@ const SKILLS_DATABASE = {
       "desc": "ภูตตะเกียงแรงขึ้น 15% · Lv1 ซัมมอน +15% · Lv3 วิญญาณ +1 ดวง · Lv5 ภูตตะเกียงอยู่ถาวร"
     }
   ],
-  "firemage": [
-    {
-      "id": "fm_pillar",
-      "name": "เสาเพลิง",
-      "thai": "สายนรกเพลิง",
-      "maxLevel": 10,
-      "freeLevel": 1,
-      "kind": "active",
-      "desc": "[มีฟรี Lv.1] · เสาไฟปะทุใต้ศัตรู 3 ครั้ง (ถือคทา 4 ครั้ง) ครั้งละ 100% ของ MATK ความร้อน +8 · Lv5 ตัวที่เผาอยู่โดนเพิ่ม 20% · Lv10 ทิ้งพื้นไฟ 3 วิ"
-    },
-    {
-      "id": "fm_sea",
-      "name": "ทะเลเพลิง",
-      "thai": "สายนรกเพลิง",
-      "maxLevel": 10,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "เสาเพลิง Lv.3",
-      "prereq": [
-        {
-          "skill": "fm_pillar",
-          "level": 3
-        }
-      ],
-      "desc": "ทะเลเพลิงรัศมี 320 นาน 6 วิ ทุกครึ่งวิ 100% ของ MATK มีโอกาสติดเผา ความร้อน +20 · Lv5 ศัตรูในทะเลเพลิงช้าลง · Lv10 ไฟลามตามตัวที่หนี"
-    },
-    {
-      "id": "fm_ring",
-      "name": "วงแหวนเพลิง",
-      "thai": "สายนรกเพลิง",
-      "maxLevel": 10,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "กำแพงไฟ Lv.3",
-      "prereq": [
-        {
-          "skill": "mg_firewall",
-          "level": 3
-        }
-      ],
-      "desc": "วงแหวนไฟรอบตัว 4 วิ ศัตรูที่ผ่านโดน 100% ของ MATK และถูกผลักออก ความร้อน +12 · Lv5 วงแหวนขยายออกเรื่อย ๆ · Lv10 วงแหวน 2 ชั้น"
-    },
-    {
-      "id": "fm_master",
-      "name": "ปรมาจารย์เพลิง",
-      "thai": "สายนรกเพลิง",
-      "maxLevel": 5,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "ใจเพลิง Lv.5",
-      "prereq": [
-        {
-          "skill": "mg_fireheart",
-          "level": 5
-        }
-      ],
-      "desc": "เผาซ้อนได้ 8 ชั้น · Lv1 เผาซ้อน 8 ชั้น · Lv5 เผาครบ 8 ชั้นระเบิดเอง"
-    },
-    {
-      "id": "fm_gauge",
-      "name": "แถบความร้อน",
-      "thai": "สายความร้อน",
-      "maxLevel": 10,
-      "freeLevel": 1,
-      "kind": "active",
-      "desc": "[มีฟรี Lv.1] · ร่ายสกิลไฟได้ความร้อน 0–100 ทุก 10 ความร้อน ดาเมจไฟ +0.6% · เกิน 80 ฟื้น HP 1% ต่อวิ · ไม่ร่ายไฟ 3 วิ ความร้อนลดวิละ 10 · Lv5 ความร้อนลดช้าลงครึ่งหนึ่ง · Lv10 ที่ 100 ความร้อน ร่ายไฟไม่ใช้ SP"
-    },
-    {
-      "id": "fm_vent",
-      "name": "ระบายความร้อน",
-      "thai": "สายความร้อน",
-      "maxLevel": 10,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "แถบความร้อน Lv.2",
-      "prereq": [
-        {
-          "skill": "fm_gauge",
-          "level": 2
-        }
-      ],
-      "desc": "ปล่อยความร้อนทั้งหมดเป็นระเบิดรอบตัว MATK 4.7% × ความร้อน (ตอนนี้ 0) ผลักศัตรูออก · Lv5 ที่ 100 ความร้อนทิ้งวงไฟ 4 วิ · Lv10 ระบายแล้วร่ายเร็วขึ้น 30% 5 วิ"
-    },
-    {
-      "id": "fm_forge",
-      "name": "หัวใจเตาหลอม",
-      "thai": "สายความร้อน",
-      "maxLevel": 10,
-      "freeLevel": 0,
-      "kind": "active",
-      "desc": "HP สูงสุด +1.5% · ร่ายเร็วขึ้น 0.25% ต่อ VIT 1"
-    },
-    {
-      "id": "fm_orbfire",
-      "name": "ลูกไฟตีปกติ",
-      "thai": "สายลูกไฟรัว",
-      "maxLevel": 10,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "ชำนาญคทา Lv.1",
-      "prereq": [
-        {
-          "skill": "mg_staffmastery",
-          "level": 1
-        }
-      ],
-      "desc": "ถือออร์บ: ตีปกติเป็นลูกไฟ MATK +3% โอกาสติดเผาเพิ่ม 5% ต่อครั้ง ความร้อน +2 ต่อครั้ง · ถือออร์บเท่านั้น"
-    },
-    {
-      "id": "fm_spread",
-      "name": "ไฟลาม",
-      "thai": "สายลูกไฟรัว",
-      "maxLevel": 10,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "ลูกไฟตีปกติ Lv.3",
-      "prereq": [
-        {
-          "skill": "fm_orbfire",
-          "level": 3
-        }
-      ],
-      "desc": "ถือออร์บ: ตัวที่ติดเผาตาย ไฟกระโดดไปตัวใกล้ 1 ตัว พร้อมชั้นเผาครึ่งหนึ่ง · Lv5 กระโดด 2 ตัว · Lv10 3 ตัว"
-    },
-    {
-      "id": "fm_seek",
-      "name": "เพลิงตามติด",
-      "thai": "สายลูกไฟรัว",
-      "maxLevel": 5,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "ลูกไฟตีปกติ Lv.5",
-      "prereq": [
-        {
-          "skill": "fm_orbfire",
-          "level": 5
-        }
-      ],
-      "desc": "20 วิ: ลูกไฟตีปกติโดนแล้วแตกเป็นลูกเล็ก 3 ลูกวิ่งหาเป้าเอง ลูกละ 15% ของ MATK · Lv5 ลูกเล็กแรงขึ้น"
-    },
-    {
-      "id": "fm_meteor",
-      "name": "อุกกาบาตถล่ม",
-      "thai": "สายอุกกาบาตถล่ม",
-      "maxLevel": 5,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "ทะเลเพลิง Lv.5 หรือ ระบายความร้อน Lv.5",
-      "desc": "อุกกาบาต 16 ลูกร่วงใส่วงใหญ่ 3 วิ 4 ลูกพุ่งใส่ศัตรูในวง ลูกละ 100% ของ MATK วงระเบิดใหญ่ · ร่ายตอนความร้อน 100 ได้ลูกยักษ์เพิ่ม 1 ลูก (×3.2) · ร่ายตอนความร้อน 100 ได้ลูกยักษ์"
-    }
-  ],
-  "icemage": [
-    {
-      "id": "im_blizzard",
-      "name": "พายุหิมะ",
-      "thai": "สายธารน้ำแข็ง",
-      "maxLevel": 10,
-      "freeLevel": 1,
-      "kind": "active",
-      "desc": "[มีฟรี Lv.1] · พายุหิมะ 5 วิที่เมาส์ วิละ 100% ของ MATK มีโอกาสเย็นเฉียบทุกวิ ศัตรูช้า · ถือคทา: วงใหญ่ขึ้น 30% · Lv10 พายุตามเป้าหมาย"
-    },
-    {
-      "id": "im_lance",
-      "name": "หอกธารน้ำแข็ง",
-      "thai": "สายธารน้ำแข็ง",
-      "maxLevel": 10,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "หอกน้ำแข็ง Lv.5",
-      "prereq": [
-        {
-          "skill": "frostdiver",
-          "level": 5
-        }
-      ],
-      "desc": "หอกน้ำแข็งยักษ์พุ่งทะลุทั้งแนว 100% ของ MATK ตัวที่แข็งอยู่โดนสองเท่า · ตัวที่แข็งโดนสองเท่า"
-    },
-    {
-      "id": "im_aura",
-      "name": "ลมหนาวรอบตัว",
-      "thai": "สายธารน้ำแข็ง",
-      "maxLevel": 5,
-      "freeLevel": 0,
-      "kind": "active",
-      "desc": "ศัตรูที่อยู่ใกล้เราในระยะ 200 ช้าลง · เย็นเฉียบ 1 ชั้นทุก 5 วิ"
-    },
-    {
-      "id": "im_zero",
-      "name": "ศูนย์สัมบูรณ์",
-      "thai": "สายธารน้ำแข็ง",
-      "maxLevel": 5,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "ใจน้ำแข็ง Lv.3",
-      "prereq": [
-        {
-          "skill": "mg_iceheart",
-          "level": 3
-        }
-      ],
-      "desc": "เย็นเฉียบครบ 3 ชั้นแล้วแข็ง (ตัวที่เพิ่งละลายต้านทาน 4 วิ) · Lv1 เย็นเฉียบครบ 3 ชั้นแล้วแข็ง · Lv3 แข็งนานขึ้น 1 วิ · Lv5 บอสแข็งได้"
-    },
-    {
-      "id": "im_shatter",
-      "name": "ทุบน้ำแข็ง",
-      "thai": "สายแตกกระจาย",
-      "maxLevel": 10,
-      "freeLevel": 1,
-      "kind": "active",
-      "desc": "[มีฟรี Lv.1] · สกิลโดนตัวที่แข็งอยู่ มันแตกกระจาย ดาเมจเพิ่ม 68% ของ MATK เศษน้ำแข็ง 4 ชิ้นกระเด็นไปแช่ตัวข้าง ๆ · Lv5 เศษ 6 ชิ้น · Lv10 แตกต่อเป็นลูกโซ่"
-    },
-    {
-      "id": "im_breath",
-      "name": "ลมหายใจเยือกแข็ง",
-      "thai": "สายแตกกระจาย",
-      "maxLevel": 10,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "ทุบน้ำแข็ง Lv.2",
-      "prereq": [
-        {
-          "skill": "im_shatter",
-          "level": 2
-        }
-      ],
-      "desc": "พ่นลมหนาวเป็นกรวย 2 วิ วิละ 68% ของ MATK เย็นเฉียบ 2 ชั้นต่อวิ"
-    },
-    {
-      "id": "im_burst",
-      "name": "ผลึกระเบิด",
-      "thai": "สายแตกกระจาย",
-      "maxLevel": 10,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "ทุบน้ำแข็ง Lv.5",
-      "prereq": [
-        {
-          "skill": "im_shatter",
-          "level": 5
-        }
-      ],
-      "desc": "ทุบทุกตัวที่แข็งอยู่ในจอให้แตกพร้อมกัน ตัวละ 100% ของ MATK · Lv10 ฆ่าได้คืน SP 0.5 ต่อตัว"
-    },
-    {
-      "id": "im_armor",
-      "name": "เกราะน้ำแข็ง",
-      "thai": "สายปราการน้ำแข็ง",
-      "maxLevel": 10,
-      "freeLevel": 0,
-      "kind": "active",
-      "desc": "60 วิ: เกราะดูดซับดาเมจ 175% ของ MATK คนที่ตีเราประชิดติดเย็นเฉียบ · ถือโล่: เกราะหนาขึ้น 40% · Lv5 เกราะแตกแล้วระเบิดแช่รอบตัว · Lv10 เกราะฟื้นเองทุก 20 วิ"
-    },
-    {
-      "id": "im_wall",
-      "name": "กำแพงน้ำแข็ง",
-      "thai": "สายปราการน้ำแข็ง",
-      "maxLevel": 10,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "เกราะน้ำแข็ง Lv.3",
-      "prereq": [
-        {
-          "skill": "im_armor",
-          "level": 3
-        }
-      ],
-      "desc": "กำแพงน้ำแข็งยาว 300 นาน 6.5 วิ ขวางศัตรูไม่ให้ผ่าน · Lv10 กำแพงแตกแล้วเศษแช่ศัตรูรอบ ๆ"
-    },
-    {
-      "id": "im_winter",
-      "name": "ใจเหมันต์",
-      "thai": "สายปราการน้ำแข็ง",
-      "maxLevel": 10,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "ชำนาญคทา Lv.1",
-      "prereq": [
-        {
-          "skill": "mg_staffmastery",
-          "level": 1
-        }
-      ],
-      "desc": "ถือออร์บ: DEF +2 MDEF +1 ตีปกติเป็นเกล็ดน้ำแข็ง MATK +6% โอกาสเย็นเฉียบเพิ่ม 5% · ถือออร์บเท่านั้น"
-    },
-    {
-      "id": "im_iceage",
-      "name": "ยุคน้ำแข็ง",
-      "thai": "สายยุคน้ำแข็ง",
-      "maxLevel": 5,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "ผลึกระเบิด Lv.5 หรือ เกราะน้ำแข็ง Lv.5",
-      "desc": "ทั้งจอหนาวจัด 8 วิ ศัตรูทุกตัวเย็นเฉียบทุกวิ (100% ของ MATK) ตัวที่แข็งแตกกระจายเองทุก 2 วิ · พื้นที่เหลือ 50% ของเดิม · ทั้งจอหนาวจัด 8 วิ"
-    }
-  ],
   "ranger": [
     {
       "id": "rg_fearbreeze",
       "name": "พายุศรเร็ว",
       "thai": "สายพายุศรเร็ว",
+      "icon": "sk_rg_fearbreeze",
+      "iconUrl": "https://play.nightcamp.app/cas/0f5310ee9403.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
       "req": "ยิงเบิ้ล Lv.5",
+      "weaponReq": "ธนู",
       "prereq": [
         {
           "skill": "ar_doubleshot",
@@ -2251,9 +1966,11 @@ const SKILLS_DATABASE = {
       "id": "rg_truesight",
       "name": "ตาทิพย์",
       "thai": "สายพายุศรเร็ว",
+      "icon": "sk_rg_truesight",
+      "iconUrl": "https://play.nightcamp.app/cas/b2351ae5b7f6.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "buff",
       "req": "ตาเหยี่ยว Lv.5",
       "prereq": [
         {
@@ -2267,10 +1984,14 @@ const SKILLS_DATABASE = {
       "id": "rg_unlimit",
       "name": "ปลดขีดจำกัด",
       "thai": "สายพายุศรเร็ว",
+      "icon": "sk_rg_unlimit",
+      "iconUrl": "https://play.nightcamp.app/cas/1e29a4ef98e2.webp",
       "maxLevel": 5,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "buff",
+      "ult": true,
       "req": "พายุศรเร็ว Lv.3, ตาทิพย์ Lv.3",
+      "weaponReq": "ธนู หรือ หน้าไม้",
       "prereq": [
         {
           "skill": "rg_fearbreeze",
@@ -2287,6 +2008,8 @@ const SKILLS_DATABASE = {
       "id": "rg_trap",
       "name": "กับดักระเบิด",
       "thai": "สายกับดัก",
+      "icon": "sk_rg_trap",
+      "iconUrl": "https://play.nightcamp.app/cas/e3e3af645335.webp",
       "maxLevel": 10,
       "freeLevel": 0,
       "kind": "active",
@@ -2303,6 +2026,8 @@ const SKILLS_DATABASE = {
       "id": "rg_freezetrap",
       "name": "กับดักน้ำแข็ง",
       "thai": "สายกับดัก",
+      "icon": "sk_rg_freezetrap",
+      "iconUrl": "https://play.nightcamp.app/cas/6ac2ee0c235e.webp",
       "maxLevel": 10,
       "freeLevel": 0,
       "kind": "active",
@@ -2319,9 +2044,11 @@ const SKILLS_DATABASE = {
       "id": "rg_trapmastery",
       "name": "ช่างกับดัก",
       "thai": "สายกับดัก",
+      "icon": "sk_rg_trapmastery",
+      "iconUrl": "https://play.nightcamp.app/cas/b405788b5336.webp",
       "maxLevel": 5,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
       "req": "กับดักระเบิด Lv.5",
       "prereq": [
         {
@@ -2335,6 +2062,8 @@ const SKILLS_DATABASE = {
       "id": "rg_detonate",
       "name": "จุดระเบิดกับดัก",
       "thai": "สายกับดัก",
+      "icon": "sk_rg_detonate",
+      "iconUrl": "https://play.nightcamp.app/cas/ed905fce8e0f.webp",
       "maxLevel": 5,
       "freeLevel": 0,
       "kind": "active",
@@ -2351,10 +2080,14 @@ const SKILLS_DATABASE = {
       "id": "rg_snipe",
       "name": "ยิงสไนป์",
       "thai": "สายสไนเปอร์",
+      "icon": "sk_rg_snipe",
+      "iconUrl": "https://play.nightcamp.app/cas/5a4134dc7099.webp",
       "maxLevel": 10,
       "freeLevel": 0,
       "kind": "active",
       "req": "ธนูกระแทก Lv.3",
+      "weaponReq": "ธนู หรือ หน้าไม้",
+      "weaponBonus": "หน้าไม้ (ทะลุ ดาเมจแรงขึ้น 30%)",
       "prereq": [
         {
           "skill": "ar_charge",
@@ -2367,9 +2100,11 @@ const SKILLS_DATABASE = {
       "id": "rg_eagle",
       "name": "ตาอินทรี",
       "thai": "สายสไนเปอร์",
+      "icon": "sk_rg_eagle",
+      "iconUrl": "https://play.nightcamp.app/cas/11f1745df51e.webp",
       "maxLevel": 5,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
       "req": "ตาเหยี่ยว Lv.10",
       "prereq": [
         {
@@ -2383,10 +2118,13 @@ const SKILLS_DATABASE = {
       "id": "rg_focus",
       "name": "เล็งจุดตาย",
       "thai": "สายสไนเปอร์",
+      "icon": "sk_rg_focus",
+      "iconUrl": "https://play.nightcamp.app/cas/da52787b8d85.webp",
       "maxLevel": 5,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "buff",
       "req": "ตาอินทรี Lv.1",
+      "weaponReq": "ธนู หรือ หน้าไม้",
       "prereq": [
         {
           "skill": "rg_eagle",
@@ -2399,19 +2137,25 @@ const SKILLS_DATABASE = {
       "id": "rg_triple",
       "name": "ยิงสามดอก",
       "thai": "สายพายุพฤกษา",
+      "icon": "sk_rg_triple",
+      "iconUrl": "https://play.nightcamp.app/cas/51cf2599a84e.webp",
       "maxLevel": 10,
       "freeLevel": 1,
       "kind": "active",
-      "desc": "[มีฟรี Lv.1] · ยิงธนูพันลม 3 ดอกเป็นพัดแคบ ทะลุทุกตัวในแนว ดอกละ 100% ของ ATK · ทุกดอกทะลุทั้งแนว"
+      "weaponReq": "ธนู",
+      "desc": "ยิงธนูพันลม 3 ดอกเป็นพัดแคบ ทะลุทุกตัวในแนว ดอกละ 100% ของ ATK · ทุกดอกทะลุทั้งแนว"
     },
     {
       "id": "rg_piercer",
       "name": "ธนูใบไม้ทะลวง",
       "thai": "สายพายุพฤกษา",
+      "icon": "sk_rg_piercer",
+      "iconUrl": "https://play.nightcamp.app/cas/fbf9804a7f54.webp",
       "maxLevel": 10,
       "freeLevel": 0,
       "kind": "active",
       "req": "ธนูพายุทะลวง Lv.5",
+      "weaponReq": "ธนู",
       "prereq": [
         {
           "skill": "gale",
@@ -2424,10 +2168,14 @@ const SKILLS_DATABASE = {
       "id": "rg_storm",
       "name": "พายุศร",
       "thai": "สายพายุพฤกษา",
+      "icon": "sk_rg_storm",
+      "iconUrl": "https://play.nightcamp.app/cas/1a9ced6c9144.webp",
       "maxLevel": 5,
       "freeLevel": 0,
       "kind": "active",
+      "ult": true,
       "req": "ธนูใบไม้ทะลวง Lv.5",
+      "weaponReq": "ธนู",
       "prereq": [
         {
           "skill": "rg_piercer",
@@ -2442,15 +2190,19 @@ const SKILLS_DATABASE = {
       "id": "wh_wolf",
       "name": "เรียกหมาป่า",
       "thai": "สายหมาป่าคู่ใจ",
+      "icon": "sk_wh_wolf",
+      "iconUrl": "https://play.nightcamp.app/cas/5c6f18faed2b.webp",
       "maxLevel": 10,
       "freeLevel": 1,
       "kind": "active",
-      "desc": "[มีฟรี Lv.1] · เรียกหมาป่าคู่ใจ อยู่จนกว่าจะหมดแรง กัดครั้งละ 100% ของ ATK · ตัวใหญ่ 85% เลือด 40% ของเรา · (Lv 5 กัดติดเลือดออก) · (Lv 8 กัดโดนรอบตัว) · โตทุกเลเวล · Lv5 กัดเลือดออก · Lv8 กัดโดนรอบตัว · Lv10 ขนสีทอง"
+      "desc": "เรียกหมาป่าคู่ใจ อยู่จนกว่าจะหมดแรง กัดครั้งละ 100% ของ ATK · ตัวใหญ่ 85% เลือด 40% ของเรา · (Lv 5 กัดติดเลือดออก) · (Lv 8 กัดโดนรอบตัว) · โตทุกเลเวล · Lv5 กัดเลือดออก · Lv8 กัดโดนรอบตัว · Lv10 ขนสีทอง"
     },
     {
       "id": "wh_command",
       "name": "สั่งขย้ำ",
       "thai": "สายหมาป่าคู่ใจ",
+      "icon": "sk_wh_command",
+      "iconUrl": "https://play.nightcamp.app/cas/2e7a423cf21f.webp",
       "maxLevel": 10,
       "freeLevel": 0,
       "kind": "active",
@@ -2467,9 +2219,11 @@ const SKILLS_DATABASE = {
       "id": "wh_alpha",
       "name": "จ่าฝูง",
       "thai": "สายหมาป่าคู่ใจ",
+      "icon": "sk_wh_alpha",
+      "iconUrl": "https://play.nightcamp.app/cas/18cea8735923.webp",
       "maxLevel": 5,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
       "req": "เรียกหมาป่า Lv.5",
       "prereq": [
         {
@@ -2483,9 +2237,12 @@ const SKILLS_DATABASE = {
       "id": "wh_pack",
       "name": "ฝูงหมาป่าวิญญาณ",
       "thai": "สายหมาป่าคู่ใจ",
+      "icon": "sk_wh_pack",
+      "iconUrl": "https://play.nightcamp.app/cas/9d6c22e8c4a2.webp",
       "maxLevel": 5,
       "freeLevel": 0,
       "kind": "active",
+      "ult": true,
       "req": "เรียกหมาป่า Lv.5, หอนเรียกพลัง Lv.3",
       "prereq": [
         {
@@ -2503,19 +2260,24 @@ const SKILLS_DATABASE = {
       "id": "wh_blitz",
       "name": "เหยี่ยวโฉบล่า",
       "thai": "สายเหยี่ยว",
+      "icon": "sk_wh_blitz",
+      "iconUrl": "https://play.nightcamp.app/cas/fc30c7dd1f6c.webp",
       "maxLevel": 10,
       "freeLevel": 1,
       "kind": "active",
-      "desc": "[มีฟรี Lv.1] · สั่งเหยี่ยวโฉบ 1 ครั้ง ครั้งละ 18 (ตาม DEX และ INT) ไม่สน DEF ไม่พลาด · Lv5 โฉบเป็นวงโดนรอบเป้า · Lv10 เหยี่ยวสายฟ้า ติดช็อต"
+      "desc": "สั่งเหยี่ยวโฉบ 1 ครั้ง ครั้งละ 18 (ตาม DEX และ INT) ไม่สน DEF ไม่พลาด · Lv5 โฉบเป็นวงโดนรอบเป้า · Lv10 เหยี่ยวสายฟ้า ติดช็อต"
     },
     {
       "id": "wh_autoblitz",
       "name": "เหยี่ยวโฉบอัตโนมัติ",
       "thai": "สายเหยี่ยว",
+      "icon": "sk_wh_autoblitz",
+      "iconUrl": "https://play.nightcamp.app/cas/8780416b0366.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
       "req": "เหยี่ยวโฉบล่า Lv.3",
+      "weaponReq": "ธนู",
       "prereq": [
         {
           "skill": "wh_blitz",
@@ -2528,9 +2290,11 @@ const SKILLS_DATABASE = {
       "id": "wh_steelcrow",
       "name": "กรงเล็บเหล็ก",
       "thai": "สายเหยี่ยว",
+      "icon": "sk_wh_steelcrow",
+      "iconUrl": "https://play.nightcamp.app/cas/b58a80fbdc85.webp",
       "maxLevel": 5,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
       "req": "เหยี่ยวโฉบอัตโนมัติ Lv.5",
       "prereq": [
         {
@@ -2543,19 +2307,23 @@ const SKILLS_DATABASE = {
     {
       "id": "wh_bond",
       "name": "สายใยสัตว์ป่า",
-      "thai": "สายสายเลือดจันทร์",
+      "thai": "สายเลือดจันทร์",
+      "icon": "sk_wh_bond",
+      "iconUrl": "https://play.nightcamp.app/cas/366148577b1d.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
       "desc": "สัตว์ที่เรียกมาแรงขึ้น 8% · ATK +1%"
     },
     {
       "id": "wh_howl",
       "name": "หอนเรียกพลัง",
-      "thai": "สายสายเลือดจันทร์",
+      "thai": "สายเลือดจันทร์",
+      "icon": "sk_wh_howl",
+      "iconUrl": "https://play.nightcamp.app/cas/d232cd10cbd8.webp",
       "maxLevel": 5,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "buff",
       "req": "เรียกหมาป่า Lv.3",
       "prereq": [
         {
@@ -2568,10 +2336,12 @@ const SKILLS_DATABASE = {
     {
       "id": "wh_frenzy",
       "name": "คลั่งป่า",
-      "thai": "สายสายเลือดจันทร์",
+      "thai": "สายเลือดจันทร์",
+      "icon": "sk_wh_frenzy",
+      "iconUrl": "https://play.nightcamp.app/cas/516473b7ef97.webp",
       "maxLevel": 5,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "buff",
       "req": "สายใยสัตว์ป่า Lv.5",
       "prereq": [
         {
@@ -2584,11 +2354,14 @@ const SKILLS_DATABASE = {
     {
       "id": "wh_wolfrush",
       "name": "หมาป่าจู่โจม",
-      "thai": "สายสายเลือดจันทร์",
+      "thai": "สายเลือดจันทร์",
+      "icon": "sk_wh_wolfrush",
+      "iconUrl": "https://play.nightcamp.app/cas/eec8c3451197.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
       "req": "เรียกหมาป่า Lv.3",
+      "weaponReq": "ธนู",
       "prereq": [
         {
           "skill": "wh_wolf",
@@ -2601,15 +2374,20 @@ const SKILLS_DATABASE = {
       "id": "wh_fang",
       "name": "ธนูเขี้ยวหมาป่า",
       "thai": "สายนักล่า",
+      "icon": "sk_wh_fang",
+      "iconUrl": "https://play.nightcamp.app/cas/fd0c084a3ccf.webp",
       "maxLevel": 10,
       "freeLevel": 0,
       "kind": "active",
+      "weaponReq": "ธนู",
       "desc": "ลูกธนูเขี้ยวหมาป่า 100% ของ ATK · ถ้าหมาป่าออกมาอยู่ มันจะวิ่งไปกัดเป้าเดียวกัน"
     },
     {
       "id": "wh_mark",
       "name": "ล่าเป้าหมาย",
       "thai": "สายนักล่า",
+      "icon": "sk_wh_mark",
+      "iconUrl": "https://play.nightcamp.app/cas/58ef6aed3e50.webp",
       "maxLevel": 5,
       "freeLevel": 0,
       "kind": "active",
@@ -2626,337 +2404,13 @@ const SKILLS_DATABASE = {
       "id": "wh_huntmastery",
       "name": "ชำนาญธนูพราน",
       "thai": "สายนักล่า",
+      "icon": "sk_wh_huntmastery",
+      "iconUrl": "https://play.nightcamp.app/cas/0a92aa76bc01.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
+      "weaponReq": "ธนู",
       "desc": "ถือธนู: ATK +2% DEX +0"
-    }
-  ],
-  "bard": [
-    {
-      "id": "bd_tempo",
-      "name": "เพลงเร่งจังหวะ",
-      "thai": "สายเพลงรอบกองไฟ",
-      "maxLevel": 10,
-      "freeLevel": 1,
-      "kind": "active",
-      "desc": "[มีฟรี Lv.1] · เล่นต่อเนื่อง (SP 2/วิ) รัศมี 450: ตัวเองความเร็วโจมตี +1% เพื่อนตีแรงขึ้น 1% คูณท่อน (ท่อนขึ้นทุก 5 วิ ×1 / ×1.5 / ×2) · กดอีกครั้ง = ท่อนฮุก: ตัวเองตีปกติ 3 ครั้งถัดไปคริแน่นอน เพื่อนตีแรงขึ้น 30% 4 วิ · ท่อนขึ้นทุก 5 วิ แรง ×1 / ×1.5 / ×2 · กดซ้ำตอนท่อน 2 ขึ้นไป = ท่อนฮุก"
-    },
-    {
-      "id": "bd_warm",
-      "name": "เพลงอุ่นไอไฟ",
-      "thai": "สายเพลงรอบกองไฟ",
-      "maxLevel": 10,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "เพลงเร่งจังหวะ Lv.3",
-      "prereq": [
-        {
-          "skill": "bd_tempo",
-          "level": 3
-        }
-      ],
-      "desc": "เล่นต่อเนื่อง: ทั้งทีมฟื้น HP 0.6% ทุก 5 วิ คูณท่อน · ท่อนฮุก: ฮีลทั้งทีม 17% คูณท่อน · ท่อนฮุกฮีลทั้งทีม"
-    },
-    {
-      "id": "bd_stars",
-      "name": "เพลงดาวค้างฟ้า",
-      "thai": "สายเพลงรอบกองไฟ",
-      "maxLevel": 10,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "เพลงเร่งจังหวะ Lv.3",
-      "prereq": [
-        {
-          "skill": "bd_tempo",
-          "level": 3
-        }
-      ],
-      "desc": "เล่นต่อเนื่อง: ตัวเองเวลาร่าย −2% คูลดาวน์ −1% คูณท่อน · ท่อนฮุก: สกิลที่เหลือคูลดาวน์นานที่สุดลดลง 30% · ท่อนฮุกลดคูลดาวน์สกิลที่นานที่สุด 30%"
-    },
-    {
-      "id": "bd_band",
-      "name": "วงดนตรี",
-      "thai": "สายเพลงรอบกองไฟ",
-      "maxLevel": 5,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "เพลงอุ่นไอไฟ Lv.3",
-      "prereq": [
-        {
-          "skill": "bd_warm",
-          "level": 3
-        }
-      ],
-      "desc": "หยุดเล่นแล้วเพลงค้างอีก 3 วิ · Lv1 เพลงค้าง 3 วิ · Lv3 เดินได้ปกติ · Lv5 เล่น 2 เพลงพร้อมกัน · INT เพิ่มผลเพลง"
-    },
-    {
-      "id": "bd_twirl",
-      "name": "ระบำควงไฟ",
-      "thai": "สายระบำไฟ",
-      "maxLevel": 10,
-      "freeLevel": 1,
-      "kind": "active",
-      "desc": "[มีฟรี Lv.1] · ควงแส้ปลายไฟรอบตัว 2 วิ ทุก 0.25 วิ 100% ของ ATK มีโอกาสติดเผา 35% · พื้นที่ 200% ของเดิม · ติดเผา"
-    },
-    {
-      "id": "bd_firefly",
-      "name": "ระบำหิ่งห้อย",
-      "thai": "สายระบำไฟ",
-      "maxLevel": 10,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "ระบำควงไฟ Lv.3",
-      "prereq": [
-        {
-          "skill": "bd_twirl",
-          "level": 3
-        }
-      ],
-      "desc": "รำต่อเนื่อง (SP 2/วิ) รัศมี 400: หิ่งห้อยล้อมศัตรู เดินช้าลง ตีเบาลง 2% คูณท่อน · ท่อนยิ่งสูงยิ่งแรง"
-    },
-    {
-      "id": "bd_lure",
-      "name": "ระบำหลอกล่อ",
-      "thai": "สายระบำไฟ",
-      "maxLevel": 10,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "ระบำควงไฟ Lv.3",
-      "prereq": [
-        {
-          "skill": "bd_twirl",
-          "level": 3
-        }
-      ],
-      "desc": "รำต่อเนื่อง: ศัตรูรอบตัวตีเบาลง 1.5% รับดาเมจเพิ่ม 1% คูณท่อน และศัตรูที่ยังไม่มีเป้าหันมาตามผู้รำ · ศัตรูหันมาตามผู้รำ"
-    },
-    {
-      "id": "bd_lash",
-      "name": "ฟาดแส้ดึง",
-      "thai": "สายระบำไฟ",
-      "maxLevel": 5,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "ระบำควงไฟ Lv.1",
-      "prereq": [
-        {
-          "skill": "bd_twirl",
-          "level": 1
-        }
-      ],
-      "desc": "ฟาดแส้ยาว 320 100% ของ ATK ดึงศัตรูเข้าหา · ดึงศัตรูเข้าหา"
-    },
-    {
-      "id": "bd_note",
-      "name": "โน้ตเด้ง",
-      "thai": "สายโน้ตดนตรี",
-      "maxLevel": 10,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "ยิงคู่ Lv.3",
-      "prereq": [
-        {
-          "skill": "double",
-          "level": 3
-        }
-      ],
-      "desc": "ยิงตัวโน้ตที่เด้งไปอีก 2 ตัว ตัวละ 100% ของ ATK · เด้งต่อ 2 ตัว"
-    },
-    {
-      "id": "bd_noterain",
-      "name": "ฝนโน้ต",
-      "thai": "สายโน้ตดนตรี",
-      "maxLevel": 10,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "โน้ตเด้ง Lv.3",
-      "prereq": [
-        {
-          "skill": "bd_note",
-          "level": 3
-        }
-      ],
-      "desc": "ตัวโน้ต 6 ตัวตกใส่วง ตัวละ 100% ของ ATK · ท่อนเพลงยิ่งสูงยิ่งตกเพิ่ม (+2 ต่อท่อน) · ท่อนเพลงยิ่งสูงยิ่งตกเพิ่ม"
-    },
-    {
-      "id": "bd_groove",
-      "name": "จังหวะเร้าใจ",
-      "thai": "สายโน้ตดนตรี",
-      "maxLevel": 5,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "โน้ตเด้ง Lv.5",
-      "prereq": [
-        {
-          "skill": "bd_note",
-          "level": 5
-        }
-      ],
-      "desc": "ระหว่างเล่นหรือรำ ตีปกติ 4% ยิงโน้ตเด้งฟรี · ระหว่างเล่นหรือรำเท่านั้น"
-    },
-    {
-      "id": "bd_festival",
-      "name": "มหกรรมรอบกองไฟ",
-      "thai": "สายมหกรรมรอบกองไฟ",
-      "maxLevel": 5,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "วงดนตรี Lv.1 หรือ ระบำหลอกล่อ Lv.5",
-      "desc": "จุดกองไฟใหญ่ 15 วิ เพลงของเราแรงเป็นสองเท่าตอนอยู่ใกล้กองไฟ เพื่อนใกล้กองไฟตีแรงขึ้น 25% ศัตรูที่เข้าใกล้ติดเผาวิละ 100% ของ ATK และหลับ 2 วิครั้งแรก · ทุกเพลงที่เรียนไว้ที่ท่อน 3"
-    }
-  ],
-  "gunslinger": [
-    {
-      "id": "gs_spin",
-      "name": "หมุนโม่",
-      "thai": "สายโม่เสี่ยงดวง",
-      "maxLevel": 10,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "ตาเหยี่ยว Lv.1",
-      "prereq": [
-        {
-          "skill": "ar_owl",
-          "level": 1
-        }
-      ],
-      "desc": "หมุนโม่: นัดถัดไปสุ่ม 1 ใน 6 แรง ×3 · ระเบิดเป็นวง · ธาตุไฟ ×2 · ฟื้น HP 5% · ยิงทะลุ · ด้าน (ไม่ออก) · โอกาสด้าน 17% · Lv10 ไม่ออกด้านเลย"
-    },
-    {
-      "id": "gs_sixth",
-      "name": "นัดที่หก",
-      "thai": "สายโม่เสี่ยงดวง",
-      "maxLevel": 10,
-      "freeLevel": 0,
-      "kind": "active",
-      "desc": "ทุกนัดที่ 6 ของลูกโม่คริแน่นอนและแรงขึ้น 5% · ทุกนัดที่ 6 คริแน่นอน"
-    },
-    {
-      "id": "gs_special",
-      "name": "บรรจุกระสุนพิเศษ",
-      "thai": "สายโม่เสี่ยงดวง",
-      "maxLevel": 10,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "หมุนโม่ Lv.3",
-      "prereq": [
-        {
-          "skill": "gs_spin",
-          "level": 3
-        }
-      ],
-      "desc": "บรรจุใหม่ทันที 6 นัดเป็นกระสุนธาตุ (ไฟ น้ำแข็ง สายฟ้า สลับกันทุกครั้งที่บรรจุ) แรงขึ้น 14% มีโอกาสติดสถานะของธาตุ · ธาตุสลับไฟ น้ำแข็ง สายฟ้า"
-    },
-    {
-      "id": "gs_eye",
-      "name": "สายตานักแม่นปืน",
-      "thai": "สายโม่เสี่ยงดวง",
-      "maxLevel": 5,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "ตาเหยี่ยว Lv.3",
-      "prereq": [
-        {
-          "skill": "ar_owl",
-          "level": 3
-        }
-      ],
-      "desc": "ถือปืน: คริ +1 ความแม่น +3"
-    },
-    {
-      "id": "gs_mastery",
-      "name": "ชำนาญปืนพก",
-      "thai": "สายปืนพกคู่",
-      "maxLevel": 10,
-      "freeLevel": 0,
-      "kind": "active",
-      "desc": "ถือปืนพก: ความเร็วโจมตี +1.5% บรรจุกระสุนเร็วขึ้น 5% · บรรจุเร็วขึ้น"
-    },
-    {
-      "id": "gs_rapid",
-      "name": "ลั่นไกรัว",
-      "thai": "สายปืนพกคู่",
-      "maxLevel": 10,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "ชำนาญปืนพก Lv.3",
-      "prereq": [
-        {
-          "skill": "gs_mastery",
-          "level": 3
-        }
-      ],
-      "desc": "ถือปืนพก: ยิงปกติ 4% ยิงซ้ำอีกนัดฟรี (90% ไม่กินกระสุน) · นัดฟรีไม่กินกระสุน"
-    },
-    {
-      "id": "gs_triple",
-      "name": "รัวค้อนปืน",
-      "thai": "สายปืนพกคู่",
-      "maxLevel": 10,
-      "freeLevel": 1,
-      "kind": "active",
-      "desc": "[มีฟรี Lv.1] · ยิงกระสุนที่เหลือในลูกโม่ออกหมดรวดเดียว นัดละ 100% ของ ATK แล้วบรรจุใหม่ · ทุกนัดได้ผลกระสุนพิเศษและนัดที่หก หมุนโม่ได้นัดแรก · ยิงกระสุนที่เหลือทั้งหมด · Lv5 บรรจุเร็วขึ้น · Lv10 ลูกโม่เต็มนัดสุดท้าย ×2"
-    },
-    {
-      "id": "gs_ricochet",
-      "name": "กระสุนสะท้อน",
-      "thai": "สายปืนพกคู่",
-      "maxLevel": 5,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "รัวค้อนปืน Lv.5",
-      "prereq": [
-        {
-          "skill": "gs_triple",
-          "level": 5
-        }
-      ],
-      "desc": "กระสุนเด้งต่อ 3 ตัว นัดละ 100% ของ ATK · เด้งเพิ่มทุก 2 เลเวล"
-    },
-    {
-      "id": "gs_buckshot",
-      "name": "ลูกปรายกระจาย",
-      "thai": "สายลูกซอง",
-      "maxLevel": 10,
-      "freeLevel": 1,
-      "kind": "active",
-      "desc": "[มีฟรี Lv.1] · ยิงกรวย 9 ลูกปรายทะลุทุกตัวในแนว ระยะ 350 ลูกละ 100% ของ ATK · ใกล้ยิ่งโดนหลายลูก"
-    },
-    {
-      "id": "gs_kick",
-      "name": "ถีบถอย",
-      "thai": "สายลูกซอง",
-      "maxLevel": 5,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "ลูกปรายกระจาย Lv.3",
-      "prereq": [
-        {
-          "skill": "gs_buckshot",
-          "level": 3
-        }
-      ],
-      "desc": "ยิงกระแทกระยะใกล้ 100% ของ ATK ผลักศัตรูกระเด็น เราถีบตัวถอยหลัง 200 · เราถอยหลัง 200"
-    },
-    {
-      "id": "gs_smoke",
-      "name": "ระเบิดควัน",
-      "thai": "สายลูกซอง",
-      "maxLevel": 10,
-      "freeLevel": 0,
-      "kind": "active",
-      "desc": "ขว้างระเบิดควันวง 220 100% ของ ATK ธาตุไฟ ศัตรูในควันตีเบาลง 30% นาน 4 วิ (ใช้ได้ทุกอาวุธ) · ใช้ได้ทุกอาวุธ"
-    },
-    {
-      "id": "gs_stars",
-      "name": "ยิงดาวตก",
-      "thai": "สายยิงดาวตก",
-      "maxLevel": 5,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "กระสุนสะท้อน Lv.3 หรือ ถีบถอย Lv.3",
-      "desc": "ยิงขึ้นฟ้า 1 นัด อีก 1 วิดาวตก 12 ดวงร่วงรอบเป้า ดวงละ 100% ของ ATK · ดาวตก 12 ดวง"
     }
   ],
   "assassin": [
@@ -2964,10 +2418,13 @@ const SKILLS_DATABASE = {
       "id": "as_haste",
       "name": "เร่งนักฆ่า",
       "thai": "สายคริติคอล",
+      "icon": "sk_as_haste",
+      "iconUrl": "https://play.nightcamp.app/cas/66558206d8d3.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "buff",
       "req": "โจมตีสองครั้ง Lv.5",
+      "weaponReq": "มีดคู่ หรือ คาทาร์",
       "prereq": [
         {
           "skill": "ro_double",
@@ -2980,9 +2437,11 @@ const SKILLS_DATABASE = {
       "id": "as_lethal",
       "name": "คมมรณะ",
       "thai": "สายคริติคอล",
+      "icon": "sk_as_lethal",
+      "iconUrl": "https://play.nightcamp.app/cas/53985fc7f528.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
       "req": "จุดตาย Lv.5",
       "prereq": [
         {
@@ -2996,10 +2455,13 @@ const SKILLS_DATABASE = {
       "id": "as_katar",
       "name": "ชำนาญมีดคู่",
       "thai": "สายคริติคอล",
+      "icon": "sk_as_katar",
+      "iconUrl": "https://play.nightcamp.app/cas/998f872dbf6f.webp",
       "maxLevel": 5,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
       "req": "ชำนาญมีด Lv.10",
+      "weaponReq": "มีดคู่ หรือ คาทาร์",
       "prereq": [
         {
           "skill": "ro_dagger",
@@ -3012,15 +2474,20 @@ const SKILLS_DATABASE = {
       "id": "as_twin",
       "name": "เขี้ยวคู่",
       "thai": "สายคริติคอล",
+      "icon": "sk_as_twin",
+      "iconUrl": "https://play.nightcamp.app/cas/95766213fc90.webp",
       "maxLevel": 10,
       "freeLevel": 1,
       "kind": "active",
-      "desc": "[มีฟรี Lv.1] · พุ่งฟันมีดคู่ทะลุศัตรู 2 ครั้ง ครั้งละ 100% ของ ATK"
+      "weaponReq": "คาทาร์",
+      "desc": "พุ่งฟันมีดคู่ทะลุศัตรู 2 ครั้ง ครั้งละ 100% ของ ATK"
     },
     {
       "id": "as_meteor",
       "name": "อุกกาบาตเงา",
       "thai": "สายคริติคอล",
+      "icon": "sk_as_meteor",
+      "iconUrl": "https://play.nightcamp.app/cas/59c60903dbcb.webp",
       "maxLevel": 10,
       "freeLevel": 0,
       "kind": "active",
@@ -3037,6 +2504,8 @@ const SKILLS_DATABASE = {
       "id": "as_knives",
       "name": "มีดพิษกระจาย",
       "thai": "สายพิษมรณะ",
+      "icon": "sk_as_knives",
+      "iconUrl": "https://play.nightcamp.app/cas/6794807d1c4c.webp",
       "maxLevel": 10,
       "freeLevel": 0,
       "kind": "active",
@@ -3053,9 +2522,11 @@ const SKILLS_DATABASE = {
       "id": "as_edp",
       "name": "อาบพิษมรณะ",
       "thai": "สายพิษมรณะ",
+      "icon": "sk_as_edp",
+      "iconUrl": "https://play.nightcamp.app/cas/d88dc5e0bfc9.webp",
       "maxLevel": 5,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "buff",
       "req": "ใจพิษ Lv.5",
       "prereq": [
         {
@@ -3069,6 +2540,8 @@ const SKILLS_DATABASE = {
       "id": "as_splasher",
       "name": "ระเบิดพิษ",
       "thai": "สายพิษมรณะ",
+      "icon": "sk_as_splasher",
+      "iconUrl": "https://play.nightcamp.app/cas/cf9890564431.webp",
       "maxLevel": 10,
       "freeLevel": 0,
       "kind": "active",
@@ -3085,9 +2558,11 @@ const SKILLS_DATABASE = {
       "id": "as_venom",
       "name": "พิษร้าย",
       "thai": "สายพิษมรณะ",
+      "icon": "sk_as_venom",
+      "iconUrl": "https://play.nightcamp.app/cas/6ac96a63fb12.webp",
       "maxLevel": 5,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
       "req": "ใจพิษ Lv.10",
       "prereq": [
         {
@@ -3101,9 +2576,11 @@ const SKILLS_DATABASE = {
       "id": "as_cloak",
       "name": "อำพรางกาย",
       "thai": "สายเงามรณะ",
+      "icon": "sk_as_cloak",
+      "iconUrl": "https://play.nightcamp.app/cas/5e2b0ebf5ff0.webp",
       "maxLevel": 5,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "buff",
       "req": "ซ่อนตัว Lv.3",
       "prereq": [
         {
@@ -3117,6 +2594,8 @@ const SKILLS_DATABASE = {
       "id": "as_grimtooth",
       "name": "เขี้ยวมัจจุราช",
       "thai": "สายเงามรณะ",
+      "icon": "sk_as_grimtooth",
+      "iconUrl": "https://play.nightcamp.app/cas/3626cf0ec441.webp",
       "maxLevel": 10,
       "freeLevel": 0,
       "kind": "active",
@@ -3133,10 +2612,24 @@ const SKILLS_DATABASE = {
       "id": "as_deathmark",
       "name": "ตราประทับมรณะ",
       "thai": "สายเงามรณะ",
+      "icon": "sk_as_deathmark",
+      "iconUrl": "https://play.nightcamp.app/cas/54ffe072aeb6.webp",
       "maxLevel": 5,
       "freeLevel": 0,
       "kind": "active",
+      "ult": true,
       "req": "เขี้ยวมัจจุราช Lv.5 หรือ เขี้ยวคู่ Lv.5",
+      "reqAny": true,
+      "prereq": [
+        {
+          "skill": "as_grimtooth",
+          "level": 5
+        },
+        {
+          "skill": "as_twin",
+          "level": 5
+        }
+      ],
       "desc": "ประทับตรามรณะแล้ววาร์ปฟันรอบตัวเป้า 10 ครั้ง ครั้งละ 100% ของ ATK ปิดท้าย x3 และติดพิษ"
     }
   ],
@@ -3145,10 +2638,13 @@ const SKILLS_DATABASE = {
       "id": "sh_throwing",
       "name": "ดาวคู่",
       "thai": "สายซัดรัว",
+      "icon": "sk_sh_throwing",
+      "iconUrl": "https://play.nightcamp.app/cas/38854e4cffbb.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
       "req": "โจมตีสองครั้ง Lv.3",
+      "weaponBonus": "ดาวยักษ์ (ชูริเคนแรงขึ้น 25%)",
       "prereq": [
         {
           "skill": "ro_double",
@@ -3161,15 +2657,20 @@ const SKILLS_DATABASE = {
       "id": "sh_huuma",
       "name": "ขว้างดาวยักษ์วกกลับ",
       "thai": "สายซัดรัว",
+      "icon": "sk_sh_huuma",
+      "iconUrl": "https://play.nightcamp.app/cas/0f0610759019.webp",
       "maxLevel": 10,
       "freeLevel": 0,
       "kind": "active",
+      "weaponReq": "ดาวยักษ์",
       "desc": "ขว้างดาวยักษ์ยักษ์ไป 420 แล้ววกกลับเข้ามือ โดนทั้งขาไปและขากลับ ครั้งละ 100% ของ ATK · คอมโบซัดเงา: ใช้สกิลซัดคนละตัวต่อกันภายใน 3 วิ แรงขึ้น ×1.05 / ×1.1 และร่างเงาปาท่าก่อนหน้าซ้ำ 15% · Lv5 ใหญ่ขึ้น · Lv10 ปลายทางหมุนค้างดูดมอนเข้าหา"
     },
     {
       "id": "sh_fan",
       "name": "พัดดาวกระจาย",
       "thai": "สายซัดรัว",
+      "icon": "sk_sh_fan",
+      "iconUrl": "https://play.nightcamp.app/cas/e2b3f6d06f55.webp",
       "maxLevel": 10,
       "freeLevel": 0,
       "kind": "active",
@@ -3186,6 +2687,8 @@ const SKILLS_DATABASE = {
       "id": "sh_ricochet",
       "name": "ดาวชิ่ง",
       "thai": "สายซัดรัว",
+      "icon": "sk_sh_ricochet",
+      "iconUrl": "https://play.nightcamp.app/cas/63073f57a8eb.webp",
       "maxLevel": 10,
       "freeLevel": 0,
       "kind": "active",
@@ -3202,10 +2705,14 @@ const SKILLS_DATABASE = {
       "id": "sh_shuriken",
       "name": "พายุชูริเคน",
       "thai": "สายซัดรัว",
+      "icon": "sk_sh_shuriken",
+      "iconUrl": "https://play.nightcamp.app/cas/c85c639711d8.webp",
       "maxLevel": 5,
       "freeLevel": 0,
       "kind": "active",
+      "ult": true,
       "req": "ขว้างดาวยักษ์วกกลับ Lv.5",
+      "weaponReq": "ดาวยักษ์",
       "prereq": [
         {
           "skill": "sh_huuma",
@@ -3218,15 +2725,19 @@ const SKILLS_DATABASE = {
       "id": "sh_kunai",
       "name": "คุไนระเบิด",
       "thai": "สายคาถาไฟ",
+      "icon": "sk_sh_kunai",
+      "iconUrl": "https://play.nightcamp.app/cas/2cf9892b6e13.webp",
       "maxLevel": 10,
       "freeLevel": 1,
       "kind": "active",
-      "desc": "[มีฟรี Lv.1] · ปาคุไนติดยันต์ไฟ ปักแล้วระเบิดใน 0.5 วิ 100% ของ ATK/MATK (ที่สูงกว่า) ธาตุไฟ"
+      "desc": "ปาคุไนติดยันต์ไฟ ปักแล้วระเบิดใน 0.5 วิ 100% ของ ATK/MATK (ที่สูงกว่า) ธาตุไฟ"
     },
     {
       "id": "sh_katon",
       "name": "คาถาไฟ",
       "thai": "สายคาถาไฟ",
+      "icon": "sk_sh_katon",
+      "iconUrl": "https://play.nightcamp.app/cas/5dfa0929c8f2.webp",
       "maxLevel": 10,
       "freeLevel": 0,
       "kind": "active",
@@ -3243,6 +2754,8 @@ const SKILLS_DATABASE = {
       "id": "sh_windblade",
       "name": "ใบมีดวายุ",
       "thai": "สายคาถาลม-สายฟ้า",
+      "icon": "sk_sh_windblade",
+      "iconUrl": "https://play.nightcamp.app/cas/c23f6732aeea.webp",
       "maxLevel": 10,
       "freeLevel": 0,
       "kind": "active",
@@ -3259,6 +2772,8 @@ const SKILLS_DATABASE = {
       "id": "sh_raiton",
       "name": "คาถาสายฟ้า",
       "thai": "สายคาถาลม-สายฟ้า",
+      "icon": "sk_sh_raiton",
+      "iconUrl": "https://play.nightcamp.app/cas/52b7d505a78e.webp",
       "maxLevel": 10,
       "freeLevel": 0,
       "kind": "active",
@@ -3274,10 +2789,12 @@ const SKILLS_DATABASE = {
     {
       "id": "sh_ninjamastery",
       "name": "วิชานินจา",
-      "thai": "กดใช้",
+      "thai": "สกิลติดตัว",
+      "icon": "sk_sh_ninjamastery",
+      "iconUrl": "https://play.nightcamp.app/cas/e7c0ee2afc08.webp",
       "maxLevel": 5,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
       "req": "ซ่อนตัว Lv.3",
       "prereq": [
         {
@@ -3291,6 +2808,8 @@ const SKILLS_DATABASE = {
       "id": "sh_clone",
       "name": "แยกเงาร่าง",
       "thai": "สายวิชาเงา",
+      "icon": "sk_sh_clone",
+      "iconUrl": "https://play.nightcamp.app/cas/e97cc11288b1.webp",
       "maxLevel": 10,
       "freeLevel": 0,
       "kind": "active",
@@ -3307,9 +2826,11 @@ const SKILLS_DATABASE = {
       "id": "sh_substitute",
       "name": "คาถาสลับร่าง",
       "thai": "สายวิชาเงา",
+      "icon": "sk_sh_substitute",
+      "iconUrl": "https://play.nightcamp.app/cas/54e1ddaf0269.webp",
       "maxLevel": 5,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "buff",
       "req": "แยกเงาร่าง Lv.1",
       "prereq": [
         {
@@ -3323,6 +2844,8 @@ const SKILLS_DATABASE = {
       "id": "sh_smoke",
       "name": "ระเบิดควัน",
       "thai": "สายวิชาเงา",
+      "icon": "sk_sh_smoke",
+      "iconUrl": "https://play.nightcamp.app/cas/53726c11860a.webp",
       "maxLevel": 5,
       "freeLevel": 0,
       "kind": "active",
@@ -3336,322 +2859,24 @@ const SKILLS_DATABASE = {
       "desc": "กลุ่มควันรอบตัว 5 วิ ศัตรูข้างในช้าลงและตีเบาลง 22%"
     }
   ],
-  "reaper": [
-    {
-      "id": "rp_souls",
-      "name": "เก็บวิญญาณ",
-      "thai": "สายดวงวิญญาณ",
-      "maxLevel": 10,
-      "freeLevel": 0,
-      "kind": "active",
-      "desc": "ตีติดรอย (ตีปกติ 1 สกิล 2) ครบ 5 รอยวิญญาณสุก 3 วิ ตีอีกครั้งเกี่ยวได้ 1 ดวง (สุกซ้ำได้หลัง 6 วิ บอส 3 วิ) ตัวที่สุกล้มทิ้งวิญญาณบนพื้น 4 วิ เก็บได้ในระยะ 400 · เก็บได้ 20 ดวง ดวงละ ATK +1.2% ดูดเลือด 0.1% · ตีครบ 5 รอยวิญญาณสุก ตีอีกครั้งเกี่ยว · Lv5 สุกนานขึ้น · Lv10 ครบ 20 ดวง ตีเร็วขึ้น 20%"
-    },
-    {
-      "id": "rp_ghost",
-      "name": "ร่างวิญญาณ",
-      "thai": "สายดวงวิญญาณ",
-      "maxLevel": 10,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "เก็บวิญญาณ Lv.3",
-      "prereq": [
-        {
-          "skill": "rp_souls",
-          "level": 3
-        }
-      ],
-      "desc": "ใช้ 3 ดวง: กลายเป็นผี พุ่งทะลุศัตรูเป็นแนว 350 100% ของ ATK ไม่โดนตีระหว่างนั้น · Lv5 ทิ้งรอยหนาว · Lv10 ใช้แค่ 2 ดวง"
-    },
-    {
-      "id": "rp_shroud",
-      "name": "ผ้าคลุมแห่งความตาย",
-      "thai": "สายดวงวิญญาณ",
-      "maxLevel": 10,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "เก็บวิญญาณ Lv.3",
-      "prereq": [
-        {
-          "skill": "rp_souls",
-          "level": 3
-        }
-      ],
-      "desc": "30 วิ: รับดาเมจลดลง 1% ต่อดวงวิญญาณที่มี (สูงสุด 25%)"
-    },
-    {
-      "id": "rp_death",
-      "name": "ความตายเยือน",
-      "thai": "สายดวงวิญญาณ",
-      "maxLevel": 5,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "เก็บวิญญาณ Lv.5",
-      "prereq": [
-        {
-          "skill": "rp_souls",
-          "level": 5
-        }
-      ],
-      "desc": "ศัตรูเลือดต่ำกว่า 20% โดนเราแรงขึ้น 15% · Lv1 ศัตรูเลือดน้อยโดนแรงขึ้น · Lv3 ศัตรูเลือดน้อยวิญญาณสุกทันที · Lv5 ล้มแล้วลุกเป็นร่างวิญญาณ"
-    },
-    {
-      "id": "rp_scythemastery",
-      "name": "ชำนาญเคียวใหญ่",
-      "thai": "สายเคียวเก็บเกี่ยว",
-      "maxLevel": 10,
-      "freeLevel": 0,
-      "kind": "active",
-      "desc": "ถือเคียวใหญ่: ตีปกติกวาดกว้างโดนทุกตัวข้างหน้า ATK +2%"
-    },
-    {
-      "id": "rp_sweep",
-      "name": "ฟันเก็บเกี่ยว",
-      "thai": "สายเคียวเก็บเกี่ยว",
-      "maxLevel": 10,
-      "freeLevel": 1,
-      "kind": "active",
-      "desc": "[มีฟรี Lv.1] · หมุนเคียวรอบตัว 2 รอบ รอบละ 100% ของ ATK ดูดเลือด 5% ของดาเมจ · Lv5 ดึงเข้ากลาง · Lv10 โดน 3 ตัวได้วิญญาณ"
-    },
-    {
-      "id": "rp_execute",
-      "name": "ประหารใต้จันทร์",
-      "thai": "สายเคียวเก็บเกี่ยว",
-      "maxLevel": 10,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "ฟันเก็บเกี่ยว Lv.5",
-      "prereq": [
-        {
-          "skill": "rp_sweep",
-          "level": 5
-        }
-      ],
-      "desc": "ฟันลงจากฟ้า 100% ของ ATK · ศัตรูธรรมดาที่เลือดต่ำกว่า 30% ตายทันที บอสโดนสองเท่าแทน · ตายทันทีต่ำกว่า 30% (ศัตรูธรรมดา)"
-    },
-    {
-      "id": "rp_twin",
-      "name": "เคียวคู่ประสาน",
-      "thai": "สายเคียวคู่หมุนวน",
-      "maxLevel": 10,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "ชำนาญมีด Lv.3",
-      "prereq": [
-        {
-          "skill": "ro_dagger",
-          "level": 3
-        }
-      ],
-      "desc": "ถือเคียวคู่: ความเร็วโจมตี +2% ตีแต่ละครั้งโอกาส 3% ติดเลือดไหล (4 วิ) · เลือดไหล 4 วิ"
-    },
-    {
-      "id": "rp_return",
-      "name": "ขว้างเคียววกกลับ",
-      "thai": "สายเคียวคู่หมุนวน",
-      "maxLevel": 10,
-      "freeLevel": 1,
-      "kind": "active",
-      "desc": "[มีฟรี Lv.1] · ขว้างเคียวสองเล่มไป 450 แล้ววกกลับ โดนทั้งขาไปขากลับ 100% ของ ATK · Lv5 ขากลับดึง · Lv10 4 เล่มกากบาท"
-    },
-    {
-      "id": "rp_hook",
-      "name": "เกี่ยววิญญาณ",
-      "thai": "สายเคียวคู่หมุนวน",
-      "maxLevel": 5,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "ขว้างเคียววกกลับ Lv.3",
-      "prereq": [
-        {
-          "skill": "rp_return",
-          "level": 3
-        }
-      ],
-      "desc": "เกี่ยวเป้าเดียวดึงมาตรงหน้า (บอสไม่ถูกดึง) แล้วฟัน 100% ของ ATK ได้ดวงวิญญาณ 1 ดวง (เป้าที่วิญญาณสุกอยู่ได้อีก 1 ดวงจากการเกี่ยว) · ได้วิญญาณ 1 ดวง"
-    },
-    {
-      "id": "rp_storm",
-      "name": "พายุวิญญาณ",
-      "thai": "สายพายุวิญญาณ",
-      "maxLevel": 5,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "ประหารใต้จันทร์ Lv.5 หรือ เกี่ยววิญญาณ Lv.3",
-      "desc": "ใช้ดวงวิญญาณทั้งหมด: ดวงวิญญาณหมุนรอบตัวเป็นพายุ 6 วิ ทุกวิดวงละ 100% ของ ATK ดูดเลือด 3% · ยิ่งมีวิญญาณยิ่งแรง"
-    }
-  ],
-  "puppeteer": [
-    {
-      "id": "pp_puppet",
-      "name": "สร้างหุ่นรบ",
-      "thai": "สายหุ่นรบ",
-      "maxLevel": 10,
-      "freeLevel": 1,
-      "kind": "active",
-      "desc": "[มีฟรี Lv.1] · หุ่นไม้ตัวใหญ่สู้ข้างเราถาวร HP 65% ของ HP สูงสุดเรา ตี 100% ของ ATK · กดอีกครั้งเปลี่ยนแบบ: ขวาน (ตีหมู่) → โล่ (ยั่วยุ ทนกว่า) → หน้าไม้ (ยิงไกล) · Lv5 หุ่นได้ท่าพิเศษของแบบนั้น · Lv10 หุ่นร่างใหญ่"
-    },
-    {
-      "id": "pp_strings",
-      "name": "ชักใยหุ่น",
-      "thai": "สายหุ่นรบ",
-      "maxLevel": 10,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "สร้างหุ่นรบ Lv.3",
-      "prereq": [
-        {
-          "skill": "pp_puppet",
-          "level": 3
-        }
-      ],
-      "desc": "ถือไม้เชิด: ตีปกติสั่งหุ่นฟาดเป้าเดียวกันทันที แรงขึ้น 3% · หุ่นตีตามทุกครั้งที่เราตีปกติ"
-    },
-    {
-      "id": "pp_swap",
-      "name": "สลับร่างหุ่น",
-      "thai": "สายหุ่นรบ",
-      "maxLevel": 5,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "สร้างหุ่นรบ Lv.3",
-      "prereq": [
-        {
-          "skill": "pp_puppet",
-          "level": 3
-        }
-      ],
-      "desc": "สลับที่กับหุ่นทันที ศัตรูที่เล็งเราหันไปตีหุ่น · ศัตรูหันไปตีหุ่น"
-    },
-    {
-      "id": "pp_dance",
-      "name": "ระบำหุ่น",
-      "thai": "สายหุ่นรบ",
-      "maxLevel": 10,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "สร้างหุ่นรบ Lv.5",
-      "prereq": [
-        {
-          "skill": "pp_puppet",
-          "level": 5
-        }
-      ],
-      "desc": "หุ่นหมุนตัวฟาดรอบตัว 3 รอบ รอบละ 100% ของ ATK · หมุน 3 รอบ"
-    },
-    {
-      "id": "pp_control",
-      "name": "เชิดมอน",
-      "thai": "สายด้ายเชิด",
-      "maxLevel": 10,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "ซ่อนตัว Lv.1",
-      "prereq": [
-        {
-          "skill": "ro_hide",
-          "level": 1
-        }
-      ],
-      "desc": "เกี่ยวด้ายเข้ามอน 1 ตัว 2.3 วิ มันหันไปตีพวกเดียวกันด้วยพลังเต็มของมัน · บอสเชิดไม่ได้ แต่ช้าลง 3 วิแทน · Lv5 เชิดได้ 2 ตัว · Lv10 มอนที่เชิดตายแล้วระเบิด"
-    },
-    {
-      "id": "pp_guide",
-      "name": "ด้ายนำทาง",
-      "thai": "สายด้ายเชิด",
-      "maxLevel": 10,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "เชิดมอน Lv.3",
-      "prereq": [
-        {
-          "skill": "pp_control",
-          "level": 3
-        }
-      ],
-      "desc": "ด้ายที่เชื่อมเรากับหุ่นหรือมอนที่เชิด ศัตรูที่ข้ามเส้นด้ายโดนวิละ 35% ของ ATK และช้าลง · ด้ายถึงหุ่นและมอนที่เชิด"
-    },
-    {
-      "id": "pp_soulstring",
-      "name": "เชือกชักวิญญาณ",
-      "thai": "สายด้ายเชิด",
-      "maxLevel": 5,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "เชิดมอน Lv.5",
-      "prereq": [
-        {
-          "skill": "pp_control",
-          "level": 5
-        }
-      ],
-      "desc": "มอนที่เชิดคริได้เท่าเรา · Lv1 มอนที่เชิดคริได้ · Lv3 สลับร่างแล้วไม่โดนตี 2 วิ · Lv5 หุ่นประกอบใหม่เอง"
-    },
-    {
-      "id": "pp_edge",
-      "name": "ด้ายคม",
-      "thai": "สายด้ายสังหาร",
-      "maxLevel": 10,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "ชำนาญมีด Lv.3",
-      "prereq": [
-        {
-          "skill": "ro_dagger",
-          "level": 3
-        }
-      ],
-      "desc": "ถือด้ายเหล็ก: ตีปกติสะบัดด้ายไกล 300 ทะลุทั้งแนว แรงขึ้น 4% · สะบัดด้ายทะลุทั้งแนว"
-    },
-    {
-      "id": "pp_stretch",
-      "name": "ขึงด้ายเหล็ก",
-      "thai": "สายด้ายสังหาร",
-      "maxLevel": 10,
-      "freeLevel": 1,
-      "kind": "active",
-      "desc": "[มีฟรี Lv.1] · ขึงด้ายจากเราไปจุดที่เล็งยาว 400 นาน 6 วิ ศัตรูที่แตะด้ายโดน 100% ของ ATK ทุกครึ่งวิ ขึงได้ 3 เส้น · Lv5 ด้ายไขว้ระเบิดที่จุดตัด · Lv10 ขึงได้ 5 เส้น"
-    },
-    {
-      "id": "pp_bind",
-      "name": "รัดด้าย",
-      "thai": "สายด้ายสังหาร",
-      "maxLevel": 10,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "ขึงด้ายเหล็ก Lv.3",
-      "prereq": [
-        {
-          "skill": "pp_stretch",
-          "level": 3
-        }
-      ],
-      "desc": "ร่าย 0.6 วิ ดึงด้ายทุกเส้นเข้าหาตัว ศัตรูที่ติดด้ายถูกลากมา 100% ของ ATK · ลากศัตรูที่ติดด้าย"
-    },
-    {
-      "id": "pp_theatre",
-      "name": "โรงละครหุ่นเชิด",
-      "thai": "สายโรงละครหุ่นเชิด",
-      "maxLevel": 5,
-      "freeLevel": 0,
-      "kind": "active",
-      "req": "ระบำหุ่น Lv.5 หรือ รัดด้าย Lv.5",
-      "desc": "เวทีหุ่นเชิดรอบตัวเรา (วง 900) 8 วิ ศัตรูทุกตัวบนเวทีถูกตรึงอยู่กับที่ โดน 100% ของ ATK ทุกวิ แล้วหันไปฟาดตัวข้าง ๆ ด้วยพลังของเรา · ทุก 2 วิ กระตุกด้ายลากมอนเข้าหาเรา · จบโชว์ \"ปิดม่าน\" ฟาดทุกตัว 5800% · บอสไม่ถูกตรึง แต่ช้าลงและหันไปตีหุ่นรบ · พื้นที่เหลือ 50% ของเดิม · วง 900 ตามตัว 8 วิ · มอนฟาดกันด้วยพลังเรา · กระตุกด้าย · ปิดม่าน"
-    }
-  ],
   "bishop": [
     {
       "id": "bi_heal",
       "name": "วงแสงเยียวยา",
       "thai": "สายฟื้นฟูชั้นสูง",
+      "icon": "sk_bi_heal",
+      "iconUrl": "https://play.nightcamp.app/cas/5d8f880fa771.webp",
       "maxLevel": 10,
       "freeLevel": 1,
       "kind": "active",
-      "desc": "[มีฟรี Lv.1] · วงแสงรักษาตัวเองและเพื่อนรอบตัว 10% ของ HP สูงสุด + ตามพลังเวท · ศัตรูรอบตัวโดนแสง 100% ของ MATK"
+      "desc": "วงแสงรักษาตัวเองและเพื่อนรอบตัว 10% ของ HP สูงสุด + ตามพลังเวท · ศัตรูรอบตัวโดนแสง 100% ของ MATK"
     },
     {
       "id": "bi_sanctuary",
       "name": "ลานแสงเยียวยา",
       "thai": "สายฟื้นฟูชั้นสูง",
+      "icon": "sk_bi_sanctuary",
+      "iconUrl": "https://play.nightcamp.app/cas/2e317dcb4ebb.webp",
       "maxLevel": 10,
       "freeLevel": 0,
       "kind": "active",
@@ -3668,9 +2893,11 @@ const SKILLS_DATABASE = {
       "id": "bi_meditatio",
       "name": "สมาธิภาวนา",
       "thai": "สายฟื้นฟูชั้นสูง",
+      "icon": "sk_bi_meditatio",
+      "iconUrl": "https://play.nightcamp.app/cas/243f8035465a.webp",
       "maxLevel": 5,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
       "req": "แสงเยียวยา Lv.10",
       "prereq": [
         {
@@ -3684,9 +2911,12 @@ const SKILLS_DATABASE = {
       "id": "bi_miracle",
       "name": "ปาฏิหาริย์",
       "thai": "สายฟื้นฟูชั้นสูง",
+      "icon": "sk_bi_miracle",
+      "iconUrl": "https://play.nightcamp.app/cas/83592c7a2877.webp",
       "maxLevel": 5,
       "freeLevel": 0,
       "kind": "active",
+      "ult": true,
       "req": "ลานแสงเยียวยา Lv.5",
       "prereq": [
         {
@@ -3700,9 +2930,11 @@ const SKILLS_DATABASE = {
       "id": "bi_clementia",
       "name": "พรทั่วทัพ",
       "thai": "สายสรรเสริญ",
+      "icon": "sk_bi_clementia",
+      "iconUrl": "https://play.nightcamp.app/cas/dccf955c10d9.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "buff",
       "req": "พรศักดิ์สิทธิ์ Lv.10",
       "prereq": [
         {
@@ -3716,9 +2948,11 @@ const SKILLS_DATABASE = {
       "id": "bi_canto",
       "name": "บทเพลงเท้าไว",
       "thai": "สายสรรเสริญ",
+      "icon": "sk_bi_canto",
+      "iconUrl": "https://play.nightcamp.app/cas/7a68b98b17ab.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "buff",
       "req": "เพิ่มความเร็ว Lv.10",
       "prereq": [
         {
@@ -3732,9 +2966,11 @@ const SKILLS_DATABASE = {
       "id": "bi_sacrament",
       "name": "พิธีเร่งเวท",
       "thai": "สายสรรเสริญ",
+      "icon": "sk_bi_sacrament",
+      "iconUrl": "https://play.nightcamp.app/cas/7de9e8edef84.webp",
       "maxLevel": 5,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "buff",
       "req": "พรเร่งร่าย Lv.3",
       "prereq": [
         {
@@ -3748,9 +2984,11 @@ const SKILLS_DATABASE = {
       "id": "bi_expiatio",
       "name": "พรทะลวงเกราะ",
       "thai": "สายสรรเสริญ",
+      "icon": "sk_bi_expiatio",
+      "iconUrl": "https://play.nightcamp.app/cas/7e6a2abdd3be.webp",
       "maxLevel": 5,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "buff",
       "req": "มือประทานพลัง Lv.3",
       "prereq": [
         {
@@ -3764,9 +3002,11 @@ const SKILLS_DATABASE = {
       "id": "bi_barrier",
       "name": "ม่านแสงคุ้มภัย",
       "thai": "สายบาเรีย",
+      "icon": "sk_bi_barrier",
+      "iconUrl": "https://play.nightcamp.app/cas/0beff28daec7.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "buff",
       "req": "พรศักดิ์สิทธิ์ Lv.5",
       "prereq": [
         {
@@ -3780,9 +3020,11 @@ const SKILLS_DATABASE = {
       "id": "bi_assumptio",
       "name": "ปีกแสงคุ้มกาย",
       "thai": "สายบาเรีย",
+      "icon": "sk_bi_assumptio",
+      "iconUrl": "https://play.nightcamp.app/cas/8a650db52cc1.webp",
       "maxLevel": 5,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "buff",
       "req": "ม่านแสงคุ้มภัย Lv.5",
       "prereq": [
         {
@@ -3796,9 +3038,11 @@ const SKILLS_DATABASE = {
       "id": "bi_magnificat",
       "name": "บทสวดฟื้นมานา",
       "thai": "สายบาเรีย",
+      "icon": "sk_bi_magnificat",
+      "iconUrl": "https://play.nightcamp.app/cas/e41a7b87720b.webp",
       "maxLevel": 5,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "buff",
       "req": "พรเกราะกาย Lv.3",
       "prereq": [
         {
@@ -3812,10 +3056,13 @@ const SKILLS_DATABASE = {
       "id": "bi_turnundead",
       "name": "ขับไล่อมตะ",
       "thai": "สายพิพากษา",
+      "icon": "sk_bi_turnundead",
+      "iconUrl": "https://play.nightcamp.app/cas/fc655d73a0e7.webp",
       "maxLevel": 10,
       "freeLevel": 0,
       "kind": "active",
       "req": "แสงศักดิ์สิทธิ์ Lv.5",
+      "weaponBonus": "คัมภีร์ (ใช้ ATK+MATK แรงขึ้น)",
       "prereq": [
         {
           "skill": "holylight",
@@ -3828,6 +3075,8 @@ const SKILLS_DATABASE = {
       "id": "bi_lexdivina",
       "name": "ตราแสงตรึง",
       "thai": "สายพิพากษา",
+      "icon": "sk_bi_lexdivina",
+      "iconUrl": "https://play.nightcamp.app/cas/96dbddad5701.webp",
       "maxLevel": 5,
       "freeLevel": 0,
       "kind": "active",
@@ -3844,9 +3093,11 @@ const SKILLS_DATABASE = {
       "id": "bi_impositio",
       "name": "มือประทานพลัง",
       "thai": "สายพิพากษา",
+      "icon": "sk_bi_impositio",
+      "iconUrl": "https://play.nightcamp.app/cas/1486cf21ac9b.webp",
       "maxLevel": 5,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "buff",
       "req": "พรศักดิ์สิทธิ์ Lv.3",
       "prereq": [
         {
@@ -3860,10 +3111,13 @@ const SKILLS_DATABASE = {
       "id": "bi_battlehymn",
       "name": "เพลงสวดศึก",
       "thai": "สายบทสวดศึก",
+      "icon": "sk_bi_battlehymn",
+      "iconUrl": "https://play.nightcamp.app/cas/bcc0dcc117ff.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "buff",
       "req": "ชำนาญกระบอง Lv.5",
+      "weaponReq": "กระบอง หรือ คัมภีร์",
       "prereq": [
         {
           "skill": "pr_macemastery",
@@ -3876,10 +3130,13 @@ const SKILLS_DATABASE = {
       "id": "bi_mercy",
       "name": "มือเมตตา",
       "thai": "สายบทสวดศึก",
+      "icon": "sk_bi_mercy",
+      "iconUrl": "https://play.nightcamp.app/cas/1ea045a0a88e.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
       "req": "ลงทัณฑ์ Lv.3",
+      "weaponReq": "กระบอง หรือ คัมภีร์",
       "prereq": [
         {
           "skill": "pr_duple",
@@ -3894,9 +3151,11 @@ const SKILLS_DATABASE = {
       "id": "mo_triple",
       "name": "หมัดสามดาว",
       "thai": "สายคอมโบ",
+      "icon": "sk_mo_triple",
+      "iconUrl": "https://play.nightcamp.app/cas/20bf0b4323e7.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
       "req": "ชำนาญกระบอง Lv.3",
       "prereq": [
         {
@@ -3910,10 +3169,13 @@ const SKILLS_DATABASE = {
       "id": "mo_palms",
       "name": "ฝ่ามือร้อยทิศ",
       "thai": "สายคอมโบ",
+      "icon": "sk_mo_palms",
+      "iconUrl": "https://play.nightcamp.app/cas/7cccb0b21b2b.webp",
       "maxLevel": 10,
       "freeLevel": 0,
       "kind": "active",
       "req": "ปล่อยพลังปราณ Lv.3",
+      "weaponBonus": "สนับมือ (แรงขึ้น 20%)",
       "prereq": [
         {
           "skill": "mo_chi",
@@ -3926,10 +3188,13 @@ const SKILLS_DATABASE = {
       "id": "mo_combo",
       "name": "ชุดหมัดพายุ",
       "thai": "สายคอมโบ",
+      "icon": "sk_mo_combo",
+      "iconUrl": "https://play.nightcamp.app/cas/09272a2f6eda.webp",
       "maxLevel": 10,
       "freeLevel": 0,
       "kind": "active",
       "req": "ฝ่ามือร้อยทิศ Lv.3",
+      "weaponReq": "สนับมือ",
       "prereq": [
         {
           "skill": "mo_palms",
@@ -3942,9 +3207,11 @@ const SKILLS_DATABASE = {
       "id": "mo_snap",
       "name": "ก้าวกระโดด",
       "thai": "สายคอมโบ",
+      "icon": "sk_mo_snap",
+      "iconUrl": "https://play.nightcamp.app/cas/51f999a1815d.webp",
       "maxLevel": 5,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "buff",
       "req": "ลูกปราณ Lv.2",
       "prereq": [
         {
@@ -3958,9 +3225,11 @@ const SKILLS_DATABASE = {
       "id": "mo_fury",
       "name": "ปราณเดือด",
       "thai": "สายคอมโบ",
+      "icon": "sk_mo_fury",
+      "iconUrl": "https://play.nightcamp.app/cas/b7b2edefdc38.webp",
       "maxLevel": 5,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "buff",
       "req": "หมัดเหล็ก Lv.3",
       "prereq": [
         {
@@ -3974,28 +3243,36 @@ const SKILLS_DATABASE = {
       "id": "mo_chi",
       "name": "ปล่อยพลังปราณ",
       "thai": "สายลูกปราณ",
+      "icon": "sk_mo_chi",
+      "iconUrl": "https://play.nightcamp.app/cas/f8cbf100e2e4.webp",
       "maxLevel": 10,
       "freeLevel": 1,
       "kind": "active",
-      "desc": "[มีฟรี Lv.1] · คลื่นปราณพุ่งทะลุทั้งแนว 100% ของ ATK · มีลูกปราณ: ใช้ 1 ลูก แรงขึ้น 50%"
+      "weaponBonus": "ไม้พลอง (แรงขึ้น 15%)",
+      "desc": "คลื่นปราณพุ่งทะลุทั้งแนว 100% ของ ATK · มีลูกปราณ: ใช้ 1 ลูก แรงขึ้น 50%"
     },
     {
       "id": "mo_spheres",
       "name": "ลูกปราณ",
       "thai": "สายลูกปราณ",
+      "icon": "sk_mo_spheres",
+      "iconUrl": "https://play.nightcamp.app/cas/25a897a1702e.webp",
       "maxLevel": 5,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "buff",
       "desc": "สะสมลูกปราณ 1 ลูก (สูงสุด 1) ลูกละ ATK +3% · บางสกิลใช้ลูกปราณเพิ่มพลัง · สูงสุดตามเลเวล (1 → 5 ลูก)"
     },
     {
       "id": "mo_impact",
       "name": "ฝ่ามือทะลวงปราณ",
       "thai": "สายลูกปราณ",
+      "icon": "sk_mo_impact",
+      "iconUrl": "https://play.nightcamp.app/cas/f4e73c6ea0e5.webp",
       "maxLevel": 10,
       "freeLevel": 0,
       "kind": "active",
       "req": "ปล่อยพลังปราณ Lv.5",
+      "weaponBonus": "กระบอง (แรงขึ้น 20%)",
       "prereq": [
         {
           "skill": "mo_chi",
@@ -4008,9 +3285,12 @@ const SKILLS_DATABASE = {
       "id": "mo_asura",
       "name": "หมัดสิ้นปราณ",
       "thai": "สายลูกปราณ",
+      "icon": "sk_mo_asura",
+      "iconUrl": "https://play.nightcamp.app/cas/9576d00b6682.webp",
       "maxLevel": 5,
       "freeLevel": 0,
       "kind": "active",
+      "ult": true,
       "req": "ลูกปราณ Lv.5, ฝ่ามือทะลวงปราณ Lv.3",
       "prereq": [
         {
@@ -4028,9 +3308,11 @@ const SKILLS_DATABASE = {
       "id": "mo_ironbody",
       "name": "กายเหล็ก",
       "thai": "สายร่างเหล็ก",
+      "icon": "sk_mo_ironbody",
+      "iconUrl": "https://play.nightcamp.app/cas/cb2796d0a831.webp",
       "maxLevel": 5,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "buff",
       "req": "หมัดเหล็ก Lv.3",
       "prereq": [
         {
@@ -4044,19 +3326,1591 @@ const SKILLS_DATABASE = {
       "id": "mo_ironfist",
       "name": "หมัดเหล็ก",
       "thai": "สายร่างเหล็ก",
+      "icon": "sk_mo_ironfist",
+      "iconUrl": "https://play.nightcamp.app/cas/e06937416ce7.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
       "desc": "ATK +3% · ความแม่น +1"
     },
     {
       "id": "mo_dodge",
       "name": "ก้าวไร้เงา",
       "thai": "สายร่างเหล็ก",
+      "icon": "sk_mo_dodge",
+      "iconUrl": "https://play.nightcamp.app/cas/c28a5d1b0c94.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "desc": "หลบหลีก +2 · หลบสมบูรณ์ +0%"
+    }
+  ],
+  "swordmaster": [
+    {
+      "id": "sm_twin",
+      "name": "ดาบคู่ประสาน",
+      "thai": "สายเพลงดาบคู่",
+      "icon": "sk_sm_twin",
+      "iconUrl": "https://play.nightcamp.app/cas/94ee65e0a76c.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "เร่งเพลงดาบ Lv.3",
+      "weaponReq": "ดาบคู่",
+      "prereq": [
+        {
+          "skill": "kn_quicken",
+          "level": 3
+        }
+      ],
+      "desc": "ถือดาบคู่: ตีปกติฟันสองมือ มือซ้ายแรง 37% ความเร็วโจมตี +1% · ทุกครั้งที่ 4 ทิ้งรอยดาบ · Lv5 รอยที่ครบ 3 วิระเบิดเอง 45% · Lv10 ทุกครั้งที่ 4 ทิ้ง 2 รอย"
+    },
+    {
+      "id": "sm_moondance",
+      "name": "ระบำใบมีดใต้จันทร์",
+      "thai": "สายเพลงดาบคู่",
+      "icon": "sk_sm_moondance",
+      "iconUrl": "https://play.nightcamp.app/cas/a55d7651a9e2.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "buff",
+      "req": "ดาบคู่ประสาน Lv.3",
+      "weaponReq": "ดาบคู่",
+      "prereq": [
+        {
+          "skill": "sm_twin",
+          "level": 3
+        }
+      ],
+      "desc": "30 วิ: ตีโดนได้ชั้นระบำ สูงสุด 10 ชั้น ชั้นละความเร็วโจมตี +1.5% · ครบ 10 ชั้นตีปกติทุกครั้งทิ้งรอยดาบ · Lv5 เปลี่ยนเป้าแล้วชั้นไม่หาย · Lv10 ครบ 10 ชั้นคริ +10"
+    },
+    {
+      "id": "sm_bladerain",
+      "name": "สายฝนดาบ",
+      "thai": "สายเพลงดาบคู่",
+      "icon": "sk_sm_bladerain",
+      "iconUrl": "https://play.nightcamp.app/cas/457b7daa70f3.webp",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "active",
+      "weaponReq": "ดาบคู่",
+      "desc": "ฟันรัว 6 ครั้ง ครั้งละ 100% ของ ATK ทุกครั้งทิ้งรอยดาบ · Lv5 ไม่เดินช้าลงระหว่างฟัน · Lv10 ครั้งสุดท้ายดึงรอยดาบทั้งหมดมาระเบิดที่เป้า"
+    },
+    {
+      "id": "sm_thousand",
+      "name": "จันทร์พันดาบ",
+      "thai": "สายเพลงดาบคู่",
+      "icon": "sk_sm_thousand",
+      "iconUrl": "https://play.nightcamp.app/cas/083ca04d1ba4.webp",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "ult": true,
+      "req": "ระบำใบมีดใต้จันทร์ Lv.5, สายฝนดาบ Lv.5",
+      "weaponReq": "ดาบคู่",
+      "prereq": [
+        {
+          "skill": "sm_moondance",
+          "level": 5
+        },
+        {
+          "skill": "sm_bladerain",
+          "level": 5
+        }
+      ],
+      "desc": "เงาดาบ 8 เล่มโคจรรอบตัว 16 วิ ตีปกติแต่ละครั้งเงาดาบ 2 เล่มพุ่งตาม เล่มละ 100% ของ ATK · Lv5 เงาดาบแรงขึ้นทุกเลเวล"
+    },
+    {
+      "id": "sm_duel",
+      "name": "ท้าดวล",
+      "thai": "สายเจตจำนงนักดาบ",
+      "icon": "sk_sm_duel",
+      "iconUrl": "https://play.nightcamp.app/cas/b30092e05cb7.webp",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "desc": "ท้าเป้า 1 ตัว 12 วิ มันหันมาตีเรา เราทำดาเมจใส่มัน +4% · ชนะดวลได้ \"เกียรตินักดาบ\" ATK +5% 20 วิ ซ้อนได้ 3 ชั้น · Lv5 ดาเมจใส่คู่ดวล +20%"
+    },
+    {
+      "id": "sm_eye",
+      "name": "สายตานักดาบ",
+      "thai": "สายเจตจำนงนักดาบ",
+      "icon": "sk_sm_eye",
+      "iconUrl": "https://play.nightcamp.app/cas/57c9805069f6.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "ชำนาญดาบ Lv.3",
+      "weaponReq": "ดาบคู่ หรือ ดาบมือเดียว หรือ ดาบใหญ่",
+      "prereq": [
+        {
+          "skill": "kn_swordmastery",
+          "level": 3
+        }
+      ],
+      "desc": "ถือดาบ: ดาเมจคริ +2% ความแม่น +2 · รอยดาบระเบิดคริได้ · Lv10 ดาเมจคริ +20%"
+    },
+    {
+      "id": "sm_enchant",
+      "name": "ใส่ธาตุดาบ",
+      "thai": "สายดาบเวท",
+      "icon": "sk_sm_enchant",
+      "iconUrl": "https://play.nightcamp.app/cas/2074357d07dc.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "buff",
+      "weaponReq": "ดาบมือเดียว",
+      "desc": "60 วิ: ใส่ธาตุไฟ น้ำแข็ง หรือสายฟ้าให้ดาบ (กดซ้ำเพื่อสลับธาตุ) ตีปกติเพิ่ม MATK 46% ธาตุนั้น ติดสถานะของธาตุ · ตีปกติทุกครั้งที่ 3 ทิ้งรอยดาบ · Lv5 สลับธาตุแล้วฮิตธาตุครั้งแรกแรงขึ้น 30% · Lv10 ใส่ได้ 2 ธาตุพร้อมกัน"
+    },
+    {
+      "id": "sm_wave",
+      "name": "คลื่นดาบเวท",
+      "thai": "สายดาบเวท",
+      "icon": "sk_sm_wave",
+      "iconUrl": "https://play.nightcamp.app/cas/e9ffb2b6fa9a.webp",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "active",
+      "weaponReq": "ดาบมือเดียว",
+      "desc": "ฟันปล่อยคลื่นเวทธาตุของดาบไป 500 100% ของ ATK+MATK ทิ้งรอยดาบบนตัวที่โดน · Lv5 คลื่นทะลุ · Lv10 ปล่อย 3 คลื่นเป็นพัด"
+    },
+    {
+      "id": "sm_float",
+      "name": "ดาบเวทลอย",
+      "thai": "สายดาบเวท",
+      "icon": "sk_sm_float",
+      "iconUrl": "https://play.nightcamp.app/cas/619098c9b92a.webp",
       "maxLevel": 10,
       "freeLevel": 0,
       "kind": "active",
-      "desc": "หลบหลีก +2 · หลบสมบูรณ์ +0%"
+      "req": "คลื่นดาบเวท Lv.3, ใส่ธาตุดาบ Lv.3",
+      "weaponReq": "ดาบมือเดียว",
+      "prereq": [
+        {
+          "skill": "sm_wave",
+          "level": 3
+        },
+        {
+          "skill": "sm_enchant",
+          "level": 3
+        }
+      ],
+      "desc": "ดาบเวท 2 เล่มลอยรอบตัว 20 วิ พุ่งใส่เป้าที่เราตีทุก 1 วิ เล่มละ 100% ของ MATK ธาตุของดาบ · จำนวนเล่มเพิ่มทุก 4 เลเวล (2 → 4)"
+    },
+    {
+      "id": "sm_heart",
+      "name": "ใจดาบเวท",
+      "thai": "สายดาบเวท",
+      "icon": "sk_sm_heart",
+      "iconUrl": "https://play.nightcamp.app/cas/621f7d2ce2ab.webp",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "ใส่ธาตุดาบ Lv.5",
+      "weaponReq": "ดาบมือเดียว",
+      "prereq": [
+        {
+          "skill": "sm_enchant",
+          "level": 5
+        }
+      ],
+      "desc": "ATK กับ MATK ยืมค่ากันและกัน: ท่า ATK+MATK แรงขึ้นราว 20% · Lv1 ATK กับ MATK ยืมกันและกัน 20% · Lv3 รอยดาบระเบิดเป็นธาตุ · Lv5 ชักดาบแล้วดาบเวทลอยทุกเล่มพุ่งพร้อมกัน"
+    },
+    {
+      "id": "sm_iai",
+      "name": "ชักดาบผ่ารอย",
+      "thai": "สายท่าชักดาบ",
+      "icon": "sk_sm_iai",
+      "iconUrl": "https://play.nightcamp.app/cas/5a84c7732569.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "คลื่นดาบเวท Lv.1",
+      "weaponReq": "ดาบมือเดียว",
+      "weaponBonus": "อาวุธมือเดียว (ไม่ถือโล่) (แรงขึ้น 20%)",
+      "prereq": [
+        {
+          "skill": "sm_wave",
+          "level": 1
+        }
+      ],
+      "desc": "ชาร์จ 0.6 วิ แล้วพุ่งฟันเป็นเส้น 400 100% ของ ATK ×1.6 รอยดาบบนเส้นทางระเบิดทั้งหมด รอยละ 60% · มือว่าง (ไม่ถือโล่): แรงขึ้น 44% รวมโบนัสอาวุธ · Lv10 ฆ่าได้คืนคูลดาวน์ครึ่งหนึ่ง"
+    },
+    {
+      "id": "sm_focus",
+      "name": "สมาธิดาบ",
+      "thai": "สายท่าชักดาบ",
+      "icon": "sk_sm_focus",
+      "iconUrl": "https://play.nightcamp.app/cas/0603087d92ae.webp",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "ชักดาบผ่ารอย Lv.3",
+      "weaponReq": "ดาบมือเดียว",
+      "prereq": [
+        {
+          "skill": "sm_iai",
+          "level": 3
+        }
+      ],
+      "desc": "ไม่ได้ตี 2 วิ ท่าชักดาบครั้งถัดไปคริแน่นอน · Lv1 ไม่ได้ตี 2 วิ ชักดาบครั้งถัดไปคริแน่นอน · Lv3 ชาร์จเร็วขึ้น 30% · Lv5 รอยดาบจากท่าชักดาบแรง ×1.5"
+    }
+  ],
+  "berserker": [
+    {
+      "id": "bk_crosscut",
+      "name": "ฟันกากบาท",
+      "thai": "สายเพลงดาบใหญ่",
+      "icon": "sk_bk_crosscut",
+      "iconUrl": "https://play.nightcamp.app/cas/0875e78d2158.webp",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "active",
+      "desc": "พุ่งเข้าหาเป้าแล้วฟันไขว้ 2 ครั้ง ครั้งละ 100% ของ ATK ลงเลือด 2 ชั้น (15% ATK ต่อวิต่อชั้น 5 วิ สูงสุด 5 ชั้น) โทสะ +15 · Lv5 ฟันครั้งที่ 3 · Lv10 พุ่งทะลุ"
+    },
+    {
+      "id": "bk_whirlwind",
+      "name": "ดาบพายุหมุน",
+      "thai": "สายเพลงดาบใหญ่",
+      "icon": "sk_bk_whirlwind",
+      "iconUrl": "https://play.nightcamp.app/cas/81f4db571b8f.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ฟันกากบาท Lv.3",
+      "prereq": [
+        {
+          "skill": "bk_crosscut",
+          "level": 3
+        }
+      ],
+      "desc": "ใช้โทสะ 1 ช่อง หมุนดาบ 2.5 วิ ตีทุกตัวรอบตัว 5 ครั้งต่อวิ ครั้งละ 100% ของ ATK · Lv5 ดูดศัตรูเข้ามา · Lv10 ปิดด้วยฟันกวาด 300%"
+    },
+    {
+      "id": "bk_guillotine",
+      "name": "ฟันประหาร",
+      "thai": "สายเพลงดาบใหญ่",
+      "icon": "sk_bk_guillotine",
+      "iconUrl": "https://play.nightcamp.app/cas/b0628ee50217.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ฟันกากบาท Lv.5",
+      "prereq": [
+        {
+          "skill": "bk_crosscut",
+          "level": 5
+        }
+      ],
+      "desc": "ใช้โทสะทุกช่อง กระโดดสับลง 100% ของ ATK × 1 / 1.5 / 2.2 ตามช่อง · ศัตรูเลือดต่ำกว่า 30% หรือมึนโดนสองเท่า · ระเบิดเลือดไหลชั้นละ 60% · ฆ่าได้คืน 1 ช่องและคูลดาวน์ · แรงขึ้นตามช่องโทสะ ×1 / 1.5 / 2.2"
+    },
+    {
+      "id": "bk_smash",
+      "name": "ทุบสะสมพลัง",
+      "thai": "สายทลายพสุธา",
+      "icon": "sk_bk_smash",
+      "iconUrl": "https://play.nightcamp.app/cas/d094c49c59aa.webp",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "active",
+      "desc": "ง้างสะสมพลัง 0.7 วิ (อมตะระหว่างง้าง) แล้วทุบเป็นกรวย 100% ของ ATK ธาตุดิน โทสะ +16 · ค้อน: มึน 2 วิ · ขวาน: ลงเลือด 3 ชั้น · Lv10 แรงเพิ่ม 40% แลก HP 5%"
+    },
+    {
+      "id": "bk_leap",
+      "name": "กระโดดทุบธรณี",
+      "thai": "สายทลายพสุธา",
+      "icon": "sk_bk_leap",
+      "iconUrl": "https://play.nightcamp.app/cas/973c96ee2205.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ทุบสะสมพลัง Lv.3",
+      "prereq": [
+        {
+          "skill": "bk_smash",
+          "level": 3
+        }
+      ],
+      "desc": "ใช้โทสะทุกช่อง กระโดดไปไกล 350 ทุบลง 100% ของ ATK × ตามช่อง ศัตรูล้ม 1 วิ · 2 ช่องขึ้นไป: พื้นแตกสั่น 3 วิ ตีทุก 0.5 วิ 60% ศัตรูช้าลง · 2 ช่องขึ้นไป พื้นแตกสั่น 3 วิ"
+    },
+    {
+      "id": "bk_hurl",
+      "name": "ขว้างอาวุธ",
+      "thai": "สายทลายพสุธา",
+      "icon": "sk_bk_hurl",
+      "iconUrl": "https://play.nightcamp.app/cas/8ca795190470.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ทุบสะสมพลัง Lv.1",
+      "prereq": [
+        {
+          "skill": "bk_smash",
+          "level": 1
+        }
+      ],
+      "desc": "ขว้างอาวุธไป 500 แล้ววกกลับ โดนทั้งขาไปขากลับ ครั้งละ 100% ของ ATK โทสะ +12 · ขวาน: ลงเลือด · ค้อน: มึน 0.8 วิ และดึงศัตรูเข้ามา · ขวาน ลงเลือด · ค้อน มึนและดึง"
+    },
+    {
+      "id": "bk_frenzy",
+      "name": "เลือดเดือด",
+      "thai": "สายโลหิตคลั่ง",
+      "icon": "sk_bk_frenzy",
+      "iconUrl": "https://play.nightcamp.app/cas/e45add3028b9.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "เร่งเพลงดาบ Lv.1",
+      "prereq": [
+        {
+          "skill": "kn_quicken",
+          "level": 1
+        }
+      ],
+      "desc": "ตีเป้าเดิมติดกันได้ชั้นเลือดเดือด ชั้นละความเร็วโจมตี +2% สูงสุด 10 ชั้น คริ +0.5 · ครบ 10 ชั้น โอกาสตีเบิ้ล 16.8% · ค้อน: ทุก 4 ครั้งมึน 0.5 วิ · ขวาน: คริได้ชั้นเพิ่ม · ครบ 10 ชั้นตีเบิ้ล"
+    },
+    {
+      "id": "bk_pact",
+      "name": "สัญญาเลือด",
+      "thai": "สายโลหิตคลั่ง",
+      "icon": "sk_bk_pact",
+      "iconUrl": "https://play.nightcamp.app/cas/d27a0e843eff.webp",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "เลือดเดือด Lv.3",
+      "prereq": [
+        {
+          "skill": "bk_frenzy",
+          "level": 3
+        }
+      ],
+      "desc": "ATK +1% และความเร็วโจมตี +2% ทุก 3% ของ HP ที่หายไป (สูงสุด 25% / 50%) · Lv1 เลือดน้อยแรงขึ้น · Lv3 รอดตาย 1 ครั้งต่อ 60 วิ · Lv5 จ่าย HP แทนโทสะ ดูดเลือด"
+    },
+    {
+      "id": "bk_titan",
+      "name": "พิโรธไททัน",
+      "thai": "สายโลหิตคลั่ง",
+      "icon": "sk_bk_titan",
+      "iconUrl": "https://play.nightcamp.app/cas/98cc5b761a1b.webp",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "buff",
+      "req": "ฟันประหาร Lv.5 หรือ กระโดดทุบธรณี Lv.5",
+      "reqAny": true,
+      "prereq": [
+        {
+          "skill": "bk_guillotine",
+          "level": 5
+        },
+        {
+          "skill": "bk_leap",
+          "level": 5
+        }
+      ],
+      "desc": "ใช้โทสะทั้งหมด (อย่างน้อย 1 ช่อง) ตัวโตเป็นยักษ์ 6 วิ + 2 วิต่อช่อง รับดาเมจลด 25% ศัตรูรอบตัวช้าลง ตีปกติส่งคลื่นกระแทก 100% ของ ATK · ท่าปิดไม่ใช้โทสะและนับเป็น 3 ช่อง · จบแล้วระเบิด 400% และ 8 วิไม่ได้โทสะ · ร่างยักษ์ ตีปกติส่งคลื่นกระแทก"
+    },
+    {
+      "id": "bk_warcry",
+      "name": "คำรามศึก",
+      "thai": "สายจ่าฝูง",
+      "icon": "sk_bk_warcry",
+      "iconUrl": "https://play.nightcamp.app/cas/f780e7bc7fe4.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "buff",
+      "desc": "20 วิ: ทีม ATK +6% · ตัวเองความเร็วโจมตี +1% · โทสะ +30 · ศัตรูรอบตัวรับดาเมจ +15% 6 วิ"
+    },
+    {
+      "id": "bk_roar",
+      "name": "คำรามท้ารบ",
+      "thai": "สายจ่าฝูง",
+      "icon": "sk_bk_roar",
+      "iconUrl": "https://play.nightcamp.app/cas/d7512050d97a.webp",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "คำรามศึก Lv.3",
+      "prereq": [
+        {
+          "skill": "bk_warcry",
+          "level": 3
+        }
+      ],
+      "desc": "ดึงศัตรูรอบตัว 320 เข้ามา มันตีเบาลง 20% 4 วิ · ต่อตัวที่ดึงได้ รับดาเมจลด 4% (สูงสุด 20%) 6 วิ และโทสะ +5 · ดึงศัตรูแล้วรับดาเมจลดลง"
+    }
+  ],
+  "firemage": [
+    {
+      "id": "fm_pillar",
+      "name": "เสาเพลิง",
+      "thai": "สายนรกเพลิง",
+      "icon": "sk_am_firepillar",
+      "iconUrl": "https://play.nightcamp.app/cas/60bab36df68f.webp",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "active",
+      "weaponBonus": "คทา (ปะทุ 4 ครั้ง)",
+      "desc": "เสาไฟปะทุใต้ศัตรู 3 ครั้ง (ถือคทา 4 ครั้ง) ครั้งละ 100% ของ MATK ความร้อน +8 · Lv5 ตัวที่เผาอยู่โดนเพิ่ม 20% · Lv10 ทิ้งพื้นไฟ 3 วิ"
+    },
+    {
+      "id": "fm_sea",
+      "name": "ทะเลเพลิง",
+      "thai": "สายนรกเพลิง",
+      "icon": "sk_am_inferno",
+      "iconUrl": "https://play.nightcamp.app/cas/28fb6f17f959.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "เสาเพลิง Lv.3",
+      "weaponBonus": "คทา (ร่ายเร็วขึ้น 15%)",
+      "prereq": [
+        {
+          "skill": "fm_pillar",
+          "level": 3
+        }
+      ],
+      "desc": "ทะเลเพลิงรัศมี 320 นาน 6 วิ ทุกครึ่งวิ 100% ของ MATK มีโอกาสติดเผา ความร้อน +20 · Lv5 ศัตรูในทะเลเพลิงช้าลง · Lv10 ไฟลามตามตัวที่หนี"
+    },
+    {
+      "id": "fm_ring",
+      "name": "วงแหวนเพลิง",
+      "thai": "สายนรกเพลิง",
+      "icon": "sk_fm_ring",
+      "iconUrl": "https://play.nightcamp.app/cas/ab1adaa6a490.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "กำแพงไฟ Lv.3",
+      "prereq": [
+        {
+          "skill": "mg_firewall",
+          "level": 3
+        }
+      ],
+      "desc": "วงแหวนไฟรอบตัว 4 วิ ศัตรูที่ผ่านโดน 100% ของ MATK และถูกผลักออก ความร้อน +12 · Lv5 วงแหวนขยายออกเรื่อย ๆ · Lv10 วงแหวน 2 ชั้น"
+    },
+    {
+      "id": "fm_master",
+      "name": "ปรมาจารย์เพลิง",
+      "thai": "สายนรกเพลิง",
+      "icon": "sk_am_infernomastery",
+      "iconUrl": "https://play.nightcamp.app/cas/f0093bbd9cb4.webp",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "ใจเพลิง Lv.5",
+      "prereq": [
+        {
+          "skill": "mg_fireheart",
+          "level": 5
+        }
+      ],
+      "desc": "เผาซ้อนได้ 8 ชั้น · Lv1 เผาซ้อน 8 ชั้น · Lv5 เผาครบ 8 ชั้นระเบิดเอง"
+    },
+    {
+      "id": "fm_gauge",
+      "name": "แถบความร้อน",
+      "thai": "สายความร้อน",
+      "icon": "sk_fm_gauge",
+      "iconUrl": "https://play.nightcamp.app/cas/35585acdae5e.webp",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "passive",
+      "desc": "ร่ายสกิลไฟได้ความร้อน 0–100 ทุก 10 ความร้อน ดาเมจไฟ +0.6% · เกิน 80 ฟื้น HP 1% ต่อวิ · ไม่ร่ายไฟ 3 วิ ความร้อนลดวิละ 10 · Lv5 ความร้อนลดช้าลงครึ่งหนึ่ง · Lv10 ที่ 100 ความร้อน ร่ายไฟไม่ใช้ SP"
+    },
+    {
+      "id": "fm_vent",
+      "name": "ระบายความร้อน",
+      "thai": "สายความร้อน",
+      "icon": "sk_fm_vent",
+      "iconUrl": "https://play.nightcamp.app/cas/a62c4c67c21e.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "แถบความร้อน Lv.2",
+      "prereq": [
+        {
+          "skill": "fm_gauge",
+          "level": 2
+        }
+      ],
+      "desc": "ปล่อยความร้อนทั้งหมดเป็นระเบิดรอบตัว MATK 4.7% × ความร้อน (ตอนนี้ 0) ผลักศัตรูออก · Lv5 ที่ 100 ความร้อนทิ้งวงไฟ 4 วิ · Lv10 ระบายแล้วร่ายเร็วขึ้น 30% 5 วิ"
+    },
+    {
+      "id": "fm_forge",
+      "name": "หัวใจเตาหลอม",
+      "thai": "สายความร้อน",
+      "icon": "sk_fm_forge",
+      "iconUrl": "https://play.nightcamp.app/cas/280feffcf07e.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "desc": "HP สูงสุด +1.5% · ร่ายเร็วขึ้น 0.25% ต่อ VIT 1"
+    },
+    {
+      "id": "fm_orbfire",
+      "name": "ลูกไฟตีปกติ",
+      "thai": "สายลูกไฟรัว",
+      "icon": "sk_fm_orbfire",
+      "iconUrl": "https://play.nightcamp.app/cas/05c5ca53a373.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "ชำนาญคทา Lv.1",
+      "weaponReq": "ออร์บ",
+      "prereq": [
+        {
+          "skill": "mg_staffmastery",
+          "level": 1
+        }
+      ],
+      "desc": "ถือออร์บ: ตีปกติเป็นลูกไฟ MATK +3% โอกาสติดเผาเพิ่ม 5% ต่อครั้ง ความร้อน +2 ต่อครั้ง · ถือออร์บเท่านั้น"
+    },
+    {
+      "id": "fm_spread",
+      "name": "ไฟลาม",
+      "thai": "สายลูกไฟรัว",
+      "icon": "sk_fm_spread",
+      "iconUrl": "https://play.nightcamp.app/cas/43e840bee444.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "ลูกไฟตีปกติ Lv.3",
+      "weaponReq": "ออร์บ",
+      "prereq": [
+        {
+          "skill": "fm_orbfire",
+          "level": 3
+        }
+      ],
+      "desc": "ถือออร์บ: ตัวที่ติดเผาตาย ไฟกระโดดไปตัวใกล้ 1 ตัว พร้อมชั้นเผาครึ่งหนึ่ง · Lv5 กระโดด 2 ตัว · Lv10 3 ตัว"
+    },
+    {
+      "id": "fm_seek",
+      "name": "เพลิงตามติด",
+      "thai": "สายลูกไฟรัว",
+      "icon": "sk_fm_seek",
+      "iconUrl": "https://play.nightcamp.app/cas/93f45c4e9cf2.webp",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "buff",
+      "req": "ลูกไฟตีปกติ Lv.5",
+      "weaponReq": "ออร์บ",
+      "prereq": [
+        {
+          "skill": "fm_orbfire",
+          "level": 5
+        }
+      ],
+      "desc": "20 วิ: ลูกไฟตีปกติโดนแล้วแตกเป็นลูกเล็ก 3 ลูกวิ่งหาเป้าเอง ลูกละ 15% ของ MATK · Lv5 ลูกเล็กแรงขึ้น"
+    },
+    {
+      "id": "fm_meteor",
+      "name": "อุกกาบาตถล่ม",
+      "thai": "สายอุกกาบาตถล่ม",
+      "icon": "sk_fm_meteor",
+      "iconUrl": "https://play.nightcamp.app/cas/afecef76d46a.webp",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "ult": true,
+      "req": "ทะเลเพลิง Lv.5 หรือ ระบายความร้อน Lv.5",
+      "reqAny": true,
+      "prereq": [
+        {
+          "skill": "fm_sea",
+          "level": 5
+        },
+        {
+          "skill": "fm_vent",
+          "level": 5
+        }
+      ],
+      "desc": "อุกกาบาต 16 ลูกร่วงใส่วงใหญ่ 3 วิ 4 ลูกพุ่งใส่ศัตรูในวง ลูกละ 100% ของ MATK วงระเบิดใหญ่ · ร่ายตอนความร้อน 100 ได้ลูกยักษ์เพิ่ม 1 ลูก (×3.2)"
+    }
+  ],
+  "icemage": [
+    {
+      "id": "im_blizzard",
+      "name": "พายุหิมะ",
+      "thai": "สายธารน้ำแข็ง",
+      "icon": "sk_am_blizzard",
+      "iconUrl": "https://play.nightcamp.app/cas/9d12195f6a05.webp",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "active",
+      "weaponBonus": "คทา (วงใหญ่ขึ้น 30%)",
+      "desc": "พายุหิมะ 5 วิที่เมาส์ วิละ 100% ของ MATK มีโอกาสเย็นเฉียบทุกวิ ศัตรูช้า · ถือคทา: วงใหญ่ขึ้น 30% · Lv10 พายุตามเป้าหมาย"
+    },
+    {
+      "id": "im_lance",
+      "name": "หอกธารน้ำแข็ง",
+      "thai": "สายธารน้ำแข็ง",
+      "icon": "sk_am_glacial",
+      "iconUrl": "https://play.nightcamp.app/cas/81396cbe0be8.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "หอกน้ำแข็ง Lv.5",
+      "weaponBonus": "คทา (แรงขึ้น 10%)",
+      "prereq": [
+        {
+          "skill": "frostdiver",
+          "level": 5
+        }
+      ],
+      "desc": "หอกน้ำแข็งยักษ์พุ่งทะลุทั้งแนว 100% ของ MATK ตัวที่แข็งอยู่โดนสองเท่า · ตัวที่แข็งโดนสองเท่า"
+    },
+    {
+      "id": "im_aura",
+      "name": "ลมหนาวรอบตัว",
+      "thai": "สายธารน้ำแข็ง",
+      "icon": "sk_im_aura",
+      "iconUrl": "https://play.nightcamp.app/cas/a3988a797784.webp",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "passive",
+      "desc": "ศัตรูที่อยู่ใกล้เราในระยะ 200 ช้าลง · เย็นเฉียบ 1 ชั้นทุก 5 วิ"
+    },
+    {
+      "id": "im_zero",
+      "name": "ศูนย์สัมบูรณ์",
+      "thai": "สายธารน้ำแข็ง",
+      "icon": "sk_am_absolutezero",
+      "iconUrl": "https://play.nightcamp.app/cas/5890430c8e94.webp",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "ใจน้ำแข็ง Lv.3",
+      "prereq": [
+        {
+          "skill": "mg_iceheart",
+          "level": 3
+        }
+      ],
+      "desc": "เย็นเฉียบครบ 3 ชั้นแล้วแข็ง (ตัวที่เพิ่งละลายต้านทาน 4 วิ) · Lv1 เย็นเฉียบครบ 3 ชั้นแล้วแข็ง · Lv3 แข็งนานขึ้น 1 วิ · Lv5 บอสแข็งได้"
+    },
+    {
+      "id": "im_shatter",
+      "name": "ทุบน้ำแข็ง",
+      "thai": "สายแตกกระจาย",
+      "icon": "sk_im_shatter",
+      "iconUrl": "https://play.nightcamp.app/cas/30b0e9683106.webp",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "passive",
+      "desc": "สกิลโดนตัวที่แข็งอยู่ มันแตกกระจาย ดาเมจเพิ่ม 68% ของ MATK เศษน้ำแข็ง 4 ชิ้นกระเด็นไปแช่ตัวข้าง ๆ · Lv5 เศษ 6 ชิ้น · Lv10 แตกต่อเป็นลูกโซ่"
+    },
+    {
+      "id": "im_breath",
+      "name": "ลมหายใจเยือกแข็ง",
+      "thai": "สายแตกกระจาย",
+      "icon": "sk_im_breath",
+      "iconUrl": "https://play.nightcamp.app/cas/27d91b472aa1.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ทุบน้ำแข็ง Lv.2",
+      "prereq": [
+        {
+          "skill": "im_shatter",
+          "level": 2
+        }
+      ],
+      "desc": "พ่นลมหนาวเป็นกรวย 2 วิ วิละ 68% ของ MATK เย็นเฉียบ 2 ชั้นต่อวิ"
+    },
+    {
+      "id": "im_burst",
+      "name": "ผลึกระเบิด",
+      "thai": "สายแตกกระจาย",
+      "icon": "sk_im_burst",
+      "iconUrl": "https://play.nightcamp.app/cas/13d9fb7d2cea.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ทุบน้ำแข็ง Lv.5",
+      "prereq": [
+        {
+          "skill": "im_shatter",
+          "level": 5
+        }
+      ],
+      "desc": "ทุบทุกตัวที่แข็งอยู่ในจอให้แตกพร้อมกัน ตัวละ 100% ของ MATK · Lv10 ฆ่าได้คืน SP 0.5 ต่อตัว"
+    },
+    {
+      "id": "im_armor",
+      "name": "เกราะน้ำแข็ง",
+      "thai": "สายปราการน้ำแข็ง",
+      "icon": "sk_im_armor",
+      "iconUrl": "https://play.nightcamp.app/cas/d65479f5b55d.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "buff",
+      "weaponBonus": "โล่ (เกราะหนาขึ้น 40%)",
+      "desc": "60 วิ: เกราะดูดซับดาเมจ 175% ของ MATK คนที่ตีเราประชิดติดเย็นเฉียบ · ถือโล่: เกราะหนาขึ้น 40% · Lv5 เกราะแตกแล้วระเบิดแช่รอบตัว · Lv10 เกราะฟื้นเองทุก 20 วิ"
+    },
+    {
+      "id": "im_wall",
+      "name": "กำแพงน้ำแข็ง",
+      "thai": "สายปราการน้ำแข็ง",
+      "icon": "sk_im_wall",
+      "iconUrl": "https://play.nightcamp.app/cas/09e522a3eafa.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "เกราะน้ำแข็ง Lv.3",
+      "prereq": [
+        {
+          "skill": "im_armor",
+          "level": 3
+        }
+      ],
+      "desc": "กำแพงน้ำแข็งยาว 300 นาน 6.5 วิ ขวางศัตรูไม่ให้ผ่าน · Lv10 กำแพงแตกแล้วเศษแช่ศัตรูรอบ ๆ"
+    },
+    {
+      "id": "im_winter",
+      "name": "ใจเหมันต์",
+      "thai": "สายปราการน้ำแข็ง",
+      "icon": "sk_im_winter",
+      "iconUrl": "https://play.nightcamp.app/cas/4286f8ee66dd.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "ชำนาญคทา Lv.1",
+      "weaponReq": "ออร์บ",
+      "prereq": [
+        {
+          "skill": "mg_staffmastery",
+          "level": 1
+        }
+      ],
+      "desc": "ถือออร์บ: DEF +2 MDEF +1 ตีปกติเป็นเกล็ดน้ำแข็ง MATK +6% โอกาสเย็นเฉียบเพิ่ม 5% · ถือออร์บเท่านั้น"
+    },
+    {
+      "id": "im_iceage",
+      "name": "ยุคน้ำแข็ง",
+      "thai": "สายยุคน้ำแข็ง",
+      "icon": "sk_im_iceage",
+      "iconUrl": "https://play.nightcamp.app/cas/1be61396f50e.webp",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "ult": true,
+      "req": "ผลึกระเบิด Lv.5 หรือ เกราะน้ำแข็ง Lv.5",
+      "reqAny": true,
+      "prereq": [
+        {
+          "skill": "im_burst",
+          "level": 5
+        },
+        {
+          "skill": "im_armor",
+          "level": 5
+        }
+      ],
+      "desc": "ทั้งจอหนาวจัด 8 วิ ศัตรูทุกตัวเย็นเฉียบทุกวิ (100% ของ MATK) ตัวที่แข็งแตกกระจายเองทุก 2 วิ · พื้นที่เหลือ 50% ของเดิม"
+    }
+  ],
+  "bard": [
+    {
+      "id": "bd_tempo",
+      "name": "เพลงเร่งจังหวะ",
+      "thai": "สายเพลงรอบกองไฟ",
+      "icon": "sk_bd_tempo",
+      "iconUrl": "https://play.nightcamp.app/cas/4ce4fb542c27.webp",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "buff",
+      "weaponReq": "เครื่องดนตรี",
+      "desc": "เล่นต่อเนื่อง (SP 2/วิ) รัศมี 450: ตัวเองความเร็วโจมตี +1% เพื่อนตีแรงขึ้น 1% คูณท่อน (ท่อนขึ้นทุก 5 วิ ×1 / ×1.5 / ×2) · กดอีกครั้ง = ท่อนฮุก: ตัวเองตีปกติ 3 ครั้งถัดไปคริแน่นอน เพื่อนตีแรงขึ้น 30% 4 วิ · ท่อนขึ้นทุก 5 วิ แรง ×1 / ×1.5 / ×2 · กดซ้ำตอนท่อน 2 ขึ้นไป = ท่อนฮุก"
+    },
+    {
+      "id": "bd_warm",
+      "name": "เพลงอุ่นไอไฟ",
+      "thai": "สายเพลงรอบกองไฟ",
+      "icon": "sk_bd_warm",
+      "iconUrl": "https://play.nightcamp.app/cas/003823366feb.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "buff",
+      "req": "เพลงเร่งจังหวะ Lv.3",
+      "weaponReq": "เครื่องดนตรี",
+      "prereq": [
+        {
+          "skill": "bd_tempo",
+          "level": 3
+        }
+      ],
+      "desc": "เล่นต่อเนื่อง: ทั้งทีมฟื้น HP 0.6% ทุก 5 วิ คูณท่อน · ท่อนฮุก: ฮีลทั้งทีม 17% คูณท่อน · ท่อนฮุกฮีลทั้งทีม"
+    },
+    {
+      "id": "bd_stars",
+      "name": "เพลงดาวค้างฟ้า",
+      "thai": "สายเพลงรอบกองไฟ",
+      "icon": "sk_bd_stars",
+      "iconUrl": "https://play.nightcamp.app/cas/cebbd934e2bd.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "buff",
+      "req": "เพลงเร่งจังหวะ Lv.3",
+      "weaponReq": "เครื่องดนตรี",
+      "prereq": [
+        {
+          "skill": "bd_tempo",
+          "level": 3
+        }
+      ],
+      "desc": "เล่นต่อเนื่อง: ตัวเองเวลาร่าย −2% คูลดาวน์ −1% คูณท่อน · ท่อนฮุก: สกิลที่เหลือคูลดาวน์นานที่สุดลดลง 30% · ท่อนฮุกลดคูลดาวน์สกิลที่นานที่สุด 30%"
+    },
+    {
+      "id": "bd_band",
+      "name": "วงดนตรี",
+      "thai": "สายเพลงรอบกองไฟ",
+      "icon": "sk_bd_band",
+      "iconUrl": "https://play.nightcamp.app/cas/bc8859db10cf.webp",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "เพลงอุ่นไอไฟ Lv.3",
+      "weaponReq": "เครื่องดนตรี",
+      "prereq": [
+        {
+          "skill": "bd_warm",
+          "level": 3
+        }
+      ],
+      "desc": "หยุดเล่นแล้วเพลงค้างอีก 3 วิ · Lv1 เพลงค้าง 3 วิ · Lv3 เดินได้ปกติ · Lv5 เล่น 2 เพลงพร้อมกัน · INT เพิ่มผลเพลง"
+    },
+    {
+      "id": "bd_twirl",
+      "name": "ระบำควงไฟ",
+      "thai": "สายระบำไฟ",
+      "icon": "sk_bd_twirl",
+      "iconUrl": "https://play.nightcamp.app/cas/cc136ff0617b.webp",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "active",
+      "weaponReq": "แส้",
+      "desc": "ควงแส้ปลายไฟรอบตัว 2 วิ ทุก 0.25 วิ 100% ของ ATK มีโอกาสติดเผา 35% · พื้นที่ 200% ของเดิม"
+    },
+    {
+      "id": "bd_firefly",
+      "name": "ระบำหิ่งห้อย",
+      "thai": "สายระบำไฟ",
+      "icon": "sk_bd_firefly",
+      "iconUrl": "https://play.nightcamp.app/cas/8c570d4306cf.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "buff",
+      "req": "ระบำควงไฟ Lv.3",
+      "weaponReq": "แส้",
+      "prereq": [
+        {
+          "skill": "bd_twirl",
+          "level": 3
+        }
+      ],
+      "desc": "รำต่อเนื่อง (SP 2/วิ) รัศมี 400: หิ่งห้อยล้อมศัตรู เดินช้าลง ตีเบาลง 2% คูณท่อน · ท่อนยิ่งสูงยิ่งแรง"
+    },
+    {
+      "id": "bd_lure",
+      "name": "ระบำหลอกล่อ",
+      "thai": "สายระบำไฟ",
+      "icon": "sk_bd_lure",
+      "iconUrl": "https://play.nightcamp.app/cas/242a426e953d.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "buff",
+      "req": "ระบำควงไฟ Lv.3",
+      "weaponReq": "แส้",
+      "prereq": [
+        {
+          "skill": "bd_twirl",
+          "level": 3
+        }
+      ],
+      "desc": "รำต่อเนื่อง: ศัตรูรอบตัวตีเบาลง 1.5% รับดาเมจเพิ่ม 1% คูณท่อน และศัตรูที่ยังไม่มีเป้าหันมาตามผู้รำ · ศัตรูหันมาตามผู้รำ"
+    },
+    {
+      "id": "bd_lash",
+      "name": "ฟาดแส้ดึง",
+      "thai": "สายระบำไฟ",
+      "icon": "sk_bd_lash",
+      "iconUrl": "https://play.nightcamp.app/cas/2f21e6d8584c.webp",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ระบำควงไฟ Lv.1",
+      "weaponReq": "แส้",
+      "prereq": [
+        {
+          "skill": "bd_twirl",
+          "level": 1
+        }
+      ],
+      "desc": "ฟาดแส้ยาว 320 100% ของ ATK ดึงศัตรูเข้าหา"
+    },
+    {
+      "id": "bd_note",
+      "name": "โน้ตเด้ง",
+      "thai": "สายโน้ตดนตรี",
+      "icon": "sk_bd_note",
+      "iconUrl": "https://play.nightcamp.app/cas/cd55a52398a9.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ยิงคู่ Lv.3",
+      "weaponReq": "เครื่องดนตรี หรือ แส้",
+      "prereq": [
+        {
+          "skill": "double",
+          "level": 3
+        }
+      ],
+      "desc": "ยิงตัวโน้ตที่เด้งไปอีก 2 ตัว ตัวละ 100% ของ ATK · เด้งต่อ 2 ตัว"
+    },
+    {
+      "id": "bd_noterain",
+      "name": "ฝนโน้ต",
+      "thai": "สายโน้ตดนตรี",
+      "icon": "sk_bd_noterain",
+      "iconUrl": "https://play.nightcamp.app/cas/cebf0c335295.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "โน้ตเด้ง Lv.3",
+      "weaponReq": "เครื่องดนตรี หรือ แส้",
+      "prereq": [
+        {
+          "skill": "bd_note",
+          "level": 3
+        }
+      ],
+      "desc": "ตัวโน้ต 6 ตัวตกใส่วง ตัวละ 100% ของ ATK · ท่อนเพลงยิ่งสูงยิ่งตกเพิ่ม (+2 ต่อท่อน)"
+    },
+    {
+      "id": "bd_groove",
+      "name": "จังหวะเร้าใจ",
+      "thai": "สายโน้ตดนตรี",
+      "icon": "sk_bd_groove",
+      "iconUrl": "https://play.nightcamp.app/cas/fbfa6bb84d32.webp",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "โน้ตเด้ง Lv.5",
+      "prereq": [
+        {
+          "skill": "bd_note",
+          "level": 5
+        }
+      ],
+      "desc": "ระหว่างเล่นหรือรำ ตีปกติ 4% ยิงโน้ตเด้งฟรี · ระหว่างเล่นหรือรำเท่านั้น"
+    },
+    {
+      "id": "bd_festival",
+      "name": "มหกรรมรอบกองไฟ",
+      "thai": "สายมหกรรมรอบกองไฟ",
+      "icon": "sk_bd_festival",
+      "iconUrl": "https://play.nightcamp.app/cas/bda539ecf9b5.webp",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "ult": true,
+      "req": "วงดนตรี Lv.1 หรือ ระบำหลอกล่อ Lv.5",
+      "reqAny": true,
+      "weaponReq": "เครื่องดนตรี หรือ แส้",
+      "prereq": [
+        {
+          "skill": "bd_band",
+          "level": 1
+        },
+        {
+          "skill": "bd_lure",
+          "level": 5
+        }
+      ],
+      "desc": "จุดกองไฟใหญ่ 15 วิ เพลงของเราแรงเป็นสองเท่าตอนอยู่ใกล้กองไฟ เพื่อนใกล้กองไฟตีแรงขึ้น 25% ศัตรูที่เข้าใกล้ติดเผาวิละ 100% ของ ATK และหลับ 2 วิครั้งแรก · ทุกเพลงที่เรียนไว้ที่ท่อน 3"
+    }
+  ],
+  "gunslinger": [
+    {
+      "id": "gs_spin",
+      "name": "หมุนโม่",
+      "thai": "สายโม่เสี่ยงดวง",
+      "icon": "sk_gs_spin",
+      "iconUrl": "https://play.nightcamp.app/cas/70c4c89b42b2.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ตาเหยี่ยว Lv.1",
+      "prereq": [
+        {
+          "skill": "ar_owl",
+          "level": 1
+        }
+      ],
+      "desc": "หมุนโม่: นัดถัดไปสุ่ม 1 ใน 6 แรง ×3 · ระเบิดเป็นวง · ธาตุไฟ ×2 · ฟื้น HP 5% · ยิงทะลุ · ด้าน (ไม่ออก) · โอกาสด้าน 17% · Lv10 ไม่ออกด้านเลย"
+    },
+    {
+      "id": "gs_sixth",
+      "name": "นัดที่หก",
+      "thai": "สายโม่เสี่ยงดวง",
+      "icon": "sk_gs_sixth",
+      "iconUrl": "https://play.nightcamp.app/cas/6ab1d9551745.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "weaponReq": "ปืนพกคู่ หรือ ลูกซอง",
+      "desc": "ทุกนัดที่ 6 ของลูกโม่คริแน่นอนและแรงขึ้น 5% · ทุกนัดที่ 6 คริแน่นอน"
+    },
+    {
+      "id": "gs_special",
+      "name": "บรรจุกระสุนพิเศษ",
+      "thai": "สายโม่เสี่ยงดวง",
+      "icon": "sk_gs_special",
+      "iconUrl": "https://play.nightcamp.app/cas/44c6c00b26b9.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "หมุนโม่ Lv.3",
+      "prereq": [
+        {
+          "skill": "gs_spin",
+          "level": 3
+        }
+      ],
+      "desc": "บรรจุใหม่ทันที 6 นัดเป็นกระสุนธาตุ (ไฟ น้ำแข็ง สายฟ้า สลับกันทุกครั้งที่บรรจุ) แรงขึ้น 14% มีโอกาสติดสถานะของธาตุ · ธาตุสลับไฟ น้ำแข็ง สายฟ้า"
+    },
+    {
+      "id": "gs_eye",
+      "name": "สายตานักแม่นปืน",
+      "thai": "สายโม่เสี่ยงดวง",
+      "icon": "sk_gs_eye",
+      "iconUrl": "https://play.nightcamp.app/cas/f710a8a8d569.webp",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "ตาเหยี่ยว Lv.3",
+      "weaponReq": "ปืนพกคู่ หรือ ลูกซอง",
+      "prereq": [
+        {
+          "skill": "ar_owl",
+          "level": 3
+        }
+      ],
+      "desc": "ถือปืน: คริ +1 ความแม่น +3"
+    },
+    {
+      "id": "gs_mastery",
+      "name": "ชำนาญปืนพก",
+      "thai": "สายปืนพกคู่",
+      "icon": "sk_gs_mastery",
+      "iconUrl": "https://play.nightcamp.app/cas/2a12d21cfcd3.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "weaponReq": "ปืนพกคู่",
+      "desc": "ถือปืนพก: ความเร็วโจมตี +1.5% บรรจุกระสุนเร็วขึ้น 5% · บรรจุเร็วขึ้น"
+    },
+    {
+      "id": "gs_rapid",
+      "name": "ลั่นไกรัว",
+      "thai": "สายปืนพกคู่",
+      "icon": "sk_gs_rapid",
+      "iconUrl": "https://play.nightcamp.app/cas/1b65ff89c32d.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "ชำนาญปืนพก Lv.3",
+      "weaponReq": "ปืนพกคู่",
+      "prereq": [
+        {
+          "skill": "gs_mastery",
+          "level": 3
+        }
+      ],
+      "desc": "ถือปืนพก: ยิงปกติ 4% ยิงซ้ำอีกนัดฟรี (90% ไม่กินกระสุน) · นัดฟรีไม่กินกระสุน"
+    },
+    {
+      "id": "gs_triple",
+      "name": "รัวค้อนปืน",
+      "thai": "สายปืนพกคู่",
+      "icon": "sk_gs_triple",
+      "iconUrl": "https://play.nightcamp.app/cas/2199e78502fd.webp",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "active",
+      "weaponReq": "ปืนพกคู่",
+      "desc": "ยิงกระสุนที่เหลือในลูกโม่ออกหมดรวดเดียว นัดละ 100% ของ ATK แล้วบรรจุใหม่ · ทุกนัดได้ผลกระสุนพิเศษและนัดที่หก หมุนโม่ได้นัดแรก · ยิงกระสุนที่เหลือทั้งหมด · Lv5 บรรจุเร็วขึ้น · Lv10 ลูกโม่เต็มนัดสุดท้าย ×2"
+    },
+    {
+      "id": "gs_ricochet",
+      "name": "กระสุนสะท้อน",
+      "thai": "สายปืนพกคู่",
+      "icon": "sk_gs_ricochet",
+      "iconUrl": "https://play.nightcamp.app/cas/f03354a9de93.webp",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "รัวค้อนปืน Lv.5",
+      "weaponReq": "ปืนพกคู่",
+      "prereq": [
+        {
+          "skill": "gs_triple",
+          "level": 5
+        }
+      ],
+      "desc": "กระสุนเด้งต่อ 3 ตัว นัดละ 100% ของ ATK · เด้งเพิ่มทุก 2 เลเวล"
+    },
+    {
+      "id": "gs_buckshot",
+      "name": "ลูกปรายกระจาย",
+      "thai": "สายลูกซอง",
+      "icon": "sk_gs_buckshot",
+      "iconUrl": "https://play.nightcamp.app/cas/b54fa94f2802.webp",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "active",
+      "weaponReq": "ลูกซอง",
+      "desc": "ยิงกรวย 9 ลูกปรายทะลุทุกตัวในแนว ระยะ 350 ลูกละ 100% ของ ATK · ใกล้ยิ่งโดนหลายลูก"
+    },
+    {
+      "id": "gs_kick",
+      "name": "ถีบถอย",
+      "thai": "สายลูกซอง",
+      "icon": "sk_gs_kick",
+      "iconUrl": "https://play.nightcamp.app/cas/be6996a02dd7.webp",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ลูกปรายกระจาย Lv.3",
+      "weaponReq": "ลูกซอง",
+      "prereq": [
+        {
+          "skill": "gs_buckshot",
+          "level": 3
+        }
+      ],
+      "desc": "ยิงกระแทกระยะใกล้ 100% ของ ATK ผลักศัตรูกระเด็น เราถีบตัวถอยหลัง 200 · เราถอยหลัง 200"
+    },
+    {
+      "id": "gs_smoke",
+      "name": "ระเบิดควัน",
+      "thai": "สายลูกซอง",
+      "icon": "sk_gs_smoke",
+      "iconUrl": "https://play.nightcamp.app/cas/6c7010212e4b.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "desc": "ขว้างระเบิดควันวง 220 100% ของ ATK ธาตุไฟ ศัตรูในควันตีเบาลง 30% นาน 4 วิ (ใช้ได้ทุกอาวุธ)"
+    },
+    {
+      "id": "gs_stars",
+      "name": "ยิงดาวตก",
+      "thai": "สายยิงดาวตก",
+      "icon": "sk_gs_stars",
+      "iconUrl": "https://play.nightcamp.app/cas/367b0b4e6cef.webp",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "ult": true,
+      "req": "กระสุนสะท้อน Lv.3 หรือ ถีบถอย Lv.3",
+      "reqAny": true,
+      "weaponReq": "ปืนพกคู่ หรือ ลูกซอง",
+      "prereq": [
+        {
+          "skill": "gs_ricochet",
+          "level": 3
+        },
+        {
+          "skill": "gs_kick",
+          "level": 3
+        }
+      ],
+      "desc": "ยิงขึ้นฟ้า 1 นัด อีก 1 วิดาวตก 12 ดวงร่วงรอบเป้า ดวงละ 100% ของ ATK"
+    }
+  ],
+  "reaper": [
+    {
+      "id": "rp_souls",
+      "name": "เก็บวิญญาณ",
+      "thai": "สายดวงวิญญาณ",
+      "icon": "sk_rp_souls",
+      "iconUrl": "https://play.nightcamp.app/cas/894eb61b146e.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "desc": "ตีติดรอย (ตีปกติ 1 สกิล 2) ครบ 5 รอยวิญญาณสุก 3 วิ ตีอีกครั้งเกี่ยวได้ 1 ดวง (สุกซ้ำได้หลัง 6 วิ บอส 3 วิ) ตัวที่สุกล้มทิ้งวิญญาณบนพื้น 4 วิ เก็บได้ในระยะ 400 · เก็บได้ 20 ดวง ดวงละ ATK +1.2% ดูดเลือด 0.1% · ตีครบ 5 รอยวิญญาณสุก ตีอีกครั้งเกี่ยว · Lv5 สุกนานขึ้น · Lv10 ครบ 20 ดวง ตีเร็วขึ้น 20%"
+    },
+    {
+      "id": "rp_ghost",
+      "name": "ร่างวิญญาณ",
+      "thai": "สายดวงวิญญาณ",
+      "icon": "sk_rp_ghost",
+      "iconUrl": "https://play.nightcamp.app/cas/dc54da3676ec.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "เก็บวิญญาณ Lv.3",
+      "prereq": [
+        {
+          "skill": "rp_souls",
+          "level": 3
+        }
+      ],
+      "desc": "ใช้ 3 ดวง: กลายเป็นผี พุ่งทะลุศัตรูเป็นแนว 350 100% ของ ATK ไม่โดนตีระหว่างนั้น · Lv5 ทิ้งรอยหนาว · Lv10 ใช้แค่ 2 ดวง"
+    },
+    {
+      "id": "rp_shroud",
+      "name": "ผ้าคลุมแห่งความตาย",
+      "thai": "สายดวงวิญญาณ",
+      "icon": "sk_rp_shroud",
+      "iconUrl": "https://play.nightcamp.app/cas/6bb7daf5ea0d.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "buff",
+      "req": "เก็บวิญญาณ Lv.3",
+      "prereq": [
+        {
+          "skill": "rp_souls",
+          "level": 3
+        }
+      ],
+      "desc": "30 วิ: รับดาเมจลดลง 1% ต่อดวงวิญญาณที่มี (สูงสุด 25%)"
+    },
+    {
+      "id": "rp_death",
+      "name": "ความตายเยือน",
+      "thai": "สายดวงวิญญาณ",
+      "icon": "sk_rp_death",
+      "iconUrl": "https://play.nightcamp.app/cas/4a442c36feca.webp",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "เก็บวิญญาณ Lv.5",
+      "prereq": [
+        {
+          "skill": "rp_souls",
+          "level": 5
+        }
+      ],
+      "desc": "ศัตรูเลือดต่ำกว่า 20% โดนเราแรงขึ้น 15% · Lv1 ศัตรูเลือดน้อยโดนแรงขึ้น · Lv3 ศัตรูเลือดน้อยวิญญาณสุกทันที · Lv5 ล้มแล้วลุกเป็นร่างวิญญาณ"
+    },
+    {
+      "id": "rp_scythemastery",
+      "name": "ชำนาญเคียวใหญ่",
+      "thai": "สายเคียวเก็บเกี่ยว",
+      "icon": "sk_rp_scythemastery",
+      "iconUrl": "https://play.nightcamp.app/cas/97fb8d2fd49b.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "weaponReq": "เคียวใหญ่",
+      "desc": "ถือเคียวใหญ่: ตีปกติกวาดกว้างโดนทุกตัวข้างหน้า ATK +2%"
+    },
+    {
+      "id": "rp_sweep",
+      "name": "ฟันเก็บเกี่ยว",
+      "thai": "สายเคียวเก็บเกี่ยว",
+      "icon": "sk_rp_sweep",
+      "iconUrl": "https://play.nightcamp.app/cas/47b77b42b44b.webp",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "active",
+      "weaponReq": "เคียวใหญ่",
+      "desc": "หมุนเคียวรอบตัว 2 รอบ รอบละ 100% ของ ATK ดูดเลือด 5% ของดาเมจ · Lv5 ดึงเข้ากลาง · Lv10 โดน 3 ตัวได้วิญญาณ"
+    },
+    {
+      "id": "rp_execute",
+      "name": "ประหารใต้จันทร์",
+      "thai": "สายเคียวเก็บเกี่ยว",
+      "icon": "sk_rp_execute",
+      "iconUrl": "https://play.nightcamp.app/cas/ce9755ff7b30.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ฟันเก็บเกี่ยว Lv.5",
+      "weaponReq": "เคียวใหญ่",
+      "prereq": [
+        {
+          "skill": "rp_sweep",
+          "level": 5
+        }
+      ],
+      "desc": "ฟันลงจากฟ้า 100% ของ ATK · ศัตรูธรรมดาที่เลือดต่ำกว่า 30% ตายทันที บอสโดนสองเท่าแทน · ตายทันทีต่ำกว่า 30% (ศัตรูธรรมดา)"
+    },
+    {
+      "id": "rp_twin",
+      "name": "เคียวคู่ประสาน",
+      "thai": "สายเคียวคู่หมุนวน",
+      "icon": "sk_rp_twin",
+      "iconUrl": "https://play.nightcamp.app/cas/6e3643953216.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "ชำนาญมีด Lv.3",
+      "weaponReq": "เคียวคู่",
+      "prereq": [
+        {
+          "skill": "ro_dagger",
+          "level": 3
+        }
+      ],
+      "desc": "ถือเคียวคู่: ความเร็วโจมตี +2% ตีแต่ละครั้งโอกาส 3% ติดเลือดไหล (4 วิ) · เลือดไหล 4 วิ"
+    },
+    {
+      "id": "rp_return",
+      "name": "ขว้างเคียววกกลับ",
+      "thai": "สายเคียวคู่หมุนวน",
+      "icon": "sk_rp_return",
+      "iconUrl": "https://play.nightcamp.app/cas/de152add6e0e.webp",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "active",
+      "weaponReq": "เคียวคู่",
+      "desc": "ขว้างเคียวสองเล่มไป 450 แล้ววกกลับ โดนทั้งขาไปขากลับ 100% ของ ATK · Lv5 ขากลับดึง · Lv10 4 เล่มกากบาท"
+    },
+    {
+      "id": "rp_hook",
+      "name": "เกี่ยววิญญาณ",
+      "thai": "สายเคียวคู่หมุนวน",
+      "icon": "sk_rp_hook",
+      "iconUrl": "https://play.nightcamp.app/cas/7680e8e7964f.webp",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ขว้างเคียววกกลับ Lv.3",
+      "weaponReq": "เคียวคู่",
+      "prereq": [
+        {
+          "skill": "rp_return",
+          "level": 3
+        }
+      ],
+      "desc": "เกี่ยวเป้าเดียวดึงมาตรงหน้า (บอสไม่ถูกดึง) แล้วฟัน 100% ของ ATK ได้ดวงวิญญาณ 1 ดวง (เป้าที่วิญญาณสุกอยู่ได้อีก 1 ดวงจากการเกี่ยว) · ได้วิญญาณ 1 ดวง"
+    },
+    {
+      "id": "rp_storm",
+      "name": "พายุวิญญาณ",
+      "thai": "สายพายุวิญญาณ",
+      "icon": "sk_rp_storm",
+      "iconUrl": "https://play.nightcamp.app/cas/eafdbc723eb2.webp",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "ult": true,
+      "req": "ประหารใต้จันทร์ Lv.5 หรือ เกี่ยววิญญาณ Lv.3",
+      "reqAny": true,
+      "prereq": [
+        {
+          "skill": "rp_execute",
+          "level": 5
+        },
+        {
+          "skill": "rp_hook",
+          "level": 3
+        }
+      ],
+      "desc": "ใช้ดวงวิญญาณทั้งหมด: ดวงวิญญาณหมุนรอบตัวเป็นพายุ 6 วิ ทุกวิดวงละ 100% ของ ATK ดูดเลือด 3% · ยิ่งมีวิญญาณยิ่งแรง"
+    }
+  ],
+  "puppeteer": [
+    {
+      "id": "pp_puppet",
+      "name": "สร้างหุ่นรบ",
+      "thai": "สายหุ่นรบ",
+      "icon": "sk_pp_puppet",
+      "iconUrl": "https://play.nightcamp.app/cas/9d3e97772505.webp",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "buff",
+      "desc": "หุ่นไม้ตัวใหญ่สู้ข้างเราถาวร HP 65% ของ HP สูงสุดเรา ตี 100% ของ ATK · กดอีกครั้งเปลี่ยนแบบ: ขวาน (ตีหมู่) → โล่ (ยั่วยุ ทนกว่า) → หน้าไม้ (ยิงไกล) · Lv5 หุ่นได้ท่าพิเศษของแบบนั้น · Lv10 หุ่นร่างใหญ่"
+    },
+    {
+      "id": "pp_strings",
+      "name": "ชักใยหุ่น",
+      "thai": "สายหุ่นรบ",
+      "icon": "sk_pp_strings",
+      "iconUrl": "https://play.nightcamp.app/cas/958e9071e129.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "สร้างหุ่นรบ Lv.3",
+      "weaponReq": "ไม้เชิดหุ่น",
+      "prereq": [
+        {
+          "skill": "pp_puppet",
+          "level": 3
+        }
+      ],
+      "desc": "ถือไม้เชิด: ตีปกติสั่งหุ่นฟาดเป้าเดียวกันทันที แรงขึ้น 3% · หุ่นตีตามทุกครั้งที่เราตีปกติ"
+    },
+    {
+      "id": "pp_swap",
+      "name": "สลับร่างหุ่น",
+      "thai": "สายหุ่นรบ",
+      "icon": "sk_pp_swap",
+      "iconUrl": "https://play.nightcamp.app/cas/08cf7324e818.webp",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "สร้างหุ่นรบ Lv.3",
+      "weaponReq": "ไม้เชิดหุ่น",
+      "prereq": [
+        {
+          "skill": "pp_puppet",
+          "level": 3
+        }
+      ],
+      "desc": "สลับที่กับหุ่นทันที ศัตรูที่เล็งเราหันไปตีหุ่น · ศัตรูหันไปตีหุ่น"
+    },
+    {
+      "id": "pp_dance",
+      "name": "ระบำหุ่น",
+      "thai": "สายหุ่นรบ",
+      "icon": "sk_pp_dance",
+      "iconUrl": "https://play.nightcamp.app/cas/fbf249360451.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "สร้างหุ่นรบ Lv.5",
+      "weaponReq": "ไม้เชิดหุ่น",
+      "prereq": [
+        {
+          "skill": "pp_puppet",
+          "level": 5
+        }
+      ],
+      "desc": "หุ่นหมุนตัวฟาดรอบตัว 3 รอบ รอบละ 100% ของ ATK · หมุน 3 รอบ"
+    },
+    {
+      "id": "pp_control",
+      "name": "เชิดมอน",
+      "thai": "สายด้ายเชิด",
+      "icon": "sk_pp_control",
+      "iconUrl": "https://play.nightcamp.app/cas/70be2466f0e8.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ซ่อนตัว Lv.1",
+      "prereq": [
+        {
+          "skill": "ro_hide",
+          "level": 1
+        }
+      ],
+      "desc": "เกี่ยวด้ายเข้ามอน 1 ตัว 2.3 วิ มันหันไปตีพวกเดียวกันด้วยพลังเต็มของมัน · บอสเชิดไม่ได้ แต่ช้าลง 3 วิแทน · Lv5 เชิดได้ 2 ตัว · Lv10 มอนที่เชิดตายแล้วระเบิด"
+    },
+    {
+      "id": "pp_guide",
+      "name": "ด้ายนำทาง",
+      "thai": "สายด้ายเชิด",
+      "icon": "sk_pp_guide",
+      "iconUrl": "https://play.nightcamp.app/cas/253fc99042c6.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "เชิดมอน Lv.3",
+      "prereq": [
+        {
+          "skill": "pp_control",
+          "level": 3
+        }
+      ],
+      "desc": "ด้ายที่เชื่อมเรากับหุ่นหรือมอนที่เชิด ศัตรูที่ข้ามเส้นด้ายโดนวิละ 35% ของ ATK และช้าลง · ด้ายถึงหุ่นและมอนที่เชิด"
+    },
+    {
+      "id": "pp_soulstring",
+      "name": "เชือกชักวิญญาณ",
+      "thai": "สายด้ายเชิด",
+      "icon": "sk_pp_soulstring",
+      "iconUrl": "https://play.nightcamp.app/cas/a8505ce136a3.webp",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "เชิดมอน Lv.5",
+      "prereq": [
+        {
+          "skill": "pp_control",
+          "level": 5
+        }
+      ],
+      "desc": "มอนที่เชิดคริได้เท่าเรา · Lv1 มอนที่เชิดคริได้ · Lv3 สลับร่างแล้วไม่โดนตี 2 วิ · Lv5 หุ่นประกอบใหม่เอง"
+    },
+    {
+      "id": "pp_edge",
+      "name": "ด้ายคม",
+      "thai": "สายด้ายสังหาร",
+      "icon": "sk_pp_edge",
+      "iconUrl": "https://play.nightcamp.app/cas/65018109b785.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "ชำนาญมีด Lv.3",
+      "weaponReq": "ด้ายเหล็ก",
+      "prereq": [
+        {
+          "skill": "ro_dagger",
+          "level": 3
+        }
+      ],
+      "desc": "ถือด้ายเหล็ก: ตีปกติสะบัดด้ายไกล 300 ทะลุทั้งแนว แรงขึ้น 4% · สะบัดด้ายทะลุทั้งแนว"
+    },
+    {
+      "id": "pp_stretch",
+      "name": "ขึงด้ายเหล็ก",
+      "thai": "สายด้ายสังหาร",
+      "icon": "sk_pp_stretch",
+      "iconUrl": "https://play.nightcamp.app/cas/454e9ccea58e.webp",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "active",
+      "weaponReq": "ด้ายเหล็ก",
+      "desc": "ขึงด้ายจากเราไปจุดที่เล็งยาว 400 นาน 6 วิ ศัตรูที่แตะด้ายโดน 100% ของ ATK ทุกครึ่งวิ ขึงได้ 3 เส้น · Lv5 ด้ายไขว้ระเบิดที่จุดตัด · Lv10 ขึงได้ 5 เส้น"
+    },
+    {
+      "id": "pp_bind",
+      "name": "รัดด้าย",
+      "thai": "สายด้ายสังหาร",
+      "icon": "sk_pp_bind",
+      "iconUrl": "https://play.nightcamp.app/cas/dbb1824e4d07.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "active",
+      "req": "ขึงด้ายเหล็ก Lv.3",
+      "weaponReq": "ด้ายเหล็ก",
+      "prereq": [
+        {
+          "skill": "pp_stretch",
+          "level": 3
+        }
+      ],
+      "desc": "ร่าย 0.6 วิ ดึงด้ายทุกเส้นเข้าหาตัว ศัตรูที่ติดด้ายถูกลากมา 100% ของ ATK · ลากศัตรูที่ติดด้าย"
+    },
+    {
+      "id": "pp_theatre",
+      "name": "โรงละครหุ่นเชิด",
+      "thai": "สายโรงละครหุ่นเชิด",
+      "icon": "sk_pp_theatre",
+      "iconUrl": "https://play.nightcamp.app/cas/9bc5fe6ffd12.webp",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "active",
+      "ult": true,
+      "req": "ระบำหุ่น Lv.5 หรือ รัดด้าย Lv.5",
+      "reqAny": true,
+      "prereq": [
+        {
+          "skill": "pp_dance",
+          "level": 5
+        },
+        {
+          "skill": "pp_bind",
+          "level": 5
+        }
+      ],
+      "desc": "เวทีหุ่นเชิดรอบตัวเรา (วง 900) 8 วิ ศัตรูทุกตัวบนเวทีถูกตรึงอยู่กับที่ โดน 100% ของ ATK ทุกวิ แล้วหันไปฟาดตัวข้าง ๆ ด้วยพลังของเรา · ทุก 2 วิ กระตุกด้ายลากมอนเข้าหาเรา · จบโชว์ \"ปิดม่าน\" ฟาดทุกตัว 5800% · บอสไม่ถูกตรึง แต่ช้าลงและหันไปตีหุ่นรบ · พื้นที่เหลือ 50% ของเดิม · วง 900 ตามตัว 8 วิ · มอนฟาดกันด้วยพลังเรา · กระตุกด้าย · ปิดม่าน"
     }
   ],
   "lightkeeper": [
@@ -4064,15 +4918,19 @@ const SKILLS_DATABASE = {
       "id": "lk_radiance",
       "name": "รัศมีแสง",
       "thai": "สายเขตแสง",
+      "icon": "sk_lk_radiance",
+      "iconUrl": "https://play.nightcamp.app/cas/049c561eae08.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
-      "desc": "รอบตัวเป็นเขตแสงรัศมี 210 พวกเราในแสงฟื้น HP 0.5% ทุก 5 วิ ผี อมตะ และธาตุมืดในแสงโดนเผาวิละ 23% ของ MATK · กลางคืนและในดันเจี้ยนแสงกว้างขึ้น 30% · กลางคืนและในดันเจี้ยนแสงกว้างขึ้น 30%"
+      "kind": "passive",
+      "desc": "รอบตัวเป็นเขตแสงรัศมี 210 พวกเราในแสงฟื้น HP 0.5% ทุก 5 วิ ผี อมตะ และธาตุมืดในแสงโดนเผาวิละ 23% ของ MATK · กลางคืนและในดันเจี้ยนแสงกว้างขึ้น 30%"
     },
     {
       "id": "lk_flash",
       "name": "แสงไล่เงา",
       "thai": "สายเขตแสง",
+      "icon": "sk_lk_flash",
+      "iconUrl": "https://play.nightcamp.app/cas/dfc3c4d4eefa.webp",
       "maxLevel": 10,
       "freeLevel": 0,
       "kind": "active",
@@ -4083,15 +4941,17 @@ const SKILLS_DATABASE = {
           "level": 3
         }
       ],
-      "desc": "แสงวาบรัศมี 300 ศัตรูโดน 100% ของ MATK ธาตุแสง ผีและอมตะมึน 1 วิ · ผีและอมตะมึน 1 วิ"
+      "desc": "แสงวาบรัศมี 300 ศัตรูโดน 100% ของ MATK ธาตุแสง ผีและอมตะมึน 1 วิ"
     },
     {
       "id": "lk_lighthouse",
       "name": "ประภาคาร",
       "thai": "สายเขตแสง",
+      "icon": "sk_lk_lighthouse",
+      "iconUrl": "https://play.nightcamp.app/cas/462dfcf1e9b5.webp",
       "maxLevel": 5,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
       "req": "รัศมีแสง Lv.5",
       "prereq": [
         {
@@ -4105,10 +4965,13 @@ const SKILLS_DATABASE = {
       "id": "lk_torchmastery",
       "name": "ชำนาญคบเพลิง",
       "thai": "สายคบเพลิงศักดิ์สิทธิ์",
+      "icon": "sk_lk_torchmastery",
+      "iconUrl": "https://play.nightcamp.app/cas/c5250f867c25.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
       "req": "ชำนาญกระบอง Lv.1",
+      "weaponReq": "คบเพลิง",
       "prereq": [
         {
           "skill": "pr_macemastery",
@@ -4121,35 +4984,44 @@ const SKILLS_DATABASE = {
       "id": "lk_swing",
       "name": "ฟาดเปลวไฟ",
       "thai": "สายคบเพลิงศักดิ์สิทธิ์",
+      "icon": "sk_lk_swing",
+      "iconUrl": "https://play.nightcamp.app/cas/2d64ad2b5faf.webp",
       "maxLevel": 10,
       "freeLevel": 1,
       "kind": "active",
-      "desc": "[มีฟรี Lv.1] · ฟาดคบเพลิงเป็นวงข้างหน้า 100% ของ ATK ธาตุไฟ ทิ้งเปลวไฟที่พื้น 3 วิ (เป็นเขตแสงด้วย) · ทิ้งเปลวไฟที่เป็นเขตแสง"
+      "weaponReq": "คบเพลิง",
+      "desc": "ฟาดคบเพลิงเป็นวงข้างหน้า 100% ของ ATK ธาตุไฟ ทิ้งเปลวไฟที่พื้น 3 วิ (เป็นเขตแสงด้วย) · ทิ้งเปลวไฟที่เป็นเขตแสง"
     },
     {
       "id": "lk_plant",
       "name": "ปักคบเพลิง",
       "thai": "สายคบเพลิงศักดิ์สิทธิ์",
+      "icon": "sk_lk_plant",
+      "iconUrl": "https://play.nightcamp.app/cas/e36b3724cb85.webp",
       "maxLevel": 5,
       "freeLevel": 0,
       "kind": "active",
       "req": "ฟาดเปลวไฟ Lv.3",
+      "weaponReq": "คบเพลิง",
       "prereq": [
         {
           "skill": "lk_swing",
           "level": 3
         }
       ],
-      "desc": "ปักคบเพลิงสำรองลงพื้น 20 วิ เป็นเขตแสงรัศมี 250 เผาศัตรูที่เข้าใกล้ทุกครึ่งวิ 100% ของ MATK ปักได้ 2 อัน · ปักได้ 2 อัน"
+      "desc": "ปักคบเพลิงสำรองลงพื้น 20 วิ เป็นเขตแสงรัศมี 250 เผาศัตรูที่เข้าใกล้ทุกครึ่งวิ 100% ของ MATK ปักได้ 2 อัน"
     },
     {
       "id": "lk_faith",
       "name": "ไฟศรัทธา",
       "thai": "สายคบเพลิงศักดิ์สิทธิ์",
+      "icon": "sk_lk_faith",
+      "iconUrl": "https://play.nightcamp.app/cas/b5d76690a4f8.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "buff",
       "req": "ชำนาญคบเพลิง Lv.3",
+      "weaponReq": "คบเพลิง",
       "prereq": [
         {
           "skill": "lk_torchmastery",
@@ -4162,15 +5034,20 @@ const SKILLS_DATABASE = {
       "id": "lk_lamp",
       "name": "วางโคมแก้ว",
       "thai": "สายโคมแก้ว",
+      "icon": "sk_lk_lamp",
+      "iconUrl": "https://play.nightcamp.app/cas/b271a1dcac43.webp",
       "maxLevel": 10,
       "freeLevel": 1,
       "kind": "active",
-      "desc": "[มีฟรี Lv.1] · วางโคมแก้วที่พื้นได้ 3 ดวง อยู่ 25 วิ (ถือคทา 35 วิ) แต่ละดวงเป็นเขตแสงรัศมี 220 ฮีลพวกเราในแสงวิละ 29% ของ MATK · Lv5 วางได้ 4 ดวง · Lv10 โคมลอยตามเพื่อน"
+      "weaponBonus": "คทา (โคมอยู่นานขึ้น 10 วิ)",
+      "desc": "วางโคมแก้วที่พื้นได้ 3 ดวง อยู่ 25 วิ (ถือคทา 35 วิ) แต่ละดวงเป็นเขตแสงรัศมี 220 ฮีลพวกเราในแสงวิละ 29% ของ MATK · Lv5 วางได้ 4 ดวง · Lv10 โคมลอยตามเพื่อน"
     },
     {
       "id": "lk_flare",
       "name": "โคมเรืองรอง",
       "thai": "สายโคมแก้ว",
+      "icon": "sk_lk_flare",
+      "iconUrl": "https://play.nightcamp.app/cas/8443b7553d45.webp",
       "maxLevel": 10,
       "freeLevel": 0,
       "kind": "active",
@@ -4181,25 +5058,41 @@ const SKILLS_DATABASE = {
           "level": 3
         }
       ],
-      "desc": "โคมทุกดวงสว่างวาบ ฮีลทุกคนในแสงของโคม 170% ของ MATK ทันที · ฮีลทุกคนในแสงของโคม"
+      "desc": "โคมทุกดวงสว่างวาบ ฮีลทุกคนในแสงของโคม 170% ของ MATK ทันที"
     },
     {
       "id": "lk_wick",
       "name": "ไส้ตะเกียงอย่างดี",
       "thai": "สายโคมแก้ว",
+      "icon": "sk_lk_wick",
+      "iconUrl": "https://play.nightcamp.app/cas/41aac4009276.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
       "desc": "ฮีลจากพลังเวทแรงขึ้น 2% ฟื้น SP เร็วขึ้น 3%"
     },
     {
       "id": "lk_dawn",
       "name": "รุ่งอรุณ",
       "thai": "สายรุ่งอรุณ",
+      "icon": "sk_lk_dawn",
+      "iconUrl": "https://play.nightcamp.app/cas/3e6585b990cb.webp",
       "maxLevel": 5,
       "freeLevel": 0,
       "kind": "active",
+      "ult": true,
       "req": "โคมเรืองรอง Lv.5 หรือ ปักคบเพลิง Lv.3",
+      "reqAny": true,
+      "prereq": [
+        {
+          "skill": "lk_flare",
+          "level": 5
+        },
+        {
+          "skill": "lk_plant",
+          "level": 3
+        }
+      ],
       "desc": "แสงรุ่งอรุณรัศมี 1000 รอบตัว 10 วิ: พวกเราในแสงอยู่ในเขตแสง ฮีลแรงขึ้น 50% · ผี อมตะ และธาตุมืดในแสงโดนเผาวิละ 95% ของ MATK · แสงรัศมี 1000 รอบตัว 10 วิ"
     }
   ],
@@ -4208,18 +5101,22 @@ const SKILLS_DATABASE = {
       "id": "ws_flock",
       "name": "เลี้ยงดวงไฟ",
       "thai": "สายฝูงดวงไฟ",
+      "icon": "sk_ws_flock",
+      "iconUrl": "https://play.nightcamp.app/cas/527334fa0a83.webp",
       "maxLevel": 10,
       "freeLevel": 1,
-      "kind": "active",
-      "desc": "[มีฟรี Lv.1] · ดวงไฟวิญญาณลอยรอบตัว 1 ดวง ดวงที่ใช้ไปเกิดใหม่ทุก 4 วิ แรงตาม MATK · จำนวนดวงเพิ่มทุก 2 เลเวล (สูงสุด 5) · Lv5 เกิดใหม่ทุก 3 วิ"
+      "kind": "passive",
+      "desc": "ดวงไฟวิญญาณลอยรอบตัว 1 ดวง ดวงที่ใช้ไปเกิดใหม่ทุก 4 วิ แรงตาม MATK · จำนวนดวงเพิ่มทุก 2 เลเวล (สูงสุด 5) · Lv5 เกิดใหม่ทุก 3 วิ"
     },
     {
       "id": "ws_swarm",
       "name": "ฝูงหิ่งห้อย",
       "thai": "สายฝูงดวงไฟ",
+      "icon": "sk_ws_swarm",
+      "iconUrl": "https://play.nightcamp.app/cas/3a13b9de1655.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
       "req": "เลี้ยงดวงไฟ Lv.3",
       "prereq": [
         {
@@ -4233,18 +5130,22 @@ const SKILLS_DATABASE = {
       "id": "ws_swift",
       "name": "ดวงไฟเร็ว",
       "thai": "สายฝูงดวงไฟ",
+      "icon": "sk_ws_swift",
+      "iconUrl": "https://play.nightcamp.app/cas/328a8e797e8e.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
       "desc": "ดวงไฟเกิดใหม่และพุ่งเร็วขึ้น 3%"
     },
     {
       "id": "ws_heart",
       "name": "ใจดวงไฟ",
       "thai": "สายฝูงดวงไฟ",
+      "icon": "sk_ws_heart",
+      "iconUrl": "https://play.nightcamp.app/cas/44775f67ded7.webp",
       "maxLevel": 5,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
       "req": "เลี้ยงดวงไฟ Lv.5",
       "prereq": [
         {
@@ -4258,15 +5159,20 @@ const SKILLS_DATABASE = {
       "id": "ws_latch",
       "name": "ส่งดวงไฟเกาะ",
       "thai": "สายดวงไฟรักษา",
+      "icon": "sk_ws_latch",
+      "iconUrl": "https://play.nightcamp.app/cas/58b3605099b4.webp",
       "maxLevel": 10,
       "freeLevel": 1,
       "kind": "active",
-      "desc": "[มีฟรี Lv.1] · ส่งดวงไฟ 1 ดวงไปเกาะเพื่อนที่เลือดน้อยที่สุด (หรือตัวเอง) 20 วิ (ถือคทา 30 วิ) ฮีลวิละ 18% ของ MATK · เกาะเพื่อนที่เลือดน้อยที่สุด"
+      "weaponBonus": "คทา (เกาะนานขึ้น 10 วิ)",
+      "desc": "ส่งดวงไฟ 1 ดวงไปเกาะเพื่อนที่เลือดน้อยที่สุด (หรือตัวเอง) 20 วิ (ถือคทา 30 วิ) ฮีลวิละ 18% ของ MATK"
     },
     {
       "id": "ws_embrace",
       "name": "ดวงไฟโอบกาย",
       "thai": "สายดวงไฟรักษา",
+      "icon": "sk_ws_embrace",
+      "iconUrl": "https://play.nightcamp.app/cas/d083ea6ff5e6.webp",
       "maxLevel": 10,
       "freeLevel": 0,
       "kind": "active",
@@ -4283,6 +5189,8 @@ const SKILLS_DATABASE = {
       "id": "ws_burst",
       "name": "ดวงไฟแตกฮีล",
       "thai": "สายดวงไฟรักษา",
+      "icon": "sk_ws_burst",
+      "iconUrl": "https://play.nightcamp.app/cas/81099c598cf0.webp",
       "maxLevel": 10,
       "freeLevel": 0,
       "kind": "active",
@@ -4299,10 +5207,13 @@ const SKILLS_DATABASE = {
       "id": "ws_call",
       "name": "เสียงเรียกดวงไฟ",
       "thai": "สายดวงไฟโจมตี",
+      "icon": "sk_ws_call",
+      "iconUrl": "https://play.nightcamp.app/cas/dd0349c52bff.webp",
       "maxLevel": 10,
       "freeLevel": 0,
-      "kind": "active",
+      "kind": "passive",
       "req": "ชำนาญกระบอง Lv.1",
+      "weaponReq": "กระดิ่งวิญญาณ",
       "prereq": [
         {
           "skill": "pr_macemastery",
@@ -4315,10 +5226,13 @@ const SKILLS_DATABASE = {
       "id": "ws_rush",
       "name": "ฝูงดวงไฟพุ่ง",
       "thai": "สายดวงไฟโจมตี",
+      "icon": "sk_ws_rush",
+      "iconUrl": "https://play.nightcamp.app/cas/ebeadeee7afd.webp",
       "maxLevel": 10,
       "freeLevel": 0,
       "kind": "active",
       "req": "เสียงเรียกดวงไฟ Lv.3",
+      "weaponReq": "กระดิ่งวิญญาณ",
       "prereq": [
         {
           "skill": "ws_call",
@@ -4331,10 +5245,13 @@ const SKILLS_DATABASE = {
       "id": "ws_mark",
       "name": "ดวงไฟติดศัตรู",
       "thai": "สายดวงไฟโจมตี",
+      "icon": "sk_ws_mark",
+      "iconUrl": "https://play.nightcamp.app/cas/002f09fbea5f.webp",
       "maxLevel": 5,
       "freeLevel": 0,
       "kind": "active",
       "req": "เสียงเรียกดวงไฟ Lv.3",
+      "weaponReq": "กระดิ่งวิญญาณ",
       "prereq": [
         {
           "skill": "ws_call",
@@ -4347,11 +5264,2085 @@ const SKILLS_DATABASE = {
       "id": "ws_night",
       "name": "คืนหิ่งห้อยพันดวง",
       "thai": "สายคืนหิ่งห้อยพันดวง",
+      "icon": "sk_ws_night",
+      "iconUrl": "https://play.nightcamp.app/cas/49edce69c455.webp",
       "maxLevel": 5,
       "freeLevel": 0,
       "kind": "active",
+      "ult": true,
       "req": "ดวงไฟแตกฮีล Lv.5 หรือ ฝูงดวงไฟพุ่ง Lv.5",
+      "reqAny": true,
+      "prereq": [
+        {
+          "skill": "ws_burst",
+          "level": 5
+        },
+        {
+          "skill": "ws_rush",
+          "level": 5
+        }
+      ],
       "desc": "ดวงไฟนับพันลอยขึ้นทั่วจอ 10 วิ ศัตรูโดนดวงไฟรุมวิละ 200% ของ MATK · \"แสงพร่า\" ศัตรูตีเบาลงครึ่งหนึ่งและช้าลง · ดวงไฟติดทุกตัว ใครในทีมตีโดนก็ระเบิดเพิ่ม 250% · ทุก 2 วิ ฝนดวงไฟดิ่งใส่ทุกตัว 900% ลามตัวข้าง ๆ 6 ตัว · พวกเราฟื้น HP 2% ทุกวิ รับดาเมจ ×0.8 · เราได้โล่ดวงไฟ 240% ของ MATK · ทั้งจอ 10 วิ · แสงพร่า · ดวงไฟติดทุกตัว · ฝนดวงไฟ · โล่ดวงไฟ"
+    }
+  ],
+  "dawnwarden": [
+    {
+      "id": "dw_dawn",
+      "name": "แสงรุ่งสาง",
+      "thai": "สายแสงรุ่งสาง",
+      "icon": "sk_dw_dawn",
+      "iconUrl": "https://play.nightcamp.app/cas/3076668f493d.webp",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "passive",
+      "desc": "ดาเมจที่รับ (1% HP = 1.5 แต้ม) กับสกิลที่โดนศัตรู (2 แต้ม) สะสมแสงรุ่งสาง เต็ม 100 สกิลถัดไปปล่อย \"ตะวันแตก\" รอบตัว 100% ของ ATK ธาตุแสง + ฮีล 10% HP · ตอนนี้ 0 · ตะวันแตกแรงขึ้นทุกเลเวล"
+    },
+    {
+      "id": "dw_strike",
+      "name": "ฟันตะวันขึ้น",
+      "thai": "สายดาบแสงตะวัน",
+      "icon": "sk_dw_strike",
+      "iconUrl": "https://play.nightcamp.app/cas/3c4c05dd6dd2.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "ฟันศักดิ์สิทธิ์ Lv.1",
+      "prereq": [
+        {
+          "skill": "pal_strike",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"ฟันศักดิ์สิทธิ์\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · เสาแสงตะวันผ่าลงเป้า (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "dw_cross",
+      "name": "ตะวันแผดเผา",
+      "thai": "สายดาบแสงตะวัน",
+      "icon": "sk_dw_cross",
+      "iconUrl": "https://play.nightcamp.app/cas/7d4f7cd0a479.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "แสงกากบาทเผาผลาญ Lv.1",
+      "prereq": [
+        {
+          "skill": "pal_cross",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"แสงกากบาทเผาผลาญ\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · คลื่นแสงตะวันแผ่เป็นวงจากเป้า (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "dw_chain",
+      "name": "โล่ตะวันพิฆาต",
+      "thai": "สายปราการรุ่งสาง",
+      "icon": "sk_dw_chain",
+      "iconUrl": "https://play.nightcamp.app/cas/9a81b7889b0c.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "โล่พิฆาต Lv.1",
+      "prereq": [
+        {
+          "skill": "pal_shieldchain",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"โล่พิฆาต\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · สายฟ้าทองกระโดดต่อไปอีก 3–4 ตัว (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "dw_hands",
+      "name": "มือรุ่งอรุณ",
+      "thai": "สายปราการรุ่งสาง",
+      "icon": "sk_dw_hands",
+      "iconUrl": "https://play.nightcamp.app/cas/7536cdfa15cd.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "มือแห่งแสง Lv.1",
+      "prereq": [
+        {
+          "skill": "pal_layhands",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"มือแห่งแสง\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · ฮีลตัวเราและเพื่อนรอบตัวอีกก้อนตาม MATK 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "dw_awaken",
+      "name": "ร่างอาทิตย์อุทัย",
+      "thai": "สายร่างตื่น",
+      "icon": "sk_dw_awaken",
+      "iconUrl": "https://play.nightcamp.app/cas/db6368fced8b.webp",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "แสงรุ่งสาง Lv.3",
+      "prereq": [
+        {
+          "skill": "dw_dawn",
+          "level": 3
+        }
+      ],
+      "desc": "ใช้สกิลที่ปลุกพลังแล้ว วงจันทร์ใต้เท้าเต็ม ร่างตื่นเอง 10 วิ: สกิลที่ปลุกพลังแรงขึ้นอีก 12% เอฟเฟกต์ออกเพิ่ม 1 ครั้ง · รับดาเมจลดลง 20% (+2% ต่อเลเวล) DEF +10 · ร่างตื่นนานขึ้น 2 วิ และแรงขึ้นทุกเลเวล"
+    }
+  ],
+  "dragonbound": [
+    {
+      "id": "db_ember",
+      "name": "เลือดมังกรเดือด",
+      "thai": "สายเลือดมังกรเดือด",
+      "icon": "sk_db_ember",
+      "iconUrl": "https://play.nightcamp.app/cas/178d10322e7c.webp",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "passive",
+      "desc": "ATK +1% · สกิลที่โดนศัตรูทิ้งเกล็ดไฟ 1 ชั้น (หายใน 6 วิ) ครบ 5 ชั้นระเบิดไฟมังกร 100% ของ ATK รอบตัวนั้น · ระเบิดไฟมังกรแรงขึ้นทุกเลเวล"
+    },
+    {
+      "id": "db_thrust",
+      "name": "แทงเขี้ยวมังกร",
+      "thai": "สายหอกมังกร",
+      "icon": "sk_db_thrust",
+      "iconUrl": "https://play.nightcamp.app/cas/0908c1b45f28.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "แทงเพลิงมังกร Lv.1",
+      "prereq": [
+        {
+          "skill": "dk_thrust",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"แทงเพลิงมังกร\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · หัวมังกรเพลิงพุ่งฟาดซ้ำ (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "db_spiral",
+      "name": "สว่านพายุเพลิง",
+      "thai": "สายหอกมังกร",
+      "icon": "sk_db_spiral",
+      "iconUrl": "https://play.nightcamp.app/cas/d0d1aae8c83b.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "หอกเกลียวสว่าน Lv.1",
+      "prereq": [
+        {
+          "skill": "dk_spiral",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"หอกเกลียวสว่าน\": ระยะไกลขึ้น 2.5% · เปลวไฟพุ่งจากพื้นเป็นแนว (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "db_breath",
+      "name": "ลมหายใจมังกรดำ",
+      "thai": "สายเพลิงมังกร",
+      "icon": "sk_db_breath",
+      "iconUrl": "https://play.nightcamp.app/cas/5f376c54e820.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "ลมหายใจมังกร Lv.1",
+      "prereq": [
+        {
+          "skill": "dk_breath",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"ลมหายใจมังกร\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · ห่าลูกไฟตกใส่รอบเป้า (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "db_leap",
+      "name": "มังกรดิ่งฟ้า",
+      "thai": "สายเพลิงมังกร",
+      "icon": "sk_db_leap",
+      "iconUrl": "https://play.nightcamp.app/cas/b86a62fd452b.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "มังกรทะยาน Lv.1",
+      "prereq": [
+        {
+          "skill": "dk_leap",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"มังกรทะยาน\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · ลงแล้วระเบิดไฟวงใหญ่ (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "db_awaken",
+      "name": "ร่างผสานมังกร",
+      "thai": "สายร่างตื่น",
+      "icon": "sk_db_awaken",
+      "iconUrl": "https://play.nightcamp.app/cas/365d3a88cf0c.webp",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "เลือดมังกรเดือด Lv.3",
+      "prereq": [
+        {
+          "skill": "db_ember",
+          "level": 3
+        }
+      ],
+      "desc": "ใช้สกิลที่ปลุกพลังแล้ว วงจันทร์ใต้เท้าเต็ม ร่างตื่นเอง 10 วิ: สกิลที่ปลุกพลังแรงขึ้นอีก 12% เอฟเฟกต์ออกเพิ่ม 1 ครั้ง · ตีปกติพ่นไฟเป็นกรวย เดินเร็วขึ้น 20% ความเร็วโจมตี +10% · ร่างตื่นนานขึ้น 2 วิ และแรงขึ้นทุกเลเวล"
+    }
+  ],
+  "starblade": [
+    {
+      "id": "sb_stars",
+      "name": "กลุ่มดาวคมดาบ",
+      "thai": "สายกลุ่มดาวคมดาบ",
+      "icon": "sk_sb_stars",
+      "iconUrl": "https://play.nightcamp.app/cas/1717a159734a.webp",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "passive",
+      "desc": "มีรอยดาบครบ 5 รอย รอยต่อเส้นกันเป็นดาวห้าแฉกแล้วระเบิดพร้อมกัน รอยละ 100% ของ ATK (แทนระเบิดปกติ) · Lv5 ดาวห้าแฉกทำให้มึน · แรงขึ้นทุกเลเวล"
+    },
+    {
+      "id": "sb_rain",
+      "name": "ฝนดาบดารา",
+      "thai": "สายดาบคู่ดารา",
+      "icon": "sk_sb_rain",
+      "iconUrl": "https://play.nightcamp.app/cas/b430c48a15cc.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "สายฝนดาบ Lv.1",
+      "prereq": [
+        {
+          "skill": "sm_bladerain",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"สายฝนดาบ\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · ดาบคริสตัลตกใส่รอบเป้า (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "sb_thousand",
+      "name": "พันดาบดารา",
+      "thai": "สายดาบคู่ดารา",
+      "icon": "sk_sb_thousand",
+      "iconUrl": "https://play.nightcamp.app/cas/2584324c0e56.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "จันทร์พันดาบ Lv.1",
+      "prereq": [
+        {
+          "skill": "sm_thousand",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"จันทร์พันดาบ\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · ฝนดาวตกลงใส่เป้า (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "sb_wave",
+      "name": "คลื่นดาบทางช้างเผือก",
+      "thai": "สายดาบเวทดารา",
+      "icon": "sk_sb_wave",
+      "iconUrl": "https://play.nightcamp.app/cas/fd4fe6ace27e.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "คลื่นดาบเวท Lv.1",
+      "prereq": [
+        {
+          "skill": "sm_wave",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"คลื่นดาบเวท\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · เศษดาวแตกกระจายจากเป้า (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "sb_iai",
+      "name": "ชักดาบผ่าดาว",
+      "thai": "สายดาบเวทดารา",
+      "icon": "sk_sb_iai",
+      "iconUrl": "https://play.nightcamp.app/cas/1151356d5834.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "ชักดาบผ่ารอย Lv.1",
+      "prereq": [
+        {
+          "skill": "sm_iai",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"ชักดาบผ่ารอย\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · เงาดาบดาวฟันซ้ำอีกครั้ง (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "sb_awaken",
+      "name": "ร่างดาบดารา",
+      "thai": "สายร่างตื่น",
+      "icon": "sk_sb_awaken",
+      "iconUrl": "https://play.nightcamp.app/cas/97db0e7ac7ed.webp",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "กลุ่มดาวคมดาบ Lv.3",
+      "prereq": [
+        {
+          "skill": "sb_stars",
+          "level": 3
+        }
+      ],
+      "desc": "ใช้สกิลที่ปลุกพลังแล้ว วงจันทร์ใต้เท้าเต็ม ร่างตื่นเอง 10 วิ: สกิลที่ปลุกพลังแรงขึ้นอีก 12% เอฟเฟกต์ออกเพิ่ม 1 ครั้ง · ตีปกติยิงดาบคริสตัลตามไป ความเร็วโจมตี +15% คริ +10 · ร่างตื่นนานขึ้น 2 วิ และแรงขึ้นทุกเลเวล"
+    }
+  ],
+  "starcore": [
+    {
+      "id": "sc_core",
+      "name": "ใจดาว",
+      "thai": "สายใจดาว",
+      "icon": "sk_sc_core",
+      "iconUrl": "https://play.nightcamp.app/cas/847551adac90.webp",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "passive",
+      "desc": "ความร้อนเกิน 80 ฟื้น HP อีก 1% ต่อวิ · ระบายความร้อนตอนเต็ม 100 เป็น \"ซูเปอร์โนวา\" วงกว้าง 360 100% ของ MATK เพิ่มจากระเบิดปกติ · ซูเปอร์โนวาแรงขึ้นทุกเลเวล"
+    },
+    {
+      "id": "sc_pillar",
+      "name": "เสาสุริยะ",
+      "thai": "สายนรกดาวฤกษ์",
+      "icon": "sk_sc_pillar",
+      "iconUrl": "https://play.nightcamp.app/cas/2e6fbb470a01.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "เสาเพลิง Lv.1",
+      "prereq": [
+        {
+          "skill": "fm_pillar",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"เสาเพลิง\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · เสาไฟสุริยะสีขาวทองผ่าลงเป้า (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "sc_sea",
+      "name": "ทะเลดวงอาทิตย์",
+      "thai": "สายนรกดาวฤกษ์",
+      "icon": "sk_sc_sea",
+      "iconUrl": "https://play.nightcamp.app/cas/c337ef8d4535.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "ทะเลเพลิง Lv.1",
+      "prereq": [
+        {
+          "skill": "fm_sea",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"ทะเลเพลิง\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · ดวงอาทิตย์จิ๋วตกห่าใส่ (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "sc_ring",
+      "name": "วงแหวนโคโรนา",
+      "thai": "สายหัวใจดาว",
+      "icon": "sk_sc_ring",
+      "iconUrl": "https://play.nightcamp.app/cas/a3a1c5a67fef.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "วงแหวนเพลิง Lv.1",
+      "prereq": [
+        {
+          "skill": "fm_ring",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"วงแหวนเพลิง\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · เปลวไฟกระจายออกจากเป้า (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "sc_vent",
+      "name": "ระเบิดดาวฤกษ์",
+      "thai": "สายหัวใจดาว",
+      "icon": "sk_sc_vent",
+      "iconUrl": "https://play.nightcamp.app/cas/faf307b32312.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "ระบายความร้อน Lv.1",
+      "prereq": [
+        {
+          "skill": "fm_vent",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"ระบายความร้อน\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · ระเบิดไฟซ้ำที่ศัตรูที่โดน (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "sc_awaken",
+      "name": "ร่างดาวฤกษ์",
+      "thai": "สายร่างตื่น",
+      "icon": "sk_sc_awaken",
+      "iconUrl": "https://play.nightcamp.app/cas/ef3aa6ddee9b.webp",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "ใจดาว Lv.3",
+      "prereq": [
+        {
+          "skill": "sc_core",
+          "level": 3
+        }
+      ],
+      "desc": "ใช้สกิลที่ปลุกพลังแล้ว วงจันทร์ใต้เท้าเต็ม ร่างตื่นเอง 10 วิ: สกิลที่ปลุกพลังแรงขึ้นอีก 12% เอฟเฟกต์ออกเพิ่ม 1 ครั้ง · ร่ายเร็วขึ้น 20% MATK +5% · ร่างตื่นนานขึ้น 2 วิ และแรงขึ้นทุกเลเวล"
+    }
+  ],
+  "winterlord": [
+    {
+      "id": "wn_statue",
+      "name": "รูปปั้นน้ำแข็ง",
+      "thai": "สายรูปปั้นน้ำแข็ง",
+      "icon": "sk_wn_statue",
+      "iconUrl": "https://play.nightcamp.app/cas/82954898b22b.webp",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "passive",
+      "desc": "ศัตรูที่ตายตอนแข็งกลายเป็นรูปปั้นน้ำแข็ง 6 วิ (สูงสุด 3 รูป) ยิงเศษน้ำแข็งใส่ศัตรูใกล้สุดทุก 1 วิ 100% ของ MATK ธาตุน้ำ · รูปปั้นอยู่นานขึ้นและยิงแรงขึ้นทุกเลเวล"
+    },
+    {
+      "id": "wn_blizzard",
+      "name": "พายุจักรพรรดิหิมะ",
+      "thai": "สายธารน้ำแข็งจักรพรรดิ",
+      "icon": "sk_wn_blizzard",
+      "iconUrl": "https://play.nightcamp.app/cas/1c259cd6ce0a.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "พายุหิมะ Lv.1",
+      "prereq": [
+        {
+          "skill": "im_blizzard",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"พายุหิมะ\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · ห่าเศษน้ำแข็งตกใส่ (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "wn_lance",
+      "name": "หอกน้ำแข็งยักษ์",
+      "thai": "สายธารน้ำแข็งจักรพรรดิ",
+      "icon": "sk_wn_lance",
+      "iconUrl": "https://play.nightcamp.app/cas/8ee1e4749777.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "หอกธารน้ำแข็ง Lv.1",
+      "prereq": [
+        {
+          "skill": "im_lance",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"หอกธารน้ำแข็ง\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · หนามน้ำแข็งพุ่งจากพื้นเป็นแนว (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "wn_burst",
+      "name": "ผลึกแตกดาว",
+      "thai": "สายปราการจักรพรรดิ",
+      "icon": "sk_wn_burst",
+      "iconUrl": "https://play.nightcamp.app/cas/e54446c2fb81.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "ผลึกระเบิด Lv.1",
+      "prereq": [
+        {
+          "skill": "im_burst",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"ผลึกระเบิด\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · วงระเบิดน้ำแข็งแผ่จากเป้า (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "wn_armor",
+      "name": "เกราะผลึกจักรพรรดิ",
+      "thai": "สายปราการจักรพรรดิ",
+      "icon": "sk_wn_armor",
+      "iconUrl": "https://play.nightcamp.app/cas/da2522c28ed9.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "เกราะน้ำแข็ง Lv.1",
+      "prereq": [
+        {
+          "skill": "im_armor",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"เกราะน้ำแข็ง\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · ร่ายแล้วเศษน้ำแข็งพุ่งรอบตัว และระหว่างมีเกราะ ใครตีเราโดนเศษสะท้อน 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "wn_awaken",
+      "name": "ร่างจักรพรรดิหิมะ",
+      "thai": "สายร่างตื่น",
+      "icon": "sk_wn_awaken",
+      "iconUrl": "https://play.nightcamp.app/cas/accb8af379af.webp",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "รูปปั้นน้ำแข็ง Lv.3",
+      "prereq": [
+        {
+          "skill": "wn_statue",
+          "level": 3
+        }
+      ],
+      "desc": "ใช้สกิลที่ปลุกพลังแล้ว วงจันทร์ใต้เท้าเต็ม ร่างตื่นเอง 10 วิ: สกิลที่ปลุกพลังแรงขึ้นอีก 12% เอฟเฟกต์ออกเพิ่ม 1 ครั้ง · ศัตรูที่แข็งอยู่โดนแรงขึ้น 30% MDEF +20 · ร่างตื่นนานขึ้น 2 วิ และแรงขึ้นทุกเลเวล"
+    }
+  ],
+  "astral": [
+    {
+      "id": "ax_planets",
+      "name": "ดาวเคราะห์โคจร",
+      "thai": "สายดาวเคราะห์โคจร",
+      "icon": "sk_ax_planets",
+      "iconUrl": "https://play.nightcamp.app/cas/aefdba17db7a.webp",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "passive",
+      "desc": "ร่ายเวทธาตุไฟ น้ำ ลม หรือดิน ได้ดาวเคราะห์ธาตุนั้นโคจรรอบตัว (อยู่ 12 วิ) ครบ 3 ธาตุต่างกัน \"เรียงดาว\" ระเบิดที่เป้า 100% ของ MATK · Lv5 ระหว่างร่างตื่นเรียงดาวได้ด้วย 2 ธาตุ · แรงขึ้นทุกเลเวล"
+    },
+    {
+      "id": "ax_chain",
+      "name": "สายฟ้าดาราจักร",
+      "thai": "สายพายุดาราจักร",
+      "icon": "sk_ax_chain",
+      "iconUrl": "https://play.nightcamp.app/cas/8564f116d181.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "สายฟ้าลูกโซ่ Lv.1",
+      "prereq": [
+        {
+          "skill": "am_chain",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"สายฟ้าลูกโซ่\": ชิ่งกลับตัวที่โดนแล้วได้ (ไม่ซ้ำตัวติดกัน) แต่ละครั้งที่ซ้ำแรงลดลง 50% · วงกว้างขึ้น 2% · สายฟ้ากระโดดต่ออีก 3–4 ตัว (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "ax_lord",
+      "name": "อสนีจักรวาล",
+      "thai": "สายพายุดาราจักร",
+      "icon": "sk_ax_lord",
+      "iconUrl": "https://play.nightcamp.app/cas/2d3d2176eaaa.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "เจ้าแห่งอสนี Lv.1",
+      "prereq": [
+        {
+          "skill": "am_lordthunder",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"เจ้าแห่งอสนี\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · เสาฟ้าผ่าจากกาแล็กซีลงเป้า (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "ax_orbs",
+      "name": "ลูกแก้วดาวเคราะห์",
+      "thai": "สายผสานดาราจักร",
+      "icon": "sk_ax_orbs",
+      "iconUrl": "https://play.nightcamp.app/cas/2e771f28f411.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "ลูกแก้วไฟ Lv.1",
+      "prereq": [
+        {
+          "skill": "am_orbfire",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"ลูกแก้วไฟ\": เปิดลูกแก้วไฟ เศษดาวระเบิดรอบตัว 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "ax_recall",
+      "name": "ลูกแก้วธาราจักรวาล",
+      "thai": "สายผสานดาราจักร",
+      "icon": "sk_ax_recall",
+      "iconUrl": "https://play.nightcamp.app/cas/a346ed94196f.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "ลูกแก้วน้ำ Lv.1",
+      "prereq": [
+        {
+          "skill": "am_orbwater",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"ลูกแก้วน้ำ\": เปิดลูกแก้วน้ำ วงเวทซ้อนระเบิดรอบตัว 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "ax_awaken",
+      "name": "ร่างดาราจักร",
+      "thai": "สายร่างตื่น",
+      "icon": "sk_ax_awaken",
+      "iconUrl": "https://play.nightcamp.app/cas/519fa8eee424.webp",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "ดาวเคราะห์โคจร Lv.3",
+      "prereq": [
+        {
+          "skill": "ax_planets",
+          "level": 3
+        }
+      ],
+      "desc": "ใช้สกิลที่ปลุกพลังแล้ว วงจันทร์ใต้เท้าเต็ม ร่างตื่นเอง 10 วิ: สกิลที่ปลุกพลังแรงขึ้นอีก 12% เอฟเฟกต์ออกเพิ่ม 1 ครั้ง · MATK +15% คูลดาวน์ลด 10% (เรียงดาวด้วย 2 ธาตุเมื่อกลไก Lv5) · ร่างตื่นนานขึ้น 2 วิ และแรงขึ้นทุกเลเวล"
+    }
+  ],
+  "hexlord": [
+    {
+      "id": "hx_contagion",
+      "name": "คำสาปติดต่อ",
+      "thai": "สายคำสาปติดต่อ",
+      "icon": "sk_hx_contagion",
+      "iconUrl": "https://play.nightcamp.app/cas/af596dee5a5a.webp",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "passive",
+      "desc": "ศัตรูที่โดนสกิลเราภายใน 5 วิแล้วตาย ไฟผีกระโดดไป 2 ตัวใกล้สุด 100% ของ MATK ธาตุมืด และรับดาเมจ +10% 5 วิ (ต่อเป็นทอด ๆ ได้) · Lv5 กระโดด 3 ตัว · Lv10 4 ตัว"
+    },
+    {
+      "id": "hx_soulfire",
+      "name": "ไฟวิญญาณเดือนดับ",
+      "thai": "สายไฟผีเดือนดับ",
+      "icon": "sk_hx_soulfire",
+      "iconUrl": "https://play.nightcamp.app/cas/195ff919b16b.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "ไฟวิญญาณ Lv.1",
+      "prereq": [
+        {
+          "skill": "wl_soulfire",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"ไฟวิญญาณ\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · ไฟผีกระโดดต่ออีก 3–4 ตัว (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "hx_soulburn",
+      "name": "เผาวิญญาณลุกลาม",
+      "thai": "สายไฟผีเดือนดับ",
+      "icon": "sk_hx_soulburn",
+      "iconUrl": "https://play.nightcamp.app/cas/55b3fb2b5060.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "คำสาปเผาวิญญาณ Lv.1",
+      "prereq": [
+        {
+          "skill": "wl_soulburn",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"คำสาปเผาวิญญาณ\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · วงไฟผีแผ่จากเป้า (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "hx_hex",
+      "name": "ตราคำสาปเดือนดับ",
+      "thai": "สายคำสาปเดือนดับ",
+      "icon": "sk_hx_hex",
+      "iconUrl": "https://play.nightcamp.app/cas/5913c0a9b360.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "ตราคำสาปมรณะ Lv.1",
+      "prereq": [
+        {
+          "skill": "wl_hex",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"ตราคำสาปมรณะ\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · เสาเงาผ่าลงเป้า (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "hx_chains",
+      "name": "โซ่เงาเดือนดับ",
+      "thai": "สายคำสาปเดือนดับ",
+      "icon": "sk_hx_chains",
+      "iconUrl": "https://play.nightcamp.app/cas/a716fa4bbca7.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "โซ่คำสาป Lv.1",
+      "prereq": [
+        {
+          "skill": "wl_chains",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"โซ่คำสาป\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · หนามเงาพุ่งจากพื้นเป็นแนว (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "hx_awaken",
+      "name": "ร่างจ้าวผี",
+      "thai": "สายร่างตื่น",
+      "icon": "sk_hx_awaken",
+      "iconUrl": "https://play.nightcamp.app/cas/44b3b35a028e.webp",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "คำสาปติดต่อ Lv.3",
+      "prereq": [
+        {
+          "skill": "hx_contagion",
+          "level": 3
+        }
+      ],
+      "desc": "ใช้สกิลที่ปลุกพลังแล้ว วงจันทร์ใต้เท้าเต็ม ร่างตื่นเอง 10 วิ: สกิลที่ปลุกพลังแรงขึ้นอีก 12% เอฟเฟกต์ออกเพิ่ม 1 ครั้ง · เขตมืดรอบตัว 320: ศัตรูในเขตโดนแรงขึ้น 20% · MATK +10% · ร่างตื่นนานขึ้น 2 วิ และแรงขึ้นทุกเลเวล"
+    }
+  ],
+  "bloodmoon": [
+    {
+      "id": "bm_moon",
+      "name": "จันทร์เลือด",
+      "thai": "สายจันทร์เลือด",
+      "icon": "sk_bm_moon",
+      "iconUrl": "https://play.nightcamp.app/cas/3c60c13e285a.webp",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "passive",
+      "desc": "ทุกฮิตแรงขึ้นตาม HP ที่หายไป: หายไปครึ่งหนึ่ง แรงขึ้น 16% · HP ต่ำกว่า 50% ดูดเลือด 0.1% ของดาเมจ · แรงขึ้นและดูดเลือดมากขึ้นทุกเลเวล"
+    },
+    {
+      "id": "bm_cross",
+      "name": "ฟันกากบาทจันทร์เลือด",
+      "thai": "สายดาบใหญ่จันทร์เลือด",
+      "icon": "sk_bm_cross",
+      "iconUrl": "https://play.nightcamp.app/cas/fb460b9c18a8.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "ฟันกากบาท Lv.1",
+      "prereq": [
+        {
+          "skill": "bk_crosscut",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"ฟันกากบาท\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · เงาดาบสีเลือดฟันไขว้ซ้ำ (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "bm_guillotine",
+      "name": "ประหารจันทร์เลือด",
+      "thai": "สายดาบใหญ่จันทร์เลือด",
+      "icon": "sk_bm_guillotine",
+      "iconUrl": "https://play.nightcamp.app/cas/31207fa28611.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "ฟันประหาร Lv.1",
+      "prereq": [
+        {
+          "skill": "bk_guillotine",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"ฟันประหาร\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · เสาแสงสีเลือดผ่าลงเป้า (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "bm_smash",
+      "name": "ทุบจันทร์แตก",
+      "thai": "สายพสุธาจันทร์เลือด",
+      "icon": "sk_bm_smash",
+      "iconUrl": "https://play.nightcamp.app/cas/9f7136d70792.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "ทุบสะสมพลัง Lv.1",
+      "prereq": [
+        {
+          "skill": "bk_smash",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"ทุบสะสมพลัง\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · คลื่นแผ่นดินแตกแผ่จากเป้า (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "bm_leap",
+      "name": "กระโดดจันทร์ถล่ม",
+      "thai": "สายพสุธาจันทร์เลือด",
+      "icon": "sk_bm_leap",
+      "iconUrl": "https://play.nightcamp.app/cas/cfecf991e51f.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "กระโดดทุบธรณี Lv.1",
+      "prereq": [
+        {
+          "skill": "bk_leap",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"กระโดดทุบธรณี\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · หินแหลมสีเลือดพุ่งจากพื้นเป็นแนว (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "bm_awaken",
+      "name": "ร่างยักษ์จันทร์เลือด",
+      "thai": "สายร่างตื่น",
+      "icon": "sk_bm_awaken",
+      "iconUrl": "https://play.nightcamp.app/cas/16a1a8bfa30e.webp",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "จันทร์เลือด Lv.3",
+      "prereq": [
+        {
+          "skill": "bm_moon",
+          "level": 3
+        }
+      ],
+      "desc": "ใช้สกิลที่ปลุกพลังแล้ว วงจันทร์ใต้เท้าเต็ม ร่างตื่นเอง 10 วิ: สกิลที่ปลุกพลังแรงขึ้นอีก 12% เอฟเฟกต์ออกเพิ่ม 1 ครั้ง · ตัวโตเป็นยักษ์ ATK +15% รับดาเมจลด 15% ตีปกติส่งคลื่นกระแทก · ร่างตื่นนานขึ้น 2 วิ และแรงขึ้นทุกเลเวล"
+    }
+  ],
+  "moonsniper": [
+    {
+      "id": "ms_still",
+      "name": "สมาธิใต้จันทร์",
+      "thai": "สายสมาธิใต้จันทร์",
+      "icon": "sk_ms_still",
+      "iconUrl": "https://play.nightcamp.app/cas/97808c3bef88.webp",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "passive",
+      "desc": "DEX +1 ดาเมจคริ +3% · ยืนนิ่งได้สมาธิ 1 ขั้นทุก 0.5 วิ (สูงสุด 5) · ครบ 5 สกิลถัดไปที่โดนแรงขึ้น 34% และยิงศรแสงจันทร์ทะลุทั้งแนวยาว 1000 100% ของ ATK · เดินแล้วสมาธิหาย · แรงขึ้นทุกเลเวล"
+    },
+    {
+      "id": "ms_snipe",
+      "name": "ยิงสไนป์จันทร์เงียบ",
+      "thai": "สายสไนป์จันทร์",
+      "icon": "sk_ms_snipe",
+      "iconUrl": "https://play.nightcamp.app/cas/ca2f5faf5a02.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "ยิงสไนป์ Lv.1",
+      "prereq": [
+        {
+          "skill": "rg_snipe",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"ยิงสไนป์\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · ศรแสงจันทร์ยิงซ้ำที่เป้า (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "ms_piercer",
+      "name": "ศรจันทร์ทะลวง",
+      "thai": "สายสไนป์จันทร์",
+      "icon": "sk_ms_piercer",
+      "iconUrl": "https://play.nightcamp.app/cas/b2b3c961dacb.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "ธนูใบไม้ทะลวง Lv.1",
+      "prereq": [
+        {
+          "skill": "rg_piercer",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"ธนูใบไม้ทะลวง\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · เสาแสงจันทร์ผ่าลงเป้า (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "ms_trap",
+      "name": "กับดักจันทร์แตก",
+      "thai": "สายพรานจันทร์",
+      "icon": "sk_ms_trap",
+      "iconUrl": "https://play.nightcamp.app/cas/8792c208c3d7.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "กับดักระเบิด Lv.1",
+      "prereq": [
+        {
+          "skill": "rg_trap",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"กับดักระเบิด\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · คลื่นแสงจันทร์แผ่จากกับดัก (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "ms_triple",
+      "name": "ห่าศรแสงจันทร์",
+      "thai": "สายพรานจันทร์",
+      "icon": "sk_ms_triple",
+      "iconUrl": "https://play.nightcamp.app/cas/711d2d316ad2.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "ยิงสามดอก Lv.1",
+      "prereq": [
+        {
+          "skill": "rg_triple",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"ยิงสามดอก\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · ห่าศรแสงตกใส่รอบเป้า (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "ms_awaken",
+      "name": "ร่างพรานจันทร์",
+      "thai": "สายร่างตื่น",
+      "icon": "sk_ms_awaken",
+      "iconUrl": "https://play.nightcamp.app/cas/67931a26e87a.webp",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "สมาธิใต้จันทร์ Lv.3",
+      "prereq": [
+        {
+          "skill": "ms_still",
+          "level": 3
+        }
+      ],
+      "desc": "ใช้สกิลที่ปลุกพลังแล้ว วงจันทร์ใต้เท้าเต็ม ร่างตื่นเอง 10 วิ: สกิลที่ปลุกพลังแรงขึ้นอีก 12% เอฟเฟกต์ออกเพิ่ม 1 ครั้ง · ตีปกติยิงศรแสงไปอีก 2 เป้าข้าง ๆ 40% ความเร็วโจมตี +15% · ร่างตื่นนานขึ้น 2 วิ และแรงขึ้นทุกเลเวล"
+    }
+  ],
+  "packalpha": [
+    {
+      "id": "pa_howl",
+      "name": "หมาป่าวิญญาณ",
+      "thai": "สายหมาป่าวิญญาณ",
+      "icon": "sk_pa_howl",
+      "iconUrl": "https://play.nightcamp.app/cas/339c5071ce73.webp",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "passive",
+      "desc": "ระหว่างสู้ ทุก 5.8 วิ หมาป่าวิญญาณพุ่งทะลุเป้าใกล้สุดและทุกตัวในแนว 100% ของ ATK · สัตว์เรียกแรงขึ้น 3% ATK +1% · ถี่ขึ้นและแรงขึ้นทุกเลเวล"
+    },
+    {
+      "id": "pa_command",
+      "name": "สั่งขย้ำจ่าฝูง",
+      "thai": "สายหมาป่าจันทร์",
+      "icon": "sk_pa_command",
+      "iconUrl": "https://play.nightcamp.app/cas/f58d6387881e.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "สั่งขย้ำ Lv.1",
+      "prereq": [
+        {
+          "skill": "wh_command",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"สั่งขย้ำ\": แรงขึ้น 2.5% · เขี้ยววิญญาณขย้ำซ้ำ (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "pa_pack",
+      "name": "ฝูงวิญญาณจันทร์",
+      "thai": "สายหมาป่าจันทร์",
+      "icon": "sk_pa_pack",
+      "iconUrl": "https://play.nightcamp.app/cas/1780ca5a94c8.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "ฝูงหมาป่าวิญญาณ Lv.1",
+      "prereq": [
+        {
+          "skill": "wh_pack",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"ฝูงหมาป่าวิญญาณ\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · คลื่นหอนแผ่จากเป้า (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "pa_blitz",
+      "name": "เหยี่ยวจันทร์โฉบ",
+      "thai": "สายนักล่าจันทร์",
+      "icon": "sk_pa_blitz",
+      "iconUrl": "https://play.nightcamp.app/cas/6c371610d07c.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "เหยี่ยวโฉบล่า Lv.1",
+      "prereq": [
+        {
+          "skill": "wh_blitz",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"เหยี่ยวโฉบล่า\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · ห่าขนนกแสงตกใส่ (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "pa_fang",
+      "name": "ธนูเขี้ยวจ่าฝูง",
+      "thai": "สายนักล่าจันทร์",
+      "icon": "sk_pa_fang",
+      "iconUrl": "https://play.nightcamp.app/cas/d9e96434d092.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "ธนูเขี้ยวหมาป่า Lv.1",
+      "prereq": [
+        {
+          "skill": "wh_fang",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"ธนูเขี้ยวหมาป่า\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · เขี้ยวหมาป่ากระจายออกจากเป้า (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "pa_awaken",
+      "name": "ร่างจ่าฝูง",
+      "thai": "สายร่างตื่น",
+      "icon": "sk_pa_awaken",
+      "iconUrl": "https://play.nightcamp.app/cas/bbc511dfdc95.webp",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "หมาป่าวิญญาณ Lv.3",
+      "prereq": [
+        {
+          "skill": "pa_howl",
+          "level": 3
+        }
+      ],
+      "desc": "ใช้สกิลที่ปลุกพลังแล้ว วงจันทร์ใต้เท้าเต็ม ร่างตื่นเอง 10 วิ: สกิลที่ปลุกพลังแรงขึ้นอีก 12% เอฟเฟกต์ออกเพิ่ม 1 ครั้ง · หอนเสริมทีม ATK +10% หมาป่าวิญญาณพุ่งถี่ขึ้นสองเท่า ATK +10% ความเร็วโจมตี +10% · ร่างตื่นนานขึ้น 2 วิ และแรงขึ้นทุกเลเวล"
+    }
+  ],
+  "maestro": [
+    {
+      "id": "mt_band",
+      "name": "วงดนตรีแห่งป่า",
+      "thai": "สายวงดนตรีแห่งป่า",
+      "icon": "sk_mt_band",
+      "iconUrl": "https://play.nightcamp.app/cas/b7837a92c59c.webp",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "passive",
+      "desc": "ระหว่างเล่นเพลงหรือระบำ วงดนตรีสัตว์ป่า (กบตีกลอง นกฮูกเป่าขลุ่ย) บรรเลงยิงโน้ตทองใส่ศัตรู 2 ตัวทุก 2 วิ ตัวละ 100% ของ ATK · Lv5 ยิง 3 ตัว · แรงขึ้นทุกเลเวล"
+    },
+    {
+      "id": "mt_twirl",
+      "name": "ระบำควงไฟทองคำ",
+      "thai": "สายระบำทองคำ",
+      "icon": "sk_mt_twirl",
+      "iconUrl": "https://play.nightcamp.app/cas/939ddf839e97.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "ระบำควงไฟ Lv.1",
+      "prereq": [
+        {
+          "skill": "bd_twirl",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"ระบำควงไฟ\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · วงไฟทองแผ่จากเป้า (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "mt_lash",
+      "name": "ฟาดแส้ดาวตก",
+      "thai": "สายระบำทองคำ",
+      "icon": "sk_mt_lash",
+      "iconUrl": "https://play.nightcamp.app/cas/6769d3d3c46f.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "ฟาดแส้ดึง Lv.1",
+      "prereq": [
+        {
+          "skill": "bd_lash",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"ฟาดแส้ดึง\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · ประกายดาวกระโดดต่อ 3–4 ตัว (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "mt_note",
+      "name": "โน้ตทองคำ",
+      "thai": "สายโน้ตทองคำ",
+      "icon": "sk_mt_note",
+      "iconUrl": "https://play.nightcamp.app/cas/a595f901c9f8.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "โน้ตเด้ง Lv.1",
+      "prereq": [
+        {
+          "skill": "bd_note",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"โน้ตเด้ง\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · โน้ตทองแตกกระจายจากเป้า (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "mt_rain",
+      "name": "ฝนโน้ตทองคำ",
+      "thai": "สายโน้ตทองคำ",
+      "icon": "sk_mt_rain",
+      "iconUrl": "https://play.nightcamp.app/cas/b09b498b619f.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "ฝนโน้ต Lv.1",
+      "prereq": [
+        {
+          "skill": "bd_noterain",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"ฝนโน้ต\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · ห่าโน้ตทองตกใส่ (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "mt_awaken",
+      "name": "ร่างวาทยกร",
+      "thai": "สายร่างตื่น",
+      "icon": "sk_mt_awaken",
+      "iconUrl": "https://play.nightcamp.app/cas/d8b5101df71c.webp",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "วงดนตรีแห่งป่า Lv.3",
+      "prereq": [
+        {
+          "skill": "mt_band",
+          "level": 3
+        }
+      ],
+      "desc": "ใช้สกิลที่ปลุกพลังแล้ว วงจันทร์ใต้เท้าเต็ม ร่างตื่นเอง 10 วิ: สกิลที่ปลุกพลังแรงขึ้นอีก 12% เอฟเฟกต์ออกเพิ่ม 1 ครั้ง · วงดนตรียิงถี่ขึ้นสองเท่า DEX +10 ความเร็วโจมตี +10% · ร่างตื่นนานขึ้น 2 วิ และแรงขึ้นทุกเลเวล"
+    }
+  ],
+  "outlaw": [
+    {
+      "id": "ol_deadeye",
+      "name": "เที่ยงคืนตรง",
+      "thai": "สายเที่ยงคืนตรง",
+      "icon": "sk_ol_deadeye",
+      "iconUrl": "https://play.nightcamp.app/cas/1080137789a5.webp",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "passive",
+      "desc": "ยิงปกติครบ 12 นัด เวลาช้าลงชั่วครู่ เล็ง 3 เป้าใกล้สุดแล้วยิงพร้อมกัน นัดละ 100% ของ ATK · Lv5 4 เป้า · Lv10 5 เป้า · แรงขึ้นทุกเลเวล"
+    },
+    {
+      "id": "ol_triple",
+      "name": "รัวค้อนเที่ยงคืน",
+      "thai": "สายปืนพกเที่ยงคืน",
+      "icon": "sk_ol_triple",
+      "iconUrl": "https://play.nightcamp.app/cas/bb18a9c86104.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "รัวค้อนปืน Lv.1",
+      "prereq": [
+        {
+          "skill": "gs_triple",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"รัวค้อนปืน\": คูลดาวน์ลดลง 0.1 วิ วงกว้างขึ้น 2% · กระสุนเงายิงตามทุกนัด (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "ol_ricochet",
+      "name": "กระสุนสะท้อนดาว",
+      "thai": "สายปืนพกเที่ยงคืน",
+      "icon": "sk_ol_ricochet",
+      "iconUrl": "https://play.nightcamp.app/cas/5ca1647f2fa3.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "กระสุนสะท้อน Lv.1",
+      "prereq": [
+        {
+          "skill": "gs_ricochet",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"กระสุนสะท้อน\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · กระสุนแดงกระโดดต่อ 3–4 ตัว (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "ol_buckshot",
+      "name": "ลูกปรายดาวแดง",
+      "thai": "สายลูกซองเที่ยงคืน",
+      "icon": "sk_ol_buckshot",
+      "iconUrl": "https://play.nightcamp.app/cas/bffa429e6637.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "ลูกปรายกระจาย Lv.1",
+      "prereq": [
+        {
+          "skill": "gs_buckshot",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"ลูกปรายกระจาย\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · ดาวแดงแตกกระจายจากเป้า (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "ol_stars",
+      "name": "ยิงดาวตกนับร้อย",
+      "thai": "สายลูกซองเที่ยงคืน",
+      "icon": "sk_ol_stars",
+      "iconUrl": "https://play.nightcamp.app/cas/0ecf5e3ba87e.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "ยิงดาวตก Lv.1",
+      "prereq": [
+        {
+          "skill": "gs_stars",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"ยิงดาวตก\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · ห่าดาวตกลงใส่ (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "ol_awaken",
+      "name": "ร่างมือปืนเที่ยงคืน",
+      "thai": "สายร่างตื่น",
+      "icon": "sk_ol_awaken",
+      "iconUrl": "https://play.nightcamp.app/cas/a7063f93d7c0.webp",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "เที่ยงคืนตรง Lv.3",
+      "prereq": [
+        {
+          "skill": "ol_deadeye",
+          "level": 3
+        }
+      ],
+      "desc": "ใช้สกิลที่ปลุกพลังแล้ว วงจันทร์ใต้เท้าเต็ม ร่างตื่นเอง 10 วิ: สกิลที่ปลุกพลังแรงขึ้นอีก 12% เอฟเฟกต์ออกเพิ่ม 1 ครั้ง · ไม่ต้องบรรจุกระสุน เที่ยงคืนตรงเล็งเพิ่ม 1 เป้า · ร่างตื่นนานขึ้น 2 วิ และแรงขึ้นทุกเลเวล"
+    }
+  ],
+  "eclipse": [
+    {
+      "id": "ec_dark",
+      "name": "สะสมความมืด",
+      "thai": "สายสะสมความมืด",
+      "icon": "sk_ec_dark",
+      "iconUrl": "https://play.nightcamp.app/cas/2c3dde7f419c.webp",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "passive",
+      "desc": "ตีคริได้ความมืด 1 ชั้น (สูงสุด 10) · ครบ 10 สกิลถัดไปเรียก \"จันทรคราส\" ฟัน 3 เป้าใกล้สุด ตัวละ 100% ของ ATK คริแน่นอน · แรงขึ้นทุกเลเวล"
+    },
+    {
+      "id": "ec_twin",
+      "name": "เขี้ยวคู่คราส",
+      "thai": "สายคริคราส",
+      "icon": "sk_ec_twin",
+      "iconUrl": "https://play.nightcamp.app/cas/5e9c78ce65fc.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "เขี้ยวคู่ Lv.1",
+      "prereq": [
+        {
+          "skill": "as_twin",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"เขี้ยวคู่\": คูลดาวน์ลดลง 0.1 วิ วงกว้างขึ้น 2% · เงามีดฟันไขว้ซ้ำ (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "ec_meteor",
+      "name": "อุกกาบาตเงาคราส",
+      "thai": "สายคริคราส",
+      "icon": "sk_ec_meteor",
+      "iconUrl": "https://play.nightcamp.app/cas/5496ead8fced.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "อุกกาบาตเงา Lv.1",
+      "prereq": [
+        {
+          "skill": "as_meteor",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"อุกกาบาตเงา\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · วงคราสสีทองแผ่จากเป้า (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "ec_grim",
+      "name": "เขี้ยวมัจจุราชคราส",
+      "thai": "สายพิษคราส",
+      "icon": "sk_ec_grim",
+      "iconUrl": "https://play.nightcamp.app/cas/e159824d3c46.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "เขี้ยวมัจจุราช Lv.1",
+      "prereq": [
+        {
+          "skill": "as_grimtooth",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"เขี้ยวมัจจุราช\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · หนามเงาพุ่งจากพื้นเป็นแนว (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "ec_splash",
+      "name": "ระเบิดพิษคราส",
+      "thai": "สายพิษคราส",
+      "icon": "sk_ec_splash",
+      "iconUrl": "https://play.nightcamp.app/cas/1ccea908b866.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "ระเบิดพิษ Lv.1",
+      "prereq": [
+        {
+          "skill": "as_splasher",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"ระเบิดพิษ\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · เศษพิษกระจายจากเป้า (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "ec_awaken",
+      "name": "ร่างจันทรคราส",
+      "thai": "สายร่างตื่น",
+      "icon": "sk_ec_awaken",
+      "iconUrl": "https://play.nightcamp.app/cas/ac906cb6433b.webp",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "สะสมความมืด Lv.3",
+      "prereq": [
+        {
+          "skill": "ec_dark",
+          "level": 3
+        }
+      ],
+      "desc": "ใช้สกิลที่ปลุกพลังแล้ว วงจันทร์ใต้เท้าเต็ม ร่างตื่นเอง 10 วิ: สกิลที่ปลุกพลังแรงขึ้นอีก 12% เอฟเฟกต์ออกเพิ่ม 1 ครั้ง · คริ +10 ดาเมจคริ +10% · ร่างตื่นนานขึ้น 2 วิ และแรงขึ้นทุกเลเวล"
+    }
+  ],
+  "shadowlord": [
+    {
+      "id": "sl_legion",
+      "name": "ร่างเงาถาวร",
+      "thai": "สายร่างเงาถาวร",
+      "icon": "sk_sl_legion",
+      "iconUrl": "https://play.nightcamp.app/cas/476c90653ddc.webp",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "passive",
+      "desc": "ร่างเงา 1 ร่างยืนข้างตัว ทุกครั้งที่สกิลโดน ร่างเงาทำซ้ำ 16.5% ของฮิตนั้น (ครั้งละ 1 ร่าง) · Lv5 ร่างเงา 2 ร่าง · ซ้ำแรงขึ้นทุกเลเวล"
+    },
+    {
+      "id": "sl_huuma",
+      "name": "ดาวยักษ์พายุเงา",
+      "thai": "สายซัดเงา",
+      "icon": "sk_sl_huuma",
+      "iconUrl": "https://play.nightcamp.app/cas/e07f9703476c.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "ขว้างดาวยักษ์วกกลับ Lv.1",
+      "prereq": [
+        {
+          "skill": "sh_huuma",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"ขว้างดาวยักษ์วกกลับ\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · เศษเงาคมกระจายจากเป้า (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "sl_katon",
+      "name": "คาถาไฟเงาม่วง",
+      "thai": "สายซัดเงา",
+      "icon": "sk_sl_katon",
+      "iconUrl": "https://play.nightcamp.app/cas/3f8b1111653d.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "คาถาไฟ Lv.1",
+      "prereq": [
+        {
+          "skill": "sh_katon",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"คาถาไฟ\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · เสาไฟสีม่วงผ่าลงเป้า (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "sl_raiton",
+      "name": "คาถาสายฟ้าร้อยร่าง",
+      "thai": "สายคาถาเงา",
+      "icon": "sk_sl_raiton",
+      "iconUrl": "https://play.nightcamp.app/cas/a11c04620421.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "คาถาสายฟ้า Lv.1",
+      "prereq": [
+        {
+          "skill": "sh_raiton",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"คาถาสายฟ้า\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · สายฟ้ากระโดดต่อ 3–4 ตัว (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "sl_wind",
+      "name": "ใบมีดวายุเงา",
+      "thai": "สายคาถาเงา",
+      "icon": "sk_sl_wind",
+      "iconUrl": "https://play.nightcamp.app/cas/d24d509f8ab1.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "ใบมีดวายุ Lv.1",
+      "prereq": [
+        {
+          "skill": "sh_windblade",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"ใบมีดวายุ\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · เงาใบมีดลมฟันซ้ำ (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "sl_awaken",
+      "name": "ร่างจ้าวเงา",
+      "thai": "สายร่างตื่น",
+      "icon": "sk_sl_awaken",
+      "iconUrl": "https://play.nightcamp.app/cas/d1ab9627db4a.webp",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "ร่างเงาถาวร Lv.3",
+      "prereq": [
+        {
+          "skill": "sl_legion",
+          "level": 3
+        }
+      ],
+      "desc": "ใช้สกิลที่ปลุกพลังแล้ว วงจันทร์ใต้เท้าเต็ม ร่างตื่นเอง 10 วิ: สกิลที่ปลุกพลังแรงขึ้นอีก 12% เอฟเฟกต์ออกเพิ่ม 1 ครั้ง · ร่างเงาเพิ่ม 2 ร่าง ทำซ้ำแรงขึ้น 30% AGI +10 · ร่างตื่นนานขึ้น 2 วิ และแรงขึ้นทุกเลเวล"
+    }
+  ],
+  "harvester": [
+    {
+      "id": "hv_phase",
+      "name": "จันทร์เก็บเกี่ยว",
+      "thai": "สายจันทร์เก็บเกี่ยว",
+      "icon": "sk_hv_phase",
+      "iconUrl": "https://play.nightcamp.app/cas/4eb9729daa0a.webp",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "passive",
+      "desc": "เกี่ยววิญญาณได้ดวงละ จันทร์ขึ้น 1 ข้าง ครบ 8 ข้าง สกิลถัดไปฟันเสี้ยวจันทร์ยักษ์กว้าง 420 100% ของ ATK ศัตรูที่โดนวิญญาณสุกทันที · กลางคืนครบ 4 รอยก็สุก · แรงขึ้นทุกเลเวล"
+    },
+    {
+      "id": "hv_sweep",
+      "name": "ฟันเก็บเกี่ยวจันทร์",
+      "thai": "สายเคียวจันทร์",
+      "icon": "sk_hv_sweep",
+      "iconUrl": "https://play.nightcamp.app/cas/6e01e207cdcd.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "ฟันเก็บเกี่ยว Lv.1",
+      "prereq": [
+        {
+          "skill": "rp_sweep",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"ฟันเก็บเกี่ยว\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · วงเสี้ยวจันทร์แผ่จากเป้า (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "hv_execute",
+      "name": "ประหารจันทร์เต็มดวง",
+      "thai": "สายเคียวจันทร์",
+      "icon": "sk_hv_execute",
+      "iconUrl": "https://play.nightcamp.app/cas/31ae0b0ccb1f.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "ประหารใต้จันทร์ Lv.1",
+      "prereq": [
+        {
+          "skill": "rp_execute",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"ประหารใต้จันทร์\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · เสาแสงจันทร์ผ่าลงเป้า (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "hv_return",
+      "name": "เคียววกกลับจันทร์",
+      "thai": "สายเคียวคู่จันทร์",
+      "icon": "sk_hv_return",
+      "iconUrl": "https://play.nightcamp.app/cas/ce285f429b8f.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "ขว้างเคียววกกลับ Lv.1",
+      "prereq": [
+        {
+          "skill": "rp_return",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"ขว้างเคียววกกลับ\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · เงาเคียวฟันซ้ำ (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "hv_hook",
+      "name": "เกี่ยววิญญาณจันทร์",
+      "thai": "สายเคียวคู่จันทร์",
+      "icon": "sk_hv_hook",
+      "iconUrl": "https://play.nightcamp.app/cas/f40d2ccc3d4c.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "เกี่ยววิญญาณ Lv.1",
+      "prereq": [
+        {
+          "skill": "rp_hook",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"เกี่ยววิญญาณ\": แรงขึ้น 2.5% · โซ่วิญญาณกระโดดต่อ 3–4 ตัว (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "hv_awaken",
+      "name": "ร่างผู้เก็บเกี่ยว",
+      "thai": "สายร่างตื่น",
+      "icon": "sk_hv_awaken",
+      "iconUrl": "https://play.nightcamp.app/cas/b0413cd1aeea.webp",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "จันทร์เก็บเกี่ยว Lv.3",
+      "prereq": [
+        {
+          "skill": "hv_phase",
+          "level": 3
+        }
+      ],
+      "desc": "ใช้สกิลที่ปลุกพลังแล้ว วงจันทร์ใต้เท้าเต็ม ร่างตื่นเอง 10 วิ: สกิลที่ปลุกพลังแรงขึ้นอีก 12% เอฟเฟกต์ออกเพิ่ม 1 ครั้ง · เกี่ยววิญญาณครั้งหนึ่งได้ 2 ดวง ATK +10% เดินเร็วขึ้น 10% · ร่างตื่นนานขึ้น 2 วิ และแรงขึ้นทุกเลเวล"
+    }
+  ],
+  "showmaster": [
+    {
+      "id": "so_acts",
+      "name": "การแสดงสามองก์",
+      "thai": "สายการแสดงสามองก์",
+      "icon": "sk_so_acts",
+      "iconUrl": "https://play.nightcamp.app/cas/34fdff46e886.webp",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "passive",
+      "desc": "ใช้สกิลครบ 3 ครั้งภายใน 6 วิ ม่านทองปิดฉากที่เป้า ระเบิดวงกว้าง 240 100% ของ ATK · หุ่นรบแรงขึ้น 2% · แรงขึ้นทุกเลเวล"
+    },
+    {
+      "id": "so_dance",
+      "name": "ระบำหุ่นยักษ์",
+      "thai": "สายหุ่นทองคำ",
+      "icon": "sk_so_dance",
+      "iconUrl": "https://play.nightcamp.app/cas/00709736c9d2.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "ระบำหุ่น Lv.1",
+      "prereq": [
+        {
+          "skill": "pp_dance",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"ระบำหุ่น\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · วงทองแผ่จากเป้า (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "so_swap",
+      "name": "สลับร่างละคร",
+      "thai": "สายหุ่นทองคำ",
+      "icon": "sk_so_swap",
+      "iconUrl": "https://play.nightcamp.app/cas/064cb3f3f49a.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "สลับร่างหุ่น Lv.1",
+      "prereq": [
+        {
+          "skill": "pp_swap",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"สลับร่างหุ่น\": วงกว้างขึ้น 2% · สลับร่างแล้วเศษทองกระจายรอบตัว 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "so_stretch",
+      "name": "ขึงด้ายทองคำ",
+      "thai": "สายด้ายทองคำ",
+      "icon": "sk_so_stretch",
+      "iconUrl": "https://play.nightcamp.app/cas/cf2839f1080d.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "ขึงด้ายเหล็ก Lv.1",
+      "prereq": [
+        {
+          "skill": "pp_stretch",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"ขึงด้ายเหล็ก\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · ด้ายทองกระโดดต่อ 3–4 ตัว (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "so_bind",
+      "name": "รัดด้ายทองคำ",
+      "thai": "สายด้ายทองคำ",
+      "icon": "sk_so_bind",
+      "iconUrl": "https://play.nightcamp.app/cas/79fdf2dac36d.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "รัดด้าย Lv.1",
+      "prereq": [
+        {
+          "skill": "pp_bind",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"รัดด้าย\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · เสาทองผ่าลงเป้า (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "so_awaken",
+      "name": "ร่างจ้าวโรงหุ่น",
+      "thai": "สายร่างตื่น",
+      "icon": "sk_so_awaken",
+      "iconUrl": "https://play.nightcamp.app/cas/c7e6133837f0.webp",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "การแสดงสามองก์ Lv.3",
+      "prereq": [
+        {
+          "skill": "so_acts",
+          "level": 3
+        }
+      ],
+      "desc": "ใช้สกิลที่ปลุกพลังแล้ว วงจันทร์ใต้เท้าเต็ม ร่างตื่นเอง 10 วิ: สกิลที่ปลุกพลังแรงขึ้นอีก 12% เอฟเฟกต์ออกเพิ่ม 1 ครั้ง · หุ่นอัศวินยักษ์โผล่ข้างตัว หุ่นรบแรงขึ้น 50% DEX +10 · ร่างตื่นนานขึ้น 2 วิ และแรงขึ้นทุกเลเวล"
+    }
+  ],
+  "starsaint": [
+    {
+      "id": "ss_faith",
+      "name": "ศรัทธาแสงดาว",
+      "thai": "สายศรัทธาแสงดาว",
+      "icon": "sk_ss_faith",
+      "iconUrl": "https://play.nightcamp.app/cas/389e01c86ac3.webp",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "passive",
+      "desc": "ดาเมจธาตุแสง +1.5% MATK +1% · ทุกครั้งที่เราฮีล ได้ศรัทธา 3 แต้ม และฮีลที่ล้นหลอด (1% ของ HP คนนั้น = 1 แต้ม) · เต็ม 100 ดาวพิพากษาตกใส่ศัตรู 3 ตัวใกล้สุด ตัวละ 100% ของ MATK ธาตุแสง · แรงขึ้นทุกเลเวล"
+    },
+    {
+      "id": "ss_heal",
+      "name": "เยียวยาแสงดาว",
+      "thai": "สายเยียวยาแสงดาว",
+      "icon": "sk_ss_heal",
+      "iconUrl": "https://play.nightcamp.app/cas/8c4b0ffee179.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "วงแสงเยียวยา Lv.1",
+      "prereq": [
+        {
+          "skill": "bi_heal",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"วงแสงเยียวยา\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · ฮีลตัวเราและเพื่อนรอบตัวอีกก้อนตาม MATK ดาวร่วงรอบตัว 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "ss_sanct",
+      "name": "ลานแสงดวงดาว",
+      "thai": "สายเยียวยาแสงดาว",
+      "icon": "sk_ss_sanct",
+      "iconUrl": "https://play.nightcamp.app/cas/416041caa899.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "ลานแสงเยียวยา Lv.1",
+      "prereq": [
+        {
+          "skill": "bi_sanctuary",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"ลานแสงเยียวยา\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · ฮีลทั้งทีมอีกก้อนตอนร่าย 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "ss_turn",
+      "name": "ขับไล่ด้วยแสงดาว",
+      "thai": "สายพิพากษาแสงดาว",
+      "icon": "sk_ss_turn",
+      "iconUrl": "https://play.nightcamp.app/cas/d42a6a07ab07.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "ขับไล่อมตะ Lv.1",
+      "prereq": [
+        {
+          "skill": "bi_turnundead",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"ขับไล่อมตะ\": แรงขึ้น 2.5% · เสาแสงดาวผ่าลงเป้า (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "ss_lex",
+      "name": "ตราดาวพิพากษา",
+      "thai": "สายพิพากษาแสงดาว",
+      "icon": "sk_ss_lex",
+      "iconUrl": "https://play.nightcamp.app/cas/a30712f69574.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "ตราแสงตรึง Lv.1",
+      "prereq": [
+        {
+          "skill": "bi_lexdivina",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"ตราแสงตรึง\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · ห่าดาวตกใส่รอบเป้า (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "ss_awaken",
+      "name": "ร่างนักบุญ",
+      "thai": "สายร่างตื่น",
+      "icon": "sk_ss_awaken",
+      "iconUrl": "https://play.nightcamp.app/cas/0be4b38caafb.webp",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "ศรัทธาแสงดาว Lv.3",
+      "prereq": [
+        {
+          "skill": "ss_faith",
+          "level": 3
+        }
+      ],
+      "desc": "ใช้สกิลที่ปลุกพลังแล้ว วงจันทร์ใต้เท้าเต็ม ร่างตื่นเอง 10 วิ: สกิลที่ปลุกพลังแรงขึ้นอีก 12% เอฟเฟกต์ออกเพิ่ม 1 ครั้ง · ฮีลแรงขึ้น 30% ทีมรอบตัวรับดาเมจลดลง 20% · ร่างตื่นนานขึ้น 2 วิ และแรงขึ้นทุกเลเวล"
+    }
+  ],
+  "meteorfist": [
+    {
+      "id": "mf_combo",
+      "name": "คอมโบดาวตก",
+      "thai": "สายคอมโบดาวตก",
+      "icon": "sk_mf_combo",
+      "iconUrl": "https://play.nightcamp.app/cas/a66ba9e7d9d7.webp",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "passive",
+      "desc": "ทุกฮิต (ตีปกติและสกิล) ต่อคอมโบ (ขาดเกิน 2 วิ เริ่มใหม่) · ทุก 20 ฮิต ดาวตกลงใส่เป้า 100% ของ ATK ธาตุไฟ วงกว้าง 130 · แรงขึ้นทุกเลเวล"
+    },
+    {
+      "id": "mf_storm",
+      "name": "ชุดหมัดดาวตก",
+      "thai": "สายคอมโบดาวตก",
+      "icon": "sk_mf_storm",
+      "iconUrl": "https://play.nightcamp.app/cas/aacdbf8e9e7a.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "ชุดหมัดพายุ Lv.1",
+      "prereq": [
+        {
+          "skill": "mo_combo",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"ชุดหมัดพายุ\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · ห่าดาวตกเล็กลงใส่รอบเป้า (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "mf_palms",
+      "name": "ฝ่ามือร้อยดาว",
+      "thai": "สายคอมโบดาวตก",
+      "icon": "sk_mf_palms",
+      "iconUrl": "https://play.nightcamp.app/cas/e66f36bf9bbe.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "ฝ่ามือร้อยทิศ Lv.1",
+      "prereq": [
+        {
+          "skill": "mo_palms",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"ฝ่ามือร้อยทิศ\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · ฝ่ามือไฟฟาดซ้ำ (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "mf_impact",
+      "name": "ฝ่ามือทะลวงดาวตก",
+      "thai": "สายปราณดาวตก",
+      "icon": "sk_mf_impact",
+      "iconUrl": "https://play.nightcamp.app/cas/9dae8fe15acf.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "ฝ่ามือทะลวงปราณ Lv.1",
+      "prereq": [
+        {
+          "skill": "mo_impact",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"ฝ่ามือทะลวงปราณ\": แรงขึ้น 2.5% · เสาไฟผ่าลงเป้า (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "mf_crush",
+      "name": "หมัดดาวตกถล่มฟ้า",
+      "thai": "สายปราณดาวตก",
+      "icon": "sk_mf_crush",
+      "iconUrl": "https://play.nightcamp.app/cas/a2aed2340c5c.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "หมัดสิ้นปราณ Lv.1",
+      "prereq": [
+        {
+          "skill": "mo_asura",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"หมัดสิ้นปราณ\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · คลื่นระเบิดไฟแผ่จากเป้า (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "mf_awaken",
+      "name": "ร่างเพลิงปราณ",
+      "thai": "สายร่างตื่น",
+      "icon": "sk_mf_awaken",
+      "iconUrl": "https://play.nightcamp.app/cas/ac69820bdc8e.webp",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "คอมโบดาวตก Lv.3",
+      "prereq": [
+        {
+          "skill": "mf_combo",
+          "level": 3
+        }
+      ],
+      "desc": "ใช้สกิลที่ปลุกพลังแล้ว วงจันทร์ใต้เท้าเต็ม ร่างตื่นเอง 10 วิ: สกิลที่ปลุกพลังแรงขึ้นอีก 12% เอฟเฟกต์ออกเพิ่ม 1 ครั้ง · ทุกหมัดเรียกดาวตกเล็ก 50% ความเร็วโจมตี +15% · ร่างตื่นนานขึ้น 2 วิ และแรงขึ้นทุกเลเวล"
+    }
+  ],
+  "beacon": [
+    {
+      "id": "bc_beam",
+      "name": "ลำแสงประภาคาร",
+      "thai": "สายลำแสงประภาคาร",
+      "icon": "sk_bc_beam",
+      "iconUrl": "https://play.nightcamp.app/cas/f93a34d0d46b.webp",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "passive",
+      "desc": "ระหว่างสู้ ลำแสงประภาคารยาว 480 หมุนรอบตัว (รอบละ 4 วิ) ศัตรูในลำแสงโดน 100% ของ MATK ธาตุแสงทุก 0.4 วิ เพื่อนในลำแสงฟื้น HP 1% · แรงขึ้นทุกเลเวล"
+    },
+    {
+      "id": "bc_swing",
+      "name": "ฟาดเปลวประภาคาร",
+      "thai": "สายคบเพลิงประภาคาร",
+      "icon": "sk_bc_swing",
+      "iconUrl": "https://play.nightcamp.app/cas/72eafbaae4d8.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "ฟาดเปลวไฟ Lv.1",
+      "prereq": [
+        {
+          "skill": "lk_swing",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"ฟาดเปลวไฟ\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · วงแสงแผ่จากเป้า (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "bc_flash",
+      "name": "แสงไล่เงาประภาคาร",
+      "thai": "สายคบเพลิงประภาคาร",
+      "icon": "sk_bc_flash",
+      "iconUrl": "https://play.nightcamp.app/cas/777de57bf292.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "แสงไล่เงา Lv.1",
+      "prereq": [
+        {
+          "skill": "lk_flash",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"แสงไล่เงา\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · เสาแสงประภาคารผ่าลงเป้า (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "bc_flare",
+      "name": "โคมเรืองรองประภาคาร",
+      "thai": "สายโคมประภาคาร",
+      "icon": "sk_bc_flare",
+      "iconUrl": "https://play.nightcamp.app/cas/1df4fad744d4.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "โคมเรืองรอง Lv.1",
+      "prereq": [
+        {
+          "skill": "lk_flare",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"โคมเรืองรอง\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · ฮีลทั้งทีมอีกก้อนตอนร่าย 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "bc_dawn",
+      "name": "รุ่งอรุณประภาคาร",
+      "thai": "สายโคมประภาคาร",
+      "icon": "sk_bc_dawn",
+      "iconUrl": "https://play.nightcamp.app/cas/be8d0fcaa98a.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "รุ่งอรุณ Lv.1",
+      "prereq": [
+        {
+          "skill": "lk_dawn",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"รุ่งอรุณ\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · คลื่นแสงยักษ์แผ่จากเป้า (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "bc_awaken",
+      "name": "ร่างผู้เฝ้าประภาคาร",
+      "thai": "สายร่างตื่น",
+      "icon": "sk_bc_awaken",
+      "iconUrl": "https://play.nightcamp.app/cas/53152af8a690.webp",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "ลำแสงประภาคาร Lv.3",
+      "prereq": [
+        {
+          "skill": "bc_beam",
+          "level": 3
+        }
+      ],
+      "desc": "ใช้สกิลที่ปลุกพลังแล้ว วงจันทร์ใต้เท้าเต็ม ร่างตื่นเอง 10 วิ: สกิลที่ปลุกพลังแรงขึ้นอีก 12% เอฟเฟกต์ออกเพิ่ม 1 ครั้ง · ลำแสงเพิ่มเป็น 3 ทาง ฮีลแรงขึ้น 20% MATK +10% · ร่างตื่นนานขึ้น 2 วิ และแรงขึ้นทุกเลเวล"
+    }
+  ],
+  "starshepherd": [
+    {
+      "id": "st_merge",
+      "name": "หลอมดวงดาว",
+      "thai": "สายหลอมดวงดาว",
+      "icon": "sk_st_merge",
+      "iconUrl": "https://play.nightcamp.app/cas/10dc6a175ac6.webp",
+      "maxLevel": 10,
+      "freeLevel": 1,
+      "kind": "passive",
+      "desc": "มีดวงไฟลอยรอบตัว 3 ดวงขึ้นไป ทุก 5.8 วิ หลอมเป็นดาวใหญ่ยิงใส่ศัตรูใกล้สุด 100% ของ MATK ธาตุแสง (ไม่เสียดวงไฟ) · ถี่ขึ้นและแรงขึ้นทุกเลเวล"
+    },
+    {
+      "id": "st_latch",
+      "name": "ดวงดาวเกาะเพื่อน",
+      "thai": "สายดวงดาวรักษา",
+      "icon": "sk_st_latch",
+      "iconUrl": "https://play.nightcamp.app/cas/4c9358586398.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "ส่งดวงไฟเกาะ Lv.1",
+      "prereq": [
+        {
+          "skill": "ws_latch",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"ส่งดวงไฟเกาะ\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · ฮีลตัวเราและเพื่อนรอบตัวอีกก้อนตอนส่ง 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "st_burst",
+      "name": "ดวงดาวแตกฮีล",
+      "thai": "สายดวงดาวรักษา",
+      "icon": "sk_st_burst",
+      "iconUrl": "https://play.nightcamp.app/cas/89b900e51a1d.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "ดวงไฟแตกฮีล Lv.1",
+      "prereq": [
+        {
+          "skill": "ws_burst",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"ดวงไฟแตกฮีล\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · ฮีลทั้งทีมอีกก้อน ดาวร่วงรอบตัว 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "st_rush",
+      "name": "ฝูงดาวพุ่ง",
+      "thai": "สายดวงดาวโจมตี",
+      "icon": "sk_st_rush",
+      "iconUrl": "https://play.nightcamp.app/cas/c1de38945803.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "ฝูงดวงไฟพุ่ง Lv.1",
+      "prereq": [
+        {
+          "skill": "ws_rush",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"ฝูงดวงไฟพุ่ง\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · ห่าดาวตกใส่รอบเป้า (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "st_mark",
+      "name": "ดาวติดศัตรู",
+      "thai": "สายดวงดาวโจมตี",
+      "icon": "sk_st_mark",
+      "iconUrl": "https://play.nightcamp.app/cas/05e798f4497e.webp",
+      "maxLevel": 10,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "ดวงไฟติดศัตรู Lv.1",
+      "prereq": [
+        {
+          "skill": "ws_mark",
+          "level": 1
+        }
+      ],
+      "desc": "ปลุกพลัง \"ดวงไฟติดศัตรู\": แรงขึ้น 2.5% วงกว้างขึ้น 2% · ประกายดาวกระโดดต่อ 3–4 ตัว (แรง 16.5% ของฮิตที่ปลุก) 1 ครั้งต่อการใช้ · Lv5 เอฟเฟกต์ออก 2 ครั้งและใหญ่ขึ้น · Lv10 ออก 3 ครั้ง"
+    },
+    {
+      "id": "st_awaken",
+      "name": "ร่างผู้เลี้ยงดวงดาว",
+      "thai": "สายร่างตื่น",
+      "icon": "sk_st_awaken",
+      "iconUrl": "https://play.nightcamp.app/cas/db254ead1b2d.webp",
+      "maxLevel": 5,
+      "freeLevel": 0,
+      "kind": "passive",
+      "req": "หลอมดวงดาว Lv.3",
+      "prereq": [
+        {
+          "skill": "st_merge",
+          "level": 3
+        }
+      ],
+      "desc": "ใช้สกิลที่ปลุกพลังแล้ว วงจันทร์ใต้เท้าเต็ม ร่างตื่นเอง 10 วิ: สกิลที่ปลุกพลังแรงขึ้นอีก 12% เอฟเฟกต์ออกเพิ่ม 1 ครั้ง · ดาวใหญ่ยิงถี่ขึ้น 2.5 เท่า (ไม่ต้องมีดวงไฟครบ) MATK +10% · ร่างตื่นนานขึ้น 2 วิ และแรงขึ้นทุกเลเวล"
     }
   ]
 };
@@ -4475,13 +7466,25 @@ function updateClassDropdownsInEditor() {
   };
 }
 
-// 2. Update Plan Editor Badges (Skill count and Stat summary)
+// 2. Update Plan Editor Badges (Skill count, Stat summary, Party summary)
+function getPlanClass3Id(plan) {
+  const p = plan || activeEditingPlan;
+  if (!p) return 'moonsniper';
+  if (p.class3Target && SKILLS_DATABASE[p.class3Target]) return p.class3Target;
+  const c1 = p.class1Target || 'archer';
+  const c2 = p.class2Target || 'ranger';
+  const tree = CLASS_TREE_MAP[c1] || CLASS_TREE_MAP['archer'];
+  const sc = tree?.secondClasses?.find(s => s.id === c2) || tree?.secondClasses?.[0];
+  return sc?.class3Id || 'moonsniper';
+}
+
 function countPlannedFacets(plan) {
   const facets = plan && plan.skillBuild && plan.skillBuild.facets;
   if (!facets || typeof facets !== 'object') return 0;
   const c1 = plan.class1Target || 'archer';
-  const c2 = plan.class2Target || 'hunter';
-  const allowed = new Set(['novice', c1, c2]);
+  const c2 = plan.class2Target || 'ranger';
+  const c3 = getPlanClass3Id(plan);
+  const allowed = new Set(['novice', c1, c2, c3]);
   let total = 0;
   for (const [sId, arr] of Object.entries(facets)) {
     if (!Array.isArray(arr)) continue;
@@ -4504,15 +7507,16 @@ function normalizePlanSkillBuild(plan) {
   if (!sb.facets || typeof sb.facets !== 'object') sb.facets = {};
   if (sb.skillPointQueue.length === 0) {
     const c1 = plan.class1Target || 'archer';
-    const c2 = plan.class2Target || 'hunter';
-    const classMaps = [sb.novice, sb[c1], sb[c2]].filter(x => x && typeof x === 'object' && !Array.isArray(x));
+    const c2 = plan.class2Target || 'ranger';
+    const c3 = getPlanClass3Id(plan);
+    const classMaps = [sb.novice, sb[c1], sb[c2], sb[c3]].filter(x => x && typeof x === 'object' && !Array.isArray(x));
     if (classMaps.length > 0) {
       const rawQ = [];
-      const novObj = (sb.novice && typeof sb.novice === 'object') ? sb.novice : { 'basic-skill': 9 };
+      const novObj = (sb.novice && typeof sb.novice === 'object') ? sb.novice : { 'mastery': 5, 'body': 4 };
       for (const [sId, cnt] of Object.entries(novObj)) {
         for (let i = 0; i < (Number(cnt) || 0); i++) rawQ.push(sId);
       }
-      for (const tier of [c1, c2]) {
+      for (const tier of [c1, c2, c3]) {
         const obj = sb[tier];
         if (!obj || typeof obj !== 'object') continue;
         for (const [sId, cnt] of Object.entries(obj)) {
@@ -4528,16 +7532,100 @@ function normalizePlanSkillBuild(plan) {
       delete sb.novice;
       delete sb[c1];
       delete sb[c2];
+      delete sb[c3];
     }
   }
 }
 
+function normalizePlanPartyConfig(plan) {
+  if (!plan) return;
+  if (!plan.partyConfig || typeof plan.partyConfig !== 'object') {
+    plan.partyConfig = {
+      enabled: false,
+      role: 'leader',
+      partyTag: '',
+      lootMode: 'f',
+      groupMode: 'g',
+      minLevel: 1,
+      syncChannelAndMap: true,
+      supFight: true,
+      supHealPct: 70
+    };
+  }
+  return plan.partyConfig;
+}
+
+function updatePartyConfigInEditor() {
+  if (!activeEditingPlan) return;
+  const pc = normalizePlanPartyConfig(activeEditingPlan);
+  const cbEn = document.getElementById('plan-party-enabled');
+  const selRole = document.getElementById('plan-party-role');
+  const inTag = document.getElementById('plan-party-tag');
+  const selLoot = document.getElementById('plan-party-loot');
+  const selGroup = document.getElementById('plan-party-group');
+  const inMinLv = document.getElementById('plan-party-minlv');
+  const cbSyncMap = document.getElementById('plan-party-sync-map');
+  const cbSupFight = document.getElementById('plan-party-sup-fight');
+  const selSupHeal = document.getElementById('plan-party-sup-heal');
+
+  if (cbEn) cbEn.checked = Boolean(pc.enabled);
+  if (selRole) selRole.value = pc.role || 'leader';
+  if (inTag) inTag.value = pc.partyTag || '';
+  if (selLoot) selLoot.value = pc.lootMode || 'f';
+  if (selGroup) selGroup.value = pc.groupMode || 'g';
+  if (inMinLv) inMinLv.value = Math.max(1, parseInt(pc.minLevel, 10) || 1);
+  if (cbSyncMap) cbSyncMap.checked = pc.syncChannelAndMap !== false;
+  if (cbSupFight) cbSupFight.checked = pc.supFight !== false;
+  if (selSupHeal) selSupHeal.value = String(pc.supHealPct || 70);
+
+  const onChange = () => {
+    readPartyConfigFromEditor();
+    if (typeof markPlanDirty === 'function') markPlanDirty();
+    updatePlanEditorBadges();
+    if (typeof refreshAutoJobUi === 'function') refreshAutoJobUi();
+  };
+  [cbEn, selRole, inTag, selLoot, selGroup, inMinLv, cbSyncMap, cbSupFight, selSupHeal].forEach(el => {
+    if (!el) return;
+    el.onchange = onChange;
+    if (el.tagName === 'INPUT' && el.type === 'text') el.oninput = onChange;
+  });
+}
+
+function readPartyConfigFromEditor() {
+  if (!activeEditingPlan) return null;
+  const pc = normalizePlanPartyConfig(activeEditingPlan);
+  const cbEn = document.getElementById('plan-party-enabled');
+  const selRole = document.getElementById('plan-party-role');
+  const inTag = document.getElementById('plan-party-tag');
+  const selLoot = document.getElementById('plan-party-loot');
+  const selGroup = document.getElementById('plan-party-group');
+  const inMinLv = document.getElementById('plan-party-minlv');
+  const cbSyncMap = document.getElementById('plan-party-sync-map');
+  const cbSupFight = document.getElementById('plan-party-sup-fight');
+  const selSupHeal = document.getElementById('plan-party-sup-heal');
+
+  if (cbEn) pc.enabled = Boolean(cbEn.checked);
+  if (selRole) pc.role = selRole.value || 'leader';
+  if (inTag) pc.partyTag = (inTag.value || '').trim();
+  if (selLoot) pc.lootMode = selLoot.value || 'f';
+  if (selGroup) pc.groupMode = selGroup.value || 'g';
+  if (inMinLv) pc.minLevel = Math.max(1, Math.min(99, parseInt(inMinLv.value, 10) || 1));
+  if (cbSyncMap) pc.syncChannelAndMap = Boolean(cbSyncMap.checked);
+  if (cbSupFight) pc.supFight = Boolean(cbSupFight.checked);
+  if (selSupHeal) pc.supHealPct = parseInt(selSupHeal.value, 10) || 70;
+  return pc;
+}
+window.updatePartyConfigInEditor = updatePartyConfigInEditor;
+window.readPartyConfigFromEditor = readPartyConfigFromEditor;
+
 function updatePlanEditorBadges() {
   if (!activeEditingPlan) return;
   normalizePlanSkillBuild(activeEditingPlan);
+  const pc = normalizePlanPartyConfig(activeEditingPlan);
   if (typeof window.updateGearBadge === 'function') window.updateGearBadge();
   const skillBadge = document.getElementById("plan-skill-count-badge");
   const statBadge = document.getElementById("plan-stat-summary-badge");
+  const partyBadge = document.getElementById("plan-party-summary-badge");
 
   if (skillBadge) {
     const queue = activeEditingPlan.skillBuild?.skillPointQueue || [];
@@ -4558,34 +7646,48 @@ function updatePlanEditorBadges() {
       statBadge.style.background = 'rgba(56, 189, 248, 0.2)';
     }
   }
+
+  if (partyBadge) {
+    if (pc && pc.enabled) {
+      const roleName = pc.role === 'support' ? 'พระซัพ' : pc.role === 'member' ? 'ลูกตี้' : 'หัวตี้';
+      partyBadge.innerText = `${roleName}${pc.partyTag ? ' · ' + pc.partyTag : ''}`;
+      partyBadge.style.background = 'rgba(16, 185, 129, 0.45)';
+    } else {
+      partyBadge.innerText = 'ปิด';
+      partyBadge.style.background = 'rgba(148, 163, 184, 0.25)';
+    }
+  }
 }
 
 // 3. Open Skill Builder Modal
 function openSkillBuilderModal() {
   if (!activeEditingPlan) return;
   normalizePlanSkillBuild(activeEditingPlan);
+  skillMetaCache = null;
 
   // Update Tab Names
   const c1NameEl = document.getElementById("skill-tab-class1-name");
   const c2NameEl = document.getElementById("skill-tab-class2-name");
+  const c3NameEl = document.getElementById("skill-tab-class3-name");
   const c1 = activeEditingPlan.class1Target || 'archer';
-  const c2 = activeEditingPlan.class2Target || 'hunter';
+  const c2 = activeEditingPlan.class2Target || 'ranger';
+  const tree = CLASS_TREE_MAP[c1] || CLASS_TREE_MAP['archer'];
+  const sc = tree?.secondClasses?.find(s => s.id === c2) || tree?.secondClasses?.[0];
+  const c3 = getPlanClass3Id(activeEditingPlan);
 
-  if (c1NameEl) c1NameEl.innerText = (CLASS_TREE_MAP[c1]?.name || c1).split(' ')[0];
-  if (c2NameEl) {
-    const tree = CLASS_TREE_MAP[c1];
-    const sc = tree?.secondClasses.find(s => s.id === c2);
-    c2NameEl.innerText = (sc?.name || c2).split(' ')[0];
-  }
+  if (c1NameEl) c1NameEl.innerText = (tree?.name || c1).replace(/\s*\([^)]*\)\s*$/, '').trim();
+  if (c2NameEl) c2NameEl.innerText = (sc?.name || c2).replace(/\s*\([^)]*\)\s*$/, '').trim();
+  if (c3NameEl) c3NameEl.innerText = (sc?.class3Name || c3).replace(/\s*\([^)]*\)\s*$/, '').trim();
 
   skillBuilderSnapshot = JSON.stringify(activeEditingPlan.skillBuild);
   const before = activeEditingPlan.skillBuild.skillPointQueue;
   const fixed = repairSkillQueue(before, true);
   applySkillQueue(fixed.queue);
+  const realDropped = fixed.dropped.filter(d => d.why !== 'max');
   const notes = [];
   if (fixed.added.length) notes.push(`เติมสกิลเงื่อนไขที่ขาดให้: ${summarizeSkillIds(fixed.added)}`);
-  if (fixed.dropped.length) notes.push(`ตัดแต้มที่อัปไม่ได้ออก: ${summarizeSkillIds(fixed.dropped)}`);
-  if (!notes.length && fixed.queue.join() !== before.join()) notes.push('จัดลำดับใหม่ให้สกิลเงื่อนไขมาก่อน');
+  if (realDropped.length) notes.push(`ตัดแต้มที่อัปไม่ได้ออก: ${summarizeSkillIds(realDropped)}`);
+  if (!notes.length && fixed.queue.join() !== before.join() && !fixed.dropped.length) notes.push('จัดลำดับใหม่ให้สกิลเงื่อนไขมาก่อน');
   skillBuilderNotice = notes.length ? `🔧 ปรับคิวเดิมให้ตรงเงื่อนไขของเกมแล้ว — ${notes.join(' · ')} (กด "ยกเลิก" เพื่อไม่ใช้การปรับนี้)` : '';
 
   currentSkillBuilderTab = 'novice';
@@ -4602,21 +7704,25 @@ function renderSkillBuilderUI() {
   const queue = activeEditingPlan.skillBuild.skillPointQueue || [];
   const planned = activeEditingPlan.skillBuild.plannedLevels || {};
   const c1 = activeEditingPlan.class1Target || 'archer';
-  const c2 = activeEditingPlan.class2Target || 'hunter';
+  const c2 = activeEditingPlan.class2Target || 'ranger';
+  const c3 = getPlanClass3Id(activeEditingPlan);
 
   // Calculate points spent per tier
   const noviceSkills = SKILLS_DATABASE.novice || [];
   const class1Skills = SKILLS_DATABASE[c1] || [];
   const class2Skills = SKILLS_DATABASE[c2] || [];
+  const class3Skills = SKILLS_DATABASE[c3] || [];
 
   const noviceSpent = queue.filter(id => noviceSkills.some(s => s.id === id)).length;
   const class1Spent = queue.filter(id => class1Skills.some(s => s.id === id)).length;
   const class2Spent = queue.filter(id => class2Skills.some(s => s.id === id)).length;
+  const class3Spent = queue.filter(id => class3Skills.some(s => s.id === id)).length;
 
   // Update budget badges
   const bNov = document.getElementById("skill-budget-novice");
   const bC1 = document.getElementById("skill-budget-class1");
   const bC2 = document.getElementById("skill-budget-class2");
+  const bC3 = document.getElementById("skill-budget-class3");
 
   if (bNov) {
     bNov.innerText = `${noviceSpent} / 9 แต้ม`;
@@ -4629,6 +7735,10 @@ function renderSkillBuilderUI() {
   if (bC2) {
     bC2.innerText = `${class2Spent} / 49 แต้ม`;
     bC2.style.color = class2Spent >= 49 ? '#4ade80' : '#facc15';
+  }
+  if (bC3) {
+    bC3.innerText = `${class3Spent} / 49 แต้ม`;
+    bC3.style.color = class3Spent >= 49 ? '#4ade80' : '#fb7185';
   }
 
   // Update Tabs Active State
@@ -4653,11 +7763,20 @@ function renderSkillBuilderUI() {
     activeList = class1Skills;
     tierMaxBudget = 49;
     tierSpent = class1Spent;
-  } else {
+  } else if (currentSkillBuilderTab === 'class2') {
     activeList = class2Skills;
     tierMaxBudget = 49;
     tierSpent = class2Spent;
+  } else {
+    activeList = class3Skills;
+    tierMaxBudget = 49;
+    tierSpent = class3Spent;
   }
+
+  const effLvOf = (id) => {
+    const m = getSkillMeta(id);
+    return Math.min(m ? m.maxLevel : 10, (Number(m?.freeLevel) || 0) + (planned[id] || 0));
+  };
 
   const grid = document.getElementById("skill-cards-grid");
   if (grid) {
@@ -4673,18 +7792,36 @@ function renderSkillBuilderUI() {
   }
   if (grid) {
     grid.innerHTML = activeList.map(skill => {
-      const curLv = planned[skill.id] || 0;
+      const freeLv = Number(skill.freeLevel) || 0;
+      const spentPts = planned[skill.id] || 0;
+      const curLv = Math.min(skill.maxLevel, freeLv + spentPts);
       const isMaxed = curLv >= skill.maxLevel;
       const preview = isMaxed ? { ok: false, why: 'max' } : skillAddPreview(skill.id);
       const canAdd = preview.ok;
-      const canMinus = curLv > 0;
+      const canMinus = spentPts > 0;
       const plusTitle = canAdd
         ? (preview.added.length ? `+1 แต้ม — จะอัป ${summarizeSkillIds(preview.added)} ให้ก่อนอัตโนมัติ (ใช้ทั้งหมด ${preview.cost} แต้ม)` : '+1 แต้ม')
         : (preview.why === 'max' ? 'สกิลเต็มแล้ว' : preview.why === 'budget' ? 'แต้มของสายนี้ไม่พอ (รวมสกิลเงื่อนไข)' : 'อัปไม่ได้');
-      const reqHtml = (skill.prereq || []).map(p => {
-        const met = (planned[p.skill] || 0) >= p.level;
-        return `<span class="skill-req ${met ? 'met' : ''}">${met ? '✔' : '🔒'} ${escapeHTML(skillMetaName(p.skill))} Lv.${p.level}</span>`;
-      }).join('');
+
+      let reqHtml = '';
+      if (Array.isArray(skill.prereq) && skill.prereq.length > 0) {
+        const anyMet = skill.reqAny && skill.prereq.some(p => effLvOf(p.skill) >= p.level);
+        reqHtml = skill.prereq.map(p => {
+          const met = effLvOf(p.skill) >= p.level || anyMet;
+          return `<span class="skill-req ${met ? 'met' : ''}">${met ? '✔' : '🔒'} ${escapeHTML(skillMetaName(p.skill))} Lv.${p.level}</span>`;
+        }).join(skill.reqAny ? '<span style="color:#94a3b8;font-size:9.5px;margin:0 2px;">หรือ</span>' : '');
+      } else if (skill.req) {
+        const met = checkSpecialSkillPrereq(skill.id, effLvOf);
+        reqHtml = `<span class="skill-req ${met ? 'met' : ''}">${met ? '✔' : '🔒'} ${escapeHTML(skill.req)}</span>`;
+      }
+
+      const weapBadges = [];
+      if (skill.weaponReq) {
+        weapBadges.push(`<span class="skill-weap-badge" title="ต้องถืออาวุธนี้จึงจะใช้สกิลได้">⚔️ ต้องถือ${escapeHTML(skill.weaponReq)}</span>`);
+      }
+      if (skill.weaponBonus) {
+        weapBadges.push(`<span class="skill-weap-badge bonus" title="โบนัสพิเศษเมื่อถืออาวุธนี้">💡 โบนัส ${escapeHTML(skill.weaponBonus)}</span>`);
+      }
 
       // Find all step indexes in queue where this skill was picked
       const stepIndexes = [];
@@ -4692,7 +7829,10 @@ function renderSkillBuilderUI() {
         if (sId === skill.id) stepIndexes.push(idx + 1);
       });
 
-      const iconUrl = `https://www.aetheria-online.in.th/art/icons/skills/${skill.icon || skill.id}.webp`;
+      const iconUrl = skill.iconUrl || `https://www.aetheria-online.in.th/art/icons/skills/${skill.icon || skill.id}.webp`;
+      const kindClass = skill.ult ? 'ult' : (skill.kind || 'active');
+      const kindLabel = skill.ult ? 'Ultimate' : skill.kind === 'passive' ? 'Passive' : skill.kind === 'buff' ? 'Buff' : skill.kind === 'toggle' ? 'Toggle' : 'Active';
+
       const curFacets = (activeEditingPlan.skillBuild.facets && Array.isArray(activeEditingPlan.skillBuild.facets[skill.id]))
         ? activeEditingPlan.skillBuild.facets[skill.id]
         : [-1, -1, -1];
@@ -4736,20 +7876,25 @@ function renderSkillBuilderUI() {
         facetsHtml = `<div class="skill-facets-pending">✨ ปลุกพลังสกิล: รอดำเนินการในเกม</div>`;
       }
 
+      const cleanDesc = String(skill.desc || '').replace(/^\[มีฟรี\s*Lv\.\d+\]\s*·\s*/i, '');
+
       return `
-        <div class="skill-builder-card ${curLv > 0 ? 'is-allocated' : ''} ${isMaxed ? 'is-maxed' : ''}" title="${escapeHTML(skill.desc || '')}">
+        <div class="skill-builder-card ${spentPts > 0 ? 'is-allocated' : ''} ${isMaxed ? 'is-maxed' : ''}" title="${escapeHTML(skill.desc || '')}">
           <div class="skill-card-top">
             <img src="${iconUrl}" class="skill-card-icon" onerror="this.onerror=null; this.src='data:image/svg+xml;utf8,<svg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'38\\' height=\\'38\\'><rect width=\\'100%\\' height=\\'100%\\' fill=\\'%231e293b\\'/><text x=\\'50%\\' y=\\'55%\\' dominant-baseline=\\'middle\\' text-anchor=\\'middle\\' fill=\\'%23a855f7\\' font-size=\\'18\\'>⚡</text></svg>';">
             <div class="skill-card-info">
               <div class="skill-card-title">${escapeHTML(skill.name)}</div>
-              <div class="skill-card-subtitle">
+              <div class="skill-card-subtitle" style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
                 <span>${escapeHTML(skill.thai)}</span>
-                <span class="skill-kind ${skill.kind}">${skill.kind === 'passive' ? 'Passive' : skill.kind === 'toggle' ? 'Toggle' : 'Active'}</span>
+                <span class="skill-kind ${kindClass}">${kindLabel}</span>
+                ${freeLv > 0 ? `<span class="skill-free-badge">ฟรี Lv.${freeLv}</span>` : ''}
               </div>
             </div>
           </div>
 
+          ${weapBadges.length ? `<div class="skill-weap-row">${weapBadges.join('')}</div>` : ''}
           ${reqHtml ? `<div class="skill-req-row">ต้องมี: ${reqHtml}</div>` : ''}
+          ${cleanDesc ? `<div class="skill-desc-box">${escapeHTML(cleanDesc)}</div>` : ''}
 
           ${skill.kind !== 'passive' ? `
           <button type="button" class="skill-auto-toggle ${isSkillAutoOn(skill.id) ? 'on' : 'off'}" onclick="toggleSkillAuto('${skill.id}')"
@@ -4759,7 +7904,7 @@ function renderSkillBuilderUI() {
 
           <div class="skill-card-controls">
             <div class="skill-level-indicator ${isMaxed ? 'maxed' : ''}">
-              Lv. ${curLv} / ${skill.maxLevel}
+              Lv. ${curLv} / ${skill.maxLevel} ${freeLv > 0 ? `<small style="font-size:9.5px;color:#94a3b8;font-weight:500;">(อัป ${spentPts}/${skill.maxLevel - freeLv})</small>` : ''}
             </div>
             <div class="skill-btn-group">
               <button type="button" class="btn-skill-adjust" onclick="removeSkillPoint('${skill.id}')" ${!canMinus ? 'disabled' : ''}>-</button>
@@ -4790,14 +7935,10 @@ function renderSkillBuilderUI() {
     } else {
       const badSteps = findQueuePrereqProblems(queue);
       qContainer.innerHTML = queue.map((sId, idx) => {
-        let skillMeta = null;
-        for (const k in SKILLS_DATABASE) {
-          const found = SKILLS_DATABASE[k].find(s => s.id === sId);
-          if (found) { skillMeta = found; break; }
-        }
-        const sName = skillMeta ? (skillMeta.thai || skillMeta.name) : sId;
+        const skillMeta = getSkillMeta(sId);
+        const sName = skillMeta ? (skillMeta.name || skillMeta.thai) : sId;
         return `
-          <span class="skill-queue-chip ${badSteps.has(idx) ? 'bad' : ''}" title="ลำดับที่ ${idx + 1}: ${sName}${badSteps.has(idx) ? ' — ยังไม่ผ่านเงื่อนไขสกิลก่อนหน้า ณ จุดนี้ (บอทจะข้ามไปก่อนจนกว่าจะผ่าน)' : ''}">
+          <span class="skill-queue-chip ${badSteps.has(idx) ? 'bad' : ''}" title="ลำดับที่ ${idx + 1}: ${sName} (${skillMeta?.thai || ''})${badSteps.has(idx) ? ' — ยังไม่ผ่านเงื่อนไขสกิลก่อนหน้า ณ จุดนี้ (บอทจะข้ามไปก่อนจนกว่าจะผ่าน)' : ''}">
             <span class="chip-step">#${idx + 1}</span>
             <span class="chip-name">${escapeHTML(sName)}</span>
             <span class="chip-del" onclick="removeSkillPointAtIndex(${idx})">&times;</span>
@@ -4809,7 +7950,7 @@ function renderSkillBuilderUI() {
 }
 
 // 5. Skill rules: every change goes through repairSkillQueue so the queue always matches the game
-//    (prerequisites before the skill, max level, 9 / 49 / 49 points per tier, only the plan's classes)
+//    (prerequisites before the skill, max level, 9 / 49 / 49 / 49 points per tier, only the plan's classes)
 let skillMetaCache = null;
 function getSkillMeta(skillId) {
   if (!skillMetaCache) {
@@ -4821,13 +7962,26 @@ function getSkillMeta(skillId) {
 
 function skillMetaName(skillId) {
   const m = getSkillMeta(skillId);
-  return m ? (m.thai || m.name) : skillId;
+  return m ? (m.name || m.thai) : skillId;
 }
 
 function planSkillTiers() {
   const c1 = activeEditingPlan?.class1Target || 'archer';
-  const c2 = activeEditingPlan?.class2Target || 'hunter';
-  return { novice: 9, [c1]: 49, [c2]: 49 };
+  const c2 = activeEditingPlan?.class2Target || 'ranger';
+  const c3 = getPlanClass3Id(activeEditingPlan);
+  return { novice: 9, [c1]: 49, [c2]: 49, [c3]: 49 };
+}
+
+function checkSpecialSkillPrereq(skillId, effLvFn) {
+  if (skillId === 'am_chainreact') {
+    const orbs = ['am_orbwater', 'am_orbwind', 'am_orbfire'];
+    return orbs.filter(id => effLvFn(id) >= 5).length >= 2;
+  }
+  if (skillId === 'am_convergence') {
+    const hearts = ['mg_fireheart', 'mg_iceheart', 'mg_stormheart'];
+    return hearts.filter(id => effLvFn(id) >= 5).length >= 2;
+  }
+  return true;
 }
 
 // Rebuild a queue that the game would accept.
@@ -4839,11 +7993,22 @@ function repairSkillQueue(queue, insertMissing) {
   const lv = {}, spent = {};
   const out = [], dropped = [], added = [];
 
-  const prereqMet = m => (m.prereq || []).every(p => (lv[p.skill] || 0) >= p.level);
+  const effLv = id => {
+    const m = getSkillMeta(id);
+    return (Number(m?.freeLevel) || 0) + (lv[id] || 0);
+  };
+  const maxSpendOf = m => Math.max(0, (Number(m?.maxLevel) || 10) - (Number(m?.freeLevel) || 0));
+
+  const prereqMet = m => {
+    const reqs = m.prereq || [];
+    if (!reqs.length) return checkSpecialSkillPrereq(m.id, effLv);
+    if (m.reqAny) return reqs.some(p => effLv(p.skill) >= p.level);
+    return reqs.every(p => effLv(p.skill) >= p.level);
+  };
   const check = id => {
     const m = getSkillMeta(id);
     if (!m || budgets[m.tier] === undefined) return 'class';
-    if ((lv[id] || 0) >= m.maxLevel) return 'max';
+    if ((lv[id] || 0) >= maxSpendOf(m)) return 'max';
     if ((spent[m.tier] || 0) >= budgets[m.tier]) return 'budget';
     return prereqMet(m) ? 'ok' : 'prereq';
   };
@@ -4854,12 +8019,43 @@ function repairSkillQueue(queue, insertMissing) {
     spent[m.tier] = (spent[m.tier] || 0) + 1;
   };
   // Will the rest of the queue raise every prerequisite high enough by itself?
-  const laterSatisfies = (m, rest) => (m.prereq || []).every(p =>
-    (lv[p.skill] || 0) + rest.filter(x => x === p.skill).length >= p.level);
+  const laterSatisfies = (m, rest) => {
+    const reqs = m.prereq || [];
+    if (!reqs.length) {
+      const futureLv = sId => effLv(sId) + rest.filter(x => x === sId).length;
+      return checkSpecialSkillPrereq(m.id, futureLv);
+    }
+    if (m.reqAny) {
+      return reqs.some(p => effLv(p.skill) + rest.filter(x => x === p.skill).length >= p.level);
+    }
+    return reqs.every(p => effLv(p.skill) + rest.filter(x => x === p.skill).length >= p.level);
+  };
   const insertPrereqs = (id, depth) => {
     const m = getSkillMeta(id);
-    for (const p of (m.prereq || [])) {
-      while ((lv[p.skill] || 0) < p.level) {
+    if (!m) return false;
+    if (m.id === 'am_chainreact' || m.id === 'am_convergence') {
+      const pool = m.id === 'am_chainreact' ? ['am_orbfire', 'am_orbwater', 'am_orbwind'] : ['mg_stormheart', 'mg_fireheart', 'mg_iceheart'];
+      // Pick the 2 candidates that already have the highest effective level
+      const sorted = pool.slice().sort((a, b) => effLv(b) - effLv(a)).slice(0, 2);
+      for (const sId of sorted) {
+        while (effLv(sId) < 5) {
+          if (depth > 6) return false;
+          const pm = getSkillMeta(sId);
+          if (!pm) return false;
+          if (!prereqMet(pm) && !insertPrereqs(sId, depth + 1)) return false;
+          if (check(sId) !== 'ok') return false;
+          place(sId);
+          added.push(sId);
+        }
+      }
+      return true;
+    }
+    const reqs = m.prereq || [];
+    const targetReqs = m.reqAny
+      ? (reqs.length ? [reqs.slice().sort((a, b) => (a.level - effLv(a.skill)) - (b.level - effLv(b.skill)))[0]] : [])
+      : reqs;
+    for (const p of targetReqs) {
+      while (effLv(p.skill) < p.level) {
         if (depth > 6) return false;
         const pm = getSkillMeta(p.skill);
         if (!pm) return false;
@@ -5001,10 +8197,21 @@ function removeSkillPointAtIndex(idx) {
 // Queue positions whose prerequisites aren't met yet at that point
 function findQueuePrereqProblems(queue) {
   const lv = {};
+  const effLv = id => (Number(getSkillMeta(id)?.freeLevel) || 0) + (lv[id] || 0);
   const bad = new Set();
   queue.forEach((id, idx) => {
     const m = getSkillMeta(id);
-    if (m && (m.prereq || []).some(p => (lv[p.skill] || 0) < p.level)) bad.add(idx);
+    if (m) {
+      const reqs = m.prereq || [];
+      if (reqs.length) {
+        const fail = m.reqAny
+          ? !reqs.some(p => effLv(p.skill) >= p.level)
+          : reqs.some(p => effLv(p.skill) < p.level);
+        if (fail) bad.add(idx);
+      } else if (!checkSpecialSkillPrereq(m.id, effLv)) {
+        bad.add(idx);
+      }
+    }
     lv[id] = (lv[id] || 0) + 1;
   });
   return bad;
@@ -5026,6 +8233,7 @@ function applySkillPreset() {
   if (!activeEditingPlan || !activeEditingPlan.skillBuild) return;
   const c1 = activeEditingPlan.class1Target || 'archer';
   const c2 = activeEditingPlan.class2Target || 'ranger';
+  const c3 = getPlanClass3Id(activeEditingPlan);
 
   activeEditingPlan.skillBuild.skillPointQueue = [];
   activeEditingPlan.skillBuild.plannedLevels = {};
@@ -5038,22 +8246,23 @@ function applySkillPreset() {
 
   // 1. Traveler (Novice) 9 points
   pushMany('mastery', 5);
-  pushMany('q', 2);
-  pushMany('body', 2);
+  pushMany('body', 4);
 
-  // 2. Class 1 & Class 2 auto-fill from SKILLS_DATABASE[c1] and SKILLS_DATABASE[c2]
+  // 2. Class 1, Class 2 & Class 3 auto-fill
   const fillTier = (tierKey, maxPts) => {
     const list = SKILLS_DATABASE[tierKey] || [];
     let before = activeEditingPlan.skillBuild.skillPointQueue.length;
     for (const sk of list) {
       const spent = activeEditingPlan.skillBuild.skillPointQueue.length - before;
       if (spent >= maxPts) break;
-      const want = Math.min(sk.maxLevel || 5, maxPts - spent);
+      const maxSpend = Math.max(0, (sk.maxLevel || 5) - (sk.freeLevel || 0));
+      const want = Math.min(maxSpend, maxPts - spent);
       pushMany(sk.id, want);
     }
   };
   fillTier(c1, 49);
   fillTier(c2, 49);
+  fillTier(c3, 49);
 
   renderSkillBuilderUI();
 }
@@ -5263,6 +8472,17 @@ function setupPlanBuilderEventListeners() {
 
   const btnOpenStat = document.getElementById("btn-open-stat-builder");
   if (btnOpenStat) btnOpenStat.onclick = openStatBuilderModal;
+
+  const btnToggleParty = document.getElementById("btn-toggle-party-builder");
+  if (btnToggleParty) {
+    btnToggleParty.onclick = () => {
+      const panel = document.getElementById("plan-party-config-panel");
+      if (!panel) return;
+      const isHidden = panel.style.display === 'none' || !panel.style.display;
+      panel.style.display = isHidden ? 'block' : 'none';
+      if (isHidden) updatePartyConfigInEditor();
+    };
+  }
 
   // Skill Builder Tab Buttons
   document.querySelectorAll('.skill-tab-btn').forEach(btn => {

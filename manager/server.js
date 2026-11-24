@@ -373,21 +373,22 @@ function buildDefaultNightcampPriestPlan() {
         "bi_sanctuary", "bi_sanctuary", "bi_sanctuary", "bi_sanctuary", "bi_sanctuary",
         "bi_turnundead", "bi_turnundead", "bi_turnundead", "bi_turnundead", "bi_turnundead",
         "bi_turnundead", "bi_turnundead", "bi_turnundead", "bi_turnundead", "bi_turnundead",
+        "bi_lexdivina",
         "bi_miracle", "bi_miracle", "bi_miracle", "bi_miracle", "bi_miracle",
-        "bi_barrier", "bi_barrier", "bi_barrier", "bi_barrier", "bi_barrier",
+        "bi_barrier", "bi_barrier", "bi_barrier", "bi_barrier",
         // Class 3 Star Saint (49 pts)
-        "ss_faith", "ss_faith", "ss_faith", "ss_faith", "ss_faith", "ss_faith", "ss_faith", "ss_faith", "ss_faith", "ss_faith",
+        "ss_faith", "ss_faith", "ss_faith", "ss_faith", "ss_faith", "ss_faith", "ss_faith", "ss_faith", "ss_faith",
         "ss_heal", "ss_heal", "ss_heal", "ss_heal", "ss_heal", "ss_heal", "ss_heal", "ss_heal", "ss_heal", "ss_heal",
         "ss_turn", "ss_turn", "ss_turn", "ss_turn", "ss_turn", "ss_turn", "ss_turn", "ss_turn", "ss_turn", "ss_turn",
         "ss_sanct", "ss_sanct", "ss_sanct", "ss_sanct", "ss_sanct", "ss_sanct", "ss_sanct", "ss_sanct", "ss_sanct", "ss_sanct",
         "ss_awaken", "ss_awaken", "ss_awaken", "ss_awaken", "ss_awaken",
-        "ss_lex", "ss_lex", "ss_lex", "ss_lex"
+        "ss_lex", "ss_lex", "ss_lex", "ss_lex", "ss_lex"
       ],
       plannedLevels: {
         mastery: 5, body: 4,
-        holylight: 10, pr_heal: 10, blessing: 10, pr_agi: 5, pr_demonbane: 4, magnus: 5, pr_protect: 5, pr_angelus: 3,
-        bi_heal: 10, bi_barrier: 10, bi_meditatio: 5, bi_magnificat: 5, bi_sanctuary: 5, bi_turnundead: 10, bi_miracle: 5,
-        ss_faith: 10, ss_heal: 10, ss_turn: 10, ss_sanct: 10, ss_awaken: 5, ss_lex: 4
+        holylight: 9, pr_heal: 9, blessing: 9, pr_agi: 5, pr_demonbane: 4, magnus: 5, pr_protect: 5, pr_angelus: 3,
+        bi_heal: 9, bi_barrier: 9, bi_meditatio: 5, bi_magnificat: 5, bi_sanctuary: 5, bi_turnundead: 10, bi_lexdivina: 1, bi_miracle: 5,
+        ss_faith: 9, ss_heal: 10, ss_turn: 10, ss_sanct: 10, ss_awaken: 5, ss_lex: 5
       },
       facets: {}
     },
@@ -417,25 +418,37 @@ function buildDefaultNightcampPriestPlan() {
         targetLevel: 12,
         actions: [
           { id: "act_nc_sell12", type: "sell_trip", sellMaterials: true, redQty: 15, blueQty: 20 },
-          { id: "act_nc_aq12", type: "auto_quest", questMode: "until_level", untilLevel: 25, untilQuest: "MQ25" }
+          { id: "act_nc_map12", type: "change_map", targetMap: "graveyard", targetMonster: "" },
+          { id: "act_nc_eq12", type: "equip_best", itemName: "" }
         ]
       },
       {
-        id: "trig_nc_lv25",
+        id: "trig_nc_lv24",
         type: "base_level",
-        targetLevel: 25,
+        targetLevel: 24,
         actions: [
-          { id: "act_nc_map25", type: "change_map", targetMap: "graveyard", targetMonster: "" },
-          { id: "act_nc_eq25", type: "equip_best", itemName: "" }
+          { id: "act_nc_map24", type: "change_map", targetMap: "giantbones", targetMonster: "" },
+          { id: "act_nc_eq24", type: "equip_best", itemName: "" }
         ]
       },
       {
-        id: "trig_nc_lv35",
+        id: "trig_nc_lv30",
         type: "base_level",
-        targetLevel: 35,
+        targetLevel: 30,
         actions: [
-          { id: "act_nc_sell35", type: "sell_trip", sellMaterials: true, redQty: 15, blueQty: 25 },
-          { id: "act_nc_map35", type: "change_map", targetMap: "crypt1", targetMonster: "" }
+          { id: "act_nc_sell30", type: "sell_trip", sellMaterials: true, redQty: 15, blueQty: 25 },
+          { id: "act_nc_map30", type: "change_map", targetMap: "coffinhollow", targetMonster: "" },
+          { id: "act_nc_eq30", type: "equip_best", itemName: "" }
+        ]
+      },
+      {
+        id: "trig_nc_lv36",
+        type: "base_level",
+        targetLevel: 36,
+        actions: [
+          { id: "act_nc_sell36", type: "sell_trip", sellMaterials: true, redQty: 15, blueQty: 25 },
+          { id: "act_nc_map36", type: "change_map", targetMap: "crypt1", targetMonster: "" },
+          { id: "act_nc_eq36", type: "equip_best", itemName: "" }
         ]
       },
       {
@@ -449,12 +462,58 @@ function buildDefaultNightcampPriestPlan() {
         ]
       },
       {
-        id: "trig_nc_lv46",
+        id: "trig_nc_lv48",
         type: "base_level",
-        targetLevel: 46,
+        targetLevel: 48,
         actions: [
-          { id: "act_nc_map46", type: "change_map", targetMap: "crypt2", targetMonster: "" },
-          { id: "act_nc_aq46", type: "auto_quest", questMode: "all", untilLevel: 70, untilQuest: "ALL" }
+          { id: "act_nc_sell48", type: "sell_trip", sellMaterials: true, redQty: 15, blueQty: 25 },
+          { id: "act_nc_map48", type: "change_map", targetMap: "crypt2", targetMonster: "" },
+          { id: "act_nc_eq48", type: "equip_best", itemName: "" }
+        ]
+      },
+      {
+        id: "trig_nc_lv58",
+        type: "base_level",
+        targetLevel: 58,
+        actions: [
+          { id: "act_nc_map58", type: "change_map", targetMap: "poisonvillage", targetMonster: "" },
+          { id: "act_nc_eq58", type: "equip_best", itemName: "" }
+        ]
+      },
+      {
+        id: "trig_nc_lv64",
+        type: "base_level",
+        targetLevel: 64,
+        actions: [
+          { id: "act_nc_map64", type: "change_map", targetMap: "silentfarm", targetMonster: "" },
+          { id: "act_nc_eq64", type: "equip_best", itemName: "" }
+        ]
+      },
+      {
+        id: "trig_nc_lv73",
+        type: "base_level",
+        targetLevel: 73,
+        actions: [
+          { id: "act_nc_map73", type: "change_map", targetMap: "nightmarket", targetMonster: "" },
+          { id: "act_nc_eq73", type: "equip_best", itemName: "" }
+        ]
+      },
+      {
+        id: "trig_nc_lv80",
+        type: "base_level",
+        targetLevel: 80,
+        actions: [
+          { id: "act_nc_map80", type: "change_map", targetMap: "warehouses", targetMonster: "" },
+          { id: "act_nc_eq80", type: "equip_best", itemName: "" }
+        ]
+      },
+      {
+        id: "trig_nc_lv87",
+        type: "base_level",
+        targetLevel: 87,
+        actions: [
+          { id: "act_nc_map87", type: "change_map", targetMap: "shipgrave", targetMonster: "" },
+          { id: "act_nc_eq87", type: "equip_best", itemName: "" }
         ]
       }
     ],
@@ -514,22 +573,25 @@ function buildDefaultNightcampPriestWispPlan() {
         "ws_flock", "ws_flock", "ws_flock", "ws_flock", "ws_flock", "ws_flock", "ws_flock", "ws_flock", "ws_flock",
         "ws_swarm", "ws_swarm", "ws_swarm", "ws_swarm", "ws_swarm", "ws_swarm", "ws_swarm", "ws_swarm", "ws_swarm", "ws_swarm",
         "ws_heart", "ws_heart", "ws_heart", "ws_heart", "ws_heart",
+        "ws_latch", "ws_latch", "ws_latch", "ws_latch",
+        "ws_burst",
         "ws_call", "ws_call", "ws_call", "ws_call", "ws_call",
         "ws_mark", "ws_mark", "ws_mark", "ws_mark", "ws_mark",
-        "ws_rush", "ws_rush", "ws_rush", "ws_rush", "ws_rush", "ws_rush", "ws_rush", "ws_rush", "ws_rush", "ws_rush",
+        "ws_rush", "ws_rush", "ws_rush", "ws_rush", "ws_rush",
         "ws_night", "ws_night", "ws_night", "ws_night", "ws_night",
         // Class 3 Star Shepherd (49 pts)
-        "st_merge", "st_merge", "st_merge", "st_merge", "st_merge", "st_merge", "st_merge", "st_merge", "st_merge", "st_merge",
+        "st_merge", "st_merge", "st_merge", "st_merge", "st_merge", "st_merge", "st_merge", "st_merge", "st_merge",
         "st_mark", "st_mark", "st_mark", "st_mark", "st_mark", "st_mark", "st_mark", "st_mark", "st_mark", "st_mark",
         "st_rush", "st_rush", "st_rush", "st_rush", "st_rush", "st_rush", "st_rush", "st_rush", "st_rush", "st_rush",
         "st_latch", "st_latch", "st_latch", "st_latch", "st_latch", "st_latch", "st_latch", "st_latch", "st_latch", "st_latch",
         "st_awaken", "st_awaken", "st_awaken", "st_awaken", "st_awaken",
-        "st_burst", "st_burst", "st_burst", "st_burst"
+        "st_burst", "st_burst", "st_burst", "st_burst", "st_burst"
       ],
       plannedLevels: {
         mastery: 5, body: 4,
-        holylight: 10, pr_heal: 5, blessing: 10, pr_agi: 9, pr_macemastery: 3, pr_duple: 10, pr_protect: 5,
-        ws_flock: 10, ws_swarm: 10, ws_heart: 5, ws_call: 5, ws_mark: 5, ws_rush: 10, ws_night: 5, ws_latch: 1
+        holylight: 9, pr_heal: 4, blessing: 9, pr_agi: 9, pr_macemastery: 3, pr_duple: 10, pr_protect: 5,
+        ws_flock: 9, ws_swarm: 10, ws_heart: 5, ws_latch: 4, ws_burst: 1, ws_call: 5, ws_mark: 5, ws_rush: 5, ws_night: 5,
+        st_merge: 9, st_mark: 10, st_rush: 10, st_latch: 10, st_awaken: 5, st_burst: 5
       },
       facets: {}
     },
@@ -594,14 +656,24 @@ function buildDefaultNightcampPriestMonkPlan() {
         "mo_ironfist", "mo_ironfist", "mo_ironfist", "mo_ironfist", "mo_ironfist",
         "mo_ironbody", "mo_ironbody", "mo_ironbody", "mo_ironbody", "mo_ironbody",
         "mo_chi", "mo_chi", "mo_chi", "mo_chi",
+        "mo_impact", "mo_impact", "mo_impact",
+        "mo_asura",
         "mo_palms", "mo_palms", "mo_palms", "mo_palms", "mo_palms",
-        "mo_combo", "mo_combo", "mo_combo", "mo_combo", "mo_combo", "mo_combo", "mo_combo", "mo_combo", "mo_combo", "mo_combo",
-        "mo_fury", "mo_fury", "mo_fury", "mo_fury", "mo_fury"
+        "mo_combo", "mo_combo", "mo_combo", "mo_combo", "mo_combo", "mo_combo",
+        "mo_fury", "mo_fury", "mo_fury", "mo_fury", "mo_fury",
+        // Class 3 Meteorfist (49 pts)
+        "mf_combo", "mf_combo", "mf_combo", "mf_combo", "mf_combo", "mf_combo", "mf_combo", "mf_combo", "mf_combo",
+        "mf_storm", "mf_storm", "mf_storm", "mf_storm", "mf_storm", "mf_storm", "mf_storm", "mf_storm", "mf_storm", "mf_storm",
+        "mf_palms", "mf_palms", "mf_palms", "mf_palms", "mf_palms", "mf_palms", "mf_palms", "mf_palms", "mf_palms", "mf_palms",
+        "mf_impact", "mf_impact", "mf_impact", "mf_impact", "mf_impact", "mf_impact", "mf_impact", "mf_impact", "mf_impact", "mf_impact",
+        "mf_awaken", "mf_awaken", "mf_awaken", "mf_awaken", "mf_awaken",
+        "mf_crush", "mf_crush", "mf_crush", "mf_crush", "mf_crush"
       ],
       plannedLevels: {
         mastery: 5, body: 4,
-        pr_macemastery: 10, pr_duple: 10, pr_heal: 5, blessing: 10, pr_agi: 10, pr_protect: 6,
-        mo_spheres: 5, mo_triple: 10, mo_ironfist: 5, mo_ironbody: 5, mo_chi: 5, mo_palms: 5, mo_combo: 10, mo_fury: 5
+        pr_macemastery: 10, pr_duple: 10, pr_heal: 4, blessing: 9, pr_agi: 10, pr_protect: 6,
+        mo_spheres: 5, mo_triple: 10, mo_ironfist: 5, mo_ironbody: 5, mo_chi: 4, mo_impact: 3, mo_asura: 1, mo_palms: 5, mo_combo: 6, mo_fury: 5,
+        mf_combo: 9, mf_storm: 10, mf_palms: 10, mf_impact: 10, mf_awaken: 5, mf_crush: 5
       },
       facets: {}
     },
@@ -610,6 +682,762 @@ function buildDefaultNightcampPriestMonkPlan() {
         ? { ...t, actions: [{ id: "act_nc_c2", type: "change_class", targetClass: "monk" }, { id: "act_nc_eq_c2", type: "equip_best", itemName: "" }] }
         : t
     ),
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  };
+}
+
+function buildDefaultNightcampRoguePuppeteerPlan() {
+  return {
+    id: "plan_nc_rogue_puppeteer_1_50",
+    name: "🎎 [Top 1 เซิร์ฟ Lv.66] โจร ➔ นักเชิดหุ่น ➔ จ้าวโรงหุ่นราตรี (สร้างหุ่นรบถาวรตีตามทุกฮิต + เชิดมอน 2 ตัวตีกันเอง + โรงละครหุ่นเชิด Lv.1–80+)",
+    description: "บิ้ววิจัยจากอันดับ 1 เซิร์ฟ (Milo Lv.66): ถือไม้เชิดหุ่น+โล่ เรียกหุ่นไม้ยักษ์สู้ข้างเราถาวร (0 SP) + ชักใยหุ่นตีตามทุกครั้งที่เราตีปกติ + ระบำหุ่นหมุนฟาดรอบตัว + เชิดมอน 2 ตัวให้ตีพวกเดียวกันเอง + อัลติโรงละครหุ่นเชิดปิดม่าน 5800% ATK",
+    autoQuestEnabled: true,
+    autoJobChange: true,
+    autoStatSkillEnabled: true,
+    class1Target: "rogue",
+    class1JobLevel: 10,
+    class2Target: "puppeteer",
+    class2JobLevel: 50,
+    class3Target: "showmaster",
+    statBuild: {
+      queue: [
+        { stat: "STR", to: 30 },
+        { stat: "AGI", to: 30 },
+        { stat: "DEX", to: 22 },
+        { stat: "VIT", to: 20 },
+        { stat: "STR", to: 48 },
+        { stat: "AGI", to: 45 },
+        { stat: "DEX", to: 32 },
+        { stat: "LUK", to: 24 },
+        { stat: "STR", to: 68 },
+        { stat: "AGI", to: 62 },
+        { stat: "VIT", to: 35 },
+        { stat: "DEX", to: 45 },
+        { stat: "STR", to: 80 },
+        { stat: "AGI", to: 80 },
+        { stat: "LUK", to: 45 }
+      ],
+      targets: { STR: 80, AGI: 80, VIT: 35, INT: 1, DEX: 45, LUK: 45 },
+      priorityOrder: ["STR", "AGI", "DEX", "LUK", "VIT", "INT"]
+    },
+    skillBuild: {
+      skillPointQueue: [
+        // Traveler (9 pts)
+        "mastery", "mastery", "mastery", "mastery", "mastery",
+        "body", "body", "body", "body",
+        // Class 1 Rogue (49 pts)
+        "ro_dagger", "ro_dagger", "ro_dagger", "ro_dagger", "ro_dagger", "ro_dagger", "ro_dagger", "ro_dagger", "ro_dagger", "ro_dagger",
+        "ro_double", "ro_double", "ro_double", "ro_double", "ro_double", "ro_double", "ro_double", "ro_double", "ro_double", "ro_double",
+        "ro_vital", "ro_vital", "ro_vital", "ro_vital", "ro_vital", "ro_vital", "ro_vital", "ro_vital", "ro_vital", "ro_vital",
+        "sonic", "sonic", "sonic", "sonic", "sonic",
+        "shadowstep", "shadowstep",
+        "ro_hide", "ro_hide",
+        "ro_backstab", "ro_backstab", "ro_backstab", "ro_backstab", "ro_backstab", "ro_backstab", "ro_backstab", "ro_backstab", "ro_backstab", "ro_backstab",
+        // Class 2 Puppeteer (49 pts)
+        "pp_puppet", "pp_puppet", "pp_puppet", "pp_puppet", "pp_puppet", "pp_puppet", "pp_puppet", "pp_puppet", "pp_puppet",
+        "pp_strings", "pp_strings", "pp_strings", "pp_strings", "pp_strings", "pp_strings", "pp_strings", "pp_strings", "pp_strings", "pp_strings",
+        "pp_dance", "pp_dance", "pp_dance", "pp_dance", "pp_dance", "pp_dance", "pp_dance", "pp_dance", "pp_dance", "pp_dance",
+        "pp_swap",
+        "pp_control", "pp_control", "pp_control", "pp_control", "pp_control",
+        "pp_guide", "pp_guide", "pp_guide", "pp_guide",
+        "pp_soulstring", "pp_soulstring", "pp_soulstring", "pp_soulstring", "pp_soulstring",
+        "pp_theatre", "pp_theatre", "pp_theatre", "pp_theatre", "pp_theatre",
+        // Class 3 Showmaster (49 pts)
+        "so_acts", "so_acts", "so_acts", "so_acts", "so_acts", "so_acts", "so_acts", "so_acts", "so_acts",
+        "so_awaken", "so_awaken", "so_awaken", "so_awaken", "so_awaken",
+        "so_dance", "so_dance", "so_dance", "so_dance", "so_dance", "so_dance", "so_dance", "so_dance", "so_dance", "so_dance",
+        "so_swap", "so_swap", "so_swap", "so_swap", "so_swap", "so_swap", "so_swap", "so_swap", "so_swap", "so_swap",
+        "so_stretch", "so_stretch", "so_stretch", "so_stretch", "so_stretch", "so_stretch", "so_stretch", "so_stretch", "so_stretch", "so_stretch",
+        "so_bind", "so_bind", "so_bind", "so_bind", "so_bind"
+      ],
+      plannedLevels: {
+        mastery: 5, body: 4,
+        ro_dagger: 10, ro_double: 10, ro_vital: 10, sonic: 5, shadowstep: 2, ro_hide: 2, ro_backstab: 10,
+        pp_puppet: 9, pp_strings: 10, pp_dance: 10, pp_swap: 1, pp_control: 5, pp_guide: 4, pp_soulstring: 5, pp_theatre: 5,
+        so_acts: 9, so_awaken: 5, so_dance: 10, so_swap: 10, so_stretch: 10, so_bind: 5
+      },
+      autoOff: ["pp_stretch", "pp_bind", "ro_hide"],
+      facets: {}
+    },
+    triggers: [
+      {
+        id: "trig_nc_lv1",
+        type: "base_level",
+        targetLevel: 1,
+        actions: [
+          { id: "act_nc_aq1", type: "auto_quest", questMode: "until_level", untilLevel: 12, untilQuest: "MQ08" },
+          { id: "act_nc_eq1", type: "equip_best", itemName: "" }
+        ]
+      },
+      {
+        id: "trig_nc_job10",
+        type: "job_level",
+        classId: "traveler",
+        targetLevel: 10,
+        actions: [
+          { id: "act_nc_c1", type: "change_class", targetClass: "rogue" },
+          { id: "act_nc_eq2", type: "equip_best", itemName: "" }
+        ]
+      },
+      {
+        id: "trig_nc_lv12",
+        type: "base_level",
+        targetLevel: 12,
+        actions: [
+          { id: "act_nc_sell12", type: "sell_trip", sellMaterials: true, redQty: 30, blueQty: 20 },
+          { id: "act_nc_map12", type: "change_map", targetMap: "graveyard", targetMonster: "" },
+          { id: "act_nc_eq12", type: "equip_best", itemName: "" }
+        ]
+      },
+      {
+        id: "trig_nc_lv24",
+        type: "base_level",
+        targetLevel: 24,
+        actions: [
+          { id: "act_nc_map24", type: "change_map", targetMap: "giantbones", targetMonster: "" },
+          { id: "act_nc_eq24", type: "equip_best", itemName: "" }
+        ]
+      },
+      {
+        id: "trig_nc_lv30",
+        type: "base_level",
+        targetLevel: 30,
+        actions: [
+          { id: "act_nc_sell30", type: "sell_trip", sellMaterials: true, redQty: 30, blueQty: 25 },
+          { id: "act_nc_map30", type: "change_map", targetMap: "coffinhollow", targetMonster: "" },
+          { id: "act_nc_eq30", type: "equip_best", itemName: "" }
+        ]
+      },
+      {
+        id: "trig_nc_lv36",
+        type: "base_level",
+        targetLevel: 36,
+        actions: [
+          { id: "act_nc_sell36", type: "sell_trip", sellMaterials: true, redQty: 30, blueQty: 30 },
+          { id: "act_nc_map36", type: "change_map", targetMap: "crypt1", targetMonster: "" },
+          { id: "act_nc_eq36", type: "equip_best", itemName: "" }
+        ]
+      },
+      {
+        id: "trig_nc_job50_c1",
+        type: "job_level",
+        classId: "rogue",
+        targetLevel: 50,
+        actions: [
+          { id: "act_nc_c2", type: "change_class", targetClass: "puppeteer" },
+          { id: "act_nc_eq_c2", type: "equip_best", itemName: "" }
+        ]
+      },
+      {
+        id: "trig_nc_lv48",
+        type: "base_level",
+        targetLevel: 48,
+        actions: [
+          { id: "act_nc_sell48", type: "sell_trip", sellMaterials: true, redQty: 30, blueQty: 30 },
+          { id: "act_nc_map48", type: "change_map", targetMap: "crypt2", targetMonster: "" },
+          { id: "act_nc_eq48", type: "equip_best", itemName: "" }
+        ]
+      },
+      {
+        id: "trig_nc_lv58",
+        type: "base_level",
+        targetLevel: 58,
+        actions: [
+          { id: "act_nc_map58", type: "change_map", targetMap: "poisonvillage", targetMonster: "" },
+          { id: "act_nc_eq58", type: "equip_best", itemName: "" }
+        ]
+      },
+      {
+        id: "trig_nc_lv64",
+        type: "base_level",
+        targetLevel: 64,
+        actions: [
+          { id: "act_nc_map64", type: "change_map", targetMap: "silentfarm", targetMonster: "" },
+          { id: "act_nc_eq64", type: "equip_best", itemName: "" }
+        ]
+      },
+      {
+        id: "trig_nc_lv73",
+        type: "base_level",
+        targetLevel: 73,
+        actions: [
+          { id: "act_nc_map73", type: "change_map", targetMap: "nightmarket", targetMonster: "" },
+          { id: "act_nc_eq73", type: "equip_best", itemName: "" }
+        ]
+      },
+      {
+        id: "trig_nc_lv80",
+        type: "base_level",
+        targetLevel: 80,
+        actions: [
+          { id: "act_nc_map80", type: "change_map", targetMap: "warehouses", targetMonster: "" },
+          { id: "act_nc_eq80", type: "equip_best", itemName: "" }
+        ]
+      },
+      {
+        id: "trig_nc_lv87",
+        type: "base_level",
+        targetLevel: 87,
+        actions: [
+          { id: "act_nc_map87", type: "change_map", targetMap: "shipgrave", targetMonster: "" },
+          { id: "act_nc_eq87", type: "equip_best", itemName: "" }
+        ]
+      }
+    ],
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  };
+}
+
+function buildDefaultNightcampPriestLightkeeperPlan() {
+  return {
+    id: "plan_nc_priest_lightkeeper_1_50",
+    name: "🕯️ [Top 1 สายพระ Lv.62] พระ ➔ ผู้จุดตะเกียง ➔ ผู้เฝ้าประภาคาร (รัศมีแสงเผาผีรอบตัว 0 SP + โคมแก้วฮีล + ปักคบเพลิงคู่ Lv.1–80+)",
+    description: "บิ้ววิจัยจากอันดับ 1 สายพระ (ถึงคิว Lv.62): ถือคบเพลิง+โล่ รัศมีแสงเผามอนอมตะ/ความมืดรอบตัวทุกวินาทีฟรี (0 SP) + วางโคมแก้วฮีลต่อเนื่อง + ปักคบเพลิง 2 เสาช่วยเผาหมู่ + รุ่งอรุณรัศมี 1000",
+    autoQuestEnabled: true,
+    autoJobChange: true,
+    autoStatSkillEnabled: true,
+    class1Target: "priest",
+    class1JobLevel: 10,
+    class2Target: "lightkeeper",
+    class2JobLevel: 50,
+    class3Target: "beacon",
+    statBuild: {
+      queue: [
+        { stat: "INT", to: 30 },
+        { stat: "VIT", to: 25 },
+        { stat: "DEX", to: 22 },
+        { stat: "INT", to: 48 },
+        { stat: "VIT", to: 38 },
+        { stat: "DEX", to: 34 },
+        { stat: "INT", to: 68 },
+        { stat: "VIT", to: 52 },
+        { stat: "DEX", to: 48 },
+        { stat: "INT", to: 80 },
+        { stat: "VIT", to: 65 },
+        { stat: "DEX", to: 60 }
+      ],
+      targets: { STR: 1, AGI: 1, VIT: 65, INT: 80, DEX: 60, LUK: 1 },
+      priorityOrder: ["INT", "VIT", "DEX", "AGI", "LUK", "STR"]
+    },
+    skillBuild: {
+      skillPointQueue: [
+        // Traveler (9 pts)
+        "mastery", "mastery", "mastery", "mastery", "mastery",
+        "body", "body", "body", "body",
+        // Class 1 Priest (49 pts)
+        "holylight", "holylight", "holylight", "holylight", "holylight", "holylight", "holylight", "holylight", "holylight",
+        "pr_heal", "pr_heal", "pr_heal", "pr_heal",
+        "blessing", "blessing", "blessing", "blessing",
+        "pr_agi", "pr_agi", "pr_agi", "pr_agi", "pr_agi",
+        "pr_macemastery", "pr_macemastery", "pr_macemastery",
+        "pr_demonbane", "pr_demonbane", "pr_demonbane", "pr_demonbane", "pr_demonbane",
+        "magnus", "magnus", "magnus", "magnus", "magnus",
+        "pr_protect", "pr_protect", "pr_protect", "pr_protect", "pr_protect",
+        "pr_heal", "pr_heal", "pr_heal", "pr_heal",
+        "blessing", "blessing", "blessing", "blessing", "blessing",
+        // Class 2 Lightkeeper (49 pts)
+        "lk_radiance", "lk_radiance", "lk_radiance", "lk_radiance", "lk_radiance", "lk_radiance", "lk_radiance", "lk_radiance", "lk_radiance", "lk_radiance",
+        "lk_lighthouse", "lk_lighthouse", "lk_lighthouse", "lk_lighthouse", "lk_lighthouse",
+        "lk_torchmastery", "lk_torchmastery", "lk_torchmastery", "lk_torchmastery", "lk_torchmastery",
+        "lk_swing", "lk_swing", "lk_swing", "lk_swing",
+        "lk_plant", "lk_plant", "lk_plant", "lk_plant", "lk_plant",
+        "lk_faith", "lk_faith", "lk_faith", "lk_faith", "lk_faith",
+        "lk_lamp", "lk_lamp", "lk_lamp", "lk_lamp",
+        "lk_flare", "lk_flare", "lk_flare", "lk_flare", "lk_flare",
+        "lk_flash",
+        "lk_dawn", "lk_dawn", "lk_dawn", "lk_dawn", "lk_dawn",
+        // Class 3 Beacon (49 pts)
+        "bc_beam", "bc_beam", "bc_beam", "bc_beam", "bc_beam", "bc_beam", "bc_beam", "bc_beam", "bc_beam",
+        "bc_swing", "bc_swing", "bc_swing", "bc_swing", "bc_swing", "bc_swing", "bc_swing", "bc_swing", "bc_swing", "bc_swing",
+        "bc_flare", "bc_flare", "bc_flare", "bc_flare", "bc_flare", "bc_flare", "bc_flare", "bc_flare", "bc_flare", "bc_flare",
+        "bc_dawn", "bc_dawn", "bc_dawn", "bc_dawn", "bc_dawn", "bc_dawn", "bc_dawn", "bc_dawn", "bc_dawn", "bc_dawn",
+        "bc_awaken", "bc_awaken", "bc_awaken", "bc_awaken", "bc_awaken",
+        "bc_flash", "bc_flash", "bc_flash", "bc_flash", "bc_flash"
+      ],
+      plannedLevels: {
+        mastery: 5, body: 4,
+        holylight: 9, pr_heal: 8, blessing: 9, pr_agi: 5, pr_macemastery: 3, pr_demonbane: 5, magnus: 5, pr_protect: 5,
+        lk_radiance: 10, lk_lighthouse: 5, lk_torchmastery: 5, lk_swing: 4, lk_plant: 5, lk_faith: 5, lk_lamp: 4, lk_flare: 5, lk_flash: 1, lk_dawn: 5,
+        bc_beam: 9, bc_swing: 10, bc_flare: 10, bc_dawn: 10, bc_awaken: 5, bc_flash: 5
+      },
+      facets: {}
+    },
+    triggers: buildDefaultNightcampPriestPlan().triggers.map(t =>
+      t.id === "trig_nc_job50_c1"
+        ? { ...t, actions: [{ id: "act_nc_c2", type: "change_class", targetClass: "lightkeeper" }, { id: "act_nc_eq_c2", type: "equip_best", itemName: "" }] }
+        : t
+    ),
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  };
+}
+
+function buildDefaultNightcampKnightBerserkerPlan() {
+  return {
+    id: "plan_nc_knight_berserker_1_50",
+    name: "🩸 [Top 1 สายอัศวิน Lv.61] อัศวิน ➔ เบอร์เซิร์กเกอร์ ➔ จอมคลั่งจันทร์เลือด (ดูดเลือดอมตะ + ดาบพายุหมุน + เลือดเดือดคูณดาเมจ Lv.1–80+)",
+    description: "บิ้ววิจัยจากอันดับ 1 สายอัศวิน (แมงแปะ Lv.61): ถือขวานยักษ์/ดาบใหญ่ สัญญาเลือดดูดเลือดทุกฮิตที่ทำดาเมจ + ดาบพายุหมุนกวาดรอบตัว + ฟันประหารคริแรง + ร่างยักษ์จันทร์เลือด",
+    autoQuestEnabled: true,
+    autoJobChange: true,
+    autoStatSkillEnabled: true,
+    class1Target: "knight",
+    class1JobLevel: 10,
+    class2Target: "berserker",
+    class2JobLevel: 50,
+    class3Target: "bloodmoon",
+    statBuild: {
+      queue: [
+        { stat: "STR", to: 32 },
+        { stat: "AGI", to: 28 },
+        { stat: "VIT", to: 24 },
+        { stat: "DEX", to: 20 },
+        { stat: "STR", to: 50 },
+        { stat: "AGI", to: 42 },
+        { stat: "VIT", to: 36 },
+        { stat: "DEX", to: 30 },
+        { stat: "STR", to: 68 },
+        { stat: "AGI", to: 58 },
+        { stat: "VIT", to: 50 },
+        { stat: "STR", to: 80 },
+        { stat: "AGI", to: 72 },
+        { stat: "VIT", to: 65 }
+      ],
+      targets: { STR: 80, AGI: 72, VIT: 65, INT: 1, DEX: 30, LUK: 1 },
+      priorityOrder: ["STR", "AGI", "VIT", "DEX", "LUK", "INT"]
+    },
+    skillBuild: {
+      skillPointQueue: [
+        // Traveler (9 pts)
+        "mastery", "mastery", "mastery", "mastery", "mastery",
+        "body", "body", "body", "body",
+        // Class 1 Knight (49 pts)
+        "kn_swordmastery", "kn_swordmastery", "kn_swordmastery", "kn_swordmastery", "kn_swordmastery", "kn_swordmastery", "kn_swordmastery", "kn_swordmastery", "kn_swordmastery", "kn_swordmastery",
+        "kn_quicken", "kn_quicken", "kn_quicken", "kn_quicken", "kn_quicken", "kn_quicken", "kn_quicken", "kn_quicken", "kn_quicken", "kn_quicken",
+        "kn_cleave", "kn_cleave", "kn_cleave", "kn_cleave", "kn_cleave", "kn_cleave", "kn_cleave", "kn_cleave", "kn_cleave", "kn_cleave",
+        "kn_aurablade", "kn_aurablade", "kn_aurablade", "kn_aurablade", "kn_aurablade",
+        "kn_ironskin", "kn_ironskin", "kn_ironskin", "kn_ironskin", "kn_ironskin", "kn_ironskin", "kn_ironskin", "kn_ironskin", "kn_ironskin",
+        "kn_berserk", "kn_berserk", "kn_berserk", "kn_berserk", "kn_berserk",
+        // Class 2 Berserker (49 pts)
+        "bk_crosscut", "bk_crosscut", "bk_crosscut", "bk_crosscut",
+        "bk_whirlwind", "bk_whirlwind", "bk_whirlwind", "bk_whirlwind", "bk_whirlwind", "bk_whirlwind", "bk_whirlwind", "bk_whirlwind", "bk_whirlwind", "bk_whirlwind",
+        "bk_guillotine", "bk_guillotine", "bk_guillotine", "bk_guillotine", "bk_guillotine", "bk_guillotine", "bk_guillotine", "bk_guillotine", "bk_guillotine", "bk_guillotine",
+        "bk_frenzy", "bk_frenzy", "bk_frenzy", "bk_frenzy", "bk_frenzy", "bk_frenzy", "bk_frenzy", "bk_frenzy", "bk_frenzy", "bk_frenzy",
+        "bk_pact", "bk_pact", "bk_pact", "bk_pact", "bk_pact",
+        "bk_smash", "bk_smash",
+        "bk_leap", "bk_leap", "bk_leap",
+        "bk_titan", "bk_titan", "bk_titan", "bk_titan", "bk_titan",
+        // Class 3 Bloodmoon (49 pts)
+        "bm_moon", "bm_moon", "bm_moon", "bm_moon", "bm_moon", "bm_moon", "bm_moon", "bm_moon", "bm_moon",
+        "bm_cross", "bm_cross", "bm_cross", "bm_cross", "bm_cross", "bm_cross", "bm_cross", "bm_cross", "bm_cross", "bm_cross",
+        "bm_guillotine", "bm_guillotine", "bm_guillotine", "bm_guillotine", "bm_guillotine", "bm_guillotine", "bm_guillotine", "bm_guillotine", "bm_guillotine", "bm_guillotine",
+        "bm_smash", "bm_smash", "bm_smash", "bm_smash", "bm_smash", "bm_smash", "bm_smash", "bm_smash", "bm_smash", "bm_smash",
+        "bm_awaken", "bm_awaken", "bm_awaken", "bm_awaken", "bm_awaken",
+        "bm_leap", "bm_leap", "bm_leap", "bm_leap", "bm_leap"
+      ],
+      plannedLevels: {
+        mastery: 5, body: 4,
+        kn_swordmastery: 10, kn_quicken: 10, kn_cleave: 10, kn_aurablade: 5, kn_ironskin: 9, kn_berserk: 5,
+        bk_crosscut: 4, bk_whirlwind: 10, bk_guillotine: 10, bk_frenzy: 10, bk_pact: 5, bk_smash: 2, bk_leap: 3, bk_titan: 5,
+        bm_moon: 9, bm_cross: 10, bm_guillotine: 10, bm_smash: 10, bm_awaken: 5, bm_leap: 5
+      },
+      facets: {}
+    },
+    triggers: buildDefaultNightcampPriestPlan().triggers.map(t => {
+      if (t.id === "trig_nc_job10") return { ...t, actions: [{ id: "act_nc_c1", type: "change_class", targetClass: "knight" }, { id: "act_nc_eq2", type: "equip_best", itemName: "" }] };
+      if (t.id === "trig_nc_job50_c1") return { ...t, classId: "knight", actions: [{ id: "act_nc_c2", type: "change_class", targetClass: "berserker" }, { id: "act_nc_eq_c2", type: "equip_best", itemName: "" }] };
+      return t;
+    }),
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  };
+}
+
+function buildDefaultNightcampMageArchmagePlan() {
+  return {
+    id: "plan_nc_mage_archmage_1_50",
+    name: "🔮 [Top 1 สายจอมเวท Lv.59] จอมเวท ➔ อาร์คเมจ ➔ จอมเวทดาราจักร (ลูกแก้ว 3 ธาตุยิงฟรี + สายฟ้าลูกโซ่ชิ่ง + มหาเวทสามธาตุ Lv.1–80+)",
+    description: "บิ้ววิจัยจากอันดับ 1 สายจอมเวท (Guschu Lv.59): ถือคทา/ออร์บ เปิดลูกแก้วไฟ+น้ำ+ลมลอยรอบตัวยิงปฏิกิริยาลูกโซ่อัตโนมัติ + สายฟ้าลูกโซ่ชิ่งกวาดมอนทั้งจอ + เจ้าแห่งอสนี + มหาเวทสามธาตุ",
+    autoQuestEnabled: true,
+    autoJobChange: true,
+    autoStatSkillEnabled: true,
+    class1Target: "mage",
+    class1JobLevel: 10,
+    class2Target: "archmage",
+    class2JobLevel: 50,
+    class3Target: "astral",
+    statBuild: {
+      queue: [
+        { stat: "INT", to: 32 },
+        { stat: "DEX", to: 26 },
+        { stat: "VIT", to: 20 },
+        { stat: "INT", to: 50 },
+        { stat: "DEX", to: 38 },
+        { stat: "VIT", to: 30 },
+        { stat: "INT", to: 68 },
+        { stat: "DEX", to: 52 },
+        { stat: "VIT", to: 42 },
+        { stat: "INT", to: 80 },
+        { stat: "DEX", to: 65 },
+        { stat: "VIT", to: 55 }
+      ],
+      targets: { STR: 1, AGI: 1, VIT: 55, INT: 80, DEX: 65, LUK: 1 },
+      priorityOrder: ["INT", "DEX", "VIT", "AGI", "LUK", "STR"]
+    },
+    skillBuild: {
+      skillPointQueue: [
+        // Traveler (9 pts)
+        "mastery", "mastery", "mastery", "mastery", "mastery",
+        "body", "body", "body", "body",
+        // Class 1 Mage (49 pts)
+        "thunder", "thunder", "thunder", "thunder", "thunder", "thunder", "thunder", "thunder", "thunder",
+        "mg_stormheart", "mg_stormheart", "mg_stormheart", "mg_stormheart", "mg_stormheart", "mg_stormheart", "mg_stormheart", "mg_stormheart", "mg_stormheart", "mg_stormheart",
+        "mg_fireheart", "mg_fireheart", "mg_fireheart", "mg_fireheart", "mg_fireheart",
+        "mg_staffmastery", "mg_staffmastery", "mg_staffmastery", "mg_staffmastery", "mg_staffmastery",
+        "mg_autospell", "mg_autospell", "mg_autospell", "mg_autospell", "mg_autospell",
+        "mg_sprecovery", "mg_sprecovery", "mg_sprecovery", "mg_sprecovery", "mg_sprecovery",
+        "mg_memorize", "mg_memorize", "mg_memorize", "mg_memorize", "mg_memorize",
+        "meteor", "meteor", "meteor", "meteor", "meteor",
+        // Class 2 Archmage (49 pts)
+        "am_chain", "am_chain", "am_chain", "am_chain", "am_chain", "am_chain", "am_chain", "am_chain", "am_chain", "am_chain",
+        "am_lordthunder", "am_lordthunder", "am_lordthunder", "am_lordthunder", "am_lordthunder", "am_lordthunder", "am_lordthunder", "am_lordthunder", "am_lordthunder", "am_lordthunder",
+        "am_overcharge",
+        "am_orbfire", "am_orbfire", "am_orbfire", "am_orbfire", "am_orbfire",
+        "am_orbwater", "am_orbwater", "am_orbwater", "am_orbwater", "am_orbwater",
+        "am_orbwind", "am_orbwind", "am_orbwind",
+        "am_chainreact", "am_chainreact", "am_chainreact", "am_chainreact", "am_chainreact",
+        "am_convergence", "am_convergence", "am_convergence", "am_convergence", "am_convergence",
+        "am_trinity", "am_trinity", "am_trinity", "am_trinity", "am_trinity",
+        // Class 3 Astral (49 pts)
+        "ax_planets", "ax_planets", "ax_planets", "ax_planets", "ax_planets", "ax_planets", "ax_planets", "ax_planets", "ax_planets",
+        "ax_chain", "ax_chain", "ax_chain", "ax_chain", "ax_chain", "ax_chain", "ax_chain", "ax_chain", "ax_chain", "ax_chain",
+        "ax_lord", "ax_lord", "ax_lord", "ax_lord", "ax_lord", "ax_lord", "ax_lord", "ax_lord", "ax_lord", "ax_lord",
+        "ax_orbs", "ax_orbs", "ax_orbs", "ax_orbs", "ax_orbs", "ax_orbs", "ax_orbs", "ax_orbs", "ax_orbs", "ax_orbs",
+        "ax_awaken", "ax_awaken", "ax_awaken", "ax_awaken", "ax_awaken",
+        "ax_recall", "ax_recall", "ax_recall", "ax_recall", "ax_recall"
+      ],
+      plannedLevels: {
+        mastery: 5, body: 4,
+        thunder: 9, mg_stormheart: 10, mg_fireheart: 5, mg_staffmastery: 5, mg_autospell: 5, mg_sprecovery: 5, mg_memorize: 5, meteor: 5,
+        am_chain: 10, am_lordthunder: 10, am_overcharge: 1, am_orbfire: 5, am_orbwater: 5, am_orbwind: 3, am_chainreact: 5, am_convergence: 5, am_trinity: 5,
+        ax_planets: 9, ax_chain: 10, ax_lord: 10, ax_orbs: 10, ax_awaken: 5, ax_recall: 5
+      },
+      facets: {}
+    },
+    triggers: buildDefaultNightcampPriestPlan().triggers.map(t => {
+      if (t.id === "trig_nc_job10") return { ...t, actions: [{ id: "act_nc_c1", type: "change_class", targetClass: "mage" }, { id: "act_nc_eq2", type: "equip_best", itemName: "" }] };
+      if (t.id === "trig_nc_job50_c1") return { ...t, classId: "mage", actions: [{ id: "act_nc_c2", type: "change_class", targetClass: "archmage" }, { id: "act_nc_eq_c2", type: "equip_best", itemName: "" }] };
+      return t;
+    }),
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  };
+}
+
+function buildDefaultNightcampParty5Slot1PaladinPlan() {
+  const base = buildDefaultNightcampRoguePuppeteerPlan();
+  const rep = (id, n) => Array(n).fill(id);
+  return {
+    ...base,
+    id: "plan_nc_party5_slot1_tank_paladin",
+    name: "👑 [ตี้ 5 คน · ช่อง 1 หัวตี้แทงค์กางโล่] อัศวิน ➔ พาลาดิน ➔ ผู้พิทักษ์รุ่งอรุณ (สร้างตี้ TEAM1 + ตะโกนดึงมอน + สายใยพิทักษ์ลดดาเมจทีม + ฮีลหมู่)",
+    description: "แผนปาร์ตี้ 5 คน (ช่อง 1 หัวตี้): สร้างปาร์ตี้ [TEAM1] อัตโนมัติตั้งแต่ Lv.1 · ตะโกนท้าทายดึงมอนรอบตัวให้หันมาตีแทงค์ + กางสายใยพิทักษ์ลดดาเมจให้เพื่อนทั้งตี้ + มือแห่งแสงฮีลหมู่เสริม + กางเขนแสงเผาผลาญกวาดมอนรอบตัว",
+    class1Target: "knight",
+    class1JobLevel: 10,
+    class2Target: "paladin",
+    class2JobLevel: 50,
+    class3Target: "dawnwarden",
+    partyConfig: {
+      enabled: true,
+      role: "leader",
+      partyTag: "TEAM1",
+      lootMode: "t",
+      groupMode: "g",
+      minLevel: 1,
+      syncChannelAndMap: true,
+      supFight: true,
+      supHealPct: 75
+    },
+    statBuild: {
+      queue: [
+        { stat: "VIT", to: 30 }, { stat: "STR", to: 28 }, { stat: "DEX", to: 22 },
+        { stat: "VIT", to: 50 }, { stat: "STR", to: 45 }, { stat: "INT", to: 25 },
+        { stat: "VIT", to: 70 }, { stat: "STR", to: 60 }, { stat: "DEX", to: 35 },
+        { stat: "VIT", to: 80 }, { stat: "STR", to: 70 }, { stat: "DEX", to: 45 }, { stat: "INT", to: 35 }
+      ],
+      targets: { STR: 70, AGI: 15, VIT: 80, INT: 35, DEX: 45, LUK: 1 },
+      priorityOrder: ["VIT", "STR", "DEX", "INT", "AGI", "LUK"]
+    },
+    skillBuild: {
+      skillPointQueue: [
+        ...rep("body", 5), ...rep("mastery", 4),
+        ...rep("kn_provoke", 5), ...rep("kn_ironskin", 10), ...rep("guard", 9), ...rep("judgment", 5),
+        ...rep("kn_swordmastery", 10), ...rep("kn_aurablade", 5), ...rep("kn_quicken", 5),
+        ...rep("pal_strike", 2), ...rep("pal_faith", 10), ...rep("pal_cross", 10), ...rep("pal_heaven", 5),
+        ...rep("pal_devotion", 5), ...rep("pal_layhands", 10), ...rep("pal_aegis", 5), ...rep("pal_shieldchain", 2),
+        ...rep("dw_dawn", 9), ...rep("dw_awaken", 5), ...rep("dw_cross", 10), ...rep("dw_hands", 10), ...rep("dw_chain", 10), ...rep("dw_strike", 5)
+      ],
+      plannedLevels: {
+        body: 5, mastery: 4,
+        kn_provoke: 5, kn_ironskin: 10, guard: 9, judgment: 5, kn_swordmastery: 10, kn_aurablade: 5, kn_quicken: 5,
+        pal_strike: 2, pal_faith: 10, pal_cross: 10, pal_heaven: 5, pal_devotion: 5, pal_layhands: 10, pal_aegis: 5, pal_shieldchain: 2,
+        dw_dawn: 9, dw_awaken: 5, dw_cross: 10, dw_hands: 10, dw_chain: 10, dw_strike: 5
+      },
+      autoOff: [],
+      facets: {}
+    },
+    triggers: base.triggers.map(t => {
+      if (t.id === "trig_nc_lv1") return {
+        ...t,
+        actions: [
+          { id: "act_nc_p5_1", type: "party_setup", role: "leader", partyTag: "TEAM1", lootMode: "t", groupMode: "g" },
+          ...t.actions
+        ]
+      };
+      if (t.id === "trig_nc_job10") return { ...t, actions: [{ id: "act_nc_c1", type: "change_class", targetClass: "knight" }, { id: "act_nc_eq2", type: "equip_best", itemName: "" }] };
+      if (t.id === "trig_nc_job50_c1") return { ...t, classId: "knight", actions: [{ id: "act_nc_c2", type: "change_class", targetClass: "paladin" }, { id: "act_nc_eq_c2", type: "equip_best", itemName: "" }] };
+      return t;
+    }),
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  };
+}
+
+function buildDefaultNightcampParty5Slot2BishopPlan() {
+  const base = buildDefaultNightcampRoguePuppeteerPlan();
+  const rep = (id, n) => Array(n).fill(id);
+  return {
+    ...base,
+    id: "plan_nc_party5_slot2_support_bishop",
+    name: "✨ [ตี้ 5 คน · ช่อง 2 พระซัพพอร์ตเต็มตัว] พระ ➔ บิชอป ➔ นักบุญแสงดาว (เข้าตี้ TEAM1 โหมดซัพเดินตาม + ชุบชีวิต + ฮีลหมู่ + เร่งมานา x2 ทั้งตี้)",
+    description: "แผนปาร์ตี้ 5 คน (ช่อง 2 พระซัพหลัก): เข้าปาร์ตี้ [TEAM1] + เปิดโหมดพระซัพพอร์ตเดินตามหัวตี้ (ได้โบนัสพระซัพ +30% EXP ทั้งตี้ และยืดเวลาเพื่อนสลบเป็น 10 วิรอชุบ) · อัปชุบชีวิต Lv.5 + พรทั่วทัพ + บทเพลงเท้าไว + บทสวดฟื้นมานา x2 + ม่านแสงคุ้มภัย + ปาฏิหาริย์ชุบหมู่",
+    class1Target: "priest",
+    class1JobLevel: 10,
+    class2Target: "bishop",
+    class2JobLevel: 50,
+    class3Target: "starsaint",
+    partyConfig: {
+      enabled: true,
+      role: "support",
+      partyTag: "TEAM1",
+      lootMode: "t",
+      groupMode: "g",
+      minLevel: 1,
+      syncChannelAndMap: true,
+      supFight: true,
+      supHealPct: 75
+    },
+    statBuild: {
+      queue: [
+        { stat: "INT", to: 32 }, { stat: "VIT", to: 26 }, { stat: "DEX", to: 22 },
+        { stat: "INT", to: 52 }, { stat: "VIT", to: 42 }, { stat: "DEX", to: 36 },
+        { stat: "INT", to: 72 }, { stat: "VIT", to: 58 }, { stat: "DEX", to: 48 },
+        { stat: "INT", to: 80 }, { stat: "VIT", to: 70 }, { stat: "DEX", to: 60 }
+      ],
+      targets: { STR: 1, AGI: 1, VIT: 70, INT: 80, DEX: 60, LUK: 1 },
+      priorityOrder: ["INT", "VIT", "DEX", "LUK", "AGI", "STR"]
+    },
+    skillBuild: {
+      skillPointQueue: [
+        ...rep("mind", 5), ...rep("body", 4),
+        ...rep("pr_heal", 9), ...rep("pr_resurrect", 5), ...rep("blessing", 9), ...rep("pr_agi", 10),
+        ...rep("pr_protect", 3), ...rep("pr_angelus", 3), ...rep("pr_gloria", 3), ...rep("pr_suffragium", 3), ...rep("holylight", 4),
+        ...rep("bi_heal", 9), ...rep("bi_sanctuary", 5), ...rep("bi_miracle", 5), ...rep("bi_meditatio", 5),
+        ...rep("bi_clementia", 5), ...rep("bi_canto", 5), ...rep("bi_magnificat", 5), ...rep("bi_barrier", 5),
+        ...rep("bi_assumptio", 1), ...rep("bi_turnundead", 3), ...rep("bi_lexdivina", 1),
+        ...rep("ss_faith", 9), ...rep("ss_awaken", 5), ...rep("ss_heal", 10), ...rep("ss_sanct", 10), ...rep("ss_turn", 10), ...rep("ss_lex", 5)
+      ],
+      plannedLevels: {
+        mind: 5, body: 4,
+        pr_heal: 9, pr_resurrect: 5, blessing: 9, pr_agi: 10, pr_protect: 3, pr_angelus: 3, pr_gloria: 3, pr_suffragium: 3, holylight: 4,
+        bi_heal: 9, bi_sanctuary: 5, bi_miracle: 5, bi_meditatio: 5, bi_clementia: 5, bi_canto: 5, bi_magnificat: 5, bi_barrier: 5, bi_assumptio: 1, bi_turnundead: 3, bi_lexdivina: 1,
+        ss_faith: 9, ss_awaken: 5, ss_heal: 10, ss_sanct: 10, ss_turn: 10, ss_lex: 5
+      },
+      autoOff: [],
+      facets: {}
+    },
+    triggers: base.triggers.map(t => {
+      if (t.id === "trig_nc_lv1") return {
+        ...t,
+        actions: [
+          { id: "act_nc_p5_2", type: "party_setup", role: "support", partyTag: "TEAM1", lootMode: "t", groupMode: "g", supFight: true, supHealPct: 75 },
+          ...t.actions
+        ]
+      };
+      if (t.id === "trig_nc_job10") return { ...t, actions: [{ id: "act_nc_c1", type: "change_class", targetClass: "priest" }, { id: "act_nc_eq2", type: "equip_best", itemName: "" }] };
+      if (t.id === "trig_nc_job50_c1") return { ...t, classId: "priest", actions: [{ id: "act_nc_c2", type: "change_class", targetClass: "bishop" }, { id: "act_nc_eq_c2", type: "equip_best", itemName: "" }] };
+      return t;
+    }),
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  };
+}
+
+function buildDefaultNightcampParty5Slot3PuppeteerPlan() {
+  const base = buildDefaultNightcampRoguePuppeteerPlan();
+  return {
+    ...base,
+    id: "plan_nc_party5_slot3_dps_puppeteer",
+    name: "🎎 [ตี้ 5 คน · ช่อง 3 ดาเมจหุ่นรบ & รวบมอน] โจร ➔ นักเชิดหุ่น ➔ จ้าวโรงหุ่นราตรี (เข้าตี้ TEAM1 เกาะกลุ่ม + หุ่นรบถาวร + โรงละครหุ่นรวบมอนให้ตี้)",
+    description: "แผนปาร์ตี้ 5 คน (ช่อง 3 ดาเมจหลัก & รวบมอน): เข้าปาร์ตี้ [TEAM1] ยืนเกาะกลุ่มหัวตี้เชื่อมด้ายแดง (+EXP/+Drop) · เรียกหุ่นไม้ยักษ์สู้ถาวร (0 SP) + เชิดมอน 2 ตัวช่วยตี้ + กางโรงละครหุ่นเชิดรวบมอนทั้งจอเข้ากลางวงให้ตี้รุมปั่น",
+    partyConfig: {
+      enabled: true,
+      role: "member",
+      partyTag: "TEAM1",
+      lootMode: "t",
+      groupMode: "g",
+      minLevel: 1,
+      syncChannelAndMap: true,
+      supFight: true,
+      supHealPct: 75
+    },
+    triggers: base.triggers.map(t => {
+      if (t.id === "trig_nc_lv1") return {
+        ...t,
+        actions: [
+          { id: "act_nc_p5_3", type: "party_setup", role: "member", partyTag: "TEAM1", lootMode: "t", groupMode: "g" },
+          ...t.actions
+        ]
+      };
+      return t;
+    }),
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  };
+}
+
+function buildDefaultNightcampParty5Slot4ArchmagePlan() {
+  const base = buildDefaultNightcampMageArchmagePlan();
+  return {
+    ...base,
+    id: "plan_nc_party5_slot4_dps_archmage",
+    name: "🔮 [ตี้ 5 คน · ช่อง 4 เวทหมู่ล้างจอ] จอมเวท ➔ อาร์คเมจ ➔ จอมเวทดาราจักร (เข้าตี้ TEAM1 เกาะกลุ่ม + สายฟ้าลูกโซ่ + ฝนดาวตก + มหาเวทสามธาตุ)",
+    description: "แผนปาร์ตี้ 5 คน (ช่อง 4 ดาเมจเวทหมู่ AoE): เข้าปาร์ตี้ [TEAM1] ยืนเกาะกลุ่มหัวตี้รับบัฟเร่งร่าย/เร่งมานาจากพระซัพ · สาดสายฟ้าลูกโซ่ชิ่งทั้งฝูง + ฝนดาวตก + พายุหิมะแช่แข็ง + มหาเวทสามธาตุกวาดมอนที่แทงค์และหุ่นเชิดรวบไว้",
+    partyConfig: {
+      enabled: true,
+      role: "member",
+      partyTag: "TEAM1",
+      lootMode: "t",
+      groupMode: "g",
+      minLevel: 1,
+      syncChannelAndMap: true,
+      supFight: true,
+      supHealPct: 75
+    },
+    triggers: base.triggers.map(t => {
+      if (t.id === "trig_nc_lv1") return {
+        ...t,
+        actions: [
+          { id: "act_nc_p5_4", type: "party_setup", role: "member", partyTag: "TEAM1", lootMode: "t", groupMode: "g" },
+          ...t.actions
+        ]
+      };
+      return t;
+    }),
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  };
+}
+
+function buildDefaultNightcampParty5Slot5BardPlan() {
+  const base = buildDefaultNightcampRoguePuppeteerPlan();
+  const rep = (id, n) => Array(n).fill(id);
+  return {
+    ...base,
+    id: "plan_nc_party5_slot5_bard_maestro",
+    name: "🎵 [ตี้ 5 คน · ช่อง 5 นักกวีบัฟเพลงครบ 5 สาย] นักธนู ➔ นักกวี ➔ วาทยกรแห่งป่า (เข้าตี้ TEAM1 + เล่น 2 เพลงเร่งดาเมจ/ลดคูลดาวน์ + ครบโบนัสคละ 5 สายอาชีพ)",
+    description: "แผนปาร์ตี้ 5 คน (ช่อง 5 บัฟเพลง & ครบ 5 สายอาชีพ): เข้าปาร์ตี้ [TEAM1] เติมเต็มสายนักธนูให้ตี้ครบ 5 สายอาชีพหลัก (รับโบนัสคละสาย +10% EXP เต็มขั้น) · เล่น 2 เพลงพร้อมกัน (เพลงเร่งจังหวะเพื่อนตีแรง +30% & เพลงอุ่นไอไฟฮีลทีม) + เพลงดาวค้างฟ้าลดคูลดาวน์สกิลใหญ่ 30% + มหกรรมรอบกองไฟเพื่อนตีแรงขึ้นอีก 25%",
+    class1Target: "archer",
+    class1JobLevel: 10,
+    class2Target: "bard",
+    class2JobLevel: 50,
+    class3Target: "maestro",
+    partyConfig: {
+      enabled: true,
+      role: "member",
+      partyTag: "TEAM1",
+      lootMode: "t",
+      groupMode: "g",
+      minLevel: 1,
+      syncChannelAndMap: true,
+      supFight: true,
+      supHealPct: 75
+    },
+    statBuild: {
+      queue: [
+        { stat: "DEX", to: 32 }, { stat: "INT", to: 26 }, { stat: "VIT", to: 20 },
+        { stat: "DEX", to: 52 }, { stat: "INT", to: 42 }, { stat: "AGI", to: 28 },
+        { stat: "DEX", to: 70 }, { stat: "INT", to: 55 }, { stat: "VIT", to: 38 },
+        { stat: "DEX", to: 80 }, { stat: "INT", to: 65 }, { stat: "VIT", to: 50 }, { stat: "AGI", to: 40 }
+      ],
+      targets: { STR: 1, AGI: 40, VIT: 50, INT: 65, DEX: 80, LUK: 1 },
+      priorityOrder: ["DEX", "INT", "VIT", "AGI", "LUK", "STR"]
+    },
+    skillBuild: {
+      skillPointQueue: [
+        ...rep("mastery", 5), ...rep("mind", 4),
+        ...rep("double", 9), ...rep("shower", 9), ...rep("ar_owl", 10), ...rep("ar_concentrate", 5),
+        ...rep("ar_bowmastery", 10), ...rep("starshot", 5), ...rep("gale", 1),
+        ...rep("bd_tempo", 9), ...rep("bd_warm", 5), ...rep("bd_band", 5), ...rep("bd_stars", 5),
+        ...rep("bd_twirl", 4), ...rep("bd_lure", 5), ...rep("bd_festival", 5), ...rep("bd_lash", 1),
+        ...rep("bd_note", 5), ...rep("bd_noterain", 5),
+        ...rep("mt_band", 9), ...rep("mt_awaken", 5), ...rep("mt_note", 10), ...rep("mt_rain", 10), ...rep("mt_twirl", 10), ...rep("mt_lash", 5)
+      ],
+      plannedLevels: {
+        mastery: 5, mind: 4,
+        double: 9, shower: 9, ar_owl: 10, ar_concentrate: 5, ar_bowmastery: 10, starshot: 5, gale: 1,
+        bd_tempo: 9, bd_warm: 5, bd_band: 5, bd_stars: 5, bd_twirl: 4, bd_lure: 5, bd_festival: 5, bd_lash: 1, bd_note: 5, bd_noterain: 5,
+        mt_band: 9, mt_awaken: 5, mt_note: 10, mt_rain: 10, mt_twirl: 10, mt_lash: 5
+      },
+      autoOff: [],
+      facets: {}
+    },
+    triggers: base.triggers.map(t => {
+      if (t.id === "trig_nc_lv1") return {
+        ...t,
+        actions: [
+          { id: "act_nc_p5_5a", type: "party_setup", role: "member", partyTag: "TEAM1", lootMode: "t", groupMode: "g" },
+          ...t.actions
+        ]
+      };
+      if (t.id === "trig_nc_job10") return { ...t, actions: [{ id: "act_nc_c1", type: "change_class", targetClass: "archer" }, { id: "act_nc_eq2", type: "equip_best", itemName: "" }] };
+      if (t.id === "trig_nc_job50_c1") return { ...t, classId: "archer", actions: [{ id: "act_nc_c2", type: "change_class", targetClass: "bard" }, { id: "act_nc_eq_c2", type: "equip_best", itemName: "" }] };
+      return t;
+    }),
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  };
+}
+
+function buildDefaultNightcampParty5Slot5LightkeeperPlan() {
+  const base = buildDefaultNightcampPriestLightkeeperPlan();
+  return {
+    ...base,
+    id: "plan_nc_party5_slot5_aura_lightkeeper",
+    name: "🕯️ [ตี้ 5 คน · ช่อง 5 ทางเลือกพระตะเกียงบัฟอาวุธแสง] พระ ➔ ผู้จุดตะเกียง ➔ ผู้เฝ้าประภาคาร (เข้าตี้ TEAM1 + เคลือบไฟศรัทธาทั้งตี้ + โคมแก้ว 4 ดวงลอยตามเพื่อน)",
+    description: "แผนปาร์ตี้ 5 คน (ช่อง 5 ทางเลือกสายออร่าตะเกียง): เข้าปาร์ตี้ [TEAM1] เกาะกลุ่มหัวตี้ · เคลือบไฟศรัทธาให้อาวุธเพื่อนทั้งตี้ติดโบนัสแสง + โคมแก้ว 4 ดวงลอยตามเพื่อนช่วยยิงแสงและฮีลอัตโนมัติ + รุ่งอรุณเร่งฮีลทั้งตี้แรงขึ้น 50% (เหมาะมากสำหรับดันเจี้ยนสุสาน/วิหารมืด)",
+    partyConfig: {
+      enabled: true,
+      role: "member",
+      partyTag: "TEAM1",
+      lootMode: "t",
+      groupMode: "g",
+      minLevel: 1,
+      syncChannelAndMap: true,
+      supFight: true,
+      supHealPct: 75
+    },
+    triggers: base.triggers.map(t => {
+      if (t.id === "trig_nc_lv1") return {
+        ...t,
+        actions: [
+          { id: "act_nc_p5_5b", type: "party_setup", role: "member", partyTag: "TEAM1", lootMode: "t", groupMode: "g" },
+          ...t.actions
+        ]
+      };
+      return t;
+    }),
     createdAt: Date.now(),
     updatedAt: Date.now()
   };
@@ -644,6 +1472,14 @@ function normalizePlansData(raw) {
       raw.profiles.unshift(buildDefaultNightcampPriestPlan());
       migrated = true;
     }
+    if (!raw.profiles.some(p => p && p.id === "plan_nc_rogue_puppeteer_1_50")) {
+      raw.profiles.splice(1, 0, buildDefaultNightcampRoguePuppeteerPlan());
+      migrated = true;
+    }
+    if (!raw.profiles.some(p => p && p.id === "plan_nc_priest_lightkeeper_1_50")) {
+      raw.profiles.push(buildDefaultNightcampPriestLightkeeperPlan());
+      migrated = true;
+    }
     if (!raw.profiles.some(p => p && p.id === "plan_nc_priest_wisp_1_50")) {
       raw.profiles.push(buildDefaultNightcampPriestWispPlan());
       migrated = true;
@@ -651,6 +1487,111 @@ function normalizePlansData(raw) {
     if (!raw.profiles.some(p => p && p.id === "plan_nc_priest_monk_1_50")) {
       raw.profiles.push(buildDefaultNightcampPriestMonkPlan());
       migrated = true;
+    }
+    if (!raw.profiles.some(p => p && p.id === "plan_nc_knight_berserker_1_50")) {
+      raw.profiles.push(buildDefaultNightcampKnightBerserkerPlan());
+      migrated = true;
+    }
+    if (!raw.profiles.some(p => p && p.id === "plan_nc_mage_archmage_1_50")) {
+      raw.profiles.push(buildDefaultNightcampMageArchmagePlan());
+      migrated = true;
+    }
+    // 5-Person Party Suite (TEAM1 Slots 1–5)
+    const party5Builders = [
+      ["plan_nc_party5_slot1_tank_paladin", buildDefaultNightcampParty5Slot1PaladinPlan],
+      ["plan_nc_party5_slot2_support_bishop", buildDefaultNightcampParty5Slot2BishopPlan],
+      ["plan_nc_party5_slot3_dps_puppeteer", buildDefaultNightcampParty5Slot3PuppeteerPlan],
+      ["plan_nc_party5_slot4_dps_archmage", buildDefaultNightcampParty5Slot4ArchmagePlan],
+      ["plan_nc_party5_slot5_bard_maestro", buildDefaultNightcampParty5Slot5BardPlan],
+      ["plan_nc_party5_slot5_aura_lightkeeper", buildDefaultNightcampParty5Slot5LightkeeperPlan]
+    ];
+    for (const [pid, builder] of party5Builders) {
+      if (!raw.profiles.some(p => p && p.id === pid)) {
+        raw.profiles.push(builder());
+        migrated = true;
+      }
+    }
+    // Upgrade built-in Party 5, Solo Puppeteer (`plan_1795450519812_17` / `plan_nc_rogue_puppeteer_1_50`), and `plan_nc_*` triggers to the Zombie Farmer (`ซอมบี้ชาวนา`) route
+    const freshBuiltinById = {
+      plan_nc_priest_bishop_1_50: buildDefaultNightcampPriestPlan,
+      plan_nc_rogue_puppeteer_1_50: buildDefaultNightcampRoguePuppeteerPlan,
+      plan_nc_priest_lightkeeper_1_50: buildDefaultNightcampPriestLightkeeperPlan,
+      plan_nc_priest_wisp_1_50: buildDefaultNightcampPriestWispPlan,
+      plan_nc_priest_monk_1_50: buildDefaultNightcampPriestMonkPlan,
+      plan_nc_knight_berserker_1_50: buildDefaultNightcampKnightBerserkerPlan,
+      plan_nc_mage_archmage_1_50: buildDefaultNightcampMageArchmagePlan,
+      plan_nc_party5_slot1_tank_paladin: buildDefaultNightcampParty5Slot1PaladinPlan,
+      plan_nc_party5_slot2_support_bishop: buildDefaultNightcampParty5Slot2BishopPlan,
+      plan_nc_party5_slot3_dps_puppeteer: buildDefaultNightcampParty5Slot3PuppeteerPlan,
+      plan_nc_party5_slot4_dps_archmage: buildDefaultNightcampParty5Slot4ArchmagePlan,
+      plan_nc_party5_slot5_bard_maestro: buildDefaultNightcampParty5Slot5BardPlan,
+      plan_nc_party5_slot5_aura_lightkeeper: buildDefaultNightcampParty5Slot5LightkeeperPlan
+    };
+    for (let i = 0; i < raw.profiles.length; i++) {
+      const p = raw.profiles[i];
+      if (!p || typeof p !== "object") continue;
+      const trigs = Array.isArray(p.triggers) ? p.triggers : [];
+      const hasLegacyMq25 = trigs.some(t => Array.isArray(t?.actions) && t.actions.some(a => a?.untilQuest === "MQ25" || a?.id === "act_nc_aq46"));
+      const hasLegacyPuppet = p.id === "plan_1795450519812_17" && (!p.class3Target || trigs.some(t => t?.id === "puppet_lv12"));
+      const hasZombie24 = trigs.some(t => t?.id === "trig_nc_lv24");
+      if (freshBuiltinById[p.id] && (hasLegacyMq25 || !hasZombie24)) {
+        const fresh = freshBuiltinById[p.id]();
+        p.triggers = fresh.triggers;
+        if (p.id === "plan_nc_rogue_puppeteer_1_50" || p.id === "plan_nc_party5_slot3_dps_puppeteer") {
+          p.skillBuild = fresh.skillBuild;
+        }
+        p.updatedAt = Date.now();
+        migrated = true;
+      } else if (hasLegacyPuppet || (p.id === "plan_1795450519812_17" && !hasZombie24)) {
+        const fresh = buildDefaultNightcampRoguePuppeteerPlan();
+        p.name = "🎎 [ลุยเดี่ยวหุ่นเชิด] ฟาร์มเดี่ยว | โจร ➔ นักเชิดหุ่น ➔ จ้าวโรงหุ่นราตรี (ฟาร์มซอมบี้ชาวนายาว + หุ่นรบตีตามทุกฮิต + เชิดมอน 2 ตัว + โรงละครหุ่นเชิด Lv.1–99)";
+        p.description = "บิ้วลุยเดี่ยวหุ่นเชิดสายไม้เชิดหุ่น+โล่: ทำเควสถึง Lv.12 เปลี่ยนโจร ➔ ฟาร์มซอมบี้ชาวนา (เนินสุสานโบสถ์ร้าง ➔ หุบซี่โครงยักษ์ ➔ หุบหมอกโลงศพ ➔ สุสานใต้ดิน ชั้น 1–2) รับ Job EXP 0.9 ยาวๆ · เรียกหุ่นรบถาวร (0 SP) + ชักใยหุ่นตีตามทุกฮิต + ระบำหุ่น + เชิดมอน 2 ตัวช่วยรุม + เชือกชักวิญญาณหุ่นประกอบใหม่เอง + โรงละครหุ่นเชิด 5800% ATK";
+        p.autoQuestEnabled = true;
+        p.autoJobChange = true;
+        p.autoStatSkillEnabled = true;
+        p.class1Target = "rogue";
+        p.class1JobLevel = 10;
+        p.class2Target = "puppeteer";
+        p.class2JobLevel = 50;
+        p.class3Target = "showmaster";
+        p.statBuild = {
+          queue: [
+            { stat: "STR", to: 25 }, { stat: "AGI", to: 25 }, { stat: "VIT", to: 20 }, { stat: "DEX", to: 20 },
+            { stat: "STR", to: 42 }, { stat: "AGI", to: 40 }, { stat: "VIT", to: 32 }, { stat: "DEX", to: 30 }, { stat: "LUK", to: 20 },
+            { stat: "STR", to: 62 }, { stat: "AGI", to: 58 }, { stat: "VIT", to: 45 }, { stat: "DEX", to: 40 },
+            { stat: "STR", to: 80 }, { stat: "AGI", to: 75 }, { stat: "VIT", to: 55 }, { stat: "DEX", to: 45 }, { stat: "LUK", to: 40 }
+          ],
+          targets: { STR: 80, AGI: 75, VIT: 55, INT: 1, DEX: 45, LUK: 40 },
+          priorityOrder: ["STR", "AGI", "VIT", "DEX", "LUK", "INT"]
+        };
+        p.skillBuild = fresh.skillBuild;
+        p.triggers = [
+          fresh.triggers[0],
+          fresh.triggers[1],
+          {
+            id: "trig_nc_lv12",
+            type: "base_level",
+            targetLevel: 12,
+            actions: [
+              { id: "act_nc_sell12", type: "sell_trip", sellMaterials: true, redQty: 30, blueQty: 20 },
+              { id: "act_nc_map12", type: "change_map", targetMap: "farm2", targetMonster: "" },
+              { id: "act_nc_eq12", type: "equip_best", itemName: "" }
+            ]
+          },
+          {
+            id: "trig_nc_lv16",
+            type: "base_level",
+            targetLevel: 16,
+            actions: [
+              { id: "act_nc_map16", type: "change_map", targetMap: "graveyard", targetMonster: "" },
+              { id: "act_nc_eq16", type: "equip_best", itemName: "" }
+            ]
+          },
+          ...fresh.triggers.slice(3)
+        ];
+        p.updatedAt = Date.now();
+        migrated = true;
+      }
     }
     for (const p of raw.profiles) {
       if (!p || !p.statBuild || !Array.isArray(p.statBuild.queue)) continue;
@@ -685,8 +1626,18 @@ function normalizePlansData(raw) {
 
   const defaultProfiles = [
     buildDefaultNightcampPriestPlan(),
+    buildDefaultNightcampRoguePuppeteerPlan(),
+    buildDefaultNightcampPriestLightkeeperPlan(),
     buildDefaultNightcampPriestWispPlan(),
-    buildDefaultNightcampPriestMonkPlan()
+    buildDefaultNightcampPriestMonkPlan(),
+    buildDefaultNightcampKnightBerserkerPlan(),
+    buildDefaultNightcampMageArchmagePlan(),
+    buildDefaultNightcampParty5Slot1PaladinPlan(),
+    buildDefaultNightcampParty5Slot2BishopPlan(),
+    buildDefaultNightcampParty5Slot3PuppeteerPlan(),
+    buildDefaultNightcampParty5Slot4ArchmagePlan(),
+    buildDefaultNightcampParty5Slot5BardPlan(),
+    buildDefaultNightcampParty5Slot5LightkeeperPlan()
   ];
   const assignments = {};
   return { profiles: defaultProfiles, assignments };
@@ -3024,7 +3975,14 @@ function buildClientActionEvalCode(payload) {
         try { window.__authConfig = JSON.parse(localStorage.getItem('pelican_auth_cfg') || '{}') || {}; } catch (_) { window.__authConfig = {}; }
       }
       const patch = ${JSON.stringify(cfg)};
-      Object.assign(window.__authConfig, patch);
+      if (patch.enabled !== undefined) {
+        window.__ncAllowEnableAutoLogin = true;
+      }
+      try {
+        Object.assign(window.__authConfig, patch);
+      } finally {
+        window.__ncAllowEnableAutoLogin = false;
+      }
       if (patch.username !== undefined || patch.password !== undefined) {
         window.__authConfig.userEditedAt = Date.now();
         window.__authConfig.generatedUser = false;
@@ -9498,9 +10456,10 @@ const server = http.createServer(async (req, res) => {
                 const identityChangedAt = Number(p.identityChangedAt) || 0;
                 const staleClientCredsAfterReset = Boolean(p.autoRegister && identityChangedAt > 0 && manualUserEditedAt <= identityChangedAt);
                 const managerMissingCreds = !p.account || !curProfPass;
+                const managerHasExplicitUserCreds = Boolean(p.account && curProfPass && !p.autoRegister && !p.generatedAccount);
                 const isSameGeneratedAccount = Boolean(p.generatedAccount && p.account && cUser === p.account);
-                const shouldAdopt = !staleClientCredsAfterReset && !isSameGeneratedAccount && !ownedByOtherProfile && (
-                  (manualUserEditedAt > 0 && manualUserEditedAt > lastManagerPushAt) ||
+                const shouldAdopt = !staleClientCredsAfterReset && !isSameGeneratedAccount && !ownedByOtherProfile && !(managerHasExplicitUserCreds && ca.generatedUser) && (
+                  (!ca.generatedUser && manualUserEditedAt > 0 && manualUserEditedAt > lastManagerPushAt) ||
                   managerMissingCreds ||
                   (!ca.generatedUser && (p.autoRegister || p.generatedAccount))
                 );
@@ -10286,6 +11245,47 @@ const server = http.createServer(async (req, res) => {
     return res.end("\uFEFF" + lines.join("\r\n"));
   }
 
+  function syncProfileAuthToBrowserStorage(profileId, profile, password, { clearSession = false } = {}) {
+    if (!profileId || !profile) return;
+    try {
+      const bsDir = path.join(SESSIONS_DIR, "_browser_storage");
+      if (!fs.existsSync(bsDir)) fs.mkdirSync(bsDir, { recursive: true });
+      const bsFile = path.join(bsDir, `${profileId}.json`);
+      let bsData = {};
+      if (fs.existsSync(bsFile)) {
+        try { bsData = JSON.parse(fs.readFileSync(bsFile, "utf8")) || {}; } catch (_) { bsData = {}; }
+      }
+      if (clearSession) {
+        delete bsData["__ss:aetheria.session"];
+        delete bsData["pelican_auth_cfg"];
+        for (const bsKey of Object.keys(bsData)) {
+          if (bsKey.startsWith(`pelican_${profileId}__nc__nightcamp.online.acct:`)) {
+            delete bsData[bsKey];
+          }
+        }
+      }
+      const authKey = `pelican_${profileId}__auth_cfg`;
+      let prevCfg = {};
+      try { prevCfg = JSON.parse(bsData[authKey] || "{}") || {}; } catch (_) { prevCfg = {}; }
+      bsData[authKey] = JSON.stringify({
+        ...prevCfg,
+        enabled: profile.autoLoginEnabled !== false,
+        username: String(profile.account || "").trim(),
+        password: String(password || ""),
+        serverName: String(profile.serverName || ""),
+        charName: String(profile.charName || ""),
+        autoResumeBot: Boolean(profile.autoResumeBot),
+        register: Boolean(profile.autoRegister),
+        registerDone: false,
+        registerError: "",
+        autoCreateChar: true,
+        generatedUser: Boolean(profile.generatedAccount),
+        lastManagerPushAt: Date.now()
+      });
+      writeJsonAtomic(bsFile, bsData);
+    } catch (_) {}
+  }
+
   // 2. POST /api/profiles (Create)
   if (req.method === "POST" && pathname === "/api/profiles") {
     let body = "";
@@ -10297,15 +11297,18 @@ const server = http.createServer(async (req, res) => {
         const nextPort = Math.max(48875, ...profiles.map(p => p.debugPort || 48876)) + 1;
         let newId = "profile_" + Date.now();
         while (profiles.some(p => p.id === newId)) newId = "profile_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
+        const initPass = (data.loginPassword || "").trim();
+        const initAcct = (data.account || "").trim();
         const newProfile = {
           id: newId,
           name: (data.name || "New Client").trim(),
-          account: (data.account || "").trim(),
+          account: initAcct,
           serverName: data.serverName !== undefined ? String(data.serverName || "").trim() : "",
           charName: data.charName !== undefined ? String(data.charName || "").trim() : "",
           autoLoginEnabled: data.autoLoginEnabled !== undefined ? Boolean(data.autoLoginEnabled) : true,
           autoResumeBot: data.autoResumeBot !== undefined ? Boolean(data.autoResumeBot) : false,
-          autoRegister: !(data.loginPassword || "").trim(),
+          autoRegister: !initPass,
+          generatedAccount: false,
           charClass: data.charClass || "Traveler",
           targetMap: data.targetMap !== undefined ? data.targetMap : "",
           debugPort: data.debugPort || nextPort,
@@ -10321,7 +11324,10 @@ const server = http.createServer(async (req, res) => {
         const sessionFolder = path.join(SESSIONS_DIR, newProfile.id);
         if (!fs.existsSync(sessionFolder)) fs.mkdirSync(sessionFolder, { recursive: true });
 
-        if ((data.loginPassword || "").trim()) credentials.setPassword(newProfile.id, data.loginPassword.trim());
+        if (initPass) credentials.setPassword(newProfile.id, initPass);
+        if (initAcct || initPass) {
+          syncProfileAuthToBrowserStorage(newProfile.id, newProfile, initPass, { clearSession: true });
+        }
         sendJSON({ success: true, profile: newProfile });
       } catch (err) {
         sendJSON({ success: false, error: err.message }, 400);
@@ -10362,6 +11368,7 @@ const server = http.createServer(async (req, res) => {
         const nextAutoRegister = nextPassword
           ? false
           : (wantsNewAutoRegister ? true : !!profiles[idx].autoRegister);
+        const hasExplicitManualCreds = Boolean(!wantsNewAutoRegister && nextAccount && nextPassword);
 
         profiles[idx] = {
           ...profiles[idx],
@@ -10372,7 +11379,11 @@ const server = http.createServer(async (req, res) => {
           autoLoginEnabled: data.autoLoginEnabled !== undefined ? Boolean(data.autoLoginEnabled) : (profiles[idx].autoLoginEnabled !== false),
           autoResumeBot: data.autoResumeBot !== undefined ? Boolean(data.autoResumeBot) : Boolean(profiles[idx].autoResumeBot),
           autoRegister: nextAutoRegister,
-          ...(wantsNewAutoRegister ? { generatedAccount: false, registerError: "", loginSyncPending: false, proxyFallbackBrowser: undefined, proxyRegistrationState: undefined } : {}),
+          ...(wantsNewAutoRegister
+            ? { generatedAccount: false, registerError: "", loginSyncPending: false, proxyFallbackBrowser: undefined, proxyRegistrationState: undefined }
+            : (hasExplicitManualCreds || accountChanged || passwordChanged
+                ? { generatedAccount: false, registerError: "", loginSyncPending: true, lastAuthSyncPushAt: Date.now() }
+                : {})),
           charClass: data.charClass || profiles[idx].charClass,
           targetMap: data.targetMap !== undefined ? data.targetMap : profiles[idx].targetMap,
           debugPort: data.debugPort || profiles[idx].debugPort,
@@ -10380,6 +11391,14 @@ const server = http.createServer(async (req, res) => {
           notes: data.notes !== undefined ? data.notes : profiles[idx].notes,
           whitelist: data.whitelist !== undefined ? data.whitelist : profiles[idx].whitelist
         };
+        if (!wantsNewAutoRegister && (hasExplicitManualCreds || accountChanged || passwordChanged)) {
+          if (typeof authSync?.resetProfileRegistration === "function") {
+            authSync.resetProfileRegistration(id);
+          }
+          syncProfileAuthToBrowserStorage(id, profiles[idx], nextPassword, {
+            clearSession: Boolean(accountChanged || passwordChanged)
+          });
+        }
         if (wantsNewAutoRegister) {
           delete profiles[idx].proxyFallbackBrowser;
           delete profiles[idx].proxyRegistrationState;
@@ -12585,6 +13604,7 @@ public class PmFocus {
           skillBuild: payload.skillBuild || null,
           statBuild: payload.statBuild || null,
           gearPlan: payload.gearPlan || null,
+          partyConfig: payload.partyConfig || null,
           triggers: Array.isArray(payload.triggers) ? payload.triggers : [],
           createdAt: Date.now(),
           updatedAt: Date.now()
@@ -12628,6 +13648,7 @@ public class PmFocus {
           skillBuild: payload.skillBuild !== undefined ? payload.skillBuild : plansData.profiles[idx].skillBuild,
           statBuild: payload.statBuild !== undefined ? payload.statBuild : plansData.profiles[idx].statBuild,
           gearPlan: payload.gearPlan !== undefined ? payload.gearPlan : plansData.profiles[idx].gearPlan,
+          partyConfig: payload.partyConfig !== undefined ? payload.partyConfig : plansData.profiles[idx].partyConfig,
           triggers: Array.isArray(payload.triggers) ? payload.triggers : plansData.profiles[idx].triggers,
           updatedAt: Date.now()
         };
@@ -12760,6 +13781,7 @@ public class PmFocus {
               skillBuild: p.skillBuild || null,
               statBuild: p.statBuild || null,
               gearPlan: p.gearPlan || null,
+              partyConfig: p.partyConfig || null,
               triggers: Array.isArray(p.triggers) ? p.triggers : [],
               createdAt: Date.now(),
               updatedAt: Date.now()

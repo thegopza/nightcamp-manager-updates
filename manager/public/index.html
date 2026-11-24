@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="style.css?v=nc1.1.1">
   <link rel="stylesheet" href="inventory_market.css?v=nc1.1.1">
   <link rel="stylesheet" href="bot_update.css?v=nc1.1.1">
-  <link rel="stylesheet" href="plan_editor.css?v=nc1.1.1">
+  <link rel="stylesheet" href="plan_editor.css?v=nc1.2.1">
   <link rel="stylesheet" href="party_manager.css?v=nc1.1.1">
   <link rel="stylesheet" href="premium_manager.css?v=nc1.1.1">
   <link rel="stylesheet" href="card_manager.css?v=nc1.1.1">
@@ -1277,10 +1277,71 @@
                 <span>📊</span> จัดการสเตตัส (Stat Build)
                 <span id="plan-stat-summary-badge" style="background: rgba(56, 189, 248, 0.3); color: #fff; font-size: 10px; padding: 2px 6px; border-radius: 5px; margin-left: 4px;">Default</span>
               </button>
+              <button type="button" class="btn btn-secondary btn-sm" id="btn-toggle-party-builder" style="padding: 5px 12px; font-size: 11.5px; font-weight: 600; border-color: rgba(16, 185, 129, 0.45); background: rgba(16, 185, 129, 0.14); color: #6ee7b7;">
+                <span>🤝</span> เซ็ตตี้ (Auto-Party)
+                <span id="plan-party-summary-badge" style="background: rgba(16, 185, 129, 0.3); color: #fff; font-size: 10px; padding: 2px 6px; border-radius: 5px; margin-left: 4px;">ปิด</span>
+              </button>
               <button type="button" class="btn btn-secondary btn-sm" id="btn-open-gear-builder" style="display: none; padding: 5px 12px; font-size: 11.5px; font-weight: 600;">
                 <span>🛡️</span> เซ็ตอุปกรณ์ (Gear)
                 <span id="plan-gear-count-badge" class="badge">0 รายการ</span>
               </button>
+            </div>
+          </div>
+
+          <!-- Row 1.5: Plan Auto-Party Setup Panel (ระบบเซ็ตปาร์ตี้อัตโนมัติใน Plan) -->
+          <div id="plan-party-config-panel" class="pe-party-bar" style="display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 8px;">
+              <label class="pl-switch pe-autojob">
+                <input type="checkbox" id="plan-party-enabled"><span></span><b style="color:#6ee7b7;">🤝 เปิดระบบเซ็ตปาร์ตี้อัตโนมัติ (Auto-Party &amp; Party Board Sync)</b>
+              </label>
+              <span style="font-size: 10.5px; color: #94a3b8;">💡 ใช้ชื่อหัวตี้หรือรหัสแท็กตี้เดียวกันเพื่อให้หัวตี้และลูกตี้จับคู่กันเองข้ามแมพ/แชนแนลผ่านกระดานปาร์ตี้ (สูงสุด 5 คน/ตี้ · โบนัส EXP +20%/คน และ +30% เมื่อมีพระซัพ)</span>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(175px, 1fr)); gap: 8px; align-items: end;">
+              <label class="pe-party-field">บทบาทในปาร์ตี้ (Party Role)
+                <select id="plan-party-role" class="form-select">
+                  <option value="leader">👑 หัวตี้ (สร้างตี้ + ลงประกาศรับอัตโนมัติ)</option>
+                  <option value="member">⚔️ สมาชิกตี้ (เข้าตี้ + ย้ายแนลตามหัวตี้ + ช่วยตี)</option>
+                  <option value="support">✨ พระซัพพอร์ต (เข้าตี้ + เดินตามหัวตี้ + ฮีล/ชุบ/บัฟ)</option>
+                </select>
+              </label>
+              <label class="pe-party-field">รหัสแท็กตี้ / ชื่อหัวตี้ (Party Tag / Leader)
+                <input type="text" id="plan-party-tag" class="form-input" placeholder="เช่น TEAM1 หรือชื่อตัวละครหัวตี้">
+              </label>
+              <label class="pe-party-field" id="plan-party-loot-wrap">กติกาของดรอป (เมื่อเป็นหัวตี้)
+                <select id="plan-party-loot" class="form-select">
+                  <option value="f">🎒 ใครเจอคนนั้นได้</option>
+                  <option value="t">🔄 ผลัดกันรับ</option>
+                  <option value="r">🎲 สุ่มให้สมาชิก</option>
+                  <option value="l">👑 หัวตี้เก็บ</option>
+                </select>
+              </label>
+              <label class="pe-party-field" id="plan-party-group-wrap">รูปแบบการเดินฟาร์มในตี้
+                <select id="plan-party-group" class="form-select">
+                  <option value="g">🧲 เกาะกลุ่มหัวตี้ (เดินตีใกล้หัวตี้)</option>
+                  <option value="s">🏃 แยกตีอิสระในแมพเดียวกัน</option>
+                </select>
+              </label>
+              <label class="pe-party-field" id="plan-party-minlv-wrap">เริ่มเซ็ตตี้เมื่อถึง Base Lv.
+                <input type="number" id="plan-party-minlv" class="form-input" min="1" max="99" value="1">
+              </label>
+            </div>
+            <div style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 8px; padding-top: 6px; border-top: 1px dashed rgba(255,255,255,0.08); font-size: 11px; color: #cbd5e1;">
+              <label style="display: inline-flex; align-items: center; gap: 5px; cursor: pointer;">
+                <input type="checkbox" id="plan-party-sync-map" checked style="accent-color:#10b981;">
+                <span>🌐 สมาชิกย้ายแชนแนล (CH) &amp; เดินตามแมพหัวตี้อัตโนมัติ</span>
+              </label>
+              <label style="display: inline-flex; align-items: center; gap: 5px; cursor: pointer;">
+                <input type="checkbox" id="plan-party-sup-fight" checked style="accent-color:#10b981;">
+                <span>⚡ โหมดพระซัพ: ซัพ + ช่วยตีมอนรอบเพื่อนเมื่อเลือดเพื่อนเต็ม (เก็บ SP ไว้ฮีล)</span>
+              </label>
+              <label style="display: inline-flex; align-items: center; gap: 5px;">
+                <span>💚 พระฮีลเมื่อ HP ต่ำกว่า:</span>
+                <select id="plan-party-sup-heal" class="form-select" style="width: auto; padding: 2px 6px; font-size: 11px;">
+                  <option value="50">50%</option>
+                  <option value="70" selected>70%</option>
+                  <option value="90">90%</option>
+                </select>
+              </label>
             </div>
           </div>
 
@@ -1700,18 +1761,22 @@
 
       <!-- Budget Status Bar -->
       <div style="background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 10px 14px; margin: 10px 0 6px 0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
-        <div style="display: flex; gap: 14px; align-items: center; font-size: 12px;">
+        <div style="display: flex; gap: 14px; align-items: center; font-size: 12px; flex-wrap: wrap;">
           <div style="display: flex; align-items: center; gap: 6px;">
             <span style="color: #cbd5e1;">🐣 โนวิซ:</span>
             <span id="skill-budget-novice" class="badge" style="background: rgba(56, 189, 248, 0.2); color: #38bdf8; font-weight: bold;">0 / 9 แต้ม</span>
           </div>
           <div style="display: flex; align-items: center; gap: 6px;">
-            <span style="color: #cbd5e1;">🏹 Class 1:</span>
+            <span style="color: #cbd5e1;">⚔️ Class 1:</span>
             <span id="skill-budget-class1" class="badge" style="background: rgba(168, 85, 247, 0.2); color: #c084fc; font-weight: bold;">0 / 49 แต้ม</span>
           </div>
           <div style="display: flex; align-items: center; gap: 6px;">
             <span style="color: #cbd5e1;">👑 Class 2:</span>
             <span id="skill-budget-class2" class="badge" style="background: rgba(234, 179, 8, 0.2); color: #facc15; font-weight: bold;">0 / 49 แต้ม</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <span style="color: #cbd5e1;">🌟 Class 3:</span>
+            <span id="skill-budget-class3" class="badge" style="background: rgba(244, 63, 94, 0.2); color: #fb7185; font-weight: bold;">0 / 49 แต้ม</span>
           </div>
         </div>
         <div style="display: flex; gap: 6px;">
@@ -1725,15 +1790,18 @@
       </div>
 
       <!-- Tier Tabs -->
-      <div style="display: flex; gap: 6px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); padding-bottom: 8px; margin-bottom: 10px;">
+      <div style="display: flex; gap: 6px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); padding-bottom: 8px; margin-bottom: 10px; flex-wrap: wrap;">
         <button type="button" class="btn btn-primary btn-sm skill-tab-btn" data-tab="novice" id="skill-tab-novice">
           🐣 Novice (โนวิซ - 9 แต้ม)
         </button>
         <button type="button" class="btn btn-secondary btn-sm skill-tab-btn" data-tab="class1" id="skill-tab-class1">
-          🏹 Class 1 (<span id="skill-tab-class1-name">Archer</span> - 49 แต้ม)
+          ⚔️ Class 1 (<span id="skill-tab-class1-name">Archer</span> - 49 แต้ม)
         </button>
         <button type="button" class="btn btn-secondary btn-sm skill-tab-btn" data-tab="class2" id="skill-tab-class2">
           👑 Class 2 (<span id="skill-tab-class2-name">Hunter</span> - 49 แต้ม)
+        </button>
+        <button type="button" class="btn btn-secondary btn-sm skill-tab-btn" data-tab="class3" id="skill-tab-class3">
+          🌟 Class 3 (<span id="skill-tab-class3-name">Moonsniper</span> - 49 แต้ม)
         </button>
       </div>
 
@@ -1873,19 +1941,19 @@
     </div>
   </div>
 
-  <script src="image_board_solver.js?v=nc1.2.0"></script>
-  <script src="app.js?v=nc1.2.0"></script>
-  <script src="builder_module.js?v=nc1.2.0"></script>
-  <script src="patcher_module.js?v=nc1.2.0"></script>
-  <script src="bot_update.js?v=nc1.2.0"></script>
-  <script src="config_copy.js?v=nc1.2.0"></script>
-  <script src="party_manager.js?v=nc1.2.0"></script>
-  <script src="jail_manager.js?v=nc1.2.0"></script>
-  <script src="device_manager.js?v=nc1.2.0"></script>
-  <script src="fleet_dashboard.js?v=nc1.2.0"></script>
-  <script src="support_chat.js?v=nc1.2.0"></script>
-  <script src="announcements.js?v=nc1.2.0"></script>
-  <script src="update_log.js?v=nc1.2.0"></script>
+  <script src="image_board_solver.js?v=nc1.9.4"></script>
+  <script src="app.js?v=nc1.9.4"></script>
+  <script src="builder_module.js?v=nc1.9.4"></script>
+  <script src="patcher_module.js?v=nc1.9.4"></script>
+  <script src="bot_update.js?v=nc1.9.4"></script>
+  <script src="config_copy.js?v=nc1.9.4"></script>
+  <script src="party_manager.js?v=nc1.9.4"></script>
+  <script src="jail_manager.js?v=nc1.9.4"></script>
+  <script src="device_manager.js?v=nc1.9.4"></script>
+  <script src="fleet_dashboard.js?v=nc1.9.4"></script>
+  <script src="support_chat.js?v=nc1.9.4"></script>
+  <script src="announcements.js?v=nc1.9.4"></script>
+  <script src="update_log.js?v=nc1.9.4"></script>
   <!-- FLOATING IN-GAME BOT HUDS CONTAINER -->
   <div id="web-huds-container"></div>
 

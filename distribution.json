@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "sourceCommit": "d3bc6e78d88a504942082db89a45a98197ca24ae",
+  "sourceCommit": "234320a30cfcfcb15e7d75e1aab577909ba3213f",
   "files": [
     {
       "path": "manager/asset_cache.js",
@@ -8,15 +8,15 @@
     },
     {
       "path": "manager/auth_sync.js",
-      "sha256": "9ec6e86217fdf0c1ee0464de0387f0c2d53bc0f1a589fdb02bd243b8df5e1bd0"
+      "sha256": "f5c32bcecc01e616d3591bcfebb27ca063bb64fc18fbaea1e8e870f3d3a2a8fd"
     },
     {
       "path": "manager/bot_auto_update.js",
-      "sha256": "f09f94aa52c7795cba8e84ee275041f95a249d5f2da2e64d9e0a5aeeadba095c"
+      "sha256": "bd683eb9f853354f0b96ea1af8e83438b50a1abff6f9071e8f74762c7a1fe275"
     },
     {
       "path": "manager/browser_mode.js",
-      "sha256": "811156158ca64b44ee9d6c4502a1bee61a2e363ff503d40d1185c3fbae99fd09"
+      "sha256": "5c12ec4e7d66b165ed9f112f10ce66476b3bf6222e5ded0fff7f4233b4667ce7"
     },
     {
       "path": "manager/captcha_stats.js",
@@ -88,7 +88,7 @@
     },
     {
       "path": "manager/manager_self_update.js",
-      "sha256": "dd3f02e51a7a444ad78f6db8d1aa3ec7d65653b260d2efef79cfde414a5e9524"
+      "sha256": "aa3aea02dc14dbb9d1603866a62bc5914bd66fa2c9c791c6f65541f99735ad61"
     },
     {
       "path": "manager/market_sniper_api.js",
@@ -96,7 +96,7 @@
     },
     {
       "path": "manager/offline_coordinator.js",
-      "sha256": "6e7097f069e85f048710656829c23fa5ad5dcbefa75d1c0a5e78fb4684fc4856"
+      "sha256": "303fb77edf9d9a210297010fdb2cb63cb5218c40a0e43f7a687c72da553e251d"
     },
     {
       "path": "manager/offline_journal.js",
@@ -112,7 +112,7 @@
     },
     {
       "path": "manager/party_api.js",
-      "sha256": "72687d22dab1482a62c9c98ec533b8944af20c5654d9713850274073f8c6d06a"
+      "sha256": "6ff07a922611e4c629b4059812bd8ab2ee156734ee93b8045c9ea83241634176"
     },
     {
       "path": "manager/plan_sync.js",
@@ -140,7 +140,7 @@
     },
     {
       "path": "manager/public/app.js",
-      "sha256": "e9733aca2cd079ab617a599a2f121a50038614fae148de7025cd5845e8eb82bd"
+      "sha256": "0dede4f7ed27d7f9912e7d05bce152bc2549dd049bea153f5c0278fa7d2497eb"
     },
     {
       "path": "manager/public/bot_update.css",
@@ -152,7 +152,7 @@
     },
     {
       "path": "manager/public/builder_module.js",
-      "sha256": "bbee6cb1f315858d1ebe9ff56076d29b31f0eea41d648b81277f1e9992ccc189"
+      "sha256": "4d50eb9b104a56b5f2c82ebaf50e445b2e0798cbb6c8e06be17d18cd64aee485"
     },
     {
       "path": "manager/public/card_manager.css",
@@ -208,7 +208,7 @@
     },
     {
       "path": "manager/public/index.html",
-      "sha256": "e2adde7c10e9311d8f36bea5c79de2f4ca0435fd420e6894bffe53e6bdb400cd"
+      "sha256": "5eb9ff2426532c78728e38b411a6837085247c2762f0cadc0d2ddb2996ac36ce"
     },
     {
       "path": "manager/public/inventory_market.css",
@@ -240,11 +240,11 @@
     },
     {
       "path": "manager/public/party_manager.css",
-      "sha256": "345297ff4b5dc7dc101205a1fd660a9db5941902052cc46c303293f55e6d9f71"
+      "sha256": "ab63ce4fbcaa410f3eafc9987ff74c21ea2415d5a758e3876715ac703590d6be"
     },
     {
       "path": "manager/public/party_manager.js",
-      "sha256": "0c8ff43afb298289815f4653d9b4d8343a3aca0d8a7897452024d1d955555756"
+      "sha256": "275c23fa0c812c14ad3e0b401c8f4f5ff0965833e1209ad5425ae48794183217"
     },
     {
       "path": "manager/public/patcher_module.js",
@@ -252,7 +252,7 @@
     },
     {
       "path": "manager/public/plan_editor.css",
-      "sha256": "54866f26b17c119101526330b1903936496c14559316e63b75dbb5d06c603b8f"
+      "sha256": "46f9bd1c9c33c8fc5e8eb184c58892b370e9aa86bc0a2c9cd9736805058a38f8"
     },
     {
       "path": "manager/public/premium_manager.css",
@@ -288,7 +288,7 @@
     },
     {
       "path": "manager/public/update_log.js",
-      "sha256": "592094ba83f1c970d0b5775704b939237f37418ca54a99cb6c86e13df80d3875"
+      "sha256": "eebd6253a8a4767b834b5c5bb907704ff8ed08b15d5d5ddc39db5bdf40455a99"
     },
     {
       "path": "manager/remote_fleet.js",
@@ -320,7 +320,7 @@
     },
     {
       "path": "manager/server.js",
-      "sha256": "0c2ae3f0a3170c1a0e999b96b792da4b1dbed414077ff5ac3b1c53ab95e22c29"
+      "sha256": "2412621f57bcb256c9c12defb8518074a6757e73ced460e71da70dbf73ba0483"
     },
     {
       "path": "manager/test_isolation.js",

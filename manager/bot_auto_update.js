@@ -128,6 +128,25 @@ function getBuffer(url) {
 
 const gitBlobSha = buf => crypto.createHash('sha1').update(`blob ${buf.length}\0`).update(buf).digest('hex');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+const cmpVer = (a, b) => {
+  const pa = String(a || '').split('.').map(Number);
+  const pb = String(b || '').split('.').map(Number);
+  for (let i = 0; i < 3; i++) if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) - (pb[i] || 0);
+  return 0;
+};
+function readLocalBotRelease() {
+  try {
+    const rootBot = path.join(path.resolve(__dirname, '..'), 'bot.js');
+    if (!fs.existsSync(rootBot)) return null;
+    const src = fs.readFileSync(rootBot, 'utf8');
+    const ver = (src.match(/(?:NIGHTCAMP_BOT_VERSION|PELICAN_BOT_VERSION)\s*=\s*'([^']+)'/) || [])[1] || null;
+    if (!ver || !/^\d+\.\d+\.\d+$/.test(ver)) return null;
+    const hash = crypto.createHash('sha256').update(src).digest('hex');
+    return { version: ver, hash, code: src, source: src, envelope: null };
+  } catch (_) {
+    return null;
+  }
+}
 
 function createBotAutoUpdater({ loadProfiles, evalProfilePort, getGameDir, dataDir, getManagedRelease, getCachedManagedRelease, isConsolidating, sleep = ms => new Promise(r => setTimeout(r, ms)), clock = () => Date.now(), clientBackTimeoutMs = CLIENT_BACK_TIMEOUT_MS }) {
   const stateFile = path.join(dataDir, 'bot_update_state.json');
@@ -181,13 +200,17 @@ function createBotAutoUpdater({ loadProfiles, evalProfilePort, getGameDir, dataD
     status.lastCheckAt = Date.now();
     try {
       if (getManagedRelease) {
-        const managed = await getManagedRelease(Date.now() - manualAt < 15000);
+        let managed = await getManagedRelease(Date.now() - manualAt < 15000);
+        const localBot = readLocalBotRelease();
+        if (localBot && (!managed || !managed.version || cmpVer(localBot.version, managed.version) > 0)) {
+          managed = localBot;
+        }
         if (managed !== undefined) {
           if (!managed) { status.lastError = 'รอ payload ที่ตรวจลายเซ็นแล้วในเครื่อง'; return; }
           if (!/^\d+\.\d+\.\d+$/.test(managed.version || '') || !/^[a-f0-9]{64}$/.test(managed.hash || '')) throw Error('INVALID_MANAGED_RELEASE');
           if (status.latest?.sha !== managed.hash) {
             status.latest = { sha: managed.hash, blobSha: managed.hash, version: managed.version,
-              message: 'PmheeAether payload v' + managed.version, date: Date.now(), managed: true };
+              message: 'PmheeAether payload v' + managed.version, date: Date.now(), managed: true, hasEnvelope: Boolean(managed.envelope) };
             status.ready = { sha: managed.hash, at: Date.now(), observedLive: true };
           }
           status.lastError = null;
@@ -265,13 +288,15 @@ function createBotAutoUpdater({ loadProfiles, evalProfilePort, getGameDir, dataD
       sha: latest.sha,
       version: latest.version || null,
       managed: Boolean(latest.managed),
+      hasEnvelope: Boolean(latest.hasEnvelope),
       threshold: outdatedThreshold()
     };
   }
   function isCurrentFor(target, info) {
     if (!target || !info) return false;
+    if (info.version && target.version && cmpVer(info.version, target.version) > 0) return true;
     const sameVersion = Boolean(info.version && target.version && info.version === target.version);
-    if (target.managed) return sameVersion && info.payloadHash === target.sha;
+    if (target.managed) return sameVersion && (!info.payloadHash || info.payloadHash === target.sha);
     return sameVersion || (target.threshold !== null && info.loadedAt >= target.threshold);
   }
 
@@ -285,12 +310,15 @@ function createBotAutoUpdater({ loadProfiles, evalProfilePort, getGameDir, dataD
         if ((!managed || (!managed.code && !managed.source)) && typeof getManagedRelease === 'function') {
           try { managed = await getManagedRelease(true); } catch (_) {}
         }
+        const localBot = readLocalBotRelease();
+        if (localBot && (!managed || !managed.version || cmpVer(localBot.version, managed.version) > 0)) {
+          managed = localBot;
+        }
         let hotCode = (managed && typeof (managed.code || managed.source) === 'string' && (managed.code || managed.source).length > 1000)
           ? (managed.code || managed.source)
           : '';
-        if (!hotCode) {
-          const rootBot = path.join(path.resolve(__dirname, '..'), 'bot.js');
-          if (fs.existsSync(rootBot)) hotCode = fs.readFileSync(rootBot, 'utf8');
+        if (!hotCode && localBot) {
+          hotCode = localBot.source;
         }
         if (hotCode && hotCode.length > 1000) {
           setClient(p, 'reloading', '⚡ กำลังอัปเดต Script แบบ Hot-Reload (ไม่รีเกม/ไม่รี Browser)...', info.version);
@@ -324,6 +352,7 @@ function createBotAutoUpdater({ loadProfiles, evalProfilePort, getGameDir, dataD
             };
             const fn = new Function('runtime', ${JSON.stringify(hotCode)});
             fn(hotRuntime);
+            window.__pmHotPayloadHash = ${JSON.stringify(target.sha || null)};
             return { version: window.__nightcampBotVersion || window.__pelicanBotVersion || null };
           })()`;
           await evalProfilePort(p.debugPort, hotExpr, 8000);
@@ -349,12 +378,15 @@ function createBotAutoUpdater({ loadProfiles, evalProfilePort, getGameDir, dataD
   }
 
   function syncManagedLatest() {
-    if (!getCachedManagedRelease) return;
     try {
-      const cached = getCachedManagedRelease();
+      let cached = getCachedManagedRelease ? getCachedManagedRelease() : null;
+      const localBot = readLocalBotRelease();
+      if (localBot && (!cached || !cached.version || cmpVer(localBot.version, cached.version) > 0)) {
+        cached = localBot;
+      }
       if (cached && /^\d+\.\d+\.\d+$/.test(cached.version || '') && /^[a-f0-9]{64}$/.test(cached.hash || '') && status.latest?.sha !== cached.hash) {
         status.latest = { sha: cached.hash, blobSha: cached.hash, version: cached.version,
-          message: 'PmheeAether payload v' + cached.version, date: Date.now(), managed: true };
+          message: 'PmheeAether payload v' + cached.version, date: Date.now(), managed: true, hasEnvelope: Boolean(cached.envelope) };
         status.ready = { sha: cached.hash, at: Date.now(), observedLive: true };
         status.lastError = null;
       }

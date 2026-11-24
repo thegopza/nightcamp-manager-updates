@@ -1346,40 +1346,80 @@ function updateMetrics() {
 // RENDER CLIENT PROFILES (CARDS)
 // ==========================================
 
-// Accent hue per class family (used for portrait ring, class chip & card glow)
+// Accent hue per Nightcamp class family (used for portrait ring, class chip & card glow)
 function getClassHue(cls) {
   const c = String(cls || '').toLowerCase();
-  if (/novice/.test(c)) return 215;
-  if (/bard|dancer|gypsy|clown/.test(c)) return 285;
-  if (/archer|hunter|sniper|ranger/.test(c)) return 150;
-  if (/sword|knight|crusader|paladin/.test(c)) return 0;
-  if (/mage|wizard|sage|warlock/.test(c)) return 220;
-  if (/acolyte|priest|monk/.test(c)) return 45;
-  if (/thief|assassin|rogue/.test(c)) return 265;
-  if (/merchant|blacksmith|alchemist/.test(c)) return 25;
+  if (/traveler|นักเดินทาง|novice/.test(c)) return 210;
+  if (/bard|maestro|นักกวี|วาทยกร/.test(c)) return 285;
+  if (/archer|hunter|deadeye|นักธนู|นายพราน|พญาเหยี่ยว/.test(c)) return 150;
+  if (/warrior|knight|paladin|berserker|warlord|นักรบ|อัศวิน|พาลาริน|นักรบคลั่ง|ขุนศึก/.test(c)) return 12;
+  if (/mage|wizard|sage|archmage|oracle|นักเวท|จอมเวท|ปราชญ์|มหาจอมเวท|พยากรณ์/.test(c)) return 220;
+  if (/priest|bishop|monk|starsaint|asura|นักบวช|บิชอป|นักพรต|นักบุญ|อสูร/.test(c)) return 45;
+  if (/rogue|assassin|nightblade|phantom|โจร|นักฆ่า|จอมดาบเงา|ภูตเงา/.test(c)) return 265;
+  if (/puppeteer|soulweaver|marionettist|showmaster|เชิดหุ่น|ร้อยวิญญาณ|จ้าวหุ่น|จ้าวโรงละคร/.test(c)) return 320;
   return 195;
 }
 
-// Portrait served through the manager's cache (/api/portrait) so offline cards keep their face
 const failedPortraits = new Set();
+const nightcampPortraitCache = {};
+
 function onPortraitError(img) {
   failedPortraits.add(img.getAttribute('src'));
   img.parentElement.classList.add('no-img');
   img.remove();
 }
 
-function getPortraitSrc(p, state) {
-  const hasLiveChar = Boolean(state && state.charName);
-  let src = (hasLiveChar ? state?.portrait : '') || p.lastPortrait || state?.portrait || '';
-  if (!src) {
-    const rawCls = String((hasLiveChar && state?.charClass) || p.lastCharClass || p.charClass || 'novice').toLowerCase();
-    const cls = rawCls.split(/[^a-z]+/)[0] || 'novice';
-    src = `https://www.aetheria-online.in.th/art/classes/${cls}-face.webp`;
-  } else if (!src.startsWith('http')) {
-    src = `https://www.aetheria-online.in.th${src.startsWith('/') ? '' : '/'}${src}`;
+function buildNightcampClassSvgDataUrl(clsName) {
+  const c = String(clsName || '').toLowerCase();
+  let bg1 = '#0f172a', bg2 = '#1e293b', ring = '#38bdf8', glyph = '🌙';
+  if (/นักรบ|อัศวิน|พาลาริน|นักรบคลั่ง|ขุนศึก|warrior|knight|paladin|berserker|warlord/.test(c)) {
+    bg1 = '#2a1215'; bg2 = '#451a1c'; ring = '#f87171'; glyph = '⚔️';
+  } else if (/นักเวท|จอมเวท|ปราชญ์|มหาจอมเวท|พยากรณ์|mage|wizard|sage|archmage|oracle/.test(c)) {
+    bg1 = '#0f172a'; bg2 = '#1e1b4b'; ring = '#60a5fa'; glyph = '🔮';
+  } else if (/นักธนู|นายพราน|พญาเหยี่ยว|นักกวี|วาทยกร|archer|hunter|deadeye|bard|maestro/.test(c)) {
+    bg1 = '#062419'; bg2 = '#064e3b'; ring = '#34d399'; glyph = '🏹';
+  } else if (/โจร|นักฆ่า|จอมดาบเงา|ภูตเงา|rogue|assassin|nightblade|phantom/.test(c)) {
+    bg1 = '#1e1136'; bg2 = '#3b0764'; ring = '#c084fc'; glyph = '🗡️';
+  } else if (/นักบวช|บิชอป|นักพรต|นักบุญ|อสูร|priest|bishop|monk|starsaint|asura/.test(c)) {
+    bg1 = '#2e2107'; bg2 = '#451a03'; ring = '#fbbf24'; glyph = '✨';
+  } else if (/เชิดหุ่น|ร้อยวิญญาณ|จ้าวหุ่น|จ้าวโรงละคร|puppeteer|soulweaver|marionettist|showmaster/.test(c)) {
+    bg1 = '#2d0f2c'; bg2 = '#500724'; ring = '#f472b6'; glyph = '🎭';
   }
-  return failedPortraits.has(src) ? '' : src;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="${bg1}"/><stop offset="100%" stop-color="${bg2}"/></linearGradient></defs><rect width="80" height="80" rx="16" fill="url(#g)"/><circle cx="40" cy="40" r="32" fill="none" stroke="${ring}" stroke-opacity="0.35" stroke-width="2"/><text x="40" y="50" text-anchor="middle" font-size="30">${glyph}</text></svg>`;
+  return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
 }
+
+function getPortraitSrc(p, state) {
+  const pid = p?.id || '';
+  const livePortrait = state?.portrait || p?.liveState?.portrait || '';
+  if (livePortrait && livePortrait.startsWith('data:image/')) {
+    if (pid) {
+      nightcampPortraitCache[pid] = livePortrait;
+      try { localStorage.setItem('nc_portrait_' + pid, livePortrait); } catch (_) {}
+    }
+    return livePortrait;
+  }
+  if (pid) {
+    if (nightcampPortraitCache[pid]) return nightcampPortraitCache[pid];
+    try {
+      const saved = localStorage.getItem('nc_portrait_' + pid);
+      if (saved && saved.startsWith('data:image/')) {
+        nightcampPortraitCache[pid] = saved;
+        return saved;
+      }
+    } catch (_) {}
+  }
+  if (p?.lastPortrait && p.lastPortrait.startsWith('data:image/')) {
+    return p.lastPortrait;
+  }
+  const rawCls = String(state?.charClass || p?.lastCharClass || p?.charClass || 'นักเดินทาง');
+  return buildNightcampClassSvgDataUrl(rawCls);
+}
+
+window.getNightcampProfileAvatarUrl = function getNightcampProfileAvatarUrl(profileId) {
+  const p = (Array.isArray(currentProfiles) ? currentProfiles.find(x => String(x.id) === String(profileId)) : null) || { id: profileId };
+  return getPortraitSrc(p, p?.liveState);
+};
 
 function getActivityTone(text, screenPhase) {
   if (screenPhase && screenPhase !== 'in_game') {
@@ -1742,16 +1782,16 @@ function buildProfileCard(p) {
       </div>` : '')}
       <div class="card-hero">
         ${portraitSrc ? `<div class="card-hero-bg-wrap"><div class="card-hero-bg" style="background-image: url('${portraitSrc}');"></div></div>` : ''}
-        <div class="avatar ${portraitSrc ? '' : 'no-img'}" onclick="openWebBotHUD('${p.id}')" title="คลิกเพื่อเปิดเมนูบอทของจอนี้">
+        <div class="avatar ${portraitSrc ? '' : 'no-img'}" onclick="openNightcampCharacterModal('${p.id}')" title="คลิกเพื่อดูข้อมูลตัวละคร / สเตตัส / อุปกรณ์สวมใส่ / กระเป๋าไอเทม">
           <span class="avatar-fallback">${initial}</span>
           ${portraitSrc ? `<img src="${portraitSrc}" alt="${escapeHTML(curClass)}" draggable="false" onerror="onPortraitError(this)">` : ''}
           ${baseLv !== null ? `<span class="avatar-lv" title="Base Level">${baseLv}</span>` : ''}
           <span class="avatar-dot ${isOnline ? 'online' : ''}"></span>
-          <span class="avatar-hover-hint">🎮 เมนูบอท</span>
+          <span class="avatar-hover-hint">🎒 ตัวละคร & ของ</span>
         </div>
         <div class="card-identity">
           <div class="card-title-row">
-            <h3 class="profile-title" title="${escapeHTML(p.name)}">${escapeHTML(p.name)}</h3>
+            <h3 class="profile-title" onclick="openNightcampCharacterModal('${p.id}')" style="cursor:pointer;" title="คลิกเพื่อดูข้อมูลตัวละคร / อุปกรณ์ / กระเป๋า">${escapeHTML(p.name)}</h3>
             ${isBanned ? `<span class="jail-card-badge" title="${escapeHTML(banReason || 'บัญชีถูกระงับ')}">🚫 โดนแบน</span>` : ''}
             ${isJailed ? `<span class="jail-card-badge" title="ตัวละครนี้อยู่ในแมพคุก">⛓️ ติดคุก</span>` : ''}
             ${isPostSellOverweightStop ? `<span class="jail-card-badge" style="background:rgba(239,68,68,0.24);color:#fecaca;border-color:#ef4444;" title="${escapeHTML(postSellStopDetail)}">⚠️ ${escapeHTML(postSellStopReason)}</span>` : ''}
@@ -1760,7 +1800,7 @@ function buildProfileCard(p) {
           </div>
 
           <div class="card-subline">
-            ${charName ? `<span class="char-live-name">👤 ${escapeHTML(charName)}</span>` : ''}
+            ${charName ? `<span class="char-live-name" onclick="openNightcampCharacterModal('${p.id}')" style="cursor:pointer;" title="คลิกเพื่อดูข้อมูลตัวละคร / สเตตัส / อุปกรณ์ / กระเป๋า">👤 ${escapeHTML(charName)}</span>` : ''}
             <span class="profile-acc">${escapeHTML(p.account || (p.autoRegister ? '⏳ รอสมัครไอดีอัตโนมัติ' : 'บัญชีเริ่มต้น'))}</span>
             ${p.registerError ? `<span class="profile-acc" style="color:#f59e0b; font-size:0.74rem;" title="${escapeHTML(p.registerError)}">⚠️ ${escapeHTML(p.registerError)}</span>` : ''}
           </div>
@@ -1822,6 +1862,10 @@ function buildProfileCard(p) {
                   <span>ปิดจอเกมนี้</span>
                 </button>
                 <div class="card-menu-divider"></div>` : ''}
+                <button type="button" class="card-menu-item" onclick="closeCardMenu(); openNightcampCharacterModal('${p.id}')">
+                  <span class="cm-icon">🎒</span>
+                  <span>ข้อมูลตัวละคร / สวมใส่ / กระเป๋า</span>
+                </button>
                 <button type="button" class="card-menu-item" onclick="closeCardMenu(); openWebBotHUD('${p.id}')">
                   <span class="cm-icon">🎮</span>
                   <span>เปิดเมนูบอท Nightcamp</span>
@@ -8533,18 +8577,90 @@ function renderNightcampServerOptions(selectedServer) {
   return opts.map(o => `<option value="${escapeHTML(o.value)}"${o.value === cur ? ' selected' : ''}>${escapeHTML(o.label)}</option>`).join('');
 }
 
+const NIGHTCAMP_FARM_MAP_OPTIONS = [
+  ['auto', '⚡ อัตโนมัติตามเลเวล (Auto Level Map)'],
+  ['farm', '[Lv.1-10] ไร่ฟักทอง (farm)'],
+  ['curinghouse', '[Lv.5-10] โรงบ่มใบยา (curinghouse)'],
+  ['melonfield', '[Lv.6-12] แปลงแตงโม (melonfield)'],
+  ['windpump', '[Lv.7-13] กังหันสูบน้ำ (windpump)'],
+  ['batcave', '[Lv.8-16] ถ้ำค้างคาว (batcave)'],
+  ['meadow', '[Lv.8-18] ทุ่งหญ้าแสงจันทร์ (meadow)'],
+  ['apiary', '[Lv.10-18] สวนรังผึ้ง (apiary)'],
+  ['appleslope', '[Lv.10-18] เนินสวนแอปเปิล (appleslope)'],
+  ['dandelion', '[Lv.12-20] ทุ่งดอกแดนดิไลออน (dandelion)'],
+  ['cornmaze', '[Lv.12-20] เขาวงกตข้าวโพด (cornmaze)'],
+  ['farm2', '[Lv.12-22] ไร่ฟักทองในลึก (farm2)'],
+  ['marsh', '[Lv.15-25] บึงหมอกพิษ (marsh)'],
+  ['reedmaze', '[Lv.16-26] พงกกริมน้ำ (reedmaze)'],
+  ['beaverdam', '[Lv.16-26] เขื่อนบีเวอร์ (beaverdam)'],
+  ['eelhut', '[Lv.17-27] กระท่อมปลาไหล (eelhut)'],
+  ['graveyard', '[Lv.18-30] เนินสุสานโบสถ์ร้าง (graveyard)'],
+  ['meadow2', '[Lv.18-28] ทุ่งหญ้าแสงจันทร์ชั้นใน (meadow2)'],
+  ['battlefield', '[Lv.18-28] สมรภูมิหุ่นฟาง (battlefield)'],
+  ['tallgrass', '[Lv.20-30] ทุ่งหญ้าสูง (tallgrass)'],
+  ['thornrose', '[Lv.20-30] สวนกุหลาบหนาม (thornrose)'],
+  ['antmine1', '[Lv.20-30] เหมืองมด ชั้น 1 (antmine1)'],
+  ['diggervillage', '[Lv.22-32] หมู่บ้านนักขุดสุสาน (diggervillage)'],
+  ['wreathfield', '[Lv.22-32] ทุ่งหรีด (wreathfield)'],
+  ['giantbones', '[Lv.24-34] ลานกระดูกยักษ์ (giantbones)'],
+  ['marsh2', '[Lv.25-35] บึงหมอกพิษชั้นกลาง (marsh2)'],
+  ['woods', '[Lv.26-38] ป่าลึกเงามืด (woods)'],
+  ['antmine2', '[Lv.28-38] เหมืองมด ชั้น 2 (antmine2)'],
+  ['graveyard2', '[Lv.30-42] สุสานโบสถ์ร้างชั้นใน (graveyard2)'],
+  ['coffinhollow', '[Lv.32-44] หุบเขาโลงศพ (coffinhollow)'],
+  ['weepgarden', '[Lv.32-44] สวนหินร่ำไห้ (weepgarden)'],
+  ['burnt', '[Lv.35-48] ป่าไฟไหม้ (burnt)'],
+  ['ashvale', '[Lv.36-48] หุบเขาเถ้าถ่าน (ashvale)'],
+  ['stillburning', '[Lv.38-50] ป่าคุกรุ่น (stillburning)'],
+  ['woods2', '[Lv.38-50] ป่าลึกชั้นใน (woods2)'],
+  ['crypt1', '[Lv.40-52] สุสานใต้ดิน ชั้น 1 (crypt1)'],
+  ['sporevale', '[Lv.42-54] หุบเขาสปอร์ (sporevale)'],
+  ['salt', '[Lv.44-56] ทุ่งเกลือ (salt)'],
+  ['wind', '[Lv.45-58] ที่ราบสูงสายลม (wind)'],
+  ['peak', '[Lv.46-60] ยอดเขาหิมะ (peak)'],
+  ['crypt2', '[Lv.48-60] สุสานใต้ดิน ชั้น 2 (crypt2)'],
+  ['avalanche', '[Lv.50-65] หุบเขาหิมะถล่ม (avalanche)'],
+  ['snowpines', '[Lv.52-66] ป่าสนหิมะ (snowpines)'],
+  ['swamp', '[Lv.55-70] บึงมรณะ (swamp)'],
+  ['canyon', '[Lv.60-75] หุบผาหินแดง (canyon)'],
+  ['volcano', '[Lv.70-85] ปากปล่องภูเขาไฟ (volcano)']
+];
+
+function renderNightcampFarmMapOptionsHtml(selectedMap, filterText = '') {
+  const cur = String(selectedMap || 'auto');
+  const q = String(filterText || '').trim().toLowerCase();
+  return NIGHTCAMP_FARM_MAP_OPTIONS
+    .filter(([id, label]) => id === 'auto' || id === cur || !q || id.toLowerCase().includes(q) || label.toLowerCase().includes(q))
+    .map(([id, label]) => `<option value="${escapeHTML(id)}"${id === cur ? ' selected' : ''}>${escapeHTML(label)}</option>`)
+    .join('');
+}
+
 function getNightcampHudTemplate(profileId, clientData, profile) {
   const isCentral = (profileId === '__central__');
   const onlineCount = currentProfiles.filter(p => p.isRunning).length;
   const runningBots = currentProfiles.filter(p => p.isRunning && p.liveState?.isBotRunning).length;
-  const state = clientData?.state || (profile?.isRunning ? profile?.liveState : null) || {};
-  const auth = clientData?.authConfig || {};
+  const firstOnlineProf = currentProfiles.find(p => p.isRunning);
+  const state = clientData?.state || (profile?.isRunning ? profile?.liveState : (isCentral ? firstOnlineProf?.liveState : null)) || {};
+  const auth = clientData?.authConfig || state?.authConfig || {};
+  const pc = state?.potionConfig || {};
+  const sc = state?.sellConfig || {};
+  const pfc = state?.perfConfig || {
+    dotMonsters: true,
+    dotNpcs: true,
+    dotPlayer: false,
+    hideMapBg: true,
+    hideEffects: true,
+    hideOtherPlayers: true,
+    muteAudio: true,
+    trimVram: true,
+    fpsCap: 30
+  };
   const savedEnabled = (auth.enabled !== undefined) ? !!auth.enabled : (profile?.autoLoginEnabled !== false);
-  const savedServer = (auth.serverName !== undefined) ? String(auth.serverName || '') : String(profile?.serverName || '');
+  const savedServer = (auth.serverName !== undefined) ? String(auth.serverName || '') : String(profile?.serverName || firstOnlineProf?.serverName || '');
   const savedUser = (auth.username !== undefined) ? String(auth.username || '') : String(profile?.account || '');
   const savedPass = (auth.password !== undefined) ? String(auth.password || '') : String(profile?.loginPassword || '');
   const savedChar = (auth.charName !== undefined) ? String(auth.charName || '') : String(profile?.charName || '');
-  const savedResume = (auth.autoResumeBot !== undefined) ? !!auth.autoResumeBot : Boolean(profile?.autoResumeBot);
+  const savedResume = (auth.autoResumeBot !== undefined) ? !!auth.autoResumeBot : Boolean(profile?.autoResumeBot ?? firstOnlineProf?.autoResumeBot);
   const isOnline = isCentral ? onlineCount > 0 : Boolean(profile?.isRunning);
   const isBotRunning = Boolean(clientData?.isBotRunning ?? state?.isBotRunning);
   const isZeroRender = Boolean(state?.zeroRender ?? profile?.windowState?.isHidden);
@@ -8561,6 +8677,8 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
     ? `${state.sp.toLocaleString()} / ${(state.spMax || state.sp).toLocaleString()}`
     : '-- / --';
   const authStatusText = state?.authStatus || (savedEnabled ? (savedServer ? `Auto-Login: พร้อม (${savedServer})` : 'Auto-Login: พร้อมใช้งาน') : 'Auto-Login: ปิดใช้งาน');
+  const sellWeightThreshold = Number(sc.weightThreshold || state?.autoSellWeightPct || 65);
+  const smartQuestChecked = state?.smartAutoQuestEnabled !== false;
 
   return `
 <div class="p-header" id="pelican-drag-handle" style="flex-direction: column; align-items: stretch; gap: 5px; ${isCentral ? 'background: linear-gradient(135deg, #78350f 0%, #451a03 100%); border-bottom: 1px solid rgba(250, 204, 21, 0.45);' : 'background: linear-gradient(135deg, rgba(14, 116, 144, 0.45), rgba(15, 23, 42, 0.95));'}">
@@ -8580,17 +8698,24 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
   </div>
 </div>
 
-<div class="p-body" id="pelican-content" style="display:flex; flex-direction:column; gap:8px; padding:10px; max-height:76vh; overflow-y:auto;">
-  <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px; background:rgba(2, 6, 23, 0.65); border:1px solid rgba(148, 163, 184, 0.22); border-radius:7px; padding:3px;">
-    <button type="button" id="p-nc-tab-bot" style="padding:6px 8px; border:0; border-radius:5px; font-size:11px; font-weight:700; cursor:pointer; background:rgba(14, 165, 233, 0.24); color:#38bdf8;">🚀 บอท</button>
-    <button type="button" id="p-nc-tab-settings" style="padding:6px 8px; border:0; border-radius:5px; font-size:11px; font-weight:700; cursor:pointer; background:transparent; color:#94a3b8;">⚙️ ตั้งค่า</button>
+<div class="p-body" id="pelican-content" style="display:flex; flex-direction:column; gap:8px; padding:10px; max-height:78vh; overflow-y:auto;">
+  ${isCentral ? `
+  <div style="background: rgba(250, 204, 21, 0.12); border: 1px solid rgba(250, 204, 21, 0.35); color: #fde68a; padding: 6px 8px; border-radius: 6px; font-size: 10px; line-height: 1.45;">
+    💡 <b>โหมดเมนูส่วนกลาง (เหมือน Aetheria):</b> การเปิดหน้าต่างนี้หรือสลับแท็บจะไม่ทับค่าใดๆ ของแต่ละจอ จนกว่าคุณจะกดปุ่มหรือติ๊กปรับตัวเลือกตัวนั้น ระบบจึงจะส่งเฉพาะคำสั่งนั้นไปทุกจอที่ออนไลน์ทันที
+  </div>
+  ` : ''}
+
+  <!-- 4-Tab Bar matching in-game bot.js v1.9.2 -->
+  <div style="display:grid; grid-template-columns:1.15fr 0.95fr 0.95fr 0.85fr; gap:3px; background:rgba(2, 6, 23, 0.72); border:1px solid rgba(148, 163, 184, 0.24); border-radius:7px; padding:3px;">
+    <button type="button" id="p-nc-tab-bot" style="padding:5px 4px; border:0; border-radius:5px; font-size:10.5px; font-weight:700; cursor:pointer; background:#0284c7; color:#fff; white-space:nowrap;">🚀 บอท & เควส</button>
+    <button type="button" id="p-nc-tab-potions" style="padding:5px 4px; border:0; border-radius:5px; font-size:10.5px; font-weight:700; cursor:pointer; background:transparent; color:#94a3b8; white-space:nowrap;">🧪 ระบบยา</button>
+    <button type="button" id="p-nc-tab-sell" style="padding:5px 4px; border:0; border-radius:5px; font-size:10.5px; font-weight:700; cursor:pointer; background:transparent; color:#94a3b8; white-space:nowrap;">🛒 ซื้อ/ขาย</button>
+    <button type="button" id="p-nc-tab-settings" style="padding:5px 4px; border:0; border-radius:5px; font-size:10.5px; font-weight:700; cursor:pointer; background:transparent; color:#94a3b8; white-space:nowrap;">⚙️ ตั้งค่า</button>
   </div>
 
+  <!-- TAB 1: 🚀 บอท & เควส -->
   <div id="p-nc-pane-bot" style="display:flex; flex-direction:column; gap:8px;">
     ${isCentral ? `
-    <div style="background: rgba(250, 204, 21, 0.12); border: 1px solid rgba(250, 204, 21, 0.35); color: #fde68a; padding: 6px 8px; border-radius: 6px; font-size: 10px; line-height: 1.45;">
-      🎛️ <b>เมนูส่วนกลาง Nightcamp:</b> สั่งเริ่ม/หยุดบอท พักกราฟิกทุกจอ หรือเข้าแท็บ ⚙️ ตั้งค่า เพื่อเลือก Server / สั่ง Auto-Login ทุกจอได้
-    </div>
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
       <button type="button" class="p-btn" id="p-btn-central-start-bot" style="margin: 0; font-size: 11px; padding: 8px 6px; font-weight: bold; border-radius: 6px; background: linear-gradient(135deg, #16a34a, #15803d); color: #fff; border: 1px solid #4ade80; cursor: pointer;">▶️ เริ่มบอททุกจอ</button>
       <button type="button" class="p-btn" id="p-btn-central-stop-bot" style="margin: 0; font-size: 11px; padding: 8px 6px; font-weight: bold; border-radius: 6px; background: linear-gradient(135deg, #dc2626, #b91c1c); color: #fff; border: 1px solid #f87171; cursor: pointer;">⏹️ หยุดบอททุกจอ</button>
@@ -8624,15 +8749,16 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
       <button type="button" class="p-btn" id="p-btn-nc-reload" style="margin:0; font-size:10.5px; padding:6px; border-radius:6px; background:rgba(245,158,11,0.14); border:1px solid rgba(251,191,36,0.4); color:#fde68a; font-weight:700; cursor:pointer;">🔄 รีเฟรชจอเกม</button>
       <button type="button" class="p-btn" id="p-btn-nc-edit" style="margin:0; font-size:10.5px; padding:6px; border-radius:6px; background:rgba(148,163,184,0.14); border:1px solid rgba(148,163,184,0.35); color:#e2e8f0; font-weight:700; cursor:pointer;">⚙️ แก้ไขโปรไฟล์</button>
     </div>
+    `}
 
     <div class="p-card" style="border: 1px solid rgba(168, 85, 247, 0.42); background: linear-gradient(145deg, rgba(30, 17, 56, 0.65), rgba(15, 23, 42, 0.85)); border-radius: 7px; padding: 8px; display:flex; flex-direction:column; gap:6px;">
       <label style="display:flex; align-items:center; gap:5px; font-size:10.5px; font-weight:700; color:#86efac; cursor:pointer;" title="ใหญ่สุด: ทำเควส/บทเรียนอัตโนมัติทั้งหมด หากไม่ได้เปิด Plan Script ระบบจะหยุดรอให้คุณเลือกอาชีพเอง">
-        <input type="checkbox" id="p-nc-smart-autoquest-enabled" ${state?.smartAutoQuestEnabled !== false ? 'checked' : ''} style="accent-color:#22c55e;">
+        <input type="checkbox" id="p-nc-smart-autoquest-enabled" ${smartQuestChecked ? 'checked' : ''} style="accent-color:#22c55e;">
         <span>🧭 เปิด Smart Auto-Quest (ทำเควสอัตโนมัติ - ใหญ่สุด)</span>
       </label>
-      <label style="display:flex; align-items:center; gap:5px; font-size:10.5px; font-weight:700; color:#7dd3fc; cursor:pointer;" title="แก้บั๊ก AI ของเกมที่เดินวนของดรอป + วิ่งหาโซนเกิดมอนเควส + เคลียร์มอนแย่งจุดเกิด">
+      <label style="display:flex; align-items:center; gap:5px; font-size:10.5px; font-weight:700; color:#7dd3fc; cursor:pointer;" title="ออโต้สกิลครบทั้งแถบ 1 + แถบ 2 (16 ช่อง) + พระใช้แสงเยียวยาใส่มอนธาตุมืด/ซอมบี้รอบตัวอัตโนมัติ + เก็บของไว/ไม่เดินวน">
         <input type="checkbox" id="p-nc-upgrade-ai-enabled" ${state?.upgradeBotAiEnabled !== false ? 'checked' : ''} style="accent-color:#0ea5e9;">
-        <span>🧠 Upgrade BOT AI (เก็บของไว/ไม่เดินวน/วิ่งหาโซนมอน)</span>
+        <span>🧠 Upgrade BOT AI (ออโต้สกิลแถบ 1+2 / พระฮีลซอมบี้ / เก็บของไว)</span>
       </label>
       <label style="display:flex; align-items:center; gap:5px; font-size:10.5px; font-weight:700; color:#fda4af; cursor:pointer;" title="ตายแล้วกดกลับค่ายเกิดใหม่ทันที ไม่ต้องรอ 30 วินาที แล้วกลับไปทำเควส/แมพฟาร์มต่อ">
         <input type="checkbox" id="p-nc-autorespawn-enabled" ${state?.autoRespawnEnabled !== false ? 'checked' : ''} style="accent-color:#f43f5e;">
@@ -8642,97 +8768,75 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
         <input type="checkbox" id="p-nc-smartgear-enabled" ${state?.smartGearEnabled !== false ? 'checked' : ''} style="accent-color:#a855f7;">
         <span>⚔️ เปิด Smart Gear (สวมใส่อุปกรณ์ตามสายอาชีพ/Stats อัตโนมัติ)</span>
       </label>
-      <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; border-top:1px solid rgba(255,255,255,0.08); padding-top:5px;">
-        <label style="display:flex; align-items:center; gap:5px; font-size:10.5px; font-weight:700; color:#fde68a; cursor:pointer;">
-          <input type="checkbox" id="p-nc-autosell-enabled" ${state?.autoSellEnabled !== false ? 'checked' : ''} style="accent-color:#f59e0b;">
-          <span>💰 Auto-Sell เมื่อนน.เกิน:</span>
-        </label>
-        <select id="p-nc-autosell-pct" style="background:#090d16; border:1px solid rgba(251,191,36,0.5); color:#fde68a; border-radius:4px; font-size:10px; font-weight:700; padding:2px 5px; cursor:pointer;">
-          ${[45, 50, 55, 60, 65, 70, 75, 80].map(pct => `<option value="${pct}" ${Number(state?.autoSellWeightPct || 65) === pct ? 'selected' : ''}>${pct}%</option>`).join('')}
-        </select>
-      </div>
-      <div style="display:flex; flex-direction:column; gap:4px; border-top:1px solid rgba(255,255,255,0.08); padding-top:5px; background:rgba(2,6,23,0.4); border-radius:5px; padding:6px;">
-        <span style="font-size:10px; font-weight:700; color:#6ee7b7;">🧪 ระบบยา (ต้มยาจากขยะมอนลด 50% ➔ ขยะหมดซื้อในเมือง):</span>
-        <div style="display:flex; align-items:center; justify-content:space-between; gap:4px;">
-          <label style="display:flex; align-items:center; gap:4px; font-size:10px; font-weight:700; color:#fca5a5; cursor:pointer;">
-            <input type="checkbox" id="p-nc-pot-hp-en" ${state?.potionConfig?.hpEnabled !== false ? 'checked' : ''} style="accent-color:#ef4444;">
-            <span>HP</span>
-          </label>
-          <select id="p-nc-pot-hp-size" style="flex:1; background:#090d16; border:1px solid rgba(248,113,113,0.45); color:#fecaca; border-radius:4px; font-size:9.5px; padding:2px 4px;">
-            <option value="red" ${(state?.potionConfig?.hpSize || 'red') === 'red' ? 'selected' : ''}>ขวดเล็ก (HP+60)</option>
-            <option value="red_m" ${state?.potionConfig?.hpSize === 'red_m' ? 'selected' : ''}>ขวดกลาง (HP+220)</option>
-            <option value="red_l" ${state?.potionConfig?.hpSize === 'red_l' ? 'selected' : ''}>ขวดใหญ่ (HP+900)</option>
-            <option value="auto" ${state?.potionConfig?.hpSize === 'auto' ? 'selected' : ''}>อัตโนมัติตาม Lv</option>
-          </select>
-          <span style="font-size:9.5px; color:#cbd5e1;">&lt;</span>
-          <input type="number" id="p-nc-pot-hp-min" value="${state?.potionConfig?.hpMin ?? 15}" title="กลับไปซื้อ/คราฟเมื่อต่ำกว่า" style="width:38px; background:#090d16; border:1px solid rgba(248,113,113,0.45); color:#fff; border-radius:4px; font-size:9.5px; padding:2px 4px;">
-          <span style="font-size:9.5px; color:#cbd5e1;">➔</span>
-          <input type="number" id="p-nc-pot-hp-target" value="${state?.potionConfig?.hpTarget ?? 100}" title="จำนวนซื้อ/คราฟให้ครบ" style="width:42px; background:#090d16; border:1px solid rgba(248,113,113,0.45); color:#fff; border-radius:4px; font-size:9.5px; padding:2px 4px;">
-        </div>
-        <div style="display:flex; align-items:center; justify-content:space-between; gap:4px;">
-          <label style="display:flex; align-items:center; gap:4px; font-size:10px; font-weight:700; color:#93c5fd; cursor:pointer;">
-            <input type="checkbox" id="p-nc-pot-sp-en" ${state?.potionConfig?.spEnabled !== false ? 'checked' : ''} style="accent-color:#3b82f6;">
-            <span>Mana</span>
-          </label>
-          <select id="p-nc-pot-sp-size" style="flex:1; background:#090d16; border:1px solid rgba(96,165,250,0.45); color:#bfdbfe; border-radius:4px; font-size:9.5px; padding:2px 4px;">
-            <option value="blue" ${(state?.potionConfig?.spSize || 'blue') === 'blue' ? 'selected' : ''}>ขวดเล็ก (SP+60)</option>
-            <option value="blue_m" ${state?.potionConfig?.spSize === 'blue_m' ? 'selected' : ''}>ขวดกลาง (SP+200)</option>
-            <option value="blue_l" ${state?.potionConfig?.spSize === 'blue_l' ? 'selected' : ''}>ขวดใหญ่ (SP+390)</option>
-            <option value="auto" ${state?.potionConfig?.spSize === 'auto' ? 'selected' : ''}>อัตโนมัติตาม Lv</option>
-          </select>
-          <span style="font-size:9.5px; color:#cbd5e1;">&lt;</span>
-          <input type="number" id="p-nc-pot-sp-min" value="${state?.potionConfig?.spMin ?? 10}" title="กลับไปซื้อ/คราฟเมื่อต่ำกว่า" style="width:38px; background:#090d16; border:1px solid rgba(96,165,250,0.45); color:#fff; border-radius:4px; font-size:9.5px; padding:2px 4px;">
-          <span style="font-size:9.5px; color:#cbd5e1;">➔</span>
-          <input type="number" id="p-nc-pot-sp-target" value="${state?.potionConfig?.spTarget ?? 60}" title="จำนวนซื้อ/คราฟให้ครบ" style="width:42px; background:#090d16; border:1px solid rgba(96,165,250,0.45); color:#fff; border-radius:4px; font-size:9.5px; padding:2px 4px;">
-        </div>
-      </div>
-      <div style="display:flex; flex-direction:column; gap:3px; border-top:1px solid rgba(255,255,255,0.08); padding-top:5px;">
-        <span style="font-size:10px; font-weight:700; color:#e2e8f0;">🗺️ แมพฟาร์มประจำ (เมื่อปิด Auto-Quest):</span>
-        <select id="p-nc-target-farm-map" style="width:100%; background:#090d16; border:1px solid rgba(56,189,248,0.45); color:#fff; border-radius:4px; font-size:10px; padding:3px 5px; cursor:pointer;">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:5px; padding-left:18px;">
+        <span style="font-size:9.5px; color:#d8b4fe; white-space:nowrap;">🎯 อาวุธที่ใส่:</span>
+        <select id="p-nc-smartgear-wtype" style="flex:1; min-width:0; background:#090d16; border:1px solid rgba(168,85,247,0.5); color:#f3e8ff; border-radius:4px; font-size:10px; padding:3px 5px; cursor:pointer;">
           ${[
-            ['auto', '⚡ อัตโนมัติตามเลเวล (Auto Level Map)'],
-            ['farm', '[Lv.1-10] ไร่ฟักทอง (farm)'],
-            ['batcave', '[Lv.8-16] ถ้ำค้างคาว (batcave)'],
-            ['meadow', '[Lv.8-18] ทุ่งหญ้าแสงจันทร์ (meadow)'],
-            ['apiary', '[Lv.10-18] สวนรังผึ้ง (apiary)'],
-            ['cornmaze', '[Lv.12-20] เขาวงกตข้าวโพด (cornmaze)'],
-            ['farm2', '[Lv.12-22] ไร่ฟักทองในลึก (farm2)'],
-            ['marsh', '[Lv.15-25] บึงหมอกพิษ (marsh)'],
-            ['graveyard', '[Lv.18-30] เนินสุสานโบสถ์ร้าง (graveyard)'],
-            ['meadow2', '[Lv.18-28] ทุ่งหญ้าแสงจันทร์ชั้นใน (meadow2)'],
-            ['antmine1', '[Lv.20-30] เหมืองมด ชั้น 1 (antmine1)'],
-            ['woods', '[Lv.26-38] ป่าลึกเงามืด (woods)'],
-            ['antmine2', '[Lv.28-38] เหมืองมด ชั้น 2 (antmine2)'],
-            ['graveyard2', '[Lv.30-42] สุสานโบสถ์ร้างชั้นใน (graveyard2)'],
-            ['burnt', '[Lv.35-48] ป่าไฟไหม้ (burnt)'],
-            ['woods2', '[Lv.38-50] ป่าลึกชั้นใน (woods2)'],
-            ['crypt1', '[Lv.40-52] สุสานใต้ดิน ชั้น 1 (crypt1)'],
-            ['salt', '[Lv.44-56] ทุ่งเกลือ (salt)'],
-            ['wind', '[Lv.45-58] ที่ราบสูงสายลม (wind)'],
-            ['peak', '[Lv.46-60] ยอดเขาหิมะ (peak)'],
-            ['avalanche', '[Lv.50-65] หุบเขาหิมะถล่ม (avalanche)'],
-            ['swamp', '[Lv.55-70] บึงมรณะ (swamp)'],
-            ['canyon', '[Lv.60-75] หุบผาหินแดง (canyon)'],
-            ['volcano', '[Lv.70-85] ปากปล่องภูเขาไฟ (volcano)']
-          ].map(([id, label]) => `<option value="${id}" ${(state?.targetFarmMap || 'auto') === id ? 'selected' : ''}>${label}</option>`).join('')}
+            ['auto', '✨ อัตโนมัติตามอาชีพ/สกิล'],
+            ['sword', '🗡️ ดาบมือเดียว (+โล่)'],
+            ['gsword', '⚔️ ดาบใหญ่ 2 มือ'],
+            ['dsword', '⚔️ ดาบคู่ (Swordmaster)'],
+            ['spear', '🔱 หอกมือเดียว (+โล่)'],
+            ['lance', '🔱 หอกยาว 2 มือ (Dragonknight)'],
+            ['axe', '🪓 ขวานมือเดียว (+โล่)'],
+            ['gaxe', '🪓 ขวานยักษ์ 2 มือ (Berserker)'],
+            ['hammer', '🔨 ค้อนยักษ์ 2 มือ (Berserker)'],
+            ['mace', '🔨 กระบองมือเดียว (+โล่)'],
+            ['dagger', '🗡️ มีดคู่ (Rogue/Assassin)'],
+            ['katar', '爪 คาทาร์ (Assassin)'],
+            ['huuma', '卍 ดาวยักษ์ (Shinobi)'],
+            ['scythe', '🌙 เคียวใหญ่ 2 มือ (Reaper)'],
+            ['sickle', '🌙 เคียวคู่ (Reaper)'],
+            ['puppet', '🎎 ไม้เชิดหุ่น (+โล่ · Puppeteer)'],
+            ['wire', '🎎 ลวดเชิด 2 มือ (Puppeteer)'],
+            ['bow', '🏹 ธนู (Archer/Hunter/Sniper)'],
+            ['xbow', '🏹 หน้าไม้ (Hunter/Sniper)'],
+            ['instrument', '🎸 เครื่องดนตรี (Minstrel)'],
+            ['whip', '〰️ แส้ (Minstrel)'],
+            ['pistol', '🔫 ปืนพกคู่ (Outlaw)'],
+            ['shotgun', '🔫 ปืนลูกซอง (Outlaw)'],
+            ['staff', '🪄 คทา 2 มือ (Mage/Wizard)'],
+            ['orb', '🔮 ลูกแก้วเวท (+โล่ · Mage/Wizard)'],
+            ['lantern', '🏮 ตะเกียงวิญญาณ (+โล่ · Necro)'],
+            ['book', '📖 คัมภีร์ (+โล่ · Sage/Priest)'],
+            ['knuckle', '🥊 สนับมือ (+โล่ · Monk)'],
+            ['qstaff', '🦯 พลอง 2 มือ (Monk)'],
+            ['torch', '🔥 คบเพลิงศักดิ์สิทธิ์ (+โล่)'],
+            ['bell', '🔔 กระดิ่ง/ไม้วิเศษ (+โล่)']
+          ].map(([val, label]) => `<option value="${val}" ${(state?.smartGearWeaponType || 'auto') === val ? 'selected' : ''}>${label}</option>`).join('')}
         </select>
       </div>
+      <div id="p-nc-smartgear-note" style="font-size:9.5px; color:#d8b4fe; padding-left:18px; line-height:1.3;">${escapeHTML(state?.smartGearNote || '✨ พร้อมเทียบค่าพลังอุปกรณ์ในกระเป๋าตามสายอาชีพให้อัตโนมัติ')}</div>
+
+      <div style="display:flex; flex-direction:column; gap:4px; border-top:1px solid rgba(255,255,255,0.08); padding-top:5px;">
+        <span style="font-size:10px; font-weight:700; color:#e2e8f0;">🗺️ แมพฟาร์มประจำ (เมื่อปิด Auto-Quest):</span>
+        <input type="text" id="p-nc-target-farm-map-search" placeholder="🔍 พิมพ์ค้นหาชื่อแมพ หรือ เลเวล (คลิกเพื่อเลือกแมพ)..." autocomplete="off" style="width:100%; background:#090d16; border:1px solid rgba(148,163,184,0.35); color:#e2e8f0; border-radius:4px; font-size:10px; padding:4px 6px; box-sizing:border-box;">
+        <div id="p-nc-target-farm-map-results" style="display:none; flex-direction:column; gap:3px; max-height:145px; overflow-y:auto; background:#050811; border:1px solid rgba(56,189,248,0.55); border-radius:5px; padding:4px;"></div>
+        <select id="p-nc-target-farm-map" style="width:100%; background:#090d16; border:1px solid rgba(56,189,248,0.45); color:#fff; border-radius:4px; font-size:10px; padding:4px 5px; cursor:pointer;">
+          ${renderNightcampFarmMapOptionsHtml(state?.targetFarmMap || 'auto')}
+        </select>
+        <div id="p-nc-target-map-hint" style="font-size:9.5px; color:${smartQuestChecked ? '#fcd34d' : '#86efac'}; line-height:1.3;">
+          ${smartQuestChecked
+            ? '⚠️ ตอนนี้เปิด Smart Auto-Quest อยู่ (เควสใหญ่สุด · หากต้องการฟาร์มแมพนี้ให้ติ๊กปิด Auto-Quest)'
+            : '✅ ล็อกแมพฟาร์มประจำทำงานอยู่ (วาร์ป/เดินไปฟาร์ม + ตาย/ขายของเสร็จกลับมาแมพนี้)'}
+        </div>
+      </div>
+
       <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; border-top:1px solid rgba(255,255,255,0.08); padding-top:5px;">
         <label style="display:flex; align-items:center; gap:5px; font-size:10.5px; font-weight:700; color:#e9d5ff; cursor:pointer;">
           <input type="checkbox" id="p-nc-plan-enabled" ${state?.planScriptEnabled !== false ? 'checked' : ''} style="accent-color:#a855f7;">
-          <span>📜 เปิด Plan Script</span>
+          <span>📜 เปิด Plan Script (เปลี่ยนอาชีพ/อัป Stat-Skill)</span>
         </label>
-        <button type="button" id="p-btn-nc-open-plan" style="padding:3px 8px; font-size:10px; font-weight:700; border-radius:5px; border:1px solid rgba(56,189,248,0.45); background:rgba(14,165,233,0.22); color:#7dd3fc; cursor:pointer;">✏️ จัดการแผน</button>
+        <button type="button" id="p-btn-nc-open-plan" style="padding:3px 8px; font-size:10px; font-weight:700; border-radius:5px; border:1px solid rgba(56,189,248,0.45); background:rgba(14,165,233,0.22); color:#7dd3fc; cursor:pointer; white-space:nowrap;">✏️ จัดการแผน</button>
       </div>
       <div style="font-size:10px; color:#cbd5e1; display:flex; justify-content:space-between; gap:6px;">
         <span>แผนที่ใช้:</span>
-        <b id="p-nc-plan-name" style="color:#38bdf8; max-width:170px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHTML(state?.planName || '🌱 แผนตัวอย่าง Lv.1–50')}</b>
+        <b id="p-nc-plan-name" style="color:#38bdf8; max-width:185px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHTML(state?.planName || '🌱 แผนตัวอย่าง Lv.1–50')}</b>
       </div>
       <div id="p-nc-plan-task" style="font-size:9.5px; color:#6ee7b7; background:rgba(2,6,23,0.55); border:1px solid rgba(255,255,255,0.07); border-radius:5px; padding:4px 6px;">
         ${escapeHTML(state?.planTask || '🧭 พร้อมทำเควสหลัก + เปลี่ยนอาชีพ + ย้ายแมพตามแผนเมื่อกด START BOT')}
       </div>
     </div>
-    `}
 
     <div class="p-card" style="border: 1px solid rgba(56, 189, 248, 0.32); background: rgba(2, 6, 23, 0.65); border-radius: 7px; padding: 8px; display:flex; flex-direction:column; gap:6px;">
       <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -8743,11 +8847,280 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
     </div>
   </div>
 
+  <!-- TAB 2: 🧪 ระบบยา -->
+  <div id="p-nc-pane-potions" style="display:none; flex-direction:column; gap:8px;">
+    <div class="p-card" style="background:rgba(16,185,129,0.1); border:1px solid rgba(52,211,153,0.4); border-radius:7px; padding:8px; display:flex; flex-direction:column; gap:7px;">
+      <div style="font-size:11px; font-weight:700; color:#6ee7b7;">🧪 ระบบเติมยาอัตโนมัติ (ต้มยาจากขยะมอนลด 50% ➔ ซื้อร้านในค่าย)</div>
+      <div id="p-nc-pot-live-stock" style="font-size:10px; color:#cbd5e1; background:rgba(2,6,23,0.65); border:1px solid rgba(255,255,255,0.08); border-radius:5px; padding:6px; line-height:1.45;">
+        ${state?.potionStockHtml || 'กำลังตรวจสอบจำนวนยาและขยะมอนในกระเป๋า...'}
+      </div>
+
+      <div style="background:rgba(2,6,23,0.5); border:1px solid rgba(248,113,113,0.3); border-radius:6px; padding:7px; display:flex; flex-direction:column; gap:5px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:5px;">
+          <label style="display:flex; align-items:center; gap:5px; font-size:11px; font-weight:700; color:#fca5a5; cursor:pointer;">
+            <input type="checkbox" id="p-nc-pot-hp-en" ${pc.hpEnabled !== false ? 'checked' : ''} style="accent-color:#ef4444;">
+            <span>❤️ HP (ยาแดง)</span>
+          </label>
+          <select id="p-nc-pot-hp-size" style="background:#090d16; border:1px solid rgba(248,113,113,0.45); color:#fecaca; border-radius:4px; font-size:10px; padding:3px 6px;">
+            <option value="red" ${(pc.hpSize || 'red') === 'red' ? 'selected' : ''}>ขวดเล็ก (HP+60 · ต้ม 75g / ซื้อ 150g)</option>
+            <option value="red_m" ${pc.hpSize === 'red_m' ? 'selected' : ''}>ขวดกลาง (HP+220 · ต้ม 240g / ซื้อ 480g)</option>
+            <option value="red_l" ${pc.hpSize === 'red_l' ? 'selected' : ''}>ขวดใหญ่ (HP+900 · ต้ม 725g / ซื้อ 1450g)</option>
+            <option value="auto" ${pc.hpSize === 'auto' ? 'selected' : ''}>อัตโนมัติตามเลเวลตัวละคร</option>
+          </select>
+        </div>
+        <div style="display:flex; align-items:center; justify-content:space-between; font-size:10px; color:#fecaca; gap:6px;">
+          <span>🍹 ดื่มยาแดงเมื่อ HP ต่ำกว่า:</span>
+          <select id="p-nc-pot-hp-drink-pct" style="flex:1; background:#090d16; border:1px solid rgba(248,113,113,0.45); color:#fff; border-radius:4px; font-size:10.5px; font-weight:700; padding:2px 6px;">
+            ${[0, 20, 30, 40, 50, 60, 70, 75, 80, 85, 90, 95].map(pct => `<option value="${pct}" ${Number(pc.hpDrinkPct ?? 60) === pct ? 'selected' : ''}>${pct === 0 ? '❌ ไม่กดดื่มอัตโนมัติ' : pct + '%'}</option>`).join('')}
+          </select>
+        </div>
+        <div style="display:flex; align-items:center; justify-content:space-between; font-size:10px; color:#cbd5e1; gap:6px;">
+          <span>เมื่อเหลือน้อยกว่า:</span>
+          <input type="number" id="p-nc-pot-hp-min" value="${pc.hpMin ?? 15}" min="0" max="999" style="width:55px; background:#090d16; border:1px solid rgba(248,113,113,0.45); color:#fff; border-radius:4px; font-size:10.5px; padding:3px 5px; text-align:center;">
+          <span>➔ ต้ม/ซื้อให้ครบ:</span>
+          <input type="number" id="p-nc-pot-hp-target" value="${pc.hpTarget ?? 100}" min="10" max="999" style="width:60px; background:#090d16; border:1px solid rgba(248,113,113,0.45); color:#fff; border-radius:4px; font-size:10.5px; padding:3px 5px; text-align:center;">
+        </div>
+      </div>
+
+      <div style="background:rgba(2,6,23,0.5); border:1px solid rgba(96,165,250,0.3); border-radius:6px; padding:7px; display:flex; flex-direction:column; gap:5px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:5px;">
+          <label style="display:flex; align-items:center; gap:5px; font-size:11px; font-weight:700; color:#93c5fd; cursor:pointer;">
+            <input type="checkbox" id="p-nc-pot-sp-en" ${pc.spEnabled !== false ? 'checked' : ''} style="accent-color:#3b82f6;">
+            <span>💙 Mana (ยาฟ้า)</span>
+          </label>
+          <select id="p-nc-pot-sp-size" style="background:#090d16; border:1px solid rgba(96,165,250,0.45); color:#bfdbfe; border-radius:4px; font-size:10px; padding:3px 6px;">
+            <option value="blue" ${(pc.spSize || 'blue') === 'blue' ? 'selected' : ''}>ขวดเล็ก (SP+60 · ต้ม 150g / ซื้อ 300g)</option>
+            <option value="blue_m" ${pc.spSize === 'blue_m' ? 'selected' : ''}>ขวดกลาง (SP+200 · ต้ม 425g / ซื้อ 850g)</option>
+            <option value="blue_l" ${pc.spSize === 'blue_l' ? 'selected' : ''}>ขวดใหญ่ (SP+390 · ต้ม 1100g / ซื้อ 2200g)</option>
+            <option value="auto" ${pc.spSize === 'auto' ? 'selected' : ''}>อัตโนมัติตามเลเวลตัวละคร</option>
+          </select>
+        </div>
+        <div style="display:flex; align-items:center; justify-content:space-between; font-size:10px; color:#bfdbfe; gap:6px;">
+          <span>🍹 ดื่มยาฟ้าเมื่อ Mana ต่ำกว่า:</span>
+          <select id="p-nc-pot-sp-drink-pct" style="flex:1; background:#090d16; border:1px solid rgba(96,165,250,0.45); color:#fff; border-radius:4px; font-size:10.5px; font-weight:700; padding:2px 6px;">
+            ${[0, 20, 30, 40, 50, 60, 70, 75, 80, 85, 90, 95].map(pct => `<option value="${pct}" ${Number(pc.spDrinkPct ?? 40) === pct ? 'selected' : ''}>${pct === 0 ? '❌ ไม่กดดื่มอัตโนมัติ' : (pct === 80 || pct === 85 ? pct + '% (Archmage ร่ายไว)' : pct + '%')}</option>`).join('')}
+          </select>
+        </div>
+        <div style="display:flex; align-items:center; justify-content:space-between; font-size:10px; color:#cbd5e1; gap:6px;">
+          <span>เมื่อเหลือน้อยกว่า:</span>
+          <input type="number" id="p-nc-pot-sp-min" value="${pc.spMin ?? 10}" min="0" max="999" style="width:55px; background:#090d16; border:1px solid rgba(96,165,250,0.45); color:#fff; border-radius:4px; font-size:10.5px; padding:3px 5px; text-align:center;">
+          <span>➔ ต้ม/ซื้อให้ครบ:</span>
+          <input type="number" id="p-nc-pot-sp-target" value="${pc.spTarget ?? 60}" min="10" max="999" style="width:60px; background:#090d16; border:1px solid rgba(96,165,250,0.45); color:#fff; border-radius:4px; font-size:10.5px; padding:3px 5px; text-align:center;">
+        </div>
+      </div>
+
+      <label style="display:flex; align-items:center; gap:5px; font-size:10.5px; color:#a7f3d0; cursor:pointer;">
+        <input type="checkbox" id="p-nc-pot-prefer-craft" ${pc.preferCraft !== false ? 'checked' : ''} style="accent-color:#10b981;">
+        <span>⚗️ เอาขยะมอนไปต้มยาก่อน (ถูกกว่าซื้อ 50% · หากเงินติดตัวไม่พอจะเบิกเงินจากคลังร่วมให้อัตโนมัติ)</span>
+      </label>
+
+      <button type="button" class="p-btn" id="p-btn-nc-pot-restock-now" style="width:100%; background:#059669; border:1px solid #34d399; color:#fff; border-radius:6px; font-size:11px; font-weight:700; padding:7px; cursor:pointer;">
+        ${isCentral ? '🧪 สั่งทุกจอกลับค่ายไปคราฟ/ซื้อยาทันที' : '🧪 สั่งกลับค่ายไปคราฟ/ซื้อยาทันที'}
+      </button>
+    </div>
+  </div>
+
+  <!-- TAB 3: 🛒 ซื้อ/ขาย -->
+  <div id="p-nc-pane-sell" style="display:none; flex-direction:column; gap:7px;">
+    <div class="p-card" style="background:rgba(245,158,11,0.1); border:1px solid rgba(251,191,36,0.4); border-radius:7px; padding:8px; display:flex; flex-direction:column; gap:6px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
+        <label style="display:flex; align-items:center; gap:6px; font-size:11px; font-weight:700; color:#fde68a; cursor:pointer;">
+          <input type="checkbox" id="p-nc-autosell-enabled" ${sc.enabled !== false && state?.autoSellEnabled !== false ? 'checked' : ''} style="accent-color:#f59e0b;">
+          <span>💰 เปิด Auto-Sell เมื่อนน.เกิน</span>
+        </label>
+        <select id="p-nc-autosell-pct" style="background:#090d16; border:1px solid rgba(251,191,36,0.55); color:#fde68a; border-radius:4px; font-size:10.5px; font-weight:700; padding:2px 6px; cursor:pointer;">
+          ${[45, 50, 55, 60, 65, 70, 75, 80].map(pct => `<option value="${pct}" ${sellWeightThreshold === pct ? 'selected' : ''}>${pct}%</option>`).join('')}
+        </select>
+      </div>
+      <div id="p-nc-sell-live-weight" style="font-size:10px; color:#cbd5e1; background:rgba(2,6,23,0.65); border:1px solid rgba(255,255,255,0.08); border-radius:5px; padding:5px 7px; line-height:1.45;">
+        ${state?.sellLiveHtml || 'กำลังตรวจสอบน้ำหนักกระเป๋าและของพร้อมขาย...'}
+      </div>
+    </div>
+
+    <div class="p-card" style="background:rgba(14,165,233,0.09); border:1px solid rgba(56,189,248,0.35); border-radius:7px; padding:8px; display:flex; flex-direction:column; gap:6px;">
+      <div style="font-size:10.5px; font-weight:700; color:#7dd3fc;">🗂️ แยกขายตามระดับและประเภท (ร้านลุงโกโก้):</div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:5px; font-size:10px;">
+        <div style="display:flex; flex-direction:column; gap:2px;">
+          <span style="color:#cbd5e1;">⚔️ อาวุธ:</span>
+          <select id="p-nc-sell-weapon-grade" style="background:#090d16; border:1px solid rgba(56,189,248,0.4); color:#e2e8f0; border-radius:4px; font-size:10px; padding:3px 4px;">
+            <option value="0" ${Number(sc.weaponMaxGrade ?? 1) === 0 ? 'selected' : ''}>❌ ไม่ขาย</option>
+            <option value="1" ${Number(sc.weaponMaxGrade ?? 1) === 1 ? 'selected' : ''}>⚪ ทั่วไป (Common)</option>
+            <option value="2" ${Number(sc.weaponMaxGrade ?? 1) === 2 ? 'selected' : ''}>🔵≤ หายาก (Rare)</option>
+            <option value="3" ${Number(sc.weaponMaxGrade ?? 1) === 3 ? 'selected' : ''}>🟣≤ ล้ำค่า (Epic)</option>
+          </select>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:2px;">
+          <span style="color:#cbd5e1;">🛡️ ชุดเกราะ/หมวก/โล่:</span>
+          <select id="p-nc-sell-armor-grade" style="background:#090d16; border:1px solid rgba(56,189,248,0.4); color:#e2e8f0; border-radius:4px; font-size:10px; padding:3px 4px;">
+            <option value="0" ${Number(sc.armorMaxGrade ?? 1) === 0 ? 'selected' : ''}>❌ ไม่ขาย</option>
+            <option value="1" ${Number(sc.armorMaxGrade ?? 1) === 1 ? 'selected' : ''}>⚪ ทั่วไป (Common)</option>
+            <option value="2" ${Number(sc.armorMaxGrade ?? 1) === 2 ? 'selected' : ''}>🔵≤ หายาก (Rare)</option>
+            <option value="3" ${Number(sc.armorMaxGrade ?? 1) === 3 ? 'selected' : ''}>🟣≤ ล้ำค่า (Epic)</option>
+          </select>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:2px;">
+          <span style="color:#cbd5e1;">💍 เครื่องประดับ:</span>
+          <select id="p-nc-sell-acc-grade" style="background:#090d16; border:1px solid rgba(56,189,248,0.4); color:#e2e8f0; border-radius:4px; font-size:10px; padding:3px 4px;">
+            <option value="0" ${Number(sc.accMaxGrade ?? 0) === 0 ? 'selected' : ''}>❌ ไม่ขาย</option>
+            <option value="1" ${Number(sc.accMaxGrade ?? 0) === 1 ? 'selected' : ''}>⚪ ทั่วไป (Common)</option>
+            <option value="2" ${Number(sc.accMaxGrade ?? 0) === 2 ? 'selected' : ''}>🔵≤ หายาก (Rare)</option>
+            <option value="3" ${Number(sc.accMaxGrade ?? 0) === 3 ? 'selected' : ''}>🟣≤ ล้ำค่า (Epic)</option>
+          </select>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:2px;">
+          <span style="color:#cbd5e1;">🌿 ขยะมอน / วัตถุดิบ:</span>
+          <select id="p-nc-sell-mat-mode" style="background:#090d16; border:1px solid rgba(56,189,248,0.4); color:#e2e8f0; border-radius:4px; font-size:10px; padding:3px 4px;">
+            <option value="common" ${(sc.materialMode || 'common') === 'common' ? 'selected' : ''}>🧺 ขยะมอน+ของดี (เก็บแรร์บอส)</option>
+            <option value="all" ${(sc.materialMode === 'all' || sc.materialMode === 'all_except_rare') ? 'selected' : ''}>🔥 ขายทั้งหมด (รวมแรร์/เว้นเควส)</option>
+            <option value="plain_only" ${sc.materialMode === 'plain_only' ? 'selected' : ''}>📦 เก็บของดี (mat_vp) & แรร์ฝากคลัง</option>
+            <option value="none" ${sc.materialMode === 'none' ? 'selected' : ''}>❌ ไม่ขายวัตถุดิบ</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="p-card" style="background:rgba(168,85,247,0.1); border:1px solid rgba(192,132,252,0.35); border-radius:7px; padding:8px; display:flex; flex-direction:column; gap:5px; font-size:10px;">
+      <div style="font-size:10.5px; font-weight:700; color:#e9d5ff;">🔒 ล็อกความปลอดภัย & บริการในค่าย:</div>
+      <label style="display:flex; align-items:center; gap:5px; color:#f1f5f9; cursor:pointer;" title="เก็บอุปกรณ์แต่ละช่องที่มีคะแนนสายอาชีพสูงสุดไว้เสมอ และไม่ขายของที่สวมใส่อยู่">
+        <input type="checkbox" id="p-nc-sell-keep-best" ${sc.keepBestCopy !== false ? 'checked' : ''} style="accent-color:#a855f7;">
+        <span>🏆 ล็อกของที่ดีกว่าที่ใส่อยู่ตามสายอาชีพ (Smart Lock)</span>
+      </label>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px;">
+        <label style="display:flex; align-items:center; gap:5px; color:#f1f5f9; cursor:pointer;">
+          <input type="checkbox" id="p-nc-sell-keep-refined" ${sc.keepRefined !== false ? 'checked' : ''} style="accent-color:#a855f7;">
+          <span>🔨 ล็อกของตีบวก (+1↑)</span>
+        </label>
+        <label style="display:flex; align-items:center; gap:5px; color:#f1f5f9; cursor:pointer;">
+          <input type="checkbox" id="p-nc-sell-keep-boss" ${sc.keepBossGear !== false ? 'checked' : ''} style="accent-color:#a855f7;">
+          <span>👑 ล็อกของบอส/ตำนาน</span>
+        </label>
+      </div>
+      <label style="display:flex; align-items:center; gap:5px; color:#f1f5f9; cursor:pointer;">
+        <input type="checkbox" id="p-nc-sell-keep-special" ${sc.keepSpecial !== false ? 'checked' : ''} style="accent-color:#a855f7;">
+        <span>✨ ล็อกของมีออปชัน 3–4 แถว / เกรดขัด ≥ 2 / ประกายจันทร์ (✦)</span>
+      </label>
+      <label style="display:flex; align-items:center; gap:5px; color:#fde68a; cursor:pointer; border-top:1px solid rgba(255,255,255,0.08); padding-top:4px;">
+        <input type="checkbox" id="p-nc-sell-auto-repair" ${sc.autoRepair !== false ? 'checked' : ''} style="accent-color:#f59e0b;">
+        <span>🔧 แวะซ่อมอุปกรณ์ที่ป๋าหมูหริ่งอัตโนมัติ</span>
+      </label>
+    </div>
+
+    <div class="p-card" style="background:rgba(16,185,129,0.09); border:1px solid rgba(52,211,153,0.35); border-radius:7px; padding:8px; display:flex; flex-direction:column; gap:5px; font-size:10px;">
+      <div style="font-size:10.5px; font-weight:700; color:#6ee7b7;">📦 ฝากคลังค่าย & รายการยกเว้น (คั่นด้วย ,):</div>
+      <label style="display:flex; align-items:center; gap:5px; color:#d1fae5; cursor:pointer;" title="บอทจะต้มยาและขายของให้เสร็จก่อน แล้วจึงฝากวัตถุดิบที่เหลือเข้าคลังค่าย">
+        <input type="checkbox" id="p-nc-sell-store-mats" ${sc.storeMats !== false ? 'checked' : ''} style="accent-color:#10b981;">
+        <span>📦 ฝากวัตถุดิบที่เหลือเข้าคลังแคมป์อัตโนมัติ (หลังต้มยา/ขายของ)</span>
+      </label>
+      <label style="display:flex; align-items:center; gap:5px; color:#d1fae5; cursor:pointer;">
+        <input type="checkbox" id="p-nc-sell-store-gear" ${sc.storeGear ? 'checked' : ''} style="accent-color:#10b981;">
+        <span>🎒 ฝากอุปกรณ์สำรองที่ไม่ได้ขายเข้าคลังแคมป์</span>
+      </label>
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:5px; background:rgba(2,6,23,0.45); border:1px solid rgba(52,211,153,0.3); border-radius:5px; padding:4px 6px;">
+        <label style="display:flex; align-items:center; gap:5px; color:#fde68a; font-weight:700; cursor:pointer;" title="เมื่อกลับเมืองทำทุกอย่างเสร็จ (คราฟยา + ขายของ + ซ่อมของ) จะฝากเงินส่วนเกินเข้าคลังร่วมจนเหลือติดตัวตามที่ตั้งไว้">
+          <input type="checkbox" id="p-nc-sell-store-coins" ${sc.storeCoinsEnabled ? 'checked' : ''} style="accent-color:#f59e0b;">
+          <span>🏦 ฝากเงินเข้าคลัง (เหลือติดตัว):</span>
+        </label>
+        <div style="display:flex; align-items:center; gap:3px;">
+          <input type="number" id="p-nc-sell-keep-coins" value="${sc.keepCoinsOnHand ?? 1000}" min="0" step="100" style="width:66px; background:#090d16; border:1px solid rgba(251,191,36,0.5); color:#fde68a; border-radius:4px; font-size:10px; font-weight:700; padding:2px 4px; text-align:right;">
+          <span style="color:#94a3b8; font-size:9.5px;">เหรียญ</span>
+        </div>
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:5px; margin-top:2px;">
+        <div style="display:flex; flex-direction:column; gap:2px;">
+          <span style="color:#86efac;">🛡️ ห้ามขาย (Whitelist):</span>
+          <input type="text" id="p-nc-sell-whitelist" value="${escapeHTML(sc.whitelist || '')}" placeholder="เช่น ธนูล่าสัตว์, แร่ทอง" autocomplete="off" style="background:#090d16; border:1px solid rgba(52,211,153,0.4); color:#fff; border-radius:4px; font-size:9.5px; padding:3px 5px;">
+        </div>
+        <div style="display:flex; flex-direction:column; gap:2px;">
+          <span style="color:#fca5a5;">💰 บังคับขาย (Force Sell):</span>
+          <input type="text" id="p-nc-sell-forcesell" value="${escapeHTML(sc.forceSellList || '')}" placeholder="เช่น มีดสนิม, ขนหนู" autocomplete="off" style="background:#090d16; border:1px solid rgba(248,113,113,0.4); color:#fff; border-radius:4px; font-size:9.5px; padding:3px 5px;">
+        </div>
+      </div>
+      <button type="button" class="p-btn" id="p-btn-nc-sell-trip-now" style="margin-top:4px; width:100%; background:#d97706; border:1px solid #fbbf24; color:#fff; border-radius:6px; font-size:11px; font-weight:700; padding:7px; cursor:pointer;">
+        ${isCentral ? '🛒 สั่งทุกจอกลับค่ายไปขายของ & ฝากคลังทันที' : '🛒 สั่งกลับค่ายไปขายของ & ฝากคลังทันที'}
+      </button>
+    </div>
+
+    <div class="p-card" style="background:rgba(49,46,129,0.28); border:1px solid rgba(129,140,248,0.48); border-radius:7px; padding:8px; display:flex; flex-direction:column; gap:5px; font-size:10px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
+        <label style="display:flex; align-items:center; gap:5px; font-size:10.5px; font-weight:700; color:#c7d2fe; cursor:pointer;" title="เมื่อกลับค่ายจะนำไอเทมที่ตั้งไว้ในรายการ Auto-Sell ตลาดกลาง ไปวางขายบนชั้นของลุงโกโก้อัตโนมัติ พร้อมป้องกันไม่ให้ขายทิ้งร้าน NPC">
+          <input type="checkbox" id="p-nc-cm-autosell-enabled" ${(st.cmarketAutoSellConfig?.enabled) ? 'checked' : ''} style="accent-color:#818cf8;">
+          <span>🏪 เปิด Auto-Sell ตลาดกลาง (${(st.cmarketAutoSellConfig?.rules || []).length} รายการ)</span>
+        </label>
+        <select id="p-nc-cm-price-strategy" style="background:#090d16; border:1px solid rgba(129,140,248,0.5); color:#e0e7ff; border-radius:4px; font-size:9.5px; padding:2px 4px;">
+          <option value="undercut_1" ${(st.cmarketAutoSellConfig?.priceStrategy || 'undercut_1') === 'undercut_1' ? 'selected' : ''}>ตัดราคาต่ำสุด 1g (ข้ามราคาล่อ)</option>
+          <option value="lowest" ${st.cmarketAutoSellConfig?.priceStrategy === 'lowest' ? 'selected' : ''}>เท่ากับราคาต่ำสุดในตลาด</option>
+          <option value="median" ${st.cmarketAutoSellConfig?.priceStrategy === 'median' ? 'selected' : ''}>ราคากลาง (FairTrade)</option>
+          <option value="band_max" ${st.cmarketAutoSellConfig?.priceStrategy === 'band_max' ? 'selected' : ''}>ราคาเพดานสูงสุด</option>
+        </select>
+      </div>
+      <div style="font-size:9.5px; color:#a5b4fc; background:rgba(2,6,23,0.5); border-radius:4px; padding:3px 6px; line-height:1.35;">
+        ${escapeHTML(st.cmarketLastLog || '🛡️ ไอเทมในรายการตลาดกลางจะถูกป้องกันไม่ให้ขายทิ้งร้านลุงโกโก้อัตโนมัติ')}
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:5px;">
+        <button type="button" class="p-btn" id="p-btn-nc-open-cmarket-modal" style="background:rgba(79,70,229,0.28); border:1px solid rgba(129,140,248,0.55); color:#e0e7ff; border-radius:6px; font-size:10.5px; font-weight:700; padding:6px; cursor:pointer;">
+          ⚙️ ตั้งค่ารายการตลาดกลาง
+        </button>
+        <button type="button" class="p-btn" id="p-btn-nc-cm-sell-now" style="background:linear-gradient(135deg,#4f46e5,#4338ca); border:1px solid #818cf8; color:#fff; border-radius:6px; font-size:10.5px; font-weight:700; padding:6px; cursor:pointer;">
+          ${isCentral ? '⚡ สั่งทุกจอลงขายทันที' : '⚡ สั่งลงขายตลาดกลางทันที'}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 4: ⚙️ ตั้งค่า -->
   <div id="p-nc-pane-settings" style="display:none; flex-direction:column; gap:8px;">
+    <div class="p-card" style="background:rgba(16,185,129,0.1); border:1px solid rgba(52,211,153,0.45); border-radius:7px; padding:8px; display:flex; flex-direction:column; gap:5px;">
+      <div style="font-size:10.5px; font-weight:700; color:#6ee7b7;">⚡ ลดกราฟิก & จุดสีประหยัดสเปค (Ultra-Spec Saver)</div>
+      <label style="display:flex; align-items:center; gap:6px; font-size:10px; color:#fca5a5; cursor:pointer;">
+        <input type="checkbox" id="p-nc-perf-dot-monsters" ${pfc.dotMonsters !== false ? 'checked' : ''} style="accent-color:#ef4444;">
+        <span>🔴 แสดงมอนสเตอร์เป็น "จุดแดง + ชื่อมอน" (ลบตัวมอน)</span>
+      </label>
+      <label style="display:flex; align-items:center; gap:6px; font-size:10px; color:#86efac; cursor:pointer;">
+        <input type="checkbox" id="p-nc-perf-dot-npcs" ${pfc.dotNpcs !== false ? 'checked' : ''} style="accent-color:#22c55e;">
+        <span>🟢 แสดง NPC เป็น "จุดเขียว + ชื่อ NPC" (ลบตัว NPC)</span>
+      </label>
+      <label style="display:flex; align-items:center; gap:6px; font-size:10px; color:#7dd3fc; cursor:pointer; font-weight:600;" title="แทนที่การวาดโมเดลกระดูก/ชุด/ทรงผมตัวละครของเราและตี้ด้วยจุดสีฟ้า ประหยัด CPU/GPU สูงสุดเวลาเปิดหลายจอ">
+        <input type="checkbox" id="p-nc-perf-dot-player" ${pfc.dotPlayer ? 'checked' : ''} style="accent-color:#0ea5e9;">
+        <span>🔵 แสดงตัวละครเรา & ตี้เป็น "จุดฟ้า + ชื่อ" (ประหยัดสูงสุด)</span>
+      </label>
+      <label style="display:flex; align-items:center; gap:6px; font-size:10px; color:#cbd5e1; cursor:pointer;">
+        <input type="checkbox" id="p-nc-perf-hide-map" ${pfc.hideMapBg !== false ? 'checked' : ''} style="accent-color:#38bdf8;">
+        <span>🌑 ลบฉากพื้นหลัง / ต้นไม้ / สิ่งปลูกสร้าง (เหลือแค่ตัวละคร)</span>
+      </label>
+      <label style="display:flex; align-items:center; gap:6px; font-size:10px; color:#fde68a; cursor:pointer;">
+        <input type="checkbox" id="p-nc-perf-hide-fx" ${pfc.hideEffects !== false ? 'checked' : ''} style="accent-color:#f59e0b;">
+        <span>✨ ลบเอฟเฟกต์สกิล / เลขดาเมจ / เงา / แสงไฟ / ตัดผมหมวก</span>
+      </label>
+      <label style="display:flex; align-items:center; gap:6px; font-size:10px; color:#c4b5fd; cursor:pointer;">
+        <input type="checkbox" id="p-nc-perf-hide-players" ${pfc.hideOtherPlayers !== false ? 'checked' : ''} style="accent-color:#a855f7;">
+        <span>👥 ซ่อนผู้เล่นคนอื่น & สัตว์เลี้ยงคนอื่นบนแมพ</span>
+      </label>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px; border-top:1px solid rgba(255,255,255,0.08); padding-top:4px;">
+        <label style="display:flex; align-items:center; gap:5px; font-size:10px; color:#a7f3d0; cursor:pointer;" title="ปิดการสังเคราะห์และเล่นเสียงเอฟเฟกต์/เพลงทั้งหมดในเกม ลดภาระ CPU Audio Thread">
+          <input type="checkbox" id="p-nc-perf-mute-audio" ${pfc.muteAudio !== false ? 'checked' : ''} style="accent-color:#10b981;">
+          <span>🔇 ปิดเสียงเกมทั้งหมด</span>
+        </label>
+        <label style="display:flex; align-items:center; gap:5px; font-size:10px; color:#a7f3d0; cursor:pointer;" title="บีบอัดและล้าง Texture เก่าใน WebGL2 อัตโนมัติ ลดการกิน VRAM จาก ~450MB เหลือ ~80MB ต่อจอ">
+          <input type="checkbox" id="p-nc-perf-trim-vram" ${pfc.trimVram !== false ? 'checked' : ''} style="accent-color:#10b981;">
+          <span>🧹 บีบอัด VRAM การ์ดจอ</span>
+        </label>
+      </div>
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:6px; border-top:1px solid rgba(255,255,255,0.08); padding-top:4px;">
+        <span style="font-size:10px; color:#94a3b8;">⏱️ จำกัดเฟรมเรต (FPS Cap):</span>
+        <select id="p-nc-perf-fps-cap" style="background:#090d16; border:1px solid rgba(52,211,153,0.45); color:#6ee7b7; border-radius:4px; font-size:10px; font-weight:700; padding:2px 6px;">
+          <option value="10" ${Number(pfc.fpsCap ?? 30) === 10 ? 'selected' : ''}>10 FPS (ประหยัดสุดขีด)</option>
+          <option value="15" ${Number(pfc.fpsCap ?? 30) === 15 ? 'selected' : ''}>15 FPS (ประหยัดสุด)</option>
+          <option value="20" ${Number(pfc.fpsCap ?? 30) === 20 ? 'selected' : ''}>20 FPS (ประหยัดมาก)</option>
+          <option value="30" ${Number(pfc.fpsCap ?? 30) === 30 ? 'selected' : ''}>30 FPS (แนะนำ · สมดุล)</option>
+          <option value="60" ${Number(pfc.fpsCap ?? 30) === 60 ? 'selected' : ''}>60 FPS (ลื่นปกติ)</option>
+        </select>
+      </div>
+    </div>
+
     ${isCentral ? `
     <div class="p-card" style="border: 1px solid rgba(168, 85, 247, 0.55); background: rgba(30, 17, 56, 0.62); border-radius: 8px; padding: 10px; display:flex; flex-direction:column; gap:8px;">
       <label style="display:flex; align-items:center; gap:7px; font-size:11.5px; font-weight:700; color:#e9d5ff; cursor:pointer;">
-        <input type="checkbox" id="p-central-auth-enabled" checked style="accent-color:#a855f7;">
+        <input type="checkbox" id="p-central-auth-enabled" ${savedEnabled ? 'checked' : ''} style="accent-color:#a855f7;">
         <span>🔐 เปิดระบบ Auto-Login ทุกจอที่ออนไลน์</span>
       </label>
       <div style="font-size:10px; color:#cbd5e1; line-height:1.45;">
@@ -8756,11 +9129,11 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
       <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
         <span style="font-size:10.5px; color:#e2e8f0; white-space:nowrap;">เลือก Server:</span>
         <select id="p-central-auth-server" style="flex:1; min-width:0; background:#090d16; border:1px solid rgba(192,132,252,0.5); color:#fff; border-radius:5px; font-size:11px; padding:5px 7px;">
-          ${renderNightcampServerOptions('')}
+          ${renderNightcampServerOptions(savedServer)}
         </select>
       </div>
       <label style="display:flex; align-items:center; gap:6px; font-size:10.5px; color:#4ade80; cursor:pointer;">
-        <input type="checkbox" id="p-central-auth-resume" style="accent-color:#22c55e;">
+        <input type="checkbox" id="p-central-auth-resume" ${savedResume ? 'checked' : ''} style="accent-color:#22c55e;">
         <span>เริ่มทำงานบอทต่อทันทีเมื่อ Login สำเร็จ (Auto-Resume)</span>
       </label>
       <button type="button" class="p-btn" id="p-btn-central-apply-auth" style="width:100%; background:#6d28d9; border:1px solid #a855f7; color:#fff; font-size:11px; font-weight:700; padding:7px; border-radius:6px; cursor:pointer;">💾 บันทึกการตั้งค่าไปยังทุกจอที่ออนไลน์</button>
@@ -8773,7 +9146,7 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
         <span>🔐 เปิดระบบ Auto-Login (เข้าเกมอัตโนมัติ)</span>
       </label>
       <div style="font-size:10px; color:#cbd5e1; line-height:1.45;">
-        เมื่อเกมหลุดหรือเด้งไปหน้าเลือกเซิร์ฟ/Login บอทจะเลือก Server, กรอก ID/PS และเลือกตัวละครเข้าเกมให้อัตโนมัติ
+        เมื่อเกมหลุดหรือเด้งไปหน้าเลือกเซิร์ฟ/Login บอทจะเลือก Server, กรอก ID/PS และเลือกตัวละครเข้าเกมให้อัตโนมัติ (เมื่อปิด Auto-Login บอทจะไม่กดเข้าตัวละครให้ เพื่อให้สร้างตัวใหม่ได้)
       </div>
       <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
         <span style="font-size:10.5px; color:#e2e8f0; white-space:nowrap;">เลือก Server:</span>
@@ -8800,7 +9173,7 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
         <input type="checkbox" id="p-auth-resume" ${savedResume ? 'checked' : ''} style="accent-color:#22c55e;">
         <span>เริ่มทำงานบอทต่อทันทีเมื่อ Login สำเร็จ (Auto-Resume)</span>
       </label>
-      <button type="button" class="p-btn" id="p-btn-test-login" style="width:100%; margin-top:2px; background:linear-gradient(135deg,#9333ea,#7e22ce); border:1px solid #c084fc; color:#fff; font-size:11px; font-weight:700; padding:8px; border-radius:6px; cursor:pointer;">🔑 ทดสอบเข้าสู่ระบบทันที (Test Login)</button>
+      <button type="button" class="p-btn" id="p-btn-test-login" style="width:100%; margin-top:2px; background:linear-gradient(135deg,#9333ea,#7e22ce); border:1px solid #c084fc; color:#fff; font-size:11px; font-weight:700; padding:8px; border-radius:6px; cursor:pointer;">🔑 บันทึก & ทดสอบ Login ทันที</button>
     </div>
     `}
   </div>
@@ -8983,18 +9356,28 @@ async function openWebBotHUD(profileId) {
       const json = await res.json();
       if (json.success) clientData = json.data;
     } catch (_) {}
+  } else if (isCentral) {
+    const firstOnline = currentProfiles.find(p => p.isRunning);
+    if (firstOnline) {
+      try {
+        const res = await fetch(API_BASE + '/api/profiles/' + firstOnline.id + '/client-data');
+        const json = await res.json();
+        if (json.success) clientData = json.data;
+      } catch (_) {}
+    }
   }
 
   const container = document.getElementById("web-huds-container") || document.body;
   const hudCount = Object.keys(activeWebHuds).length;
   const topPos = Math.max(40, Math.min(window.innerHeight - 450, 100 + (hudCount * 30) % 250));
-  const leftPos = Math.max(20, Math.min(window.innerWidth - 320, 60 + (hudCount * 35) % 400));
+  const leftPos = Math.max(20, Math.min(window.innerWidth - 340, 60 + (hudCount * 35) % 400));
 
   const hudEl = document.createElement("div");
   hudEl.className = "pelican-hud-web" + (isCentral ? " is-central-hud" : "");
   hudEl.id = 'pelican-hud-' + profileId;
   hudEl.style.top = topPos + 'px';
   hudEl.style.left = leftPos + 'px';
+  hudEl.style.width = '332px';
   hudEl.style.zIndex = ++topHudZIndex;
   if (isCentral) {
     hudEl.style.borderColor = "rgba(250, 204, 21, 0.65)";
@@ -9012,26 +9395,41 @@ async function openWebBotHUD(profileId) {
     isCentral: isCentral
   };
 
-  // Tab switchers (🚀 บอท | ⚙️ ตั้งค่า)
+  // 4-Tab switchers (🚀 บอท & เควส | 🧪 ระบบยา | 🛒 ซื้อ/ขาย | ⚙️ ตั้งค่า)
   const tabBotBtn = hudEl.querySelector('#p-nc-tab-bot');
+  const tabPotBtn = hudEl.querySelector('#p-nc-tab-potions');
+  const tabSellBtn = hudEl.querySelector('#p-nc-tab-sell');
   const tabSetBtn = hudEl.querySelector('#p-nc-tab-settings');
   const paneBot = hudEl.querySelector('#p-nc-pane-bot');
+  const panePot = hudEl.querySelector('#p-nc-pane-potions');
+  const paneSell = hudEl.querySelector('#p-nc-pane-sell');
   const paneSet = hudEl.querySelector('#p-nc-pane-settings');
   const switchTab = (tab) => {
     if (activeWebHuds[profileId]) activeWebHuds[profileId].activeTab = tab;
-    const isBot = (tab === 'bot');
-    if (paneBot) paneBot.style.display = isBot ? 'flex' : 'none';
-    if (paneSet) paneSet.style.display = isBot ? 'none' : 'flex';
+    if (paneBot) paneBot.style.display = tab === 'bot' ? 'flex' : 'none';
+    if (panePot) panePot.style.display = tab === 'potions' ? 'flex' : 'none';
+    if (paneSell) paneSell.style.display = tab === 'sell' ? 'flex' : 'none';
+    if (paneSet) paneSet.style.display = tab === 'settings' ? 'flex' : 'none';
     if (tabBotBtn) {
-      tabBotBtn.style.background = isBot ? 'rgba(14, 165, 233, 0.24)' : 'transparent';
-      tabBotBtn.style.color = isBot ? '#38bdf8' : '#94a3b8';
+      tabBotBtn.style.background = tab === 'bot' ? '#0284c7' : 'transparent';
+      tabBotBtn.style.color = tab === 'bot' ? '#fff' : '#94a3b8';
+    }
+    if (tabPotBtn) {
+      tabPotBtn.style.background = tab === 'potions' ? '#059669' : 'transparent';
+      tabPotBtn.style.color = tab === 'potions' ? '#fff' : '#94a3b8';
+    }
+    if (tabSellBtn) {
+      tabSellBtn.style.background = tab === 'sell' ? '#d97706' : 'transparent';
+      tabSellBtn.style.color = tab === 'sell' ? '#fff' : '#94a3b8';
     }
     if (tabSetBtn) {
-      tabSetBtn.style.background = isBot ? 'transparent' : 'rgba(168, 85, 247, 0.28)';
-      tabSetBtn.style.color = isBot ? '#94a3b8' : '#d8b4fe';
+      tabSetBtn.style.background = tab === 'settings' ? '#7c3aed' : 'transparent';
+      tabSetBtn.style.color = tab === 'settings' ? '#fff' : '#94a3b8';
     }
   };
   if (tabBotBtn) tabBotBtn.onclick = () => switchTab('bot');
+  if (tabPotBtn) tabPotBtn.onclick = () => switchTab('potions');
+  if (tabSellBtn) tabSellBtn.onclick = () => switchTab('sell');
   if (tabSetBtn) tabSetBtn.onclick = () => switchTab('settings');
 
   // Central actions
@@ -9075,15 +9473,24 @@ async function openWebBotHUD(profileId) {
   if (editBtn) editBtn.onclick = () => openEditModal(profileId);
 
   const openPlanBtn = hudEl.querySelector('#p-btn-nc-open-plan');
-  if (openPlanBtn) openPlanBtn.onclick = () => openScriptPlanModal(profileId);
+  if (openPlanBtn) openPlanBtn.onclick = () => openScriptPlanModal(isCentral ? (currentProfiles.find(p => p.isRunning)?.id || null) : profileId);
 
+  // Tab 1: 🚀 บอท & เควส controls (works for both single window and เมนูส่วนกลาง __central__)
   const aqEnableCb = hudEl.querySelector('#p-nc-smart-autoquest-enabled');
+  const mapHintEl = hudEl.querySelector('#p-nc-target-map-hint');
   if (aqEnableCb) {
     aqEnableCb.onchange = async () => {
+      const on = Boolean(aqEnableCb.checked);
+      if (mapHintEl) {
+        mapHintEl.textContent = on
+          ? '⚠️ ตอนนี้เปิด Smart Auto-Quest อยู่ (เควสใหญ่สุด · หากต้องการฟาร์มแมพนี้ให้ติ๊กปิด Auto-Quest)'
+          : '✅ ล็อกแมพฟาร์มประจำทำงานอยู่ (วาร์ป/เดินไปฟาร์ม + ตาย/ขายของเสร็จกลับมาแมพนี้)';
+        mapHintEl.style.color = on ? '#fcd34d' : '#86efac';
+      }
       try {
         await sendWebHudAction(profileId, {
           type: 'eval',
-          code: `(typeof window.__setSmartAutoQuestEnabled === 'function' ? window.__setSmartAutoQuestEnabled(${Boolean(aqEnableCb.checked)}) : (window.__smartAutoQuestEnabled = ${Boolean(aqEnableCb.checked)}))`
+          code: `(typeof window.__setSmartAutoQuestEnabled === 'function' ? window.__setSmartAutoQuestEnabled(${on}) : (window.__smartAutoQuestEnabled = ${on}))`
         });
       } catch (_) {}
     };
@@ -9124,49 +9531,78 @@ async function openWebBotHUD(profileId) {
       } catch (_) {}
     };
   }
+  const sgWtypeSel = hudEl.querySelector('#p-nc-smartgear-wtype');
+  if (sgWtypeSel) {
+    sgWtypeSel.onchange = async () => {
+      try {
+        const wv = JSON.stringify(sgWtypeSel.value || 'auto');
+        await sendWebHudAction(profileId, {
+          type: 'eval',
+          code: `(typeof window.__setSmartGearWeaponType === 'function' ? window.__setSmartGearWeaponType(${wv}) : (window.__smartGearWeaponType = ${wv}))`
+        });
+      } catch (_) {}
+    };
+  }
 
-  const syncWebPotCfg = async () => {
-    try {
-      const patch = {
-        hpEnabled: Boolean(hudEl.querySelector('#p-nc-pot-hp-en')?.checked),
-        hpSize: hudEl.querySelector('#p-nc-pot-hp-size')?.value || 'red',
-        hpMin: Number(hudEl.querySelector('#p-nc-pot-hp-min')?.value ?? 15),
-        hpTarget: Number(hudEl.querySelector('#p-nc-pot-hp-target')?.value ?? 100),
-        spEnabled: Boolean(hudEl.querySelector('#p-nc-pot-sp-en')?.checked),
-        spSize: hudEl.querySelector('#p-nc-pot-sp-size')?.value || 'blue',
-        spMin: Number(hudEl.querySelector('#p-nc-pot-sp-min')?.value ?? 10),
-        spTarget: Number(hudEl.querySelector('#p-nc-pot-sp-target')?.value ?? 60)
-      };
-      await sendWebHudAction(profileId, {
-        type: 'eval',
-        code: `(typeof window.__setPotionConfig === 'function' ? window.__setPotionConfig(${JSON.stringify(patch)}) : null)`
-      });
-    } catch (_) {}
-  };
-  ['#p-nc-pot-hp-en', '#p-nc-pot-hp-size', '#p-nc-pot-hp-min', '#p-nc-pot-hp-target', '#p-nc-pot-sp-en', '#p-nc-pot-sp-size', '#p-nc-pot-sp-min', '#p-nc-pot-sp-target'].forEach(sel => {
-    const el = hudEl.querySelector(sel);
-    if (el) el.onchange = syncWebPotCfg;
-  });
-
-  const sellEnableCb = hudEl.querySelector('#p-nc-autosell-enabled');
-  const sellPctSel = hudEl.querySelector('#p-nc-autosell-pct');
-  const syncSellCfg = async () => {
-    try {
-      const en = sellEnableCb ? Boolean(sellEnableCb.checked) : true;
-      const pct = sellPctSel ? (Number(sellPctSel.value) || 65) : 65;
-      await sendWebHudAction(profileId, {
-        type: 'eval',
-        code: `(typeof window.__setAutoSellConfig === 'function' ? window.__setAutoSellConfig(${en}, ${pct}) : null)`
-      });
-    } catch (_) {}
-  };
-  if (sellEnableCb) sellEnableCb.onchange = syncSellCfg;
-  if (sellPctSel) sellPctSel.onchange = syncSellCfg;
-
+  const targetMapSearch = hudEl.querySelector('#p-nc-target-farm-map-search');
+  const targetMapRes = hudEl.querySelector('#p-nc-target-farm-map-results');
   const targetMapSel = hudEl.querySelector('#p-nc-target-farm-map');
+  const renderManagerMapSearchPopup = (rawQuery) => {
+    if (!targetMapRes || !targetMapSel) return;
+    const q = String(rawQuery || '').trim().toLowerCase();
+    const curVal = targetMapSel.value || 'auto';
+    if (!q) {
+      targetMapRes.style.display = 'none';
+      targetMapRes.innerHTML = '';
+      return;
+    }
+    const matches = NIGHTCAMP_FARM_MAP_OPTIONS.filter(([id, label]) =>
+      id !== 'auto' && (id.toLowerCase().includes(q) || label.toLowerCase().includes(q))
+    );
+    if (matches.length === 0) {
+      targetMapRes.style.display = 'block';
+      targetMapRes.innerHTML = `<div style="padding:4px 6px; font-size:9.5px; color:#94a3b8;">ไม่พบแมพที่ค้นหา "${escapeHTML(q)}"</div>`;
+      return;
+    }
+    targetMapRes.style.display = 'flex';
+    targetMapRes.innerHTML = matches.map(([id, label]) => {
+      const isCur = id === curVal;
+      return `<button type="button" data-nc-pick-map="${escapeHTML(id)}" style="text-align:left; background:${isCur ? 'rgba(14,165,233,0.28)' : 'rgba(15,23,42,0.85)'}; border:1px solid ${isCur ? 'rgba(56,189,248,0.65)' : 'rgba(148,163,184,0.18)'}; color:${isCur ? '#7dd3fc' : '#e2e8f0'}; border-radius:4px; padding:4px 6px; font-size:10px; cursor:pointer; display:flex; justify-content:space-between; align-items:center; gap:4px;">` +
+        `<span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHTML(label)}</span>` +
+        `<span style="font-size:9px; color:${isCur ? '#4ade80' : '#38bdf8'}; white-space:nowrap;">${isCur ? '✓ เลือกอยู่' : 'คลิกเลือก'}</span>` +
+        `</button>`;
+    }).join('');
+  };
+  if (targetMapSearch && targetMapSel) {
+    targetMapSearch.addEventListener('input', () => {
+      const curVal = targetMapSel.value || 'auto';
+      targetMapSel.innerHTML = renderNightcampFarmMapOptionsHtml(curVal, targetMapSearch.value);
+      targetMapSel.value = curVal;
+      renderManagerMapSearchPopup(targetMapSearch.value);
+    });
+  }
+  if (targetMapRes && targetMapSel) {
+    targetMapRes.addEventListener('click', async (ev) => {
+      const btn = ev.target && ev.target.closest ? ev.target.closest('[data-nc-pick-map]') : null;
+      if (!btn) return;
+      const pickedMap = btn.getAttribute('data-nc-pick-map');
+      if (!pickedMap) return;
+      if (targetMapSearch) targetMapSearch.value = '';
+      targetMapSel.innerHTML = renderNightcampFarmMapOptionsHtml(pickedMap, '');
+      targetMapSel.value = pickedMap;
+      renderManagerMapSearchPopup('');
+      try {
+        await targetMapSel.onchange?.();
+      } catch (_) {}
+    });
+  }
   if (targetMapSel) {
     targetMapSel.onchange = async () => {
       try {
+        if (targetMapSearch && targetMapSearch.value) {
+          targetMapSearch.value = '';
+          renderManagerMapSearchPopup('');
+        }
         const val = JSON.stringify(targetMapSel.value || 'auto');
         await sendWebHudAction(profileId, {
           type: 'eval',
@@ -9179,15 +9615,201 @@ async function openWebBotHUD(profileId) {
   const planEnableCb = hudEl.querySelector('#p-nc-plan-enabled');
   if (planEnableCb) {
     planEnableCb.onchange = async () => {
+      const on = Boolean(planEnableCb.checked);
       try {
-        await fetch(`${API_BASE}/api/profiles/${encodeURIComponent(profileId)}/plan-enabled`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ enabled: planEnableCb.checked })
+        if (isCentral) {
+          const online = currentProfiles.filter(p => p.isRunning);
+          await Promise.allSettled(online.map(p => fetch(`${API_BASE}/api/profiles/${encodeURIComponent(p.id)}/plan-enabled`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ enabled: on })
+          })));
+          await sendWebHudAction('__central__', {
+            type: 'eval',
+            code: `(typeof window.__setPlanScriptEnabled === 'function' ? window.__setPlanScriptEnabled(${on}) : (window.__planScriptEnabled = ${on}))`
+          });
+        } else {
+          await fetch(`${API_BASE}/api/profiles/${encodeURIComponent(profileId)}/plan-enabled`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ enabled: on })
+          });
+          await sendWebHudAction(profileId, {
+            type: 'eval',
+            code: `(typeof window.__setPlanScriptEnabled === 'function' ? window.__setPlanScriptEnabled(${on}) : (window.__planScriptEnabled = ${on}))`
+          });
+        }
+      } catch (_) {}
+    };
+  }
+
+  // Tab 2: 🧪 ระบบยา controls (each field sends ONLY its specific key patch so เมนูส่วนกลาง never overwrites other fields!)
+  const sendPotionPatch = async (patch) => {
+    try {
+      await sendWebHudAction(profileId, {
+        type: 'eval',
+        code: `(typeof window.__setPotionConfig === 'function' ? window.__setPotionConfig(${JSON.stringify(patch)}) : null)`
+      });
+    } catch (_) {}
+  };
+  [
+    ['#p-nc-pot-hp-en', 'hpEnabled', 'bool'],
+    ['#p-nc-pot-hp-size', 'hpSize', 'str'],
+    ['#p-nc-pot-hp-drink-pct', 'hpDrinkPct', 'num'],
+    ['#p-nc-pot-hp-min', 'hpMin', 'num'],
+    ['#p-nc-pot-hp-target', 'hpTarget', 'num'],
+    ['#p-nc-pot-sp-en', 'spEnabled', 'bool'],
+    ['#p-nc-pot-sp-size', 'spSize', 'str'],
+    ['#p-nc-pot-sp-drink-pct', 'spDrinkPct', 'num'],
+    ['#p-nc-pot-sp-min', 'spMin', 'num'],
+    ['#p-nc-pot-sp-target', 'spTarget', 'num'],
+    ['#p-nc-pot-prefer-craft', 'preferCraft', 'bool']
+  ].forEach(([sel, key, kind]) => {
+    const el = hudEl.querySelector(sel);
+    if (!el) return;
+    el.onchange = () => {
+      const val = kind === 'bool' ? Boolean(el.checked) : (kind === 'num' ? Math.max(0, Number(el.value) || 0) : String(el.value || ''));
+      sendPotionPatch({ [key]: val });
+    };
+  });
+
+  const potRestockNowBtn = hudEl.querySelector('#p-btn-nc-pot-restock-now');
+  if (potRestockNowBtn) {
+    potRestockNowBtn.onclick = async () => {
+      try {
+        await sendWebHudAction(profileId, {
+          type: 'eval',
+          code: `(typeof window.__triggerPotionRestockTripNow === 'function' ? window.__triggerPotionRestockTripNow() : false)`
+        });
+        if (!isCentral) showToast('🧪 สั่งกลับค่ายไปต้มยา / ซื้อยาแล้ว!', 'success');
+      } catch (_) {}
+    };
+  }
+
+  // Tab 3: 🛒 ซื้อ/ขาย controls (each field sends ONLY its specific key patch so เมนูส่วนกลาง never overwrites other fields!)
+  const sendSellPatch = async (patch) => {
+    try {
+      await sendWebHudAction(profileId, {
+        type: 'eval',
+        code: `(typeof window.__setSellConfig === 'function' ? window.__setSellConfig(${JSON.stringify(patch)}) : null)`
+      });
+    } catch (_) {}
+  };
+  [
+    ['#p-nc-autosell-enabled', 'enabled', 'bool'],
+    ['#p-nc-autosell-pct', 'weightThreshold', 'num'],
+    ['#p-nc-sell-weapon-grade', 'weaponMaxGrade', 'num'],
+    ['#p-nc-sell-armor-grade', 'armorMaxGrade', 'num'],
+    ['#p-nc-sell-acc-grade', 'accMaxGrade', 'num'],
+    ['#p-nc-sell-mat-mode', 'materialMode', 'str'],
+    ['#p-nc-sell-keep-best', 'keepBestCopy', 'bool'],
+    ['#p-nc-sell-keep-refined', 'keepRefined', 'bool'],
+    ['#p-nc-sell-keep-special', 'keepSpecial', 'bool'],
+    ['#p-nc-sell-keep-boss', 'keepBossGear', 'bool'],
+    ['#p-nc-sell-auto-repair', 'autoRepair', 'bool'],
+    ['#p-nc-sell-store-mats', 'storeMats', 'bool'],
+    ['#p-nc-sell-store-gear', 'storeGear', 'bool'],
+    ['#p-nc-sell-store-coins', 'storeCoinsEnabled', 'bool'],
+    ['#p-nc-sell-keep-coins', 'keepCoinsOnHand', 'num'],
+    ['#p-nc-sell-whitelist', 'whitelist', 'str'],
+    ['#p-nc-sell-forcesell', 'forceSellList', 'str']
+  ].forEach(([sel, key, kind]) => {
+    const el = hudEl.querySelector(sel);
+    if (!el) return;
+    el.onchange = () => {
+      const val = kind === 'bool' ? Boolean(el.checked) : (kind === 'num' ? Math.max(0, Number(el.value) || 0) : String(el.value || ''));
+      sendSellPatch({ [key]: val });
+    };
+  });
+
+  const sellTripNowBtn = hudEl.querySelector('#p-btn-nc-sell-trip-now');
+  if (sellTripNowBtn) {
+    sellTripNowBtn.onclick = async () => {
+      try {
+        await sendWebHudAction(profileId, {
+          type: 'eval',
+          code: `(typeof window.__triggerAutoSellTripNow === 'function' ? window.__triggerAutoSellTripNow() : false)`
+        });
+        if (!isCentral) showToast('🛒 สั่งกลับค่ายไปต้มยา / ขายของ / ฝากคลังแล้ว!', 'success');
+      } catch (_) {}
+    };
+  }
+
+  const cmAutoCb = hudEl.querySelector('#p-nc-cm-autosell-enabled');
+  if (cmAutoCb) {
+    cmAutoCb.onchange = async () => {
+      try {
+        await sendWebHudAction(profileId, {
+          type: 'eval',
+          code: `(typeof window.__setCMarketAutoSellConfig === 'function' ? window.__setCMarketAutoSellConfig({ enabled: ${Boolean(cmAutoCb.checked)} }) : null)`
         });
       } catch (_) {}
     };
   }
+
+  const cmStratSel = hudEl.querySelector('#p-nc-cm-price-strategy');
+  if (cmStratSel) {
+    cmStratSel.onchange = async () => {
+      try {
+        const strat = JSON.stringify(cmStratSel.value || 'undercut_1');
+        await sendWebHudAction(profileId, {
+          type: 'eval',
+          code: `(typeof window.__setCMarketAutoSellConfig === 'function' ? window.__setCMarketAutoSellConfig({ priceStrategy: ${strat} }) : null)`
+        });
+      } catch (_) {}
+    };
+  }
+
+  const openCMModalBtn = hudEl.querySelector('#p-btn-nc-open-cmarket-modal');
+  if (openCMModalBtn) {
+    openCMModalBtn.onclick = () => {
+      const targetPid = isCentral ? (currentProfiles.find(p => p.isRunning)?.id || currentProfiles[0]?.id) : profileId;
+      if (targetPid) {
+        openNightcampCharacterModal(targetPid, 'cmarket');
+      }
+    };
+  }
+
+  const cmSellNowBtn = hudEl.querySelector('#p-btn-nc-cm-sell-now');
+  if (cmSellNowBtn) {
+    cmSellNowBtn.onclick = async () => {
+      try {
+        await sendWebHudAction(profileId, {
+          type: 'eval',
+          code: `(typeof window.__triggerCMarketAutoSellNow === 'function' ? window.__triggerCMarketAutoSellNow() : false)`
+        });
+        if (!isCentral) showToast('🏪 สั่งกลับค่ายไปวางขายตลาดกลางอัตโนมัติแล้ว!', 'success');
+      } catch (_) {}
+    };
+  }
+
+  // Tab 4: ⚙️ ตั้งค่า — Lite Graphics (ลดกราฟิก & จุดสีประหยัดสเปค)
+  const sendPerfPatch = async (patch) => {
+    try {
+      await sendWebHudAction(profileId, {
+        type: 'eval',
+        code: `(typeof window.__setPerfConfig === 'function' ? window.__setPerfConfig(${JSON.stringify(patch)}) : null)`
+      });
+    } catch (_) {}
+  };
+  [
+    ['#p-nc-perf-dot-monsters', 'dotMonsters', 'bool'],
+    ['#p-nc-perf-dot-npcs', 'dotNpcs', 'bool'],
+    ['#p-nc-perf-dot-player', 'dotPlayer', 'bool'],
+    ['#p-nc-perf-hide-map', 'hideMapBg', 'bool'],
+    ['#p-nc-perf-hide-fx', 'hideEffects', 'bool'],
+    ['#p-nc-perf-hide-players', 'hideOtherPlayers', 'bool'],
+    ['#p-nc-perf-mute-audio', 'muteAudio', 'bool'],
+    ['#p-nc-perf-trim-vram', 'trimVram', 'bool'],
+    ['#p-nc-perf-fps-cap', 'fpsCap', 'num']
+  ].forEach(([sel, key, kind]) => {
+    const el = hudEl.querySelector(sel);
+    if (!el) return;
+    el.onchange = () => {
+      const val = kind === 'bool' ? Boolean(el.checked) : Math.max(10, Number(el.value) || 30);
+      sendPerfPatch({ [key]: val });
+    };
+  });
 
   const passToggle = hudEl.querySelector('#p-auth-toggle-pass');
   const passInp = hudEl.querySelector('#p-auth-pass');
@@ -9313,6 +9935,18 @@ function populateWebHudData(profileId, data) {
     if (titleEl) titleEl.innerText = `เมนูส่วนกลาง (${onlineCount} จอออนไลน์)`;
     if (onlinePill) onlinePill.innerText = `ออนไลน์ ${onlineCount}/${currentProfiles.length} จอ`;
     if (lvPill) lvPill.innerText = `บอททำงาน ${runningBots}/${onlineCount} จอ`;
+    // Keep live potion/sell summary updated from first running client without touching form controls in Central HUD
+    const firstOnline = currentProfiles.find(p => p.isRunning && p.liveState);
+    if (firstOnline?.liveState) {
+      const potStockEl = hud.querySelector('#p-nc-pot-live-stock');
+      if (potStockEl && firstOnline.liveState.potionStockHtml) {
+        potStockEl.innerHTML = `<div style="font-size:9px;color:#fde68a;margin-bottom:2px;">📌 ตัวอย่างจากจอ: ${escapeHTML(firstOnline.liveState.charName || firstOnline.name)}</div>` + firstOnline.liveState.potionStockHtml;
+      }
+      const sellLiveEl = hud.querySelector('#p-nc-sell-live-weight');
+      if (sellLiveEl && firstOnline.liveState.sellLiveHtml) {
+        sellLiveEl.innerHTML = `<div style="font-size:9px;color:#fde68a;margin-bottom:2px;">📌 ตัวอย่างจากจอ: ${escapeHTML(firstOnline.liveState.charName || firstOnline.name)}</div>` + firstOnline.liveState.sellLiveHtml;
+      }
+    }
     return;
   }
 
@@ -9365,54 +9999,84 @@ function populateWebHudData(profileId, data) {
   if (planNameEl && st.planName) planNameEl.innerText = st.planName;
   const planTaskEl = hud.querySelector('#p-nc-plan-task');
   if (planTaskEl && st.planTask) planTaskEl.innerText = st.planTask;
-  const aqEnableCb = hud.querySelector('#p-nc-smart-autoquest-enabled');
-  if (aqEnableCb && typeof st.smartAutoQuestEnabled === 'boolean' && document.activeElement !== aqEnableCb) {
-    aqEnableCb.checked = st.smartAutoQuestEnabled;
+  const sgNoteEl = hud.querySelector('#p-nc-smartgear-note');
+  if (sgNoteEl && st.smartGearNote) sgNoteEl.innerText = st.smartGearNote;
+  const potStockEl = hud.querySelector('#p-nc-pot-live-stock');
+  if (potStockEl && st.potionStockHtml) potStockEl.innerHTML = st.potionStockHtml;
+  const sellLiveEl = hud.querySelector('#p-nc-sell-live-weight');
+  if (sellLiveEl && st.sellLiveHtml) sellLiveEl.innerHTML = st.sellLiveHtml;
+
+  const setField = (sel, val, isCb) => {
+    const el = hud.querySelector(sel);
+    if (!el || document.activeElement === el) return;
+    if (isCb) el.checked = !!val;
+    else if (val !== undefined && val !== null) el.value = String(val);
+  };
+
+  if (typeof st.smartAutoQuestEnabled === 'boolean') {
+    setField('#p-nc-smart-autoquest-enabled', st.smartAutoQuestEnabled, true);
+    const mapHintEl = hud.querySelector('#p-nc-target-map-hint');
+    if (mapHintEl) {
+      mapHintEl.textContent = st.smartAutoQuestEnabled
+        ? '⚠️ ตอนนี้เปิด Smart Auto-Quest อยู่ (เควสใหญ่สุด · หากต้องการฟาร์มแมพนี้ให้ติ๊กปิด Auto-Quest)'
+        : '✅ ล็อกแมพฟาร์มประจำทำงานอยู่ (วาร์ป/เดินไปฟาร์ม + ตาย/ขายของเสร็จกลับมาแมพนี้)';
+      mapHintEl.style.color = st.smartAutoQuestEnabled ? '#fcd34d' : '#86efac';
+    }
   }
-  const aiEnableCb = hud.querySelector('#p-nc-upgrade-ai-enabled');
-  if (aiEnableCb && typeof st.upgradeBotAiEnabled === 'boolean' && document.activeElement !== aiEnableCb) {
-    aiEnableCb.checked = st.upgradeBotAiEnabled;
-  }
-  const respEnableCb = hud.querySelector('#p-nc-autorespawn-enabled');
-  if (respEnableCb && typeof st.autoRespawnEnabled === 'boolean' && document.activeElement !== respEnableCb) {
-    respEnableCb.checked = st.autoRespawnEnabled;
-  }
-  const sgEnableCb = hud.querySelector('#p-nc-smartgear-enabled');
-  if (sgEnableCb && typeof st.smartGearEnabled === 'boolean' && document.activeElement !== sgEnableCb) {
-    sgEnableCb.checked = st.smartGearEnabled;
-  }
+  if (typeof st.upgradeBotAiEnabled === 'boolean') setField('#p-nc-upgrade-ai-enabled', st.upgradeBotAiEnabled, true);
+  if (typeof st.autoRespawnEnabled === 'boolean') setField('#p-nc-autorespawn-enabled', st.autoRespawnEnabled, true);
+  if (typeof st.smartGearEnabled === 'boolean') setField('#p-nc-smartgear-enabled', st.smartGearEnabled, true);
+  if (st.smartGearWeaponType) setField('#p-nc-smartgear-wtype', st.smartGearWeaponType, false);
+  if (st.targetFarmMap) setField('#p-nc-target-farm-map', st.targetFarmMap, false);
+  if (typeof st.planScriptEnabled === 'boolean') setField('#p-nc-plan-enabled', st.planScriptEnabled, true);
+
   if (st.potionConfig && typeof st.potionConfig === 'object') {
     const pc = st.potionConfig;
-    const setField = (sel, val, isCb) => {
-      const el = hud.querySelector(sel);
-      if (!el || document.activeElement === el) return;
-      if (isCb) el.checked = !!val;
-      else if (val !== undefined && val !== null) el.value = String(val);
-    };
     setField('#p-nc-pot-hp-en', pc.hpEnabled !== false, true);
     setField('#p-nc-pot-hp-size', pc.hpSize || 'red', false);
+    setField('#p-nc-pot-hp-drink-pct', pc.hpDrinkPct ?? 60, false);
     setField('#p-nc-pot-hp-min', pc.hpMin ?? 15, false);
     setField('#p-nc-pot-hp-target', pc.hpTarget ?? 100, false);
     setField('#p-nc-pot-sp-en', pc.spEnabled !== false, true);
     setField('#p-nc-pot-sp-size', pc.spSize || 'blue', false);
+    setField('#p-nc-pot-sp-drink-pct', pc.spDrinkPct ?? 40, false);
     setField('#p-nc-pot-sp-min', pc.spMin ?? 10, false);
     setField('#p-nc-pot-sp-target', pc.spTarget ?? 60, false);
+    setField('#p-nc-pot-prefer-craft', pc.preferCraft !== false, true);
   }
-  const sellEnableCb = hud.querySelector('#p-nc-autosell-enabled');
-  if (sellEnableCb && typeof st.autoSellEnabled === 'boolean' && document.activeElement !== sellEnableCb) {
-    sellEnableCb.checked = st.autoSellEnabled;
+
+  if (st.sellConfig && typeof st.sellConfig === 'object') {
+    const sc = st.sellConfig;
+    setField('#p-nc-autosell-enabled', sc.enabled !== false && st.autoSellEnabled !== false, true);
+    setField('#p-nc-autosell-pct', sc.weightThreshold || st.autoSellWeightPct || 65, false);
+    setField('#p-nc-sell-weapon-grade', sc.weaponMaxGrade ?? 1, false);
+    setField('#p-nc-sell-armor-grade', sc.armorMaxGrade ?? 1, false);
+    setField('#p-nc-sell-acc-grade', sc.accMaxGrade ?? 0, false);
+    setField('#p-nc-sell-mat-mode', sc.materialMode || 'common', false);
+    setField('#p-nc-sell-keep-best', sc.keepBestCopy !== false, true);
+    setField('#p-nc-sell-keep-refined', sc.keepRefined !== false, true);
+    setField('#p-nc-sell-keep-special', sc.keepSpecial !== false, true);
+    setField('#p-nc-sell-keep-boss', sc.keepBossGear !== false, true);
+    setField('#p-nc-sell-auto-repair', sc.autoRepair !== false, true);
+    setField('#p-nc-sell-store-mats', sc.storeMats !== false, true);
+    setField('#p-nc-sell-store-gear', !!sc.storeGear, true);
+    setField('#p-nc-sell-store-coins', !!sc.storeCoinsEnabled, true);
+    setField('#p-nc-sell-keep-coins', sc.keepCoinsOnHand ?? 1000, false);
+    setField('#p-nc-sell-whitelist', sc.whitelist || '', false);
+    setField('#p-nc-sell-forcesell', sc.forceSellList || '', false);
+  } else {
+    if (typeof st.autoSellEnabled === 'boolean') setField('#p-nc-autosell-enabled', st.autoSellEnabled, true);
+    if (st.autoSellWeightPct) setField('#p-nc-autosell-pct', st.autoSellWeightPct, false);
   }
-  const sellPctSel = hud.querySelector('#p-nc-autosell-pct');
-  if (sellPctSel && st.autoSellWeightPct && document.activeElement !== sellPctSel) {
-    sellPctSel.value = String(st.autoSellWeightPct);
-  }
-  const targetMapSel = hud.querySelector('#p-nc-target-farm-map');
-  if (targetMapSel && st.targetFarmMap && document.activeElement !== targetMapSel) {
-    targetMapSel.value = String(st.targetFarmMap);
-  }
-  const planEnableCb = hud.querySelector('#p-nc-plan-enabled');
-  if (planEnableCb && typeof st.planScriptEnabled === 'boolean' && document.activeElement !== planEnableCb) {
-    planEnableCb.checked = st.planScriptEnabled;
+
+  if (st.perfConfig && typeof st.perfConfig === 'object') {
+    const pfc = st.perfConfig;
+    setField('#p-nc-perf-dot-monsters', pfc.dotMonsters !== false, true);
+    setField('#p-nc-perf-dot-npcs', pfc.dotNpcs !== false, true);
+    setField('#p-nc-perf-hide-map', pfc.hideMapBg !== false, true);
+    setField('#p-nc-perf-hide-fx', pfc.hideEffects !== false, true);
+    setField('#p-nc-perf-hide-players', pfc.hideOtherPlayers !== false, true);
+    setField('#p-nc-perf-fps-cap', pfc.fpsCap ?? 30, false);
   }
 
   const btn = hud.querySelector('#p-btn-toggle-bot');
@@ -9438,7 +10102,7 @@ function populateWebHudData(profileId, data) {
   const zeroBtn = hud.querySelector('#p-btn-nc-zerorender');
   if (zeroBtn) zeroBtn.innerText = isZeroRender ? '🖥️ แสดงภาพปกติ' : '⚡ พักกราฟิก';
 
-  const auth = data.authConfig || {};
+  const auth = data.authConfig || st.authConfig || {};
   const resolvedEnabled = (auth.enabled !== undefined) ? !!auth.enabled : (prof.autoLoginEnabled !== false);
   const resolvedServer = String((auth.serverName !== undefined ? auth.serverName : prof.serverName) || '');
   const resolvedUser = String((auth.username !== undefined ? auth.username : prof.account) || '');
@@ -9452,18 +10116,12 @@ function populateWebHudData(profileId, data) {
   }
 
   if (!hudObj.savingAuth) {
-    const authEn = hud.querySelector('#p-auth-enabled');
-    if (authEn && document.activeElement !== authEn) authEn.checked = resolvedEnabled;
-    const authSrv = hud.querySelector('#p-auth-server');
-    if (authSrv && document.activeElement !== authSrv) authSrv.value = resolvedServer;
-    const authUs = hud.querySelector('#p-auth-user');
-    if (authUs && document.activeElement !== authUs) authUs.value = resolvedUser;
-    const authPs = hud.querySelector('#p-auth-pass');
-    if (authPs && document.activeElement !== authPs) authPs.value = resolvedPass;
-    const authCh = hud.querySelector('#p-auth-char');
-    if (authCh && document.activeElement !== authCh) authCh.value = resolvedChar;
-    const authRes = hud.querySelector('#p-auth-resume');
-    if (authRes && document.activeElement !== authRes) authRes.checked = resolvedResume;
+    setField('#p-auth-enabled', resolvedEnabled, true);
+    setField('#p-auth-server', resolvedServer, false);
+    setField('#p-auth-user', resolvedUser, false);
+    setField('#p-auth-pass', resolvedPass, false);
+    setField('#p-auth-char', resolvedChar, false);
+    setField('#p-auth-resume', resolvedResume, true);
   }
 }
 
@@ -10047,6 +10705,11 @@ function renderPlanProfilesList() {
                 ⚡ สกิล ${plan.skillBuild.skillPointQueue.length} แต้ม
               </span>
             ` : ''}
+            ${plan.partyConfig?.enabled ? `
+              <span class="badge" style="background: rgba(16, 185, 129, 0.18); color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.4); font-size: 10px; padding: 2px 7px;">
+                🤝 เซ็ตตี้ (${plan.partyConfig.role === 'support' ? 'พระซัพ' : plan.partyConfig.role === 'member' ? 'ลูกตี้' : 'หัวตี้'}${plan.partyConfig.partyTag ? ' · ' + escapeHTML(plan.partyConfig.partyTag) : ''})
+              </span>
+            ` : ''}
             ${plan.statBuild ? `
               <span class="badge" style="background: rgba(34, 197, 94, 0.15); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.35); font-size: 10px; padding: 2px 7px;">
                 📊 Stat Build
@@ -10339,6 +11002,11 @@ function openPlanWorkflowEditor(planId) {
   if (typeof updateClassDropdownsInEditor === 'function') {
     updateClassDropdownsInEditor();
   }
+  if (typeof updatePartyConfigInEditor === 'function') {
+    updatePartyConfigInEditor();
+    const partyPanel = document.getElementById("plan-party-config-panel");
+    if (partyPanel) partyPanel.style.display = activeEditingPlan.partyConfig?.enabled ? 'block' : 'none';
+  }
   if (typeof updatePlanEditorBadges === 'function') {
     updatePlanEditorBadges();
   }
@@ -10407,6 +11075,10 @@ function planActionSummary(act) {
   }
   if (act.type === 'equip_item') {
     return `🛡️ สวมใส่: ${act.itemName || 'อุปกรณ์ที่ดีที่สุด'}`;
+  }
+  if (act.type === 'party_setup') {
+    const roleTh = act.role === 'support' ? 'พระซัพพอร์ต' : act.role === 'member' ? 'สมาชิกตี้' : 'หัวตี้';
+    return `🤝 เซ็ตตี้: ${roleTh}${act.partyTag ? ' (' + act.partyTag + ')' : ''}`;
   }
   return act.type;
 }
@@ -10537,6 +11209,7 @@ const PLAN_ACTION_TILES = [
   { type: 'auto_quest', icon: '🧭', title: 'ทำเควสอัตโนมัติ', desc: 'Smart Auto-Quest (เควสหลัก MQ + บทเรียน)' },
   { type: 'change_map', icon: '🗺️', title: 'ย้ายแมพฟาร์ม', desc: 'เดินไปแมพที่เลือก & เปิด Auto-Farm' },
   { type: 'change_class', icon: '⚔️', title: 'เปลี่ยนอาชีพ', desc: 'เปลี่ยนเป็น Class 1 / Class 2 / Class 3' },
+  { type: 'party_setup', icon: '🤝', title: 'เซ็ตปาร์ตี้ (Auto-Party)', desc: 'ตั้งตี้ / เข้าตี้ตามแท็ก / โหมดพระซัพเดินตาม' },
   { type: 'life_gather', icon: '🪓', title: 'อาชีพเสริม (Life)', desc: 'ตัดไม้ / ขุดแร่ / ปลูกผักตามจำนวน' },
   { type: 'sell_trip', icon: '🛒', title: 'กลับค่ายขายของ/ซื้อยา', desc: 'ขายขยะ & ซื้อยาแดง/ยาฟ้าที่ลุงโกโก้' },
   { type: 'equip_best', icon: '🛡️', title: 'สวมใส่อุปกรณ์ที่ดีที่สุด', desc: 'เช็คกระเป๋า & ใส่อาวุธ/เกราะที่แรงสุด' }
@@ -10836,6 +11509,47 @@ function renderActionNodeHtml(trigIdx, actIdx, act) {
       </div>`;
   }
 
+  if (act.type === 'party_setup') {
+    const role = act.role || 'leader';
+    const loot = act.lootMode || 'f';
+    const grp = act.groupMode || 'g';
+    return `
+      <div class="pe-action party_setup">
+        <div class="pe-act-icon">🤝</div>
+        <div class="pe-act-main">
+          <div class="pe-act-title"><b>เซ็ตปาร์ตี้อัตโนมัติ (Auto-Party &amp; Party Board)</b>${del}</div>
+          <div class="pe-fields pe-fields-3">
+            <label>บทบาทในปาร์ตี้
+              <select class="form-select" onchange="updateActionField(${trigIdx}, ${actIdx}, 'role', this.value); planRerender(${trigIdx});">
+                <option value="leader" ${role === 'leader' ? 'selected' : ''}>👑 หัวตี้ (สร้างตี้ + ลงประกาศรับอัตโนมัติ)</option>
+                <option value="member" ${role === 'member' ? 'selected' : ''}>⚔️ สมาชิกตี้ (เข้าตี้ + ย้ายแนลตามหัวตี้)</option>
+                <option value="support" ${role === 'support' ? 'selected' : ''}>✨ พระซัพพอร์ต (เข้าตี้ + เดินตามฮีล/ชุบ/บัฟ)</option>
+              </select>
+            </label>
+            <label>รหัสแท็กตี้ / ชื่อหัวตี้
+              <input type="text" class="form-input" placeholder="เช่น TEAM1 หรือชื่อหัวตี้" value="${escapeHTML(act.partyTag || '')}" onchange="updateActionField(${trigIdx}, ${actIdx}, 'partyTag', this.value.trim())">
+            </label>
+            <label>${role === 'leader' ? 'กติกาของดรอป' : 'รูปแบบการเดินตี้'}
+              ${role === 'leader' ? `
+                <select class="form-select" onchange="updateActionField(${trigIdx}, ${actIdx}, 'lootMode', this.value)">
+                  <option value="f" ${loot === 'f' ? 'selected' : ''}>🎒 ใครเจอคนนั้นได้</option>
+                  <option value="t" ${loot === 't' ? 'selected' : ''}>🔄 ผลัดกันรับ</option>
+                  <option value="r" ${loot === 'r' ? 'selected' : ''}>🎲 สุ่มให้สมาชิก</option>
+                  <option value="l" ${loot === 'l' ? 'selected' : ''}>👑 หัวตี้เก็บ</option>
+                </select>
+              ` : `
+                <select class="form-select" onchange="updateActionField(${trigIdx}, ${actIdx}, 'groupMode', this.value)">
+                  <option value="g" ${grp === 'g' ? 'selected' : ''}>🧲 เกาะกลุ่มหัวตี้</option>
+                  <option value="s" ${grp === 's' ? 'selected' : ''}>🏃 แยกตีอิสระในแมพเดียวกัน</option>
+                </select>
+              `}
+            </label>
+          </div>
+          <small class="pe-hint">เมื่อถึงเลเวลนี้ บอทจะเปิดระบบปาร์ตี้อัตโนมัติตามบทบาทที่เลือก (หัวตี้ตั้งตี้และลงประกาศรับอัตโนมัติ · ลูกตี้/พระซัพค้นหาตี้จากแท็กแล้วย้ายแชนแนลตามไปหาหัวตี้ทันที)</small>
+        </div>
+      </div>`;
+  }
+
   return '';
 }
 
@@ -10889,6 +11603,16 @@ function addActionToTrigger(trigIdx, actionType) {
     Object.assign(newAction, { sellMaterials: true, redQty: 30, blueQty: 15 });
   } else if (actionType === 'equip_best') {
     Object.assign(newAction, { itemName: '' });
+  } else if (actionType === 'party_setup') {
+    Object.assign(newAction, {
+      role: (activeEditingPlan.class1Target === 'priest') ? 'support' : 'leader',
+      partyTag: activeEditingPlan.partyConfig?.partyTag || 'TEAM1',
+      lootMode: 'f',
+      groupMode: 'g',
+      syncChannelAndMap: true,
+      supFight: true,
+      supHealPct: 70
+    });
   }
   trig.actions.push(newAction);
   if (trigIdx !== -1) markPlanDirty();
@@ -11036,6 +11760,7 @@ async function saveActivePlan(applyLive = false) {
   if (autoCb) activeEditingPlan.autoJobChange = autoCb.checked;
   const statCb = document.getElementById("plan-editor-autostat");
   if (statCb) activeEditingPlan.autoStatSkillEnabled = statCb.checked;
+  if (typeof readPartyConfigFromEditor === 'function') readPartyConfigFromEditor();
 
   const problems = validatePlanForSave(activeEditingPlan);
   if (problems.length && !confirm("พบจุดที่ควรตรวจในแผนนี้:\n\n• " + problems.join("\n• ") + "\n\nบันทึกต่อเลยไหม?")) return;
@@ -14013,5 +14738,1883 @@ function initCharacterModalEvents() {
     }
   });
 }
+
+// ============================================================================
+// NIGHTCAMP CHARACTER, EQUIPMENT, STATS & INVENTORY INSPECTOR MODAL
+// ============================================================================
+const NC_CHAR_SLOTS_LEFT = [
+  { key: 'hat', label: 'หมวก', icon: '🎩', matchSlots: ['hat'] },
+  { key: 'glasses', label: 'แว่น / หน้ากาก', icon: '👓', matchSlots: ['glasses'] },
+  { key: 'top', label: 'เสื้อเกราะ', icon: '👕', matchSlots: ['top', 'robe'] },
+  { key: 'pants', label: 'กางเกง', icon: '👖', matchSlots: ['pants'] },
+  { key: 'cape', label: 'ผ้าคลุม', icon: '🧥', matchSlots: ['cape'] }
+];
+
+const NC_CHAR_SLOTS_RIGHT = [
+  { key: 'weapon', label: 'อาวุธหลัก', icon: '⚔️', matchSlots: ['weapon'] },
+  { key: 'shield', label: 'โล่ / อาวุธรอง', icon: '🛡️', matchSlots: ['shield'] },
+  { key: 'acc1', label: 'ประดับ 1', icon: '💍', matchSlots: ['acc', 'acc1', 'acc2'] },
+  { key: 'acc2', label: 'ประดับ 2', icon: '📿', matchSlots: ['acc', 'acc1', 'acc2'] },
+  { key: 'fhat', label: 'แฟชั่นหมวก/ชุด', icon: '✨', matchSlots: ['fhat', 'frobe'] }
+];
+
+let ncCharModalState = {
+  profileId: null,
+  data: null,
+  activeTab: 'bag',        // 'bag' | 'mats' | 'stats' | 'storage' | 'cmarket'
+  selectedSlot: 'all',     // 'all' | 'weapon' | 'armor' | 'acc' | specific slotKey
+  matCategory: 'all',      // 'all' | 'usable' | 'card' | 'material'
+  marketSubTab: 'autosell', // 'autosell' | 'sell' | 'active' | 'browse'
+  cmRuleFilter: 'all',     // 'all' | 'ready' | 'waiting' | 'listed' | 'missing'
+  cmCopyPanelOpen: false,
+  cmCopyMode: 'merge',     // 'merge' | 'replace'
+  cmBrowseQuery: '',
+  cmBrowseCategory: 'all',
+  cmBrowseSort: 'price',
+  searchQuery: '',
+  loading: false
+};
+
+const NC_CMARKET_PRESET_ITEMS = [
+  { itemId: 'mat_opt_stone', itemName: 'หินออปชัน', kind: 'mat', minQty: 1 },
+  { itemId: 'mat_drill_stone', itemName: 'หินเจาะรู', kind: 'mat', minQty: 1 },
+  { itemId: 'mat_polish', itemName: 'หินขัดเกรด', kind: 'mat', minQty: 1 },
+  { itemId: 'lf_oak', itemName: 'ท่อนไม้โอ๊ก', kind: 'mat', minQty: 10 },
+  { itemId: 'lf_birch', itemName: 'ท่อนไม้เบิร์ช', kind: 'mat', minQty: 10 },
+  { itemId: 'lf_copper', itemName: 'แร่ทองแดง', kind: 'mat', minQty: 10 },
+  { itemId: 'lf_iron', itemName: 'แร่เหล็ก', kind: 'mat', minQty: 10 },
+  { itemId: 'sd_herb', itemName: 'ใบสมุนไพร', kind: 'mat', minQty: 10 },
+  { itemId: 'red', itemName: 'ยาแดงขวดเล็ก', kind: 'pot', minQty: 20 }
+];
+
+function loadLocalNightcampCMarketCfg(profileId) {
+  try {
+    const raw = JSON.parse(localStorage.getItem('nc_cm_autosell_cfg_' + profileId) || 'null');
+    if (raw && typeof raw === 'object') {
+      return {
+        enabled: Boolean(raw.enabled),
+        priceStrategy: raw.priceStrategy || 'undercut_1',
+        autoClaimMail: raw.autoClaimMail !== false,
+        autoUnlistExpired: raw.autoUnlistExpired !== false,
+        rules: Array.isArray(raw.rules) ? raw.rules : []
+      };
+    }
+  } catch (_) {}
+  return {
+    enabled: false,
+    priceStrategy: 'undercut_1',
+    autoClaimMail: true,
+    autoUnlistExpired: true,
+    rules: []
+  };
+}
+
+function saveLocalNightcampCMarketCfg(profileId, cfg) {
+  if (!profileId || !cfg || typeof cfg !== 'object') return;
+  try {
+    localStorage.setItem('nc_cm_autosell_cfg_' + profileId, JSON.stringify(cfg));
+  } catch (_) {}
+}
+
+function getNightcampRarityStyle(rarity, starshine) {
+  const r = String(rarity || 'common').toLowerCase();
+  if (starshine || r === 'legendary' || r === 'mythic' || r === 'boss') {
+    return { color: '#fbbf24', border: 'rgba(251, 191, 36, 0.55)', bg: 'rgba(245, 158, 11, 0.14)', label: 'ตำนาน' };
+  }
+  if (r === 'epic') {
+    return { color: '#d8b4fe', border: 'rgba(192, 132, 252, 0.5)', bg: 'rgba(168, 85, 247, 0.14)', label: 'ล้ำค่า' };
+  }
+  if (r === 'rare') {
+    return { color: '#7dd3fc', border: 'rgba(56, 189, 248, 0.48)', bg: 'rgba(14, 165, 233, 0.13)', label: 'หายาก' };
+  }
+  return { color: '#e2e8f0', border: 'rgba(148, 163, 184, 0.28)', bg: 'rgba(30, 41, 59, 0.55)', label: 'ทั่วไป' };
+}
+
+function ensureNightcampCharacterModalDom() {
+  let modal = document.getElementById('nc-char-inspector-modal');
+  if (modal) return modal;
+
+  modal = document.createElement('div');
+  modal.id = 'nc-char-inspector-modal';
+  modal.style.cssText = 'display:none; position:fixed; inset:0; z-index:100020; background:rgba(2, 6, 23, 0.86); backdrop-filter:blur(7px); align-items:center; justify-content:center; padding:14px; font-family:"IBM Plex Sans Thai","Plus Jakarta Sans",sans-serif; color:#f8fafc;';
+  modal.innerHTML = `
+    <div id="nc-char-modal-card" style="width:1140px; max-width:97vw; height:88vh; max-height:840px; background:linear-gradient(155deg, #0b1325 0%, #111827 55%, #17132a 100%); border:1.5px solid rgba(56, 189, 248, 0.45); border-radius:16px; box-shadow:0 28px 75px rgba(0,0,0,0.9), 0 0 38px rgba(14, 165, 233, 0.18); display:flex; flex-direction:column; overflow:hidden;">
+      <div id="nc-char-modal-header" style="padding:12px 18px; background:linear-gradient(135deg, rgba(14, 116, 144, 0.28), rgba(15, 23, 42, 0.92)); border-bottom:1px solid rgba(148, 163, 184, 0.18); display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; flex-shrink:0;"></div>
+      <div id="nc-char-modal-body" style="flex:1; min-height:0; display:grid; grid-template-columns:430px 1fr; overflow:hidden;"></div>
+    </div>
+  `;
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) closeNightcampCharacterModal();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && modal.style.display === 'flex') {
+      closeNightcampCharacterModal();
+    }
+  });
+  document.body.appendChild(modal);
+  return modal;
+}
+
+function closeNightcampCharacterModal() {
+  const modal = document.getElementById('nc-char-inspector-modal');
+  if (modal) modal.style.display = 'none';
+  ncCharModalState.profileId = null;
+}
+window.closeNightcampCharacterModal = closeNightcampCharacterModal;
+
+async function fetchNightcampCharacterInspectData(profileId) {
+  const prof = currentProfiles.find(x => String(x.id) === String(profileId));
+  if (!prof || !prof.isRunning) {
+    return { success: false, error: 'จอเกมนี้ยังไม่ได้เปิดออนไลน์ (กรุณาเปิดจอเกมก่อนดูข้อมูลตัวละครและกระเป๋า)' };
+  }
+  const res = await sendWebHudAction(profileId, {
+    type: 'eval',
+    code: `(typeof window.__getNightcampCharacterInspect === 'function' ? window.__getNightcampCharacterInspect() : { success: false, error: 'กำลังโหลดสคริปต์ในเกม กรุณารอสักครู่' })`
+  });
+  return res?.result?.result || res?.result || res || { success: false, error: 'ไม่สามารถดึงข้อมูลจากจอเกมได้' };
+}
+
+async function openNightcampCharacterModal(profileId, initialTab = 'bag', initialMarketSubTab = 'autosell') {
+  const modal = ensureNightcampCharacterModalDom();
+  ncCharModalState.profileId = profileId;
+  ncCharModalState.activeTab = (initialTab === 'market' ? 'cmarket' : (initialTab || 'bag'));
+  if (initialMarketSubTab) ncCharModalState.marketSubTab = initialMarketSubTab;
+  ncCharModalState.selectedSlot = 'all';
+  ncCharModalState.searchQuery = '';
+  modal.style.display = 'flex';
+
+  const headerEl = document.getElementById('nc-char-modal-header');
+  const bodyEl = document.getElementById('nc-char-modal-body');
+  const prof = currentProfiles.find(x => String(x.id) === String(profileId));
+  if (headerEl) {
+    headerEl.innerHTML = `
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span style="font-size:20px;">🌙</span>
+        <div>
+          <div style="font-size:15px;font-weight:800;color:#f8fafc;">กำลังโหลดข้อมูลตัวละคร Nightcamp (${escapeHTML(prof?.lastCharName || prof?.name || profileId)})...</div>
+          <div style="font-size:11.5px;color:#94a3b8;">กำลังอ่านอุปกรณ์สวมใส่ ค่าสเตตัส ตลาดกลาง และไอเทมในกระเป๋าจากจอเกมโดยตรง</div>
+        </div>
+      </div>
+      <button type="button" onclick="closeNightcampCharacterModal()" style="background:rgba(239,68,68,0.18);border:1px solid rgba(248,113,113,0.45);color:#fca5a5;border-radius:8px;padding:5px 12px;font-size:13px;font-weight:700;cursor:pointer;">✕ ปิด</button>
+    `;
+  }
+  if (bodyEl) {
+    bodyEl.innerHTML = `<div style="grid-column:1 / -1;display:flex;align-items:center;justify-content:center;color:#7dd3fc;font-size:14px;font-weight:600;">⏳ กำลังดึงข้อมูลตัวละครและไอเทมในเกม...</div>`;
+  }
+
+  await refreshNightcampCharacterModal();
+}
+window.openNightcampCharacterModal = openNightcampCharacterModal;
+window.openCharacterModal = openNightcampCharacterModal;
+
+async function refreshNightcampCharacterModal() {
+  const pid = ncCharModalState.profileId;
+  if (!pid) return;
+  const prof = currentProfiles.find(x => String(x.id) === String(pid));
+  const data = await fetchNightcampCharacterInspectData(pid);
+  if (!data || !data.success) {
+    // Offline fallback: if user opened the Central Market & Auto-Sell tab (`cmarket`), allow editing & copying Auto-Sell rules offline!
+    if (ncCharModalState.activeTab === 'cmarket') {
+      const localCfg = loadLocalNightcampCMarketCfg(pid);
+      ncCharModalState.data = {
+        success: true,
+        isOfflineFallback: true,
+        charName: prof?.liveState?.charName || prof?.lastCharName || prof?.name || 'จอออฟไลน์',
+        jobId: 'traveler',
+        jobName: prof?.charClass || 'นักเดินทาง (ออฟไลน์)',
+        baseLv: prof?.liveState?.baseLv || 1,
+        jobLv: prof?.liveState?.jobLv || 1,
+        hp: 100,
+        hpMax: 100,
+        sp: 100,
+        spMax: 100,
+        coins: Number(prof?.liveState?.zeny || 0),
+        freeGold: Number(prof?.liveState?.zeny || 0),
+        vaultCoins: null,
+        weightCur: 0,
+        weightCap: 2000,
+        weightPct: 0,
+        statPoints: 0,
+        skillPoints: 0,
+        mapId: 'camp',
+        mapName: '⚪ จอเกมปิดอยู่ (ตั้งค่า Auto-Sell ตลาดกลางล่วงหน้าได้)',
+        nearShop: false,
+        nearForge: false,
+        portraitUrl: nightcampPortraitCache[pid] || '',
+        heroPaperdollUrl: nightcampPortraitCache[pid] || '',
+        baseStats: {},
+        statSheet: {},
+        equipment: {},
+        bagUsed: 0,
+        bagCap: 40,
+        storeUsed: 0,
+        storeCap: 60,
+        bagGear: [],
+        storageGear: [],
+        consumablesAndMats: [],
+        storageMats: [],
+        cmarket: {
+          autoSellConfig: localCfg,
+          lastLog: '⚪ จอนี้ออฟไลน์อยู่ — บันทึกหรือคัดลอกรายการ Auto-Sell ตลาดกลางไว้ล่วงหน้าได้ (ซิงค์เข้าเกมทันทีเมื่อเปิดจอ)',
+          canTradeMarket: false,
+          tradeLockMsg: 'จอเกมออฟไลน์อยู่ (เปิดจอเกมเพื่อดูของในกระเป๋าและวางขายจริง)',
+          isPremium: false,
+          openSlotCount: 0,
+          maxSlots: 20,
+          freeSlots: 20,
+          taxPct: 10,
+          stackMax: 9999,
+          ruleStates: (localCfg.rules || []).map(r => ({
+            id: r.id,
+            itemId: r.itemId,
+            itemName: r.itemName || r.itemId,
+            kind: r.kind || 'mat',
+            minQty: r.minQty || 1,
+            sellMode: r.sellMode || 'all',
+            customPrice: r.customPrice || 0,
+            reserveQty: r.reserveQty || 0,
+            enabled: r.enabled !== false,
+            icon: '',
+            bagQty: 0,
+            freeQty: 0,
+            sellableQty: 0,
+            activeListedCount: 0,
+            activeListedQty: 0,
+            refPrice: 0,
+            medianPrice: 0,
+            cheapKnown: 0,
+            band: [1, 999999],
+            statusKey: 'offline',
+            statusLabel: '⚪ บันทึกล่วงหน้า (รอเปิดจอเกม)',
+            ready: false
+          })),
+          tradableHoldings: [],
+          mineListings: [],
+          shelfCards: [],
+          sheetListings: [],
+          catalogItems: NC_CMARKET_PRESET_ITEMS.map(x => ({ id: x.itemId, name: x.itemName, kind: x.kind }))
+        }
+      };
+      renderNightcampCharacterModal();
+      return;
+    }
+
+    const bodyEl = document.getElementById('nc-char-modal-body');
+    if (bodyEl) {
+      bodyEl.innerHTML = `
+        <div style="grid-column:1 / -1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:30px;text-align:center;">
+          <div style="font-size:34px;">🏕️</div>
+          <div style="font-size:15px;font-weight:700;color:#fca5a5;">${escapeHTML(data?.error || 'ไม่สามารถอ่านข้อมูลตัวละครได้')}</div>
+          <div style="font-size:12px;color:#94a3b8;">ตรวจสอบว่าจอเกมเปิดอยู่และตัวละครเข้าสู่โลกเกมเรียบร้อยแล้ว (หรือคลิกปุ่มด้านล่างเพื่อตั้งค่า Auto-Sell ตลาดกลางแบบออฟไลน์)</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;">
+            <button type="button" onclick="refreshNightcampCharacterModal()" style="background:#0284c7;border:1px solid #38bdf8;color:#fff;border-radius:8px;padding:7px 16px;font-size:12.5px;font-weight:700;cursor:pointer;">🔄 ลองใหม่อีกครั้ง</button>
+            <button type="button" onclick="ncCharModalState.activeTab='cmarket'; refreshNightcampCharacterModal()" style="background:linear-gradient(135deg,#4f46e5,#4338ca);border:1px solid #818cf8;color:#fff;border-radius:8px;padding:7px 16px;font-size:12.5px;font-weight:700;cursor:pointer;">🏪 ตั้งค่า Auto-Sell ตลาดกลาง (ออฟไลน์)</button>
+            <button type="button" onclick="closeNightcampCharacterModal(); openWebBotHUD('${escapeHTML(pid)}')" style="background:rgba(168,85,247,0.22);border:1px solid #c084fc;color:#e9d5ff;border-radius:8px;padding:7px 16px;font-size:12.5px;font-weight:700;cursor:pointer;">🎮 เปิดเมนูบอทจอนี้</button>
+          </div>
+        </div>
+      `;
+    }
+    return;
+  }
+  if (data.portraitUrl && data.portraitUrl.startsWith('data:image/')) {
+    nightcampPortraitCache[pid] = data.portraitUrl;
+    try { localStorage.setItem('nc_portrait_' + pid, data.portraitUrl); } catch (_) {}
+  }
+  // Sync local mirror with online client's cmarketAutoSellConfig
+  if (data.cmarket?.autoSellConfig) {
+    const onlineRules = data.cmarket.autoSellConfig.rules || [];
+    const localCfg = loadLocalNightcampCMarketCfg(pid);
+    if (onlineRules.length === 0 && Array.isArray(localCfg.rules) && localCfg.rules.length > 0) {
+      // Push offline-saved rules into the newly-online game client!
+      try {
+        await sendWebHudAction(pid, {
+          type: 'eval',
+          code: `(typeof window.__setCMarketAutoSellConfig === 'function' ? window.__setCMarketAutoSellConfig(${JSON.stringify(localCfg)}, false) : null)`
+        });
+        const refreshed = await fetchNightcampCharacterInspectData(pid);
+        if (refreshed && refreshed.success) {
+          ncCharModalState.data = refreshed;
+          renderNightcampCharacterModal();
+          return;
+        }
+      } catch (_) {}
+    } else {
+      saveLocalNightcampCMarketCfg(pid, data.cmarket.autoSellConfig);
+    }
+  }
+  ncCharModalState.data = data;
+  renderNightcampCharacterModal();
+}
+window.refreshNightcampCharacterModal = refreshNightcampCharacterModal;
+
+async function runNightcampCharacterAction(actionPayload) {
+  const pid = ncCharModalState.profileId;
+  if (!pid || ncCharModalState.loading) return;
+  ncCharModalState.loading = true;
+  try {
+    const res = await sendWebHudAction(pid, {
+      type: 'eval',
+      code: `(typeof window.__runNightcampCharAction === 'function' ? window.__runNightcampCharAction(${JSON.stringify(actionPayload)}) : { success: false, error: 'ไม่พบฟังก์ชันสั่งงานในเกม' })`
+    });
+    const out = res?.result?.result || res?.result || res;
+    if (out && out.message) {
+      showToast(out.message, out.success !== false ? 'success' : 'warning');
+    } else if (out && out.error) {
+      showToast('❌ ' + out.error, 'error');
+    }
+    if (out && out.data && out.data.success) {
+      ncCharModalState.data = out.data;
+      if (out.data.portraitUrl && out.data.portraitUrl.startsWith('data:image/')) {
+        nightcampPortraitCache[pid] = out.data.portraitUrl;
+        try { localStorage.setItem('nc_portrait_' + pid, out.data.portraitUrl); } catch (_) {}
+      }
+      renderNightcampCharacterModal();
+    } else {
+      await refreshNightcampCharacterModal();
+    }
+  } catch (err) {
+    showToast('❌ ' + err.message, 'error');
+  } finally {
+    ncCharModalState.loading = false;
+  }
+}
+window.runNightcampCharacterAction = runNightcampCharacterAction;
+
+function selectNightcampEquipSlotFilter(slotKey) {
+  if (ncCharModalState.selectedSlot === slotKey && ncCharModalState.bagSubCat === 'equip') {
+    ncCharModalState.selectedSlot = 'all';
+  } else {
+    ncCharModalState.selectedSlot = slotKey;
+    ncCharModalState.activeTab = 'bag';
+    ncCharModalState.bagSubCat = ['fhat', 'frobe'].includes(slotKey) ? 'fashion' : 'equip';
+  }
+  renderNightcampCharacterModal();
+}
+window.selectNightcampEquipSlotFilter = selectNightcampEquipSlotFilter;
+
+function switchNightcampCharTab(tab) {
+  if (tab === 'mats') {
+    ncCharModalState.activeTab = 'bag';
+    ncCharModalState.bagSubCat = 'mat';
+  } else {
+    ncCharModalState.activeTab = tab;
+  }
+  renderNightcampCharacterModal();
+}
+window.switchNightcampCharTab = switchNightcampCharTab;
+
+function setNightcampBagSubCat(subCat) {
+  ncCharModalState.bagSubCat = subCat || 'all';
+  if (subCat !== 'equip' && subCat !== 'fashion') {
+    ncCharModalState.selectedSlot = 'all';
+  }
+  renderNightcampRightPaneOnly();
+}
+window.setNightcampBagSubCat = setNightcampBagSubCat;
+
+function setNightcampMatCategory(cat) {
+  ncCharModalState.matCategory = cat || 'all';
+  renderNightcampRightPaneOnly();
+}
+window.setNightcampMatCategory = setNightcampMatCategory;
+
+function onNightcampBagSearchInput(val) {
+  ncCharModalState.searchQuery = String(val || '');
+  renderNightcampRightPaneOnly();
+}
+window.onNightcampBagSearchInput = onNightcampBagSearchInput;
+
+// ============================================================================
+// NIGHTCAMP CENTRAL MARKET (ตลาดกลาง) & AUTO-SELL MARKET CONTROLLERS
+// ============================================================================
+function switchNightcampCMarketSubTab(subTab) {
+  ncCharModalState.marketSubTab = subTab || 'autosell';
+  renderNightcampRightPaneOnly();
+  if (subTab === 'browse' && ncCharModalState.data && !ncCharModalState.data.isOfflineFallback) {
+    const cm = ncCharModalState.data.cmarket || {};
+    if ((!cm.shelfCards || cm.shelfCards.length === 0) && (!cm.sheetListings || cm.sheetListings.length === 0)) {
+      searchNightcampCMarketNow('');
+    }
+  }
+}
+window.switchNightcampCMarketSubTab = switchNightcampCMarketSubTab;
+
+function setNightcampCMarketRuleFilter(filterKey) {
+  ncCharModalState.cmRuleFilter = filterKey || 'all';
+  renderNightcampRightPaneOnly();
+}
+window.setNightcampCMarketRuleFilter = setNightcampCMarketRuleFilter;
+
+function toggleNightcampCMarketCopyPanel() {
+  ncCharModalState.cmCopyPanelOpen = !ncCharModalState.cmCopyPanelOpen;
+  renderNightcampRightPaneOnly();
+}
+window.toggleNightcampCMarketCopyPanel = toggleNightcampCMarketCopyPanel;
+
+function selectNightcampCMarketCopyTargets(mode) {
+  document.querySelectorAll('.nc-cm-copy-target-cb').forEach(cb => {
+    if (mode === 'all') cb.checked = true;
+    else if (mode === 'none') cb.checked = false;
+    else if (mode === 'online') cb.checked = cb.dataset.online === '1';
+  });
+}
+window.selectNightcampCMarketCopyTargets = selectNightcampCMarketCopyTargets;
+
+async function persistAndSyncNightcampCMarketConfig(nextCfg, mergeRules = false) {
+  const pid = ncCharModalState.profileId;
+  if (!pid) return;
+  saveLocalNightcampCMarketCfg(pid, nextCfg);
+  const prof = currentProfiles.find(x => String(x.id) === String(pid));
+  if (prof && prof.isRunning && !ncCharModalState.data?.isOfflineFallback) {
+    await runNightcampCharacterAction({
+      action: 'cmarket_save_autosell',
+      config: nextCfg,
+      mergeRules
+    });
+  } else {
+    if (ncCharModalState.data?.cmarket) {
+      ncCharModalState.data.cmarket.autoSellConfig = nextCfg;
+      ncCharModalState.data.cmarket.ruleStates = (nextCfg.rules || []).map(r => ({
+        id: r.id,
+        itemId: r.itemId,
+        itemName: r.itemName || r.itemId,
+        kind: r.kind || 'mat',
+        minQty: r.minQty || 1,
+        sellMode: r.sellMode || 'all',
+        customPrice: r.customPrice || 0,
+        reserveQty: r.reserveQty || 0,
+        enabled: r.enabled !== false,
+        icon: '',
+        bagQty: 0,
+        freeQty: 0,
+        sellableQty: 0,
+        activeListedCount: 0,
+        activeListedQty: 0,
+        refPrice: 0,
+        medianPrice: 0,
+        cheapKnown: 0,
+        band: [1, 999999],
+        statusKey: 'offline',
+        statusLabel: '⚪ บันทึกล่วงหน้า (รอเปิดจอเกม)',
+        ready: false
+      }));
+    }
+    showToast('💾 บันทึกรายการ Auto-Sell ตลาดกลางไว้ในโปรไฟล์นี้แล้ว', 'success');
+    renderNightcampRightPaneOnly();
+  }
+}
+
+async function updateNightcampCMarketMasterSetting(field, val) {
+  const pid = ncCharModalState.profileId;
+  if (!pid) return;
+  const cur = JSON.parse(JSON.stringify(ncCharModalState.data?.cmarket?.autoSellConfig || loadLocalNightcampCMarketCfg(pid)));
+  cur[field] = val;
+  await persistAndSyncNightcampCMarketConfig(cur, false);
+}
+window.updateNightcampCMarketMasterSetting = updateNightcampCMarketMasterSetting;
+
+async function quickAddNightcampCMarketRule(itemId, itemName, kind = 'mat', defaultMinQty = 1) {
+  const pid = ncCharModalState.profileId;
+  if (!pid) return;
+  const cur = JSON.parse(JSON.stringify(ncCharModalState.data?.cmarket?.autoSellConfig || loadLocalNightcampCMarketCfg(pid)));
+  if (!Array.isArray(cur.rules)) cur.rules = [];
+  const cleanId = String(itemId || itemName || '').trim();
+  const cleanName = String(itemName || itemId || '').trim();
+  if (!cleanId && !cleanName) return;
+
+  const existsIdx = cur.rules.findIndex(r =>
+    (cleanId && String(r.itemId || '').toLowerCase() === cleanId.toLowerCase()) ||
+    (cleanName && String(r.itemName || '').toLowerCase() === cleanName.toLowerCase())
+  );
+  if (existsIdx >= 0) {
+    cur.rules[existsIdx].enabled = true;
+    showToast(`ℹ️ "${cleanName}" อยู่ในรายการ Auto-Sell ตลาดกลางแล้ว`, 'info');
+  } else {
+    cur.rules.unshift({
+      id: 'cmrule_' + Date.now() + '_' + Math.floor(Math.random() * 999),
+      itemId: cleanId,
+      itemName: cleanName,
+      kind: kind || 'mat',
+      minQty: Math.max(1, Number(defaultMinQty) || 1),
+      sellMode: 'all',
+      customPrice: 0,
+      reserveQty: 0,
+      enabled: true
+    });
+    cur.enabled = true;
+  }
+  ncCharModalState.activeTab = 'cmarket';
+  ncCharModalState.marketSubTab = 'autosell';
+  await persistAndSyncNightcampCMarketConfig(cur, false);
+}
+window.quickAddNightcampCMarketRule = quickAddNightcampCMarketRule;
+
+async function addNightcampCMarketAutoSellRuleFromForm() {
+  const pid = ncCharModalState.profileId;
+  if (!pid) return;
+  const rawInput = String(document.getElementById('nc-cm-add-name')?.value || '').trim();
+  const minQty = Math.max(1, Math.floor(Number(document.getElementById('nc-cm-add-minqty')?.value) || 1));
+  const sellMode = document.getElementById('nc-cm-add-mode')?.value === 'min' ? 'min' : 'all';
+  const customPrice = Math.max(0, Math.floor(Number(document.getElementById('nc-cm-add-price')?.value) || 0));
+  const reserveQty = Math.max(0, Math.floor(Number(document.getElementById('nc-cm-add-reserve')?.value) || 0));
+  if (!rawInput) {
+    showToast('⚠️ กรุณาระบุชื่อไอเทม หรือเลือกจากรายการในกระเป๋า', 'warning');
+    return;
+  }
+
+  // Parse "ชื่อไอเทม (item_id)" if selected from datalist
+  let itemId = rawInput;
+  let itemName = rawInput;
+  let kind = 'auto';
+  const parenMatch = /^(.*?)\s*\(([a-z0-9_]+)\)$/i.exec(rawInput);
+  if (parenMatch) {
+    itemName = parenMatch[1].trim() || parenMatch[2];
+    itemId = parenMatch[2].trim();
+  }
+  const catList = ncCharModalState.data?.cmarket?.catalogItems || [];
+  const catHit = catList.find(c =>
+    String(c.id).toLowerCase() === itemId.toLowerCase() ||
+    String(c.name).toLowerCase() === itemName.toLowerCase()
+  );
+  if (catHit) {
+    itemId = catHit.id;
+    itemName = catHit.name;
+    kind = catHit.kind || 'mat';
+  }
+
+  const cur = JSON.parse(JSON.stringify(ncCharModalState.data?.cmarket?.autoSellConfig || loadLocalNightcampCMarketCfg(pid)));
+  if (!Array.isArray(cur.rules)) cur.rules = [];
+  const existingIdx = cur.rules.findIndex(r =>
+    String(r.itemId || '').toLowerCase() === itemId.toLowerCase() ||
+    String(r.itemName || '').toLowerCase() === itemName.toLowerCase()
+  );
+  const newRule = {
+    id: existingIdx >= 0 ? cur.rules[existingIdx].id : ('cmrule_' + Date.now()),
+    itemId,
+    itemName,
+    kind,
+    minQty,
+    sellMode,
+    customPrice,
+    reserveQty,
+    enabled: true
+  };
+  if (existingIdx >= 0) {
+    cur.rules[existingIdx] = newRule;
+  } else {
+    cur.rules.unshift(newRule);
+  }
+  cur.enabled = true;
+  await persistAndSyncNightcampCMarketConfig(cur, false);
+}
+window.addNightcampCMarketAutoSellRuleFromForm = addNightcampCMarketAutoSellRuleFromForm;
+
+async function updateNightcampCMarketRuleField(ruleId, field, rawVal) {
+  const pid = ncCharModalState.profileId;
+  if (!pid) return;
+  const cur = JSON.parse(JSON.stringify(ncCharModalState.data?.cmarket?.autoSellConfig || loadLocalNightcampCMarketCfg(pid)));
+  if (!Array.isArray(cur.rules)) return;
+  const rule = cur.rules.find(r => String(r.id) === String(ruleId));
+  if (!rule) return;
+  if (field === 'enabled') rule.enabled = Boolean(rawVal);
+  else if (field === 'minQty') rule.minQty = Math.max(1, Math.min(9999, Math.floor(Number(rawVal) || 1)));
+  else if (field === 'reserveQty') rule.reserveQty = Math.max(0, Math.min(9999, Math.floor(Number(rawVal) || 0)));
+  else if (field === 'customPrice') rule.customPrice = Math.max(0, Math.floor(Number(rawVal) || 0));
+  else if (field === 'sellMode') rule.sellMode = rawVal === 'min' ? 'min' : 'all';
+  await persistAndSyncNightcampCMarketConfig(cur, false);
+}
+window.updateNightcampCMarketRuleField = updateNightcampCMarketRuleField;
+
+async function deleteNightcampCMarketRule(ruleId) {
+  const pid = ncCharModalState.profileId;
+  if (!pid) return;
+  const cur = JSON.parse(JSON.stringify(ncCharModalState.data?.cmarket?.autoSellConfig || loadLocalNightcampCMarketCfg(pid)));
+  if (!Array.isArray(cur.rules)) return;
+  cur.rules = cur.rules.filter(r => String(r.id) !== String(ruleId));
+  await persistAndSyncNightcampCMarketConfig(cur, false);
+}
+window.deleteNightcampCMarketRule = deleteNightcampCMarketRule;
+
+async function executeNightcampCMarketCopyToProfiles() {
+  const pid = ncCharModalState.profileId;
+  if (!pid) return;
+  const srcCfg = JSON.parse(JSON.stringify(ncCharModalState.data?.cmarket?.autoSellConfig || loadLocalNightcampCMarketCfg(pid)));
+  const mergeMode = (document.querySelector('input[name="nc-cm-copy-mode"]:checked')?.value || ncCharModalState.cmCopyMode) === 'merge';
+  ncCharModalState.cmCopyMode = mergeMode ? 'merge' : 'replace';
+
+  const checkedIds = Array.from(document.querySelectorAll('.nc-cm-copy-target-cb:checked')).map(cb => cb.value).filter(Boolean);
+  if (checkedIds.length === 0) {
+    showToast('⚠️ กรุณาเลือกจอเป้าหมายอย่างน้อย 1 จอ', 'warning');
+    return;
+  }
+
+  let onlineUpdated = 0;
+  let offlineSaved = 0;
+  await Promise.allSettled(checkedIds.map(async (targetId) => {
+    const existingLocal = loadLocalNightcampCMarketCfg(targetId);
+    let mergedRules = srcCfg.rules || [];
+    if (mergeMode) {
+      const map = new Map();
+      for (const r of (existingLocal.rules || [])) {
+        const k = String(r.itemId || r.itemName || '').toLowerCase();
+        if (k) map.set(k, r);
+      }
+      for (const r of (srcCfg.rules || [])) {
+        const k = String(r.itemId || r.itemName || '').toLowerCase();
+        if (k) map.set(k, r);
+      }
+      mergedRules = Array.from(map.values());
+    }
+    const targetCfg = {
+      enabled: srcCfg.enabled,
+      priceStrategy: srcCfg.priceStrategy,
+      autoClaimMail: srcCfg.autoClaimMail,
+      autoUnlistExpired: srcCfg.autoUnlistExpired,
+      rules: mergedRules
+    };
+    saveLocalNightcampCMarketCfg(targetId, targetCfg);
+
+    const tProf = currentProfiles.find(p => String(p.id) === String(targetId));
+    if (tProf && tProf.isRunning) {
+      await sendWebHudAction(targetId, {
+        type: 'eval',
+        code: `(typeof window.__setCMarketAutoSellConfig === 'function' ? window.__setCMarketAutoSellConfig(${JSON.stringify(srcCfg)}, ${mergeMode}) : null)`
+      });
+      onlineUpdated++;
+    } else {
+      offlineSaved++;
+    }
+  }));
+
+  showToast(`📋 คัดลอกรายการ Auto-Sell ตลาดกลางไปยัง ${checkedIds.length} จอแล้ว (ออนไลน์ ${onlineUpdated} จอ${offlineSaved > 0 ? ` · บันทึกล่วงหน้า ${offlineSaved} จอ` : ''})`, 'success');
+  ncCharModalState.cmCopyPanelOpen = false;
+  renderNightcampRightPaneOnly();
+}
+window.executeNightcampCMarketCopyToProfiles = executeNightcampCMarketCopyToProfiles;
+
+async function manualListNightcampCMarketItem(safeIdx, k, itemId, uid) {
+  const qtyEl = document.getElementById(`nc-cm-manual-qty-${safeIdx}`);
+  const priceEl = document.getElementById(`nc-cm-manual-price-${safeIdx}`);
+  const qty = Math.max(1, Math.floor(Number(qtyEl?.value) || 1));
+  const price = Math.max(1, Math.floor(Number(priceEl?.value) || 100));
+  await runNightcampCharacterAction({
+    action: 'cmarket_list_item',
+    k,
+    itemId,
+    uid: Number(uid) || 0,
+    qty,
+    price
+  });
+}
+window.manualListNightcampCMarketItem = manualListNightcampCMarketItem;
+
+async function searchNightcampCMarketNow(itemKey = '') {
+  const qEl = document.getElementById('nc-cm-browse-q');
+  const catEl = document.getElementById('nc-cm-browse-cat');
+  const sortEl = document.getElementById('nc-cm-browse-sort');
+  if (qEl) ncCharModalState.cmBrowseQuery = qEl.value;
+  if (catEl) ncCharModalState.cmBrowseCategory = catEl.value;
+  if (sortEl) ncCharModalState.cmBrowseSort = sortEl.value;
+  await runNightcampCharacterAction({
+    action: 'cmarket_search',
+    itemKey: itemKey || '',
+    query: ncCharModalState.cmBrowseQuery,
+    category: ncCharModalState.cmBrowseCategory,
+    sort: ncCharModalState.cmBrowseSort
+  });
+}
+window.searchNightcampCMarketNow = searchNightcampCMarketNow;
+
+async function buyNightcampCMarketListing(listingId, qtyInputId) {
+  const count = Math.max(1, Math.floor(Number(document.getElementById(qtyInputId)?.value) || 1));
+  await runNightcampCharacterAction({
+    action: 'cmarket_buy',
+    listingId,
+    count
+  });
+}
+window.buyNightcampCMarketListing = buyNightcampCMarketListing;
+
+function renderNightcampEquipSlotCard(def, eqItem) {
+  const isSelected = ncCharModalState.selectedSlot === def.key;
+  const st = getNightcampRarityStyle(eqItem?.rarity, eqItem?.starshine);
+  const borderCol = isSelected ? '#38bdf8' : (eqItem ? st.border : 'rgba(148,163,184,0.2)');
+  const bgCol = isSelected ? 'rgba(14,165,233,0.22)' : (eqItem ? st.bg : 'rgba(15,23,42,0.55)');
+
+  return `
+    <div onclick="selectNightcampEquipSlotFilter('${def.key}')"
+         title="${eqItem ? `${escapeHTML(eqItem.name)}${eqItem.abilText ? ' · ' + escapeHTML(eqItem.abilText) : ''}` : `ช่อง ${def.label} (คลิกเพื่อดูของในกระเป๋าที่ใส่ช่องนี้ได้)`}"
+         style="background:${bgCol}; border:1.5px solid ${borderCol}; border-radius:9px; padding:6px 7px; display:flex; align-items:center; gap:7px; cursor:pointer; transition:all 0.15s ease; min-height:46px; position:relative;">
+      <div style="width:36px; height:36px; border-radius:7px; background:#020617; border:1px solid ${eqItem ? st.border : 'rgba(148,163,184,0.2)'}; display:flex; align-items:center; justify-content:center; flex-shrink:0; overflow:hidden; position:relative;">
+        ${eqItem?.icon
+          ? `<img src="${escapeHTML(eqItem.icon)}" alt="" style="width:32px;height:32px;object-fit:contain;">`
+          : `<span style="font-size:16px;opacity:0.45;">${def.icon}</span>`}
+        ${eqItem?.grade ? `<span style="position:absolute;left:1px;top:1px;background:rgba(15,23,42,0.9);color:#fbbf24;font-size:8px;font-weight:800;padding:0 3px;border-radius:3px;">G${eqItem.grade}</span>` : ''}
+      </div>
+      <div style="flex:1; min-width:0; overflow:hidden;">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:4px;">
+          <span style="font-size:9.5px; color:#94a3b8; font-weight:600;">${escapeHTML(def.label)}</span>
+          ${eqItem ? `<button type="button" onclick="event.stopPropagation(); runNightcampCharacterAction({ action: 'unequip_slot', slot: '${def.key}' })" title="ถอดอุปกรณ์ชิ้นนี้" style="background:rgba(239,68,68,0.18);border:1px solid rgba(248,113,113,0.45);color:#fca5a5;border-radius:4px;font-size:9px;font-weight:700;padding:1px 5px;cursor:pointer;">ถอด</button>` : ''}
+        </div>
+        <div style="font-size:11px; font-weight:700; color:${eqItem ? st.color : '#64748b'}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+          ${eqItem ? escapeHTML(eqItem.name) : '— ว่าง —'}
+        </div>
+        ${eqItem && eqItem.options && eqItem.options.length > 0 ? `
+          <div style="font-size:9px; color:#86efac; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+            ${escapeHTML(eqItem.options.map(o => o.text).join(' · '))}
+          </div>
+        ` : ''}
+      </div>
+    </div>
+  `;
+}
+
+function renderNightcampGearCardHtml(item, { isStorage = false } = {}) {
+  const st = getNightcampRarityStyle(item.rarity, item.starshine);
+  const isWorn = Boolean(item.wornSlot);
+  return `
+    <div style="background:${isWorn ? 'linear-gradient(135deg, rgba(16,185,129,0.14), rgba(15,23,42,0.9))' : 'rgba(15,23,42,0.78)'}; border:1px solid ${isWorn ? 'rgba(52,211,153,0.55)' : st.border}; border-radius:10px; padding:9px 11px; display:flex; flex-direction:column; gap:6px;">
+      <div style="display:flex; align-items:flex-start; gap:9px;">
+        <div style="width:44px; height:44px; border-radius:8px; background:#020617; border:1px solid ${st.border}; display:flex; align-items:center; justify-content:center; flex-shrink:0; position:relative;">
+          ${item.icon ? `<img src="${escapeHTML(item.icon)}" alt="" style="width:38px;height:38px;object-fit:contain;">` : `<span style="font-size:18px;">⚔️</span>`}
+          ${item.grade > 0 ? `<span style="position:absolute;left:2px;top:2px;background:#0f172a;border:1px solid #fbbf24;color:#fde68a;font-size:8.5px;font-weight:800;padding:0 3px;border-radius:3px;">ขัด G${item.grade}</span>` : ''}
+          ${item.locked ? `<span style="position:absolute;right:2px;bottom:2px;font-size:10px;" title="ล็อกอยู่">🔒</span>` : ''}
+        </div>
+        <div style="flex:1; min-width:0;">
+          <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+            <span style="font-size:12.5px; font-weight:800; color:${st.color};">${escapeHTML(item.name)}</span>
+            <span style="font-size:9.5px; font-weight:700; color:${st.color}; background:${st.bg}; border:1px solid ${st.border}; padding:0 6px; border-radius:999px;">${st.label}</span>
+            ${isWorn ? `<span style="font-size:9.5px; font-weight:800; color:#6ee7b7; background:rgba(16,185,129,0.2); border:1px solid rgba(52,211,153,0.45); padding:0 6px; border-radius:999px;">✨ สวมใส่อยู่ (${escapeHTML(item.wornSlot)})</span>` : ''}
+            ${item.score > 0 ? `<span style="font-size:9.5px; color:#38bdf8; background:rgba(14,165,233,0.14); border:1px solid rgba(56,189,248,0.32); padding:0 6px; border-radius:999px;" title="คะแนนความเหมาะสมกับสายอาชีพปัจจุบัน">⚡ คะแนน ${item.score}</span>` : ''}
+          </div>
+          <div style="font-size:10.5px; color:#94a3b8; margin-top:2px; display:flex; gap:8px; flex-wrap:wrap;">
+            <span>ช่อง: <b style="color:#cbd5e1;">${escapeHTML(item.slot || '-')}</b></span>
+            <span>Lv.${item.lvReq || 1}</span>
+            ${item.dmg ? `<span style="color:#fca5a5;">ATK ${item.dmg[0]}–${item.dmg[1]}</span>` : ''}
+            ${item.def ? `<span style="color:#93c5fd;">DEF +${item.def}</span>` : ''}
+            ${item.salePrice ? `<span style="color:#fde68a;">ราคาขาย ${item.salePrice.toLocaleString()}g</span>` : ''}
+          </div>
+          ${item.abilText ? `<div style="font-size:10.5px; color:#cbd5e1; margin-top:2px;">• ${escapeHTML(item.abilText)}</div>` : ''}
+          ${item.wskText ? `<div style="font-size:10.5px; color:#c084fc; font-weight:600; margin-top:1px;">★ ${escapeHTML(item.wskText)}</div>` : ''}
+          ${item.options && item.options.length > 0 ? `
+            <div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:4px;">
+              ${item.options.map(o => `<span style="font-size:10px; font-weight:700; color:#86efac; background:rgba(16,185,129,0.14); border:1px solid rgba(52,211,153,0.35); padding:1px 6px; border-radius:5px;">✦ ${escapeHTML(o.text)}</span>`).join('')}
+            </div>
+          ` : ''}
+        </div>
+      </div>
+
+      <div style="display:flex; justify-content:flex-end; align-items:center; gap:5px; flex-wrap:wrap; border-top:1px solid rgba(255,255,255,0.06); padding-top:6px;">
+        ${isStorage ? `
+          <button type="button" onclick="runNightcampCharacterAction({ action: 'withdraw_gear', uid: ${item.uid} })" style="background:#0284c7;border:1px solid #38bdf8;color:#fff;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;">📤 เบิกเข้ากระเป๋า</button>
+          <button type="button" onclick="runNightcampCharacterAction({ action: 'toggle_lock_gear', uid: ${item.uid} })" style="background:rgba(148,163,184,0.15);border:1px solid rgba(148,163,184,0.35);color:#e2e8f0;border-radius:6px;padding:4px 8px;font-size:10.5px;font-weight:600;cursor:pointer;">${item.locked ? '🔓 ปลดล็อก' : '🔒 ล็อก'}</button>
+        ` : `
+          ${isWorn
+            ? `<button type="button" onclick="runNightcampCharacterAction({ action: 'unequip_slot', slot: '${escapeHTML(item.wornSlot)}' })" style="background:rgba(239,68,68,0.2);border:1px solid rgba(248,113,113,0.5);color:#fca5a5;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;">❌ ถอดออก</button>`
+            : `<button type="button" onclick="runNightcampCharacterAction({ action: 'equip_gear', uid: ${item.uid}, itemId: '${escapeHTML(item.id)}' })" style="background:linear-gradient(135deg,#059669,#10b981);border:1px solid #34d399;color:#fff;border-radius:6px;padding:4px 11px;font-size:11px;font-weight:700;cursor:pointer;">⚡ สวมใส่ทันที</button>`
+          }
+          <button type="button" onclick="runNightcampCharacterAction({ action: 'toggle_lock_gear', uid: ${item.uid} })" style="background:rgba(148,163,184,0.15);border:1px solid rgba(148,163,184,0.35);color:#e2e8f0;border-radius:6px;padding:4px 8px;font-size:10.5px;font-weight:600;cursor:pointer;">${item.locked ? '🔓 ปลดล็อก' : '🔒 ล็อก'}</button>
+          <button type="button" onclick="runNightcampCharacterAction({ action: 'refine_gear', uid: ${item.uid} })" title="ตีบวก +1 (ต้องยืนใกล้เตาป๋าหมูหริ่ง)" style="background:rgba(168,85,247,0.18);border:1px solid rgba(192,132,252,0.45);color:#e9d5ff;border-radius:6px;padding:4px 8px;font-size:10.5px;font-weight:600;cursor:pointer;">🔨 ตีบวก</button>
+          ${!isWorn ? `<button type="button" onclick="runNightcampCharacterAction({ action: 'store_gear', uid: ${item.uid} })" title="ฝากเข้าคลังค่าย (ต้องอยู่ใกล้ลุงโกโก้)" style="background:rgba(14,165,233,0.16);border:1px solid rgba(56,189,248,0.4);color:#7dd3fc;border-radius:6px;padding:4px 8px;font-size:10.5px;font-weight:600;cursor:pointer;">📦 ฝากคลัง</button>` : ''}
+          ${!isWorn && !item.locked ? `<button type="button" onclick="quickAddNightcampCMarketRule('${escapeHTML(item.id)}', '${escapeHTML(item.baseName || item.name)}', 'item', 1)" title="เพิ่มเข้า Auto-Sell ตลาดกลาง (และป้องกันการขายให้ร้านลุงโกโก้)" style="background:rgba(99,102,241,0.22);border:1px solid rgba(129,140,248,0.5);color:#c7d2fe;border-radius:6px;padding:4px 8px;font-size:10.5px;font-weight:700;cursor:pointer;">🏪 +ตลาดกลาง</button>` : ''}
+          ${!isWorn && !item.locked ? `<button type="button" onclick="runNightcampCharacterAction({ action: 'sell_gear', uid: ${item.uid} })" title="ขายร้านลุงโกโก้" style="background:rgba(245,158,11,0.18);border:1px solid rgba(251,191,36,0.45);color:#fde68a;border-radius:6px;padding:4px 8px;font-size:10.5px;font-weight:600;cursor:pointer;">💰 ขาย</button>` : ''}
+          ${!isWorn && !item.locked ? `<button type="button" onclick="if(confirm('ยืนยันทิ้ง ${escapeHTML(item.name)}? (ทิ้งแล้วไม่ได้เหรียญ)')) runNightcampCharacterAction({ action: 'discard_gear', uid: ${item.uid} })" title="ทิ้งไอเทมนี้" style="background:rgba(239,68,68,0.14);border:1px solid rgba(248,113,113,0.35);color:#fca5a5;border-radius:6px;padding:4px 7px;font-size:10.5px;cursor:pointer;">🗑️</button>` : ''}
+        `}
+      </div>
+    </div>
+  `;
+}
+
+function renderNightcampMatCardHtml(m) {
+  const st = getNightcampRarityStyle(m.rarity, false);
+  const fallbackEmoji = m.category === 'card'
+    ? '🃏'
+    : (m.category === 'food' ? '🍲' : (m.category === 'potion' ? '🧪' : (m.category === 'box' ? '🎁' : (m.category === 'rune' ? '💠' : (m.category === 'seed' ? '🌱' : '🌰')))));
+  return `
+    <div style="background:rgba(15,23,42,0.78); border:1px solid ${st.border}; border-radius:9px; padding:8px 10px; display:flex; flex-direction:column; justify-content:space-between; gap:6px;">
+      <div style="display:flex; align-items:flex-start; gap:8px;">
+        <div style="width:42px; height:42px; border-radius:8px; background:#020617; border:1px solid ${st.border}; display:flex; align-items:center; justify-content:center; flex-shrink:0; overflow:hidden;">
+          ${m.icon ? `<img src="${escapeHTML(m.icon)}" alt="" style="width:36px;height:36px;object-fit:contain;">` : `<span style="font-size:18px;">${fallbackEmoji}</span>`}
+        </div>
+        <div style="flex:1; min-width:0;">
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:4px;">
+            <span style="font-size:12px; font-weight:700; color:${st.color}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHTML(m.name)}</span>
+            <span style="font-size:11px; font-weight:800; color:#fde047; background:rgba(234,179,8,0.16); border:1px solid rgba(250,204,21,0.4); padding:0 6px; border-radius:999px;">x${m.qty.toLocaleString()}</span>
+          </div>
+          ${m.desc ? `<div style="font-size:10px; color:#94a3b8; margin-top:2px; line-height:1.35;">${escapeHTML(m.desc)}</div>` : ''}
+        </div>
+      </div>
+      <div style="display:flex; justify-content:flex-end; gap:5px; flex-wrap:wrap; border-top:1px solid rgba(255,255,255,0.05); padding-top:5px;">
+        ${m.canUse ? `
+          <button type="button" onclick="runNightcampCharacterAction({ action: 'use_item', itemId: '${escapeHTML(m.id)}', useKind: '${escapeHTML(m.useKind)}' })" style="background:linear-gradient(135deg,#059669,#10b981);border:1px solid #34d399;color:#fff;border-radius:5px;padding:3px 9px;font-size:10.5px;font-weight:700;cursor:pointer;">${escapeHTML(m.useLabel || '✨ ใช้งาน')}</button>
+        ` : ''}
+        <button type="button" onclick="quickAddNightcampCMarketRule('${escapeHTML(m.id)}', '${escapeHTML(m.name)}', '${m.useKind === 'builtin_potion' ? 'pot' : (m.category === 'rune' ? 'rune' : 'mat')}', ${m.category === 'card' || m.category === 'box' || m.category === 'rune' ? 1 : 10})" title="เพิ่มเข้า Auto-Sell ตลาดกลาง (และป้องกันการขายให้ร้านลุงโกโก้)" style="background:rgba(99,102,241,0.22);border:1px solid rgba(129,140,248,0.5);color:#c7d2fe;border-radius:5px;padding:3px 8px;font-size:10px;font-weight:700;cursor:pointer;">🏪 +ตลาดกลาง</button>
+        ${m.useKind !== 'builtin_potion' ? `
+          <button type="button" onclick="runNightcampCharacterAction({ action: 'store_mat', itemId: '${escapeHTML(m.id)}', qty: ${m.qty} })" style="background:rgba(14,165,233,0.16);border:1px solid rgba(56,189,248,0.4);color:#7dd3fc;border-radius:5px;padding:3px 8px;font-size:10px;font-weight:600;cursor:pointer;">📦 ฝากคลัง</button>
+          <button type="button" onclick="runNightcampCharacterAction({ action: 'sell_mat', itemId: '${escapeHTML(m.id)}' })" style="background:rgba(245,158,11,0.16);border:1px solid rgba(251,191,36,0.4);color:#fde68a;border-radius:5px;padding:3px 8px;font-size:10px;font-weight:600;cursor:pointer;">💰 ขาย</button>
+        ` : ''}
+      </div>
+    </div>
+  `;
+}
+
+function renderNightcampRightPaneContentHtml(d) {
+  const tab = ncCharModalState.activeTab === 'mats' ? 'bag' : (ncCharModalState.activeTab || 'bag');
+  const q = ncCharModalState.searchQuery.trim().toLowerCase();
+
+  if (tab === 'bag') {
+    const bagSubCat = ncCharModalState.bagSubCat || 'all';
+    const slotFilter = ncCharModalState.selectedSlot || 'all';
+    const matSubFilter = ncCharModalState.matCategory || 'all';
+    const allSlotDefs = [...NC_CHAR_SLOTS_LEFT, ...NC_CHAR_SLOTS_RIGHT];
+    const pickedSlotDef = allSlotDefs.find(s => s.key === slotFilter);
+
+    const allGear = d.bagGear || [];
+    const allMats = d.consumablesAndMats || [];
+
+    const isFashionGear = it => it && (it.rarity === 'fashion' || ['fhat', 'frobe'].includes(it.slot));
+    const regularGear = allGear.filter(it => !isFashionGear(it));
+    const fashionGear = allGear.filter(it => isFashionGear(it));
+
+    const potFoodMats = allMats.filter(m => m.category === 'potion' || m.category === 'food');
+    const cardMats = allMats.filter(m => m.category === 'card' || /^bl_card_/.test(m.id));
+    const runeMats = allMats.filter(m => m.category === 'rune' || /^bl_rune_/.test(m.id));
+    const fashionMats = allMats.filter(m => m.category === 'fashion' || /^lk_/.test(m.id) || /^gx_fstone/.test(m.id));
+    // หน้าวัสดุ (Materials): includes monster mats, cards, seeds, boxes/boosts/tickets (with sub-filters to separate Cards!)
+    const matTabAll = allMats.filter(m => m.category !== 'potion' && m.category !== 'food' && m.category !== 'rune');
+    const rawMatsOnly = matTabAll.filter(m => m.category === 'material' || m.category === 'oil_ammo');
+    const boostBoxOnly = matTabAll.filter(m => m.category === 'boost' || m.category === 'box');
+    const seedOnly = matTabAll.filter(m => m.category === 'seed' || /^sd_/.test(m.id));
+
+    const matchGearQuery = item => {
+      if (!q) return true;
+      const optStr = (item.options || []).map(o => o.text).join(' ').toLowerCase();
+      return item.name.toLowerCase().includes(q) || (item.abilText || '').toLowerCase().includes(q) || (item.wskText || '').toLowerCase().includes(q) || optStr.includes(q);
+    };
+    const matchMatQuery = m => {
+      if (!q) return true;
+      return m.name.toLowerCase().includes(q) || (m.desc || '').toLowerCase().includes(q) || m.id.toLowerCase().includes(q);
+    };
+
+    const totalBagCount = allGear.length + allMats.length;
+    const subCats = [
+      ['all', `🗂️ ทั้งหมด (${totalBagCount})`],
+      ['equip', `⚔️ อุปกรณ์ (${regularGear.length})`],
+      ['mat', `🌰 วัสดุ (${matTabAll.length})`],
+      ['card', `🃏 การ์ด (${cardMats.length})`],
+      ['potion', `🧪 ยา & อาหาร (${potFoodMats.length})`],
+      ['fashion', `👗 แฟชั่น (${fashionGear.length + fashionMats.length})`],
+      ['rune', `💠 รูน (${runeMats.length})`]
+    ];
+
+    const subCatBarHtml = `
+      <div style="display:flex; flex-wrap:wrap; gap:5px; align-items:center; justify-content:space-between; margin-bottom:8px; background:rgba(15,23,42,0.82); border:1px solid rgba(56,189,248,0.28); border-radius:10px; padding:7px 10px;">
+        <div style="display:flex; flex-wrap:wrap; gap:5px;">
+          ${subCats.map(([k, lbl]) => `
+            <button type="button" onclick="setNightcampBagSubCat('${k}')"
+                    style="background:${bagSubCat === k ? 'linear-gradient(135deg,#0284c7,#0369a1)' : 'rgba(2,6,23,0.7)'}; border:1px solid ${bagSubCat === k ? '#38bdf8' : 'rgba(148,163,184,0.25)'}; color:${bagSubCat === k ? '#fff' : '#cbd5e1'}; border-radius:7px; padding:5px 10px; font-size:11px; font-weight:700; cursor:pointer;">${lbl}</button>
+          `).join('')}
+        </div>
+        <span style="font-size:11px; color:#94a3b8;">ช่องอุปกรณ์ <b>${d.bagUsed}/${d.bagCap}</b></span>
+      </div>
+    `;
+
+    // 1. Sub-category: `equip` (อุปกรณ์) or `all`
+    if (bagSubCat === 'equip') {
+      const filteredGear = regularGear.filter(item => {
+        if (slotFilter === 'weapon' && item.slot !== 'weapon') return false;
+        if (slotFilter === 'armor' && !['hat', 'glasses', 'top', 'pants', 'cape', 'robe', 'shield'].includes(item.slot)) return false;
+        if (slotFilter === 'acc' && !['acc', 'acc1', 'acc2'].includes(item.slot)) return false;
+        if (pickedSlotDef && !pickedSlotDef.matchSlots.includes(item.slot)) return false;
+        return matchGearQuery(item);
+      });
+      return `
+        ${subCatBarHtml}
+        <div style="display:flex; flex-wrap:wrap; gap:5px; align-items:center; justify-content:space-between; margin-bottom:8px;">
+          <div style="display:flex; flex-wrap:wrap; gap:4px;">
+            ${[
+              ['all', `ทั้งหมด (${regularGear.length})`],
+              ['weapon', `⚔️ อาวุธ (${regularGear.filter(x => x.slot === 'weapon').length})`],
+              ['armor', `🛡️ เกราะ/หมวก/โล่ (${regularGear.filter(x => ['hat', 'glasses', 'top', 'pants', 'cape', 'robe', 'shield'].includes(x.slot)).length})`],
+              ['acc', `💍 ประดับ (${regularGear.filter(x => ['acc', 'acc1', 'acc2'].includes(x.slot)).length})`]
+            ].map(([k, lbl]) => `
+              <button type="button" onclick="selectNightcampEquipSlotFilter('${k}')" style="background:${slotFilter === k ? '#0284c7' : 'rgba(15,23,42,0.75)'}; border:1px solid ${slotFilter === k ? '#38bdf8' : 'rgba(148,163,184,0.25)'}; color:${slotFilter === k ? '#fff' : '#cbd5e1'}; border-radius:6px; padding:4px 9px; font-size:11px; font-weight:700; cursor:pointer;">${lbl}</button>
+            `).join('')}
+            ${pickedSlotDef && !['all', 'weapon', 'armor', 'acc'].includes(slotFilter) ? `
+              <span style="background:rgba(16,185,129,0.2);border:1px solid #34d399;color:#6ee7b7;border-radius:6px;padding:4px 9px;font-size:11px;font-weight:700;">
+                🎯 กรองเฉพาะช่อง: ${escapeHTML(pickedSlotDef.label)}
+                <b onclick="selectNightcampEquipSlotFilter('all')" style="cursor:pointer;margin-left:5px;color:#fca5a5;">✕</b>
+              </span>
+            ` : ''}
+          </div>
+          <span style="font-size:11px; color:#94a3b8;">แสดง <b>${filteredGear.length}</b> ชิ้น</span>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:7px;">
+          ${filteredGear.length > 0
+            ? filteredGear.map(it => renderNightcampGearCardHtml(it, { isStorage: false })).join('')
+            : `<div style="text-align:center; padding:36px 16px; color:#64748b; background:rgba(2,6,23,0.45); border:1px dashed rgba(148,163,184,0.2); border-radius:10px; font-size:12.5px;">🎒 ไม่พบอุปกรณ์ในหมวดนี้</div>`}
+        </div>
+      `;
+    }
+
+    // 2. Sub-category: `mat` (วัสดุ — พร้อมปุ่มแยกการ์ด / วัตถุดิบ / ใบคูณ / เมล็ดพันธุ์)
+    if (bagSubCat === 'mat') {
+      const filteredMats = matTabAll.filter(m => {
+        if (matSubFilter === 'card' && !(m.category === 'card' || /^bl_card_/.test(m.id))) return false;
+        if (matSubFilter === 'raw' && !(m.category === 'material' || m.category === 'oil_ammo')) return false;
+        if (matSubFilter === 'boost' && !(m.category === 'boost' || m.category === 'box')) return false;
+        if (matSubFilter === 'seed' && !(m.category === 'seed' || /^sd_/.test(m.id))) return false;
+        return matchMatQuery(m);
+      });
+      return `
+        ${subCatBarHtml}
+        <div style="display:flex; flex-wrap:wrap; gap:5px; align-items:center; justify-content:space-between; margin-bottom:8px;">
+          <div style="display:flex; flex-wrap:wrap; gap:4px;">
+            ${[
+              ['all', `ทั้งหมด (${matTabAll.length})`],
+              ['card', `🃏 การ์ดมอนสเตอร์ (${cardMats.length})`],
+              ['raw', `🦴 วัตถุดิบ & ขยะมอน (${rawMatsOnly.length})`],
+              ['boost', `✨ ใบคูณ / ตั๋ว / กล่อง (${boostBoxOnly.length})`],
+              ['seed', `🌱 เมล็ดพันธุ์ (${seedOnly.length})`]
+            ].map(([k, lbl]) => `
+              <button type="button" onclick="setNightcampMatCategory('${k}')" style="background:${matSubFilter === k ? '#059669' : 'rgba(15,23,42,0.75)'}; border:1px solid ${matSubFilter === k ? '#34d399' : 'rgba(148,163,184,0.25)'}; color:${matSubFilter === k ? '#fff' : '#cbd5e1'}; border-radius:6px; padding:4px 9px; font-size:11px; font-weight:700; cursor:pointer;">${lbl}</button>
+            `).join('')}
+          </div>
+          <button type="button" onclick="runNightcampCharacterAction({ action: 'store_all_mats' })" title="ฝากวัตถุดิบและเมล็ดพันธุ์ทั้งหมดเข้าคลังค่าย (ต้องอยู่ใกล้ลุงโกโก้)" style="background:rgba(14,165,233,0.18);border:1px solid rgba(56,189,248,0.45);color:#7dd3fc;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;">📦 ฝากวัสดุทั้งหมดเข้าคลัง</button>
+        </div>
+        <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:7px;">
+          ${filteredMats.length > 0
+            ? filteredMats.map(m => renderNightcampMatCardHtml(m)).join('')
+            : `<div style="grid-column:1 / -1; text-align:center; padding:36px 16px; color:#64748b; background:rgba(2,6,23,0.45); border:1px dashed rgba(148,163,184,0.2); border-radius:10px; font-size:12.5px;">🌰 ไม่พบวัสดุในหมวดย่อยนี้</div>`}
+        </div>
+      `;
+    }
+
+    // 3. Sub-category: `card` (การ์ดมอนสเตอร์)
+    if (bagSubCat === 'card') {
+      const filteredCards = cardMats.filter(matchMatQuery);
+      return `
+        ${subCatBarHtml}
+        <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:7px;">
+          ${filteredCards.length > 0
+            ? filteredCards.map(m => renderNightcampMatCardHtml(m)).join('')
+            : `<div style="grid-column:1 / -1; text-align:center; padding:36px 16px; color:#64748b; background:rgba(2,6,23,0.45); border:1px dashed rgba(148,163,184,0.2); border-radius:10px; font-size:12.5px;">🃏 ยังไม่มีการ์ดมอนสเตอร์ในกระเป๋า</div>`}
+        </div>
+      `;
+    }
+
+    // 4. Sub-category: `potion` (ยา & อาหาร)
+    if (bagSubCat === 'potion') {
+      const filteredPots = potFoodMats.filter(matchMatQuery);
+      return `
+        ${subCatBarHtml}
+        <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:7px;">
+          ${filteredPots.length > 0
+            ? filteredPots.map(m => renderNightcampMatCardHtml(m)).join('')
+            : `<div style="grid-column:1 / -1; text-align:center; padding:36px 16px; color:#64748b; background:rgba(2,6,23,0.45); border:1px dashed rgba(148,163,184,0.2); border-radius:10px; font-size:12.5px;">🧪 ไม่พบยาหรืออาหารในกระเป๋า</div>`}
+        </div>
+      `;
+    }
+
+    // 5. Sub-category: `fashion` (แฟชั่น)
+    if (bagSubCat === 'fashion') {
+      const fGear = fashionGear.filter(matchGearQuery);
+      const fMats = fashionMats.filter(matchMatQuery);
+      return `
+        ${subCatBarHtml}
+        ${fGear.length > 0 ? `
+          <div style="display:flex; flex-direction:column; gap:7px; margin-bottom:${fMats.length > 0 ? '10px' : '0'};">
+            ${fGear.map(it => renderNightcampGearCardHtml(it, { isStorage: false })).join('')}
+          </div>
+        ` : ''}
+        ${fMats.length > 0 ? `
+          <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:7px;">
+            ${fMats.map(m => renderNightcampMatCardHtml(m)).join('')}
+          </div>
+        ` : ''}
+        ${fGear.length === 0 && fMats.length === 0 ? `
+          <div style="text-align:center; padding:36px 16px; color:#64748b; background:rgba(2,6,23,0.45); border:1px dashed rgba(148,163,184,0.2); border-radius:10px; font-size:12.5px;">👗 ไม่พบไอเทมแฟชั่นในกระเป๋า</div>
+        ` : ''}
+      `;
+    }
+
+    // 6. Sub-category: `rune` (รูน)
+    if (bagSubCat === 'rune') {
+      const filteredRunes = runeMats.filter(matchMatQuery);
+      return `
+        ${subCatBarHtml}
+        <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:7px;">
+          ${filteredRunes.length > 0
+            ? filteredRunes.map(m => renderNightcampMatCardHtml(m)).join('')
+            : `<div style="grid-column:1 / -1; text-align:center; padding:36px 16px; color:#64748b; background:rgba(2,6,23,0.45); border:1px dashed rgba(148,163,184,0.2); border-radius:10px; font-size:12.5px;">💠 ยังไม่มีรูนในกระเป๋า</div>`}
+        </div>
+      `;
+    }
+
+    // 7. Default Sub-category: `all` (ทั้งหมดในกระเป๋า: อุปกรณ์ + ยา/อาหาร + การ์ด + วัสดุ)
+    const allFilteredGear = allGear.filter(matchGearQuery);
+    const allFilteredMats = allMats.filter(matchMatQuery);
+    return `
+      ${subCatBarHtml}
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px; margin-bottom:8px;">
+        <span style="font-size:11px; color:#94a3b8;">แสดงทั้งหมดในกระเป๋า: อุปกรณ์ <b>${allFilteredGear.length}</b> ชิ้น · ยา/ของใช้/วัสดุ <b>${allFilteredMats.length}</b> รายการ</span>
+        <button type="button" onclick="runNightcampCharacterAction({ action: 'store_all_mats' })" title="ฝากวัตถุดิบและเมล็ดพันธุ์ทั้งหมดเข้าคลังค่าย (ต้องอยู่ใกล้ลุงโกโก้)" style="background:rgba(14,165,233,0.18);border:1px solid rgba(56,189,248,0.45);color:#7dd3fc;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;">📦 ฝากวัสดุทั้งหมดเข้าคลัง</button>
+      </div>
+      ${allFilteredGear.length > 0 ? `
+        <div style="font-size:11.5px; font-weight:800; color:#7dd3fc; margin-bottom:6px;">⚔️ อุปกรณ์ในกระเป๋า (${allFilteredGear.length} ชิ้น):</div>
+        <div style="display:flex; flex-direction:column; gap:7px; margin-bottom:12px;">
+          ${allFilteredGear.map(it => renderNightcampGearCardHtml(it, { isStorage: false })).join('')}
+        </div>
+      ` : ''}
+      ${allFilteredMats.length > 0 ? `
+        <div style="font-size:11.5px; font-weight:800; color:#6ee7b7; margin-bottom:6px;">🌰 ยา / อาหาร / การ์ด / วัสดุในกระเป๋า (${allFilteredMats.length} รายการ):</div>
+        <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:7px;">
+          ${allFilteredMats.map(m => renderNightcampMatCardHtml(m)).join('')}
+        </div>
+      ` : ''}
+      ${allFilteredGear.length === 0 && allFilteredMats.length === 0 ? `
+        <div style="text-align:center; padding:36px 16px; color:#64748b; background:rgba(2,6,23,0.45); border:1px dashed rgba(148,163,184,0.2); border-radius:10px; font-size:12.5px;">🎒 ไม่พบไอเทมในกระเป๋าที่ตรงกับคำค้นหา</div>
+      ` : ''}
+    `;
+  }
+
+  if (tab === 'stats') {
+    const s = d.statSheet || {};
+    const row = (lbl, val, accent = '#f8fafc') => `
+      <div style="display:flex; justify-content:space-between; align-items:center; padding:4px 0; border-bottom:1px solid rgba(255,255,255,0.05); font-size:11.5px;">
+        <span style="color:#94a3b8;">${lbl}</span>
+        <b style="color:${accent}; font-family:'JetBrains Mono',monospace;">${val}</b>
+      </div>
+    `;
+    const lineEntries = Object.entries(s.lineLv || {});
+    return `
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(230px, 1fr)); gap:10px;">
+        <div style="background:rgba(15,23,42,0.78); border:1px solid rgba(248,113,113,0.35); border-radius:10px; padding:11px 13px;">
+          <div style="font-size:12.5px; font-weight:800; color:#fca5a5; margin-bottom:6px;">⚔️ พลังโจมตี & ความแม่นยำ</div>
+          ${row('พลังโจมตีพื้นฐาน (BATK)', s.batk, '#fca5a5')}
+          ${row('พลังอาวุธ (WATK)', s.watk, '#fecaca')}
+          ${row('โบนัสพลังโจมตี (ATK%)', (s.atkMulPct >= 0 ? '+' : '') + s.atkMulPct + '%', '#fde68a')}
+          ${row('พลังเวท (MATK)', s.matk, '#93c5fd')}
+          ${row('ความแม่นยำ (HIT)', s.hit, '#86efac')}
+          ${row('คริติคอล (CRIT)', s.crit + '%', '#fbbf24')}
+          ${row('โบนัสแรงคริติคอล', '+' + s.critDmg + '%', '#fbbf24')}
+          ${row('โอกาสตีเบิ้ล (Double)', s.dbl + '%', '#c084fc')}
+          ${row('ความเร็วโจมตี (ASPD)', `${s.aspd} (${s.aspdMulPct >= 0 ? '+' : ''}${s.aspdMulPct}%)`, '#38bdf8')}
+          ${row('ธาตุโจมตี', s.atkElement, '#7dd3fc')}
+        </div>
+
+        <div style="background:rgba(15,23,42,0.78); border:1px solid rgba(56,189,248,0.35); border-radius:10px; padding:11px 13px;">
+          <div style="font-size:12.5px; font-weight:800; color:#7dd3fc; margin-bottom:6px;">🛡️ พลังป้องกัน & การฟื้นฟู</div>
+          ${row('HP สูงสุด (Max HP)', Number(s.maxHp || d.hpMax || 0).toLocaleString(), '#86efac')}
+          ${row('SP สูงสุด (Max SP)', Number(s.maxSp || d.spMax || 0).toLocaleString(), '#93c5fd')}
+          ${row('ป้องกันกายภาพ (DEF)', `${s.def} (+VIT ${s.vdef})`, '#cbd5e1')}
+          ${row('ป้องกันเวท (MDEF)', `${s.mdef} (+INT ${s.imdef})`, '#c4b5fd')}
+          ${row('หลบหลีก (FLEE)', s.flee, '#6ee7b7')}
+          ${row('หลบสมบูรณ์ (Perfect Dodge)', s.pdodge + '%', '#fde68a')}
+          ${row('ฟื้นฟู HP ต่อวินาที', '+' + s.hpRegen + '/วิ', '#4ade80')}
+          ${row('ฟื้นฟู SP ต่อวินาที', '+' + s.spRegen + '/วิ', '#60a5fa')}
+          ${row('ลดคูลดาวน์สกิล (CDR)', s.cdr + '%', '#e9d5ff')}
+          ${row('ธาตุเกราะป้องกัน', s.armorElement, '#cbd5e1')}
+        </div>
+
+        <div style="background:rgba(15,23,42,0.78); border:1px solid rgba(192,132,252,0.35); border-radius:10px; padding:11px 13px;">
+          <div style="font-size:12.5px; font-weight:800; color:#e9d5ff; margin-bottom:6px;">✨ เรโซแนนซ์สกิล & โบนัสอุปกรณ์</div>
+          ${lineEntries.length > 0
+            ? lineEntries.map(([lineKey, lv]) => row(`เรโซแนนซ์ ${lineKey}`, `${lv} แต้ม`, '#d8b4fe')).join('')
+            : `<div style="font-size:11px;color:#64748b;padding:6px 0;">ยังไม่มีแต้มเรโซแนนซ์สายสกิล</div>`}
+          <div style="margin-top:8px; font-size:11.5px; font-weight:700; color:#fde68a;">🌟 โบนัสรวมจากอุปกรณ์ (Mods):</div>
+          ${Object.entries(s.mods || {}).filter(([, v]) => Number(v) !== 0).map(([k, v]) => row(k, (v > 0 ? '+' : '') + v)).join('') || `<div style="font-size:11px;color:#64748b;padding:4px 0;">ไม่มีโบนัสเพิ่มเติม</div>`}
+        </div>
+      </div>
+    `;
+  }
+
+  if (tab === 'storage') {
+    const stGear = (d.storageGear || []).filter(it => !q || it.name.toLowerCase().includes(q));
+    const stMats = (d.storageMats || []).filter(m => !q || m.name.toLowerCase().includes(q));
+    return `
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:10px; background:rgba(16,185,129,0.1); border:1px solid rgba(52,211,153,0.35); border-radius:9px; padding:8px 12px;">
+        <div style="font-size:11.5px; color:#d1fae5;">
+          🏦 <b>คลังค่าย (ลุงโกโก้):</b> อุปกรณ์ <b>${d.storeUsed}/${d.storeCap}</b> ช่อง · วัตถุดิบในคลัง <b>${stMats.length}</b> ชนิด
+          ${d.vaultCoins !== null ? ` · 💰 <b>เงินในคลังร่วมไอดี:</b> <span style="color:#fde047;font-weight:800;">${Number(d.vaultCoins).toLocaleString()} เหรียญ</span>` : ''}
+        </div>
+        <button type="button" onclick="runNightcampCharacterAction({ action: 'walk_to_coco' })" style="background:#0284c7;border:1px solid #38bdf8;color:#fff;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;">🏃 เดินไปหาลุงโกโก้ในค่าย</button>
+      </div>
+
+      ${stGear.length > 0 ? `
+        <div style="font-size:12px; font-weight:800; color:#7dd3fc; margin-bottom:6px;">🎒 อุปกรณ์ในคลังค่าย (${stGear.length} ชิ้น):</div>
+        <div style="display:flex; flex-direction:column; gap:7px; margin-bottom:14px;">
+          ${stGear.map(it => renderNightcampGearCardHtml(it, { isStorage: true })).join('')}
+        </div>
+      ` : ''}
+
+      <div style="font-size:12px; font-weight:800; color:#6ee7b7; margin-bottom:6px;">📦 วัตถุดิบในคลังค่าย (${stMats.length} รายการ):</div>
+      <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(230px, 1fr)); gap:7px;">
+        ${stMats.length > 0 ? stMats.map(m => `
+          <div style="background:rgba(15,23,42,0.78); border:1px solid rgba(148,163,184,0.25); border-radius:8px; padding:7px 10px; display:flex; align-items:center; justify-content:space-between; gap:8px;">
+            <div style="display:flex; align-items:center; gap:8px; min-width:0;">
+              ${m.icon ? `<img src="${escapeHTML(m.icon)}" alt="" style="width:30px;height:30px;object-fit:contain;">` : `<span>📦</span>`}
+              <div style="min-width:0;">
+                <div style="font-size:11.5px; font-weight:700; color:#e2e8f0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHTML(m.name)}</div>
+                <div style="font-size:10px; color:#fde047; font-weight:700;">x${m.qty.toLocaleString()}</div>
+              </div>
+            </div>
+            <button type="button" onclick="runNightcampCharacterAction({ action: 'withdraw_mat', itemId: '${escapeHTML(m.id)}', qty: ${m.qty} })" style="background:#0284c7;border:1px solid #38bdf8;color:#fff;border-radius:5px;padding:3px 8px;font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap;">📤 เบิก</button>
+          </div>
+        `).join('') : `<div style="grid-column:1 / -1; text-align:center; padding:26px; color:#64748b; background:rgba(2,6,23,0.45); border-radius:9px; font-size:12px;">ยังไม่มีวัตถุดิบฝากไว้ในคลังค่าย (หรือเปิดดูคลังที่ร้านลุงโกโก้เพื่อซิงค์ข้อมูล)</div>`}
+      </div>
+    `;
+  }
+
+  if (tab === 'cmarket') {
+    return renderNightcampCMarketTabHtml(d);
+  }
+  return '';
+}
+
+function renderNightcampCMarketTabHtml(d) {
+  const pid = ncCharModalState.profileId;
+  const cm = d.cmarket || {};
+  const cfg = cm.autoSellConfig || loadLocalNightcampCMarketCfg(pid);
+  const subTab = ncCharModalState.marketSubTab || 'autosell';
+  const rules = Array.isArray(cm.ruleStates) ? cm.ruleStates : [];
+  const mineListings = Array.isArray(cm.mineListings) ? cm.mineListings : [];
+  const holdings = Array.isArray(cm.tradableHoldings) ? cm.tradableHoldings : [];
+  const tradableBagItems = holdings.filter(h => h && h.freeQty > 0 && !h.locked);
+  const openCount = Number(cm.openSlotCount ?? mineListings.filter(l => l.state === 'open').length);
+  const maxSlots = Number(cm.maxSlots) || 20;
+  const taxPct = Number(cm.taxPct) || 10;
+  const readyRulesCount = rules.filter(r => r.ready).length;
+
+  const subTabsHtml = `
+    <div style="display:flex; flex-wrap:wrap; gap:6px; align-items:center; justify-content:space-between; margin-bottom:10px; background:rgba(15,23,42,0.82); border:1px solid rgba(129,140,248,0.32); border-radius:10px; padding:7px 10px;">
+      <div style="display:flex; flex-wrap:wrap; gap:5px;">
+        ${[
+          ['autosell', `🤖 ตั้งค่า Auto-Sell ตลาดกลาง (${rules.length}${readyRulesCount > 0 ? ' · พร้อมขาย ' + readyRulesCount : ''})`],
+          ['sell', `🏷️ ลงขายไอเทมเอง (${tradableBagItems.length})`],
+          ['active', `📦 ชั้นวางของฉัน & รับเงิน (${openCount}/${maxSlots})`],
+          ['browse', `🔍 ค้นหา & ซื้อของในตลาดกลาง`]
+        ].map(([k, lbl]) => `
+          <button type="button" onclick="switchNightcampCMarketSubTab('${k}')"
+                  style="background:${subTab === k ? 'linear-gradient(135deg,#4f46e5,#4338ca)' : 'rgba(2,6,23,0.65)'}; border:1px solid ${subTab === k ? '#818cf8' : 'rgba(148,163,184,0.25)'}; color:${subTab === k ? '#fff' : '#cbd5e1'}; border-radius:7px; padding:5px 11px; font-size:11px; font-weight:700; cursor:pointer;">${lbl}</button>
+        `).join('')}
+      </div>
+      <div style="display:flex; align-items:center; gap:6px; font-size:10.5px;">
+        <span style="background:rgba(16,185,129,0.16); border:1px solid rgba(52,211,153,0.4); color:#6ee7b7; padding:2px 8px; border-radius:999px; font-weight:700;">
+          🏪 ชั้นของฉัน ${openCount}/${maxSlots} · ภาษี ${taxPct}%
+        </span>
+      </div>
+    </div>
+  `;
+
+  // =========================================================================
+  // SUB-TAB 1: 🤖 ตั้งค่า Auto-Sell ตลาดกลาง (modeled on Aetheria Auto-Sell Market)
+  // =========================================================================
+  if (subTab === 'autosell') {
+    const filterKey = ncCharModalState.cmRuleFilter || 'all';
+    const q = ncCharModalState.searchQuery.trim().toLowerCase();
+    const countReady = rules.filter(r => r.statusKey === 'ready').length;
+    const countWaiting = rules.filter(r => r.statusKey === 'waiting' || r.statusKey === 'bound').length;
+    const countListed = rules.filter(r => r.activeListedCount > 0).length;
+    const countMissing = rules.filter(r => r.statusKey === 'missing' || r.statusKey === 'offline').length;
+
+    const filteredRules = rules.filter(r => {
+      if (filterKey === 'ready' && r.statusKey !== 'ready') return false;
+      if (filterKey === 'waiting' && r.statusKey !== 'waiting' && r.statusKey !== 'bound') return false;
+      if (filterKey === 'listed' && !(r.activeListedCount > 0)) return false;
+      if (filterKey === 'missing' && r.statusKey !== 'missing' && r.statusKey !== 'offline') return false;
+      if (!q) return true;
+      return String(r.itemName || '').toLowerCase().includes(q) || String(r.itemId || '').toLowerCase().includes(q);
+    });
+
+    const otherProfiles = (currentProfiles || []).filter(p => String(p.id) !== String(pid));
+    const catalogOpts = (cm.catalogItems || []).slice(0, 400).map(c =>
+      `<option value="${escapeHTML(c.name)} (${escapeHTML(c.id)})"></option>`
+    ).join('');
+
+    return `
+      ${subTabsHtml}
+      <datalist id="nc-cm-catalog-datalist">${catalogOpts}</datalist>
+
+      <!-- Master Auto-Sell Banner Card -->
+      <div style="background:linear-gradient(135deg, rgba(49,46,129,0.42), rgba(15,23,42,0.92)); border:1px solid rgba(129,140,248,0.48); border-radius:11px; padding:11px 13px; margin-bottom:10px; display:flex; flex-direction:column; gap:8px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+          <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+            <label style="display:flex; align-items:center; gap:7px; font-size:13px; font-weight:800; color:#e0e7ff; cursor:pointer;">
+              <input type="checkbox" ${cfg.enabled ? 'checked' : ''} onchange="updateNightcampCMarketMasterSetting('enabled', this.checked)" style="width:16px; height:16px; accent-color:#6366f1; cursor:pointer;">
+              <span>🤖 เปิดระบบ Auto-Sell ตลาดกลางอัตโนมัติ</span>
+            </label>
+            <span style="font-size:10px; font-weight:700; color:#86efac; background:rgba(16,185,129,0.16); border:1px solid rgba(52,211,153,0.4); padding:2px 8px; border-radius:999px;">
+              🛡️ ป้องกันขายร้านลุงโกโก้ &amp; ป้องกันฝากคลังทับอัตโนมัติ
+            </span>
+          </div>
+          <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+            <button type="button" onclick="toggleNightcampCMarketCopyPanel()" style="background:rgba(14,165,233,0.2); border:1px solid rgba(56,189,248,0.5); color:#7dd3fc; border-radius:7px; padding:5px 10px; font-size:11px; font-weight:700; cursor:pointer;">
+              📋 Copy To จออื่น (${otherProfiles.length} จอ)
+            </button>
+            <button type="button" onclick="runNightcampCharacterAction({ action: 'cmarket_claim_mail' })" style="background:rgba(16,185,129,0.2); border:1px solid rgba(52,211,153,0.5); color:#6ee7b7; border-radius:7px; padding:5px 10px; font-size:11px; font-weight:700; cursor:pointer;">
+              📬 รับเงินจากการขาย
+            </button>
+            <button type="button" onclick="runNightcampCharacterAction({ action: 'cmarket_run_autosell_now' })" style="background:linear-gradient(135deg,#4f46e5,#4338ca); border:1px solid #818cf8; color:#fff; border-radius:7px; padding:5px 12px; font-size:11px; font-weight:800; cursor:pointer; box-shadow:0 4px 12px rgba(79,70,229,0.35);">
+              ⚡ ตรวจสอบ &amp; ลงขายทันที
+            </button>
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(210px, 1fr)); gap:8px; align-items:center; background:rgba(2,6,23,0.55); border:1px solid rgba(148,163,184,0.18); border-radius:8px; padding:7px 10px;">
+          <div style="display:flex; align-items:center; gap:6px;">
+            <span style="font-size:11px; color:#cbd5e1; white-space:nowrap;">💰 กลยุทธ์ตั้งราคา:</span>
+            <select onchange="updateNightcampCMarketMasterSetting('priceStrategy', this.value)" style="flex:1; background:#090d16; border:1px solid rgba(129,140,248,0.5); color:#e0e7ff; border-radius:6px; font-size:11px; font-weight:700; padding:4px 7px;">
+              <option value="undercut_1" ${(cfg.priceStrategy || 'undercut_1') === 'undercut_1' ? 'selected' : ''}>⚡ ตัดราคาต่ำสุด 1 เหรียญ (ข้ามราคาล่อ)</option>
+              <option value="lowest" ${cfg.priceStrategy === 'lowest' ? 'selected' : ''}>🏷️ เท่ากับราคาต่ำสุดในตลาด</option>
+              <option value="median" ${cfg.priceStrategy === 'median' ? 'selected' : ''}>⚖️ ราคากลางสมดุล (FairTrade Median)</option>
+              <option value="band_max" ${cfg.priceStrategy === 'band_max' ? 'selected' : ''}>📈 ราคาเพดานสูงสุดตามกรอบตลาด</option>
+            </select>
+          </div>
+          <label style="display:flex; align-items:center; gap:6px; font-size:11px; color:#cbd5e1; cursor:pointer;">
+            <input type="checkbox" ${cfg.autoClaimMail !== false ? 'checked' : ''} onchange="updateNightcampCMarketMasterSetting('autoClaimMail', this.checked)" style="accent-color:#10b981;">
+            <span>📬 รับเงินจากการขายผ่านจดหมายอัตโนมัติ</span>
+          </label>
+          <label style="display:flex; align-items:center; gap:6px; font-size:11px; color:#cbd5e1; cursor:pointer;">
+            <input type="checkbox" ${cfg.autoUnlistExpired !== false ? 'checked' : ''} onchange="updateNightcampCMarketMasterSetting('autoUnlistExpired', this.checked)" style="accent-color:#38bdf8;">
+            <span>🔄 ถอนของหมดเวลากลับมาตั้งขายใหม่อัตโนมัติ</span>
+          </label>
+        </div>
+
+        <div style="font-size:10.5px; color:#a5b4fc; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">
+          <span>📌 สถานะล่าสุด: <b style="color:#e0e7ff;">${escapeHTML(cm.lastLog || 'พร้อมตรวจสอบรายการขายตลาดกลาง')}</b></span>
+          ${cm.tradeLockMsg ? `<span style="color:#fca5a5; font-weight:700;">⚠️ ${escapeHTML(cm.tradeLockMsg)}</span>` : `<span style="color:#86efac;">🟢 ตัวละครพร้อมซื้อขายตลาดกลาง (Lv.${d.baseLv})</span>`}
+        </div>
+
+        ${ncCharModalState.cmCopyPanelOpen ? `
+          <!-- Copy To Other Profiles Drawer -->
+          <div style="background:rgba(2,6,23,0.88); border:1px solid rgba(56,189,248,0.5); border-radius:9px; padding:10px 12px; display:flex; flex-direction:column; gap:8px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+              <span style="font-size:12px; font-weight:800; color:#7dd3fc;">📋 คัดลอกรายการ Auto-Sell ตลาดกลาง (${rules.length} รายการ) ไปยังจออื่น</span>
+              <div style="display:flex; align-items:center; gap:10px; font-size:11px;">
+                <label style="display:flex; align-items:center; gap:4px; color:#86efac; cursor:pointer; font-weight:700;">
+                  <input type="radio" name="nc-cm-copy-mode" value="merge" ${ncCharModalState.cmCopyMode !== 'replace' ? 'checked' : ''}>
+                  <span>➕ รวมกับของเดิม (Merge)</span>
+                </label>
+                <label style="display:flex; align-items:center; gap:4px; color:#fde047; cursor:pointer; font-weight:700;">
+                  <input type="radio" name="nc-cm-copy-mode" value="replace" ${ncCharModalState.cmCopyMode === 'replace' ? 'checked' : ''}>
+                  <span>🔄 เขียนทับทั้งหมด (Replace)</span>
+                </label>
+              </div>
+            </div>
+            <div style="display:flex; gap:5px; flex-wrap:wrap;">
+              <button type="button" onclick="selectNightcampCMarketCopyTargets('all')" style="background:rgba(14,165,233,0.16); border:1px solid rgba(56,189,248,0.4); color:#7dd3fc; border-radius:5px; padding:3px 8px; font-size:10px; font-weight:700; cursor:pointer;">เลือกทุกจอ</button>
+              <button type="button" onclick="selectNightcampCMarketCopyTargets('online')" style="background:rgba(16,185,129,0.16); border:1px solid rgba(52,211,153,0.4); color:#6ee7b7; border-radius:5px; padding:3px 8px; font-size:10px; font-weight:700; cursor:pointer;">🟢 เฉพาะจอออนไลน์</button>
+              <button type="button" onclick="selectNightcampCMarketCopyTargets('none')" style="background:rgba(148,163,184,0.14); border:1px solid rgba(148,163,184,0.3); color:#cbd5e1; border-radius:5px; padding:3px 8px; font-size:10px; cursor:pointer;">ล้างที่เลือก</button>
+            </div>
+            <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); gap:5px; max-height:130px; overflow-y:auto;">
+              ${otherProfiles.map(p => `
+                <label style="display:flex; align-items:center; justify-content:space-between; gap:6px; background:rgba(15,23,42,0.85); border:1px solid rgba(148,163,184,0.22); border-radius:6px; padding:5px 8px; font-size:11px; cursor:pointer;">
+                  <span style="display:flex; align-items:center; gap:5px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                    <input type="checkbox" class="nc-cm-copy-target-cb" value="${escapeHTML(p.id)}" data-online="${p.isRunning ? '1' : '0'}" checked style="accent-color:#38bdf8;">
+                    <b>${escapeHTML(p.liveState?.charName || p.lastCharName || p.name)}</b>
+                    <small style="color:#94a3b8;">(${escapeHTML(p.name)})</small>
+                  </span>
+                  <span style="font-size:9.5px; color:${p.isRunning ? '#4ade80' : '#94a3b8'};">${p.isRunning ? '🟢' : '⚪'}</span>
+                </label>
+              `).join('')}
+            </div>
+            <div style="display:flex; justify-content:flex-end; gap:6px;">
+              <button type="button" onclick="toggleNightcampCMarketCopyPanel()" style="background:rgba(148,163,184,0.15); border:1px solid rgba(148,163,184,0.3); color:#cbd5e1; border-radius:6px; padding:5px 11px; font-size:11px; cursor:pointer;">ยกเลิก</button>
+              <button type="button" onclick="executeNightcampCMarketCopyToProfiles()" style="background:linear-gradient(135deg,#0284c7,#0369a1); border:1px solid #38bdf8; color:#fff; border-radius:6px; padding:5px 14px; font-size:11px; font-weight:800; cursor:pointer;">✅ ยืนยันคัดลอกไปยังจอที่เลือก</button>
+            </div>
+          </div>
+        ` : ''}
+      </div>
+
+      <!-- Add Rule Bar & Quick-Pick Bag Chips -->
+      <div style="background:rgba(15,23,42,0.78); border:1px solid rgba(56,189,248,0.32); border-radius:10px; padding:10px 12px; margin-bottom:10px; display:flex; flex-direction:column; gap:8px;">
+        <div style="font-size:11.5px; font-weight:800; color:#7dd3fc;">➕ เพิ่มรายการไอเทมเข้า Auto-Sell ตลาดกลาง</div>
+        <div style="display:grid; grid-template-columns:2fr 0.8fr 1.1fr 0.9fr 0.8fr auto; gap:6px; align-items:end;">
+          <div style="display:flex; flex-direction:column; gap:2px;">
+            <span style="font-size:9.5px; color:#94a3b8;">ชื่อไอเทม หรือ รหัสไอเทม:</span>
+            <input type="text" id="nc-cm-add-name" list="nc-cm-catalog-datalist" placeholder="พิมพ์ชื่อไอเทม เช่น หินออปชัน, ท่อนไม้โอ๊ก, การ์ด..." autocomplete="off"
+                   style="width:100%; box-sizing:border-box; background:#090d16; border:1px solid rgba(56,189,248,0.45); color:#f8fafc; border-radius:6px; padding:5px 8px; font-size:11px;">
+          </div>
+          <div style="display:flex; flex-direction:column; gap:2px;">
+            <span style="font-size:9.5px; color:#94a3b8;">ครบขั้นต่ำ (ชิ้น):</span>
+            <input type="number" id="nc-cm-add-minqty" value="10" min="1" max="9999"
+                   style="width:100%; box-sizing:border-box; background:#090d16; border:1px solid rgba(56,189,248,0.4); color:#fde047; font-weight:700; border-radius:6px; padding:5px 6px; font-size:11px;">
+          </div>
+          <div style="display:flex; flex-direction:column; gap:2px;">
+            <span style="font-size:9.5px; color:#94a3b8;">รูปแบบการขาย:</span>
+            <select id="nc-cm-add-mode" style="width:100%; background:#090d16; border:1px solid rgba(56,189,248,0.4); color:#e2e8f0; border-radius:6px; padding:5px 6px; font-size:10.5px;">
+              <option value="all">ขายทั้งหมดในตัว</option>
+              <option value="min">ขายทีละจำนวนขั้นต่ำ</option>
+            </select>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:2px;">
+            <span style="font-size:9.5px; color:#94a3b8;">ราคาต่อชิ้น (0=ออโต้):</span>
+            <input type="number" id="nc-cm-add-price" value="0" min="0" step="10"
+                   style="width:100%; box-sizing:border-box; background:#090d16; border:1px solid rgba(56,189,248,0.4); color:#86efac; font-weight:700; border-radius:6px; padding:5px 6px; font-size:11px;">
+          </div>
+          <div style="display:flex; flex-direction:column; gap:2px;">
+            <span style="font-size:9.5px; color:#94a3b8;">เก็บสำรองไว้:</span>
+            <input type="number" id="nc-cm-add-reserve" value="0" min="0" max="9999"
+                   style="width:100%; box-sizing:border-box; background:#090d16; border:1px solid rgba(56,189,248,0.4); color:#cbd5e1; border-radius:6px; padding:5px 6px; font-size:11px;">
+          </div>
+          <button type="button" onclick="addNightcampCMarketAutoSellRuleFromForm()"
+                  style="background:linear-gradient(135deg,#059669,#10b981); border:1px solid #34d399; color:#fff; border-radius:6px; padding:6px 12px; font-size:11px; font-weight:800; cursor:pointer; white-space:nowrap;">
+            ➕ เพิ่มรายการ
+          </button>
+        </div>
+
+        <!-- Quick-Pick from Current Bag -->
+        ${tradableBagItems.length > 0 ? `
+          <div style="display:flex; flex-direction:column; gap:4px; padding-top:4px; border-top:1px solid rgba(255,255,255,0.06);">
+            <span style="font-size:10px; font-weight:700; color:#fde68a;">🎒 คลิกเพิ่มจากของในกระเป๋าที่แลกเปลี่ยนได้ (${tradableBagItems.length} รายการ):</span>
+            <div style="display:flex; flex-wrap:wrap; gap:5px; max-height:76px; overflow-y:auto;">
+              ${tradableBagItems.map(h => `
+                <button type="button" onclick="quickAddNightcampCMarketRule('${escapeHTML(h.id)}', '${escapeHTML(h.baseName || h.name)}', '${escapeHTML(h.k)}', ${h.k === 'item' || h.k === 'rune' ? 1 : Math.min(10, Math.max(1, h.freeQty))})"
+                        title="คลิกเพื่อเพิ่ม ${escapeHTML(h.name)} เข้า Auto-Sell ตลาดกลาง (กรอบราคา ${h.band ? h.band[0].toLocaleString() + '–' + h.band[1].toLocaleString() : '-'}g)"
+                        style="display:inline-flex; align-items:center; gap:5px; background:rgba(2,6,23,0.75); border:1px solid rgba(56,189,248,0.38); color:#e2e8f0; border-radius:999px; padding:3px 9px 3px 5px; font-size:10.5px; font-weight:600; cursor:pointer;">
+                  ${h.icon ? `<img src="${escapeHTML(h.icon)}" alt="" style="width:18px;height:18px;object-fit:contain;">` : `<span>📦</span>`}
+                  <span>${escapeHTML(h.baseName || h.name)}</span>
+                  <b style="color:#fde047;">x${h.freeQty}</b>
+                </button>
+              `).join('')}
+            </div>
+          </div>
+        ` : ''}
+
+        <!-- 1-Click Popular Presets -->
+        <div style="display:flex; align-items:center; flex-wrap:wrap; gap:5px; padding-top:4px; border-top:1px solid rgba(255,255,255,0.06);">
+          <span style="font-size:10px; font-weight:700; color:#a5b4fc;">✨ เพิ่มรายการยอดนิยม 1-Click:</span>
+          ${NC_CMARKET_PRESET_ITEMS.map(pr => `
+            <button type="button" onclick="quickAddNightcampCMarketRule('${escapeHTML(pr.itemId)}', '${escapeHTML(pr.itemName)}', '${escapeHTML(pr.kind)}', ${pr.minQty})"
+                    style="background:rgba(79,70,229,0.18); border:1px solid rgba(129,140,248,0.4); color:#c7d2fe; border-radius:999px; padding:2px 8px; font-size:10px; font-weight:600; cursor:pointer;">
+              + ${escapeHTML(pr.itemName)} (≥${pr.minQty})
+            </button>
+          `).join('')}
+        </div>
+      </div>
+
+      <!-- Filter Pills -->
+      <div style="display:flex; flex-wrap:wrap; gap:5px; align-items:center; justify-content:space-between; margin-bottom:8px;">
+        <div style="display:flex; flex-wrap:wrap; gap:4px;">
+          ${[
+            ['all', `ทั้งหมด (${rules.length})`],
+            ['ready', `✅ พร้อมขาย (${countReady})`],
+            ['waiting', `⏳ มีในตัว รอครบจำนวน (${countWaiting})`],
+            ['listed', `🏷️ กำลังวางขายอยู่ (${countListed})`],
+            ['missing', `❌ ไม่มีในตัว (${countMissing})`]
+          ].map(([k, lbl]) => `
+            <button type="button" onclick="setNightcampCMarketRuleFilter('${k}')"
+                    style="background:${filterKey === k ? '#4f46e5' : 'rgba(15,23,42,0.75)'}; border:1px solid ${filterKey === k ? '#818cf8' : 'rgba(148,163,184,0.25)'}; color:${filterKey === k ? '#fff' : '#cbd5e1'}; border-radius:6px; padding:4px 9px; font-size:10.5px; font-weight:700; cursor:pointer;">
+              ${lbl}
+            </button>
+          `).join('')}
+        </div>
+        <span style="font-size:10.5px; color:#94a3b8;">แสดง <b>${filteredRules.length}</b> รายการ</span>
+      </div>
+
+      <!-- Rules List -->
+      <div style="display:flex; flex-direction:column; gap:7px;">
+        ${filteredRules.length > 0 ? filteredRules.map(r => {
+          const badgeColor = r.statusKey === 'ready'
+            ? { bg: 'rgba(16,185,129,0.2)', border: '#34d399', text: '#6ee7b7' }
+            : (r.statusKey === 'waiting'
+                ? { bg: 'rgba(245,158,11,0.18)', border: '#fbbf24', text: '#fde047' }
+                : (r.statusKey === 'listed'
+                    ? { bg: 'rgba(14,165,233,0.18)', border: '#38bdf8', text: '#7dd3fc' }
+                    : { bg: 'rgba(148,163,184,0.14)', border: 'rgba(148,163,184,0.35)', text: '#94a3b8' }));
+          const bandTxt = Array.isArray(r.band) && r.band.length === 2
+            ? `กรอบราคา FairTrade: ${Number(r.band[0]).toLocaleString()}–${Number(r.band[1]).toLocaleString()}g`
+            : '';
+          const medTxt = r.medianPrice > 0
+            ? ` · ราคากลาง 7 วัน: ${Number(r.medianPrice).toLocaleString()}g`
+            : (r.refPrice > 0 ? ` · ราคาอ้างอิง: ${Number(r.refPrice).toLocaleString()}g` : '');
+
+          return `
+            <div style="background:rgba(15,23,42,0.82); border:1px solid ${r.ready ? 'rgba(52,211,153,0.55)' : 'rgba(129,140,248,0.32)'}; border-radius:10px; padding:9px 11px; display:flex; flex-direction:column; gap:7px; opacity:${r.enabled ? '1' : '0.6'};">
+              <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap;">
+                <div style="display:flex; align-items:center; gap:9px; min-width:0;">
+                  <input type="checkbox" ${r.enabled ? 'checked' : ''} onchange="updateNightcampCMarketRuleField('${escapeHTML(r.id)}', 'enabled', this.checked)"
+                         title="เปิด/ปิดรายการนี้" style="width:15px; height:15px; accent-color:#6366f1; cursor:pointer;">
+                  <div style="width:38px; height:38px; border-radius:8px; background:#020617; border:1px solid rgba(129,140,248,0.4); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                    ${r.icon ? `<img src="${escapeHTML(r.icon)}" alt="" style="width:32px;height:32px;object-fit:contain;">` : `<span>🏪</span>`}
+                  </div>
+                  <div style="min-width:0;">
+                    <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                      <span style="font-size:12.5px; font-weight:800; color:#f8fafc;">${escapeHTML(r.itemName)}</span>
+                      <code style="font-size:9.5px; color:#94a3b8; background:rgba(2,6,23,0.65); padding:1px 5px; border-radius:4px;">${escapeHTML(r.itemId)}</code>
+                      <span style="font-size:10px; font-weight:700; color:${badgeColor.text}; background:${badgeColor.bg}; border:1px solid ${badgeColor.border}; padding:1px 8px; border-radius:999px;">
+                        ${escapeHTML(r.statusLabel)}
+                      </span>
+                      ${r.activeListedCount > 0 ? `
+                        <span style="font-size:10px; font-weight:700; color:#7dd3fc; background:rgba(14,165,233,0.16); border:1px solid rgba(56,189,248,0.4); padding:1px 7px; border-radius:999px;">
+                          🏷️ บนชั้น ${r.activeListedCount} รายการ (${r.activeListedQty} ชิ้น)
+                        </span>
+                      ` : ''}
+                    </div>
+                    <div style="font-size:10px; color:#94a3b8; margin-top:2px;">
+                      ${escapeHTML(bandTxt)}${escapeHTML(medTxt)} · ในกระเป๋าทั้งหมด <b>${r.bagQty}</b> ชิ้น (แลกเปลี่ยนได้ <b>${r.freeQty}</b> ชิ้น)
+                    </div>
+                  </div>
+                </div>
+
+                <div style="display:flex; align-items:center; gap:5px;">
+                  <button type="button" ${r.ready ? '' : 'disabled'} onclick="runNightcampCharacterAction({ action: 'cmarket_sell_rule_now', ruleId: '${escapeHTML(r.id)}' })"
+                          style="background:${r.ready ? 'linear-gradient(135deg,#059669,#10b981)' : '#1e293b'}; border:1px solid ${r.ready ? '#34d399' : '#334155'}; color:${r.ready ? '#fff' : '#64748b'}; border-radius:6px; padding:4px 10px; font-size:10.5px; font-weight:800; cursor:${r.ready ? 'pointer' : 'not-allowed'};">
+                    ⚡ ขายทันที
+                  </button>
+                  <button type="button" onclick="deleteNightcampCMarketRule('${escapeHTML(r.id)}')" title="ลบรายการนี้ออกจาก Auto-Sell"
+                          style="background:rgba(239,68,68,0.16); border:1px solid rgba(248,113,113,0.4); color:#fca5a5; border-radius:6px; padding:4px 8px; font-size:10.5px; font-weight:700; cursor:pointer;">
+                    🗑️ ลบ
+                  </button>
+                </div>
+              </div>
+
+              <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:6px; background:rgba(2,6,23,0.5); border-radius:7px; padding:6px 8px; font-size:10.5px;">
+                <label style="display:flex; align-items:center; justify-content:space-between; gap:5px; color:#cbd5e1;">
+                  <span>ครบขั้นต่ำ (ชิ้น):</span>
+                  <input type="number" value="${r.minQty}" min="1" max="9999" onchange="updateNightcampCMarketRuleField('${escapeHTML(r.id)}', 'minQty', this.value)"
+                         style="width:62px; background:#090d16; border:1px solid rgba(129,140,248,0.45); color:#fde047; font-weight:700; border-radius:5px; padding:2px 5px; text-align:right;">
+                </label>
+                <label style="display:flex; align-items:center; justify-content:space-between; gap:5px; color:#cbd5e1;">
+                  <span>เก็บสำรอง (ชิ้น):</span>
+                  <input type="number" value="${r.reserveQty}" min="0" max="9999" onchange="updateNightcampCMarketRuleField('${escapeHTML(r.id)}', 'reserveQty', this.value)"
+                         style="width:62px; background:#090d16; border:1px solid rgba(129,140,248,0.45); color:#cbd5e1; border-radius:5px; padding:2px 5px; text-align:right;">
+                </label>
+                <label style="display:flex; align-items:center; justify-content:space-between; gap:5px; color:#cbd5e1;">
+                  <span>โหมดขาย:</span>
+                  <select onchange="updateNightcampCMarketRuleField('${escapeHTML(r.id)}', 'sellMode', this.value)"
+                          style="background:#090d16; border:1px solid rgba(129,140,248,0.45); color:#e2e8f0; border-radius:5px; padding:2px 5px; font-size:10px;">
+                    <option value="all" ${r.sellMode !== 'min' ? 'selected' : ''}>ขายหมดในตัว</option>
+                    <option value="min" ${r.sellMode === 'min' ? 'selected' : ''}>ขายทีละขั้นต่ำ</option>
+                  </select>
+                </label>
+                <label style="display:flex; align-items:center; justify-content:space-between; gap:5px; color:#cbd5e1;">
+                  <span>ราคาเอง (0=ออโต้):</span>
+                  <input type="number" value="${r.customPrice || 0}" min="0" step="10" onchange="updateNightcampCMarketRuleField('${escapeHTML(r.id)}', 'customPrice', this.value)"
+                         style="width:78px; background:#090d16; border:1px solid rgba(52,211,153,0.45); color:#86efac; font-weight:700; border-radius:5px; padding:2px 5px; text-align:right;">
+                </label>
+              </div>
+            </div>
+          `;
+        }).join('') : `
+          <div style="text-align:center; padding:32px 16px; color:#94a3b8; background:rgba(2,6,23,0.45); border:1px dashed rgba(129,140,248,0.3); border-radius:10px; font-size:12px;">
+            🏪 ยังไม่มีรายการ Auto-Sell ตลาดกลางในหมวดนี้ — คลิกเลือกไอเทมจากกระเป๋าด้านบน หรือกดปุ่ม <b>"+ เพิ่มรายการยอดนิยม 1-Click"</b> ได้เลย!
+          </div>
+        `}
+      </div>
+    `;
+  }
+
+  // =========================================================================
+  // SUB-TAB 2: 🏷️ ลงขายไอเทมด้วยตัวเอง (Manual Sell)
+  // =========================================================================
+  if (subTab === 'sell') {
+    const q = ncCharModalState.searchQuery.trim().toLowerCase();
+    const list = tradableBagItems.filter(h => !q || String(h.name || '').toLowerCase().includes(q) || String(h.id || '').toLowerCase().includes(q));
+    return `
+      ${subTabsHtml}
+      <div style="background:rgba(15,23,42,0.78); border:1px solid rgba(56,189,248,0.32); border-radius:10px; padding:9px 12px; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; font-size:11px;">
+        <div>
+          🏷️ <b>เลือกไอเทมจากกระเป๋าเพื่อวางขายลงตลาดกลาง</b> · ค่ามัดจำวางขาย <b>2%</b> (ได้คืนเมื่อขายออก) · ภาษีตลาดกลาง <b>${taxPct}%</b>
+        </div>
+        ${!d.nearShop ? `
+          <button type="button" onclick="runNightcampCharacterAction({ action: 'walk_to_coco' })" style="background:#0284c7; border:1px solid #38bdf8; color:#fff; border-radius:6px; padding:4px 10px; font-size:10.5px; font-weight:700; cursor:pointer;">
+            🏃 เดินไปหาลุงโกโก้ในค่ายก่อนวางขาย
+          </button>
+        ` : `<span style="color:#4ade80; font-weight:700;">🟢 ยืนอยู่ใกล้ลุงโกโก้แล้ว (กดวางขายได้ทันที)</span>`}
+      </div>
+
+      <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(310px, 1fr)); gap:8px;">
+        ${list.length > 0 ? list.map((h, idx) => {
+          const st = getNightcampRarityStyle(h.rarity, false);
+          const band = Array.isArray(h.band) && h.band.length === 2 ? h.band : [1, 999999];
+          const defaultPrice = Math.max(band[0], Math.min(band[1], h.refPrice || band[0] || 100));
+          const isSingle = (h.k === 'item' || h.k === 'rune');
+          return `
+            <div style="background:rgba(15,23,42,0.82); border:1px solid ${st.border}; border-radius:10px; padding:10px; display:flex; flex-direction:column; justify-content:space-between; gap:8px;">
+              <div style="display:flex; align-items:flex-start; gap:9px;">
+                <div style="width:42px; height:42px; border-radius:8px; background:#020617; border:1px solid ${st.border}; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                  ${h.icon ? `<img src="${escapeHTML(h.icon)}" alt="" style="width:36px;height:36px;object-fit:contain;">` : `<span>📦</span>`}
+                </div>
+                <div style="flex:1; min-width:0;">
+                  <div style="display:flex; justify-content:space-between; align-items:center; gap:4px;">
+                    <span style="font-size:12px; font-weight:800; color:${st.color}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHTML(h.name)}</span>
+                    <span style="font-size:10.5px; font-weight:800; color:#fde047; background:rgba(234,179,8,0.16); border:1px solid rgba(250,204,21,0.4); padding:0 6px; border-radius:999px;">ขายได้ x${h.freeQty}</span>
+                  </div>
+                  <div style="font-size:10px; color:#94a3b8; margin-top:2px;">
+                    กรอบราคา FairTrade: <b style="color:#7dd3fc;">${band[0].toLocaleString()}–${band[1].toLocaleString()}g</b> / ชิ้น
+                  </div>
+                  ${h.options && h.options.length > 0 ? `
+                    <div style="display:flex; flex-wrap:wrap; gap:3px; margin-top:3px;">
+                      ${h.options.map(o => `<span style="font-size:9.5px; color:#86efac; background:rgba(16,185,129,0.14); border:1px solid rgba(52,211,153,0.3); padding:0 5px; border-radius:4px;">✦ ${escapeHTML(o.text)}</span>`).join('')}
+                    </div>
+                  ` : ''}
+                </div>
+              </div>
+
+              <div style="display:grid; grid-template-columns:${isSingle ? '1fr auto' : '0.8fr 1.1fr auto'}; gap:6px; align-items:end; border-top:1px solid rgba(255,255,255,0.06); padding-top:6px;">
+                ${isSingle ? `<input type="hidden" id="nc-cm-manual-qty-${idx}" value="1">` : `
+                  <div style="display:flex; flex-direction:column; gap:2px;">
+                    <span style="font-size:9px; color:#94a3b8;">จำนวนขาย:</span>
+                    <input type="number" id="nc-cm-manual-qty-${idx}" value="${h.freeQty}" min="1" max="${h.freeQty}"
+                           style="width:100%; box-sizing:border-box; background:#090d16; border:1px solid rgba(56,189,248,0.4); color:#fde047; font-weight:700; border-radius:5px; padding:4px 6px; font-size:11px;">
+                  </div>
+                `}
+                <div style="display:flex; flex-direction:column; gap:2px;">
+                  <span style="font-size:9px; color:#94a3b8;">ราคาต่อชิ้น (${band[0]}–${band[1]}g):</span>
+                  <input type="number" id="nc-cm-manual-price-${idx}" value="${defaultPrice}" min="${band[0]}" max="${band[1]}"
+                         style="width:100%; box-sizing:border-box; background:#090d16; border:1px solid rgba(52,211,153,0.45); color:#86efac; font-weight:700; border-radius:5px; padding:4px 6px; font-size:11px;">
+                </div>
+                <button type="button" onclick="manualListNightcampCMarketItem(${idx}, '${escapeHTML(h.k)}', '${escapeHTML(h.id)}', ${Number(h.u) || 0})"
+                        style="background:linear-gradient(135deg,#059669,#10b981); border:1px solid #34d399; color:#fff; border-radius:6px; padding:5px 10px; font-size:10.5px; font-weight:800; cursor:pointer; white-space:nowrap;">
+                  🏪 วางขาย
+                </button>
+              </div>
+            </div>
+          `;
+        }).join('') : `
+          <div style="grid-column:1 / -1; text-align:center; padding:32px; color:#94a3b8; background:rgba(2,6,23,0.45); border-radius:10px; font-size:12px;">
+            🎒 ไม่พบไอเทมที่แลกเปลี่ยนได้ในกระเป๋า (ไอเทมที่ติดล็อกหรือของติดตัวจะไม่สามารถวางขายในตลาดกลางได้)
+          </div>
+        `}
+      </div>
+    `;
+  }
+
+  // =========================================================================
+  // SUB-TAB 3: 📦 ชั้นวางของฉัน & รับเงิน (Active & Expired Listings)
+  // =========================================================================
+  if (subTab === 'active') {
+    const totalListedValue = mineListings.filter(l => l.state === 'open').reduce((s, l) => s + (Number(l.totalPrice) || 0), 0);
+    return `
+      ${subTabsHtml}
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(190px, 1fr)); gap:8px; margin-bottom:10px;">
+        <div style="background:rgba(15,23,42,0.82); border:1px solid rgba(56,189,248,0.35); border-radius:9px; padding:9px 12px;">
+          <div style="font-size:10px; color:#94a3b8;">📦 โควตาชั้นวางของฉัน</div>
+          <div style="font-size:16px; font-weight:800; color:#7dd3fc;">${openCount} / ${maxSlots} ช่อง</div>
+        </div>
+        <div style="background:rgba(15,23,42,0.82); border:1px solid rgba(250,204,21,0.35); border-radius:9px; padding:9px 12px;">
+          <div style="font-size:10px; color:#94a3b8;">💰 มูลค่าที่กำลังวางขายรวม</div>
+          <div style="font-size:16px; font-weight:800; color:#fde047;">${totalListedValue.toLocaleString()} เหรียญ</div>
+        </div>
+        <div style="background:rgba(15,23,42,0.82); border:1px solid rgba(52,211,153,0.35); border-radius:9px; padding:9px 12px; display:flex; align-items:center; justify-content:space-between; gap:8px;">
+          <div>
+            <div style="font-size:10px; color:#94a3b8;">📬 เงินจากการขาย</div>
+            <div style="font-size:11.5px; font-weight:700; color:#6ee7b7;">ส่งเข้ากล่องจดหมายทันที</div>
+          </div>
+          <button type="button" onclick="runNightcampCharacterAction({ action: 'cmarket_claim_mail' })"
+                  style="background:linear-gradient(135deg,#059669,#10b981); border:1px solid #34d399; color:#fff; border-radius:7px; padding:6px 11px; font-size:11px; font-weight:800; cursor:pointer; white-space:nowrap;">
+            📬 รับเงินทั้งหมด
+          </button>
+        </div>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:7px;">
+        ${mineListings.length > 0 ? mineListings.map(l => {
+          const st = getNightcampRarityStyle(l.rarity, false);
+          const isOpen = l.state === 'open';
+          return `
+            <div style="background:rgba(15,23,42,0.82); border:1px solid ${isOpen ? st.border : 'rgba(248,113,113,0.45)'}; border-radius:10px; padding:9px 12px; display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+              <div style="display:flex; align-items:center; gap:9px; min-width:0;">
+                <div style="width:40px; height:40px; border-radius:8px; background:#020617; border:1px solid ${st.border}; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                  ${l.icon ? `<img src="${escapeHTML(l.icon)}" alt="" style="width:34px;height:34px;object-fit:contain;">` : `<span>📦</span>`}
+                </div>
+                <div style="min-width:0;">
+                  <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                    <span style="font-size:12.5px; font-weight:800; color:${st.color};">${escapeHTML(l.name)}</span>
+                    <span style="font-size:10.5px; font-weight:800; color:#fde047;">×${l.n}${l.n0 && l.n0 !== l.n ? ` / ${l.n0}` : ''} ชิ้น</span>
+                    <span style="font-size:10px; font-weight:700; color:${isOpen ? '#6ee7b7' : '#fca5a5'}; background:${isOpen ? 'rgba(16,185,129,0.18)' : 'rgba(239,68,68,0.18)'}; border:1px solid ${isOpen ? 'rgba(52,211,153,0.45)' : 'rgba(248,113,113,0.45)'}; padding:1px 7px; border-radius:999px;">
+                      ${isOpen ? '🟢 กำลังวางขายบนชั้น' : '🔴 หมดเวลา / รอถอนคืน'}
+                    </span>
+                  </div>
+                  <div style="font-size:10.5px; color:#94a3b8; margin-top:2px;">
+                    ราคาชิ้นละ <b style="color:#fde047;">${l.price.toLocaleString()}g</b> · มูลค่ารวม <b style="color:#86efac;">${l.totalPrice.toLocaleString()}g</b>
+                  </div>
+                </div>
+              </div>
+              <button type="button" onclick="runNightcampCharacterAction({ action: 'cmarket_unlist', listingId: '${escapeHTML(String(l.id))}' })"
+                      style="background:rgba(239,68,68,0.18); border:1px solid rgba(248,113,113,0.5); color:#fca5a5; border-radius:7px; padding:5px 11px; font-size:11px; font-weight:700; cursor:pointer;">
+                📥 ถอนคืนเข้ากระเป๋า
+              </button>
+            </div>
+          `;
+        }).join('') : `
+          <div style="text-align:center; padding:32px; color:#94a3b8; background:rgba(2,6,23,0.45); border-radius:10px; font-size:12px;">
+            📦 ตอนนี้ยังไม่มีไอเทมที่วางขายอยู่บนชั้นของคุณ
+          </div>
+        `}
+      </div>
+    `;
+  }
+
+  // =========================================================================
+  // SUB-TAB 4: 🔍 ค้นหา & ซื้อของในตลาดกลาง (Browse & Buy)
+  // =========================================================================
+  const shelfCards = Array.isArray(cm.shelfCards) ? cm.shelfCards : [];
+  const sheetListings = Array.isArray(cm.sheetListings) ? cm.sheetListings : [];
+  return `
+    ${subTabsHtml}
+    <div style="background:rgba(15,23,42,0.82); border:1px solid rgba(56,189,248,0.35); border-radius:10px; padding:9px 12px; margin-bottom:10px; display:flex; flex-wrap:wrap; gap:6px; align-items:center;">
+      <input type="text" id="nc-cm-browse-q" value="${escapeHTML(ncCharModalState.cmBrowseQuery || '')}"
+             placeholder="🔍 พิมพ์ชื่อไอเทมที่ต้องการค้นหาในตลาดกลาง..."
+             onkeydown="if(event.key==='Enter') searchNightcampCMarketNow('')"
+             style="flex:1; min-width:180px; background:#090d16; border:1px solid rgba(56,189,248,0.45); color:#f8fafc; border-radius:6px; padding:5px 9px; font-size:11.5px;">
+      <select id="nc-cm-browse-cat" onchange="searchNightcampCMarketNow('')"
+              style="background:#090d16; border:1px solid rgba(56,189,248,0.4); color:#e2e8f0; border-radius:6px; padding:5px 8px; font-size:11px;">
+        <option value="all" ${ncCharModalState.cmBrowseCategory === 'all' ? 'selected' : ''}>🗂️ ทุกหมวดหมู่</option>
+        <option value="mat" ${ncCharModalState.cmBrowseCategory === 'mat' ? 'selected' : ''}>🦴 วัตถุดิบ / การ์ด / หิน</option>
+        <option value="pot" ${ncCharModalState.cmBrowseCategory === 'pot' ? 'selected' : ''}>🧪 ยาฟื้นฟู</option>
+        <option value="item" ${ncCharModalState.cmBrowseCategory === 'item' ? 'selected' : ''}>⚔️ อาวุธ &amp; อุปกรณ์</option>
+        <option value="rune" ${ncCharModalState.cmBrowseCategory === 'rune' ? 'selected' : ''}>🔮 รูน</option>
+      </select>
+      <select id="nc-cm-browse-sort" onchange="searchNightcampCMarketNow('')"
+              style="background:#090d16; border:1px solid rgba(56,189,248,0.4); color:#e2e8f0; border-radius:6px; padding:5px 8px; font-size:11px;">
+        <option value="price" ${ncCharModalState.cmBrowseSort === 'price' ? 'selected' : ''}>💰 เรียงตามราคาถูกสุด</option>
+        <option value="new" ${ncCharModalState.cmBrowseSort === 'new' ? 'selected' : ''}>🕒 เรียงตามลงขายล่าสุด</option>
+      </select>
+      <button type="button" onclick="searchNightcampCMarketNow('')"
+              style="background:linear-gradient(135deg,#0284c7,#0369a1); border:1px solid #38bdf8; color:#fff; border-radius:6px; padding:5px 12px; font-size:11px; font-weight:800; cursor:pointer;">
+        🔍 ค้นหาตลาดกลาง
+      </button>
+    </div>
+
+    ${sheetListings.length > 0 ? `
+      <div style="font-size:11.5px; font-weight:800; color:#fde047; margin-bottom:6px;">🛒 รายการผู้เล่นวางขาย (${sheetListings.length} รายการ):</div>
+      <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;">
+        ${sheetListings.map((l, idx) => {
+          const st = getNightcampRarityStyle(l.rarity, false);
+          return `
+            <div style="background:rgba(15,23,42,0.85); border:1px solid ${st.border}; border-radius:9px; padding:8px 11px; display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+              <div style="display:flex; align-items:center; gap:8px; min-width:0;">
+                <div style="width:36px; height:36px; border-radius:7px; background:#020617; border:1px solid ${st.border}; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                  ${l.icon ? `<img src="${escapeHTML(l.icon)}" alt="" style="width:30px;height:30px;object-fit:contain;">` : `<span>📦</span>`}
+                </div>
+                <div style="min-width:0;">
+                  <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                    <span style="font-size:12px; font-weight:800; color:${st.color};">${escapeHTML(l.name)}</span>
+                    <span style="font-size:10.5px; font-weight:800; color:#fde047;">มี ${l.n} ชิ้น</span>
+                    <span style="font-size:10px; color:#94a3b8;">ผู้ขาย: <b style="color:#cbd5e1;">${escapeHTML(l.seller)}</b></span>
+                  </div>
+                  <div style="font-size:10.5px; color:#86efac; font-weight:700;">
+                    ราคาชิ้นละ ${l.price.toLocaleString()} เหรียญ
+                  </div>
+                </div>
+              </div>
+              <div style="display:flex; align-items:center; gap:6px;">
+                <input type="number" id="nc-cm-buy-qty-${idx}" value="1" min="1" max="${Math.max(1, l.maxBuyN || l.n)}"
+                       style="width:58px; background:#090d16; border:1px solid rgba(56,189,248,0.45); color:#fde047; font-weight:700; border-radius:5px; padding:3px 6px; font-size:11px; text-align:right;">
+                <button type="button" ${l.buyable ? '' : 'disabled'} onclick="buyNightcampCMarketListing('${escapeHTML(String(l.id))}', 'nc-cm-buy-qty-${idx}')"
+                        title="${escapeHTML(l.whyBlocked || 'กดเพื่อซื้อทันที (ต้องยืนใกล้ลุงโกโก้)')}"
+                        style="background:${l.buyable ? 'linear-gradient(135deg,#d97706,#b45309)' : '#1e293b'}; border:1px solid ${l.buyable ? '#fbbf24' : '#334155'}; color:${l.buyable ? '#fff' : '#64748b'}; border-radius:6px; padding:4px 10px; font-size:11px; font-weight:800; cursor:${l.buyable ? 'pointer' : 'not-allowed'};">
+                  🛒 ซื้อทันที
+                </button>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    ` : ''}
+
+    <div style="font-size:11.5px; font-weight:800; color:#7dd3fc; margin-bottom:6px;">🏪 สินค้าบนชั้นวางตลาดกลาง (${shelfCards.length} ชนิด · คลิกที่การ์ดเพื่อดูผู้ขายทั้งหมด):</div>
+    <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(225px, 1fr)); gap:7px;">
+      ${shelfCards.length > 0 ? shelfCards.map(c => {
+        const st = getNightcampRarityStyle(c.rarity, false);
+        return `
+          <div onclick="searchNightcampCMarketNow('${escapeHTML(c.key)}')"
+               style="background:rgba(15,23,42,0.82); border:1px solid ${st.border}; border-radius:9px; padding:8px 10px; display:flex; align-items:center; justify-content:space-between; gap:8px; cursor:pointer; transition:all 0.15s ease;">
+            <div style="display:flex; align-items:center; gap:8px; min-width:0;">
+              <div style="width:36px; height:36px; border-radius:7px; background:#020617; border:1px solid ${st.border}; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                ${c.icon ? `<img src="${escapeHTML(c.icon)}" alt="" style="width:30px;height:30px;object-fit:contain;">` : `<span>📦</span>`}
+              </div>
+              <div style="min-width:0;">
+                <div style="font-size:11.5px; font-weight:800; color:${st.color}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHTML(c.name)}</div>
+                <div style="font-size:10px; color:#86efac; font-weight:700;">เริ่ม ${c.cheapest.toLocaleString()}g · ${c.n} ชิ้น</div>
+              </div>
+            </div>
+            <span style="font-size:10px; color:#7dd3fc; font-weight:700; white-space:nowrap;">ดูร้าน →</span>
+          </div>
+        `;
+      }).join('') : `
+        <div style="grid-column:1 / -1; text-align:center; padding:28px; color:#94a3b8; background:rgba(2,6,23,0.45); border-radius:9px; font-size:12px;">
+          🔍 กดปุ่ม <b>"ค้นหาตลาดกลาง"</b> ด้านบนเพื่อดูรายการสินค้าที่ผู้เล่นวางขายในเซิร์ฟเวอร์
+        </div>
+      `}
+    </div>
+  `;
+}
+
+function renderNightcampRightPaneOnly() {
+  const d = ncCharModalState.data;
+  const contentEl = document.getElementById('nc-char-right-content');
+  if (d && contentEl) {
+    contentEl.innerHTML = renderNightcampRightPaneContentHtml(d);
+  }
+}
+
+function renderNightcampCharacterModal() {
+  const d = ncCharModalState.data;
+  const pid = ncCharModalState.profileId;
+  if (!d || !pid) return;
+  const prof = currentProfiles.find(x => String(x.id) === String(pid));
+  const headerEl = document.getElementById('nc-char-modal-header');
+  const bodyEl = document.getElementById('nc-char-modal-body');
+  if (!headerEl || !bodyEl) return;
+
+  const hpPct = d.hpMax > 0 ? Math.min(100, Math.round((d.hp / d.hpMax) * 100)) : 100;
+  const spPct = d.spMax > 0 ? Math.min(100, Math.round((d.sp / d.spMax) * 100)) : 100;
+  const wtColor = d.weightPct >= 75 ? '#ef4444' : (d.weightPct >= 55 ? '#f59e0b' : '#10b981');
+
+  headerEl.innerHTML = `
+    <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+      <div style="width:46px; height:46px; border-radius:11px; background:#020617; border:1.5px solid #38bdf8; overflow:hidden; display:flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 4px 14px rgba(14,165,233,0.3);">
+        ${d.portraitUrl ? `<img src="${escapeHTML(d.portraitUrl)}" alt="" style="width:100%;height:100%;object-fit:cover;">` : `<span style="font-size:22px;">🌙</span>`}
+      </div>
+      <div>
+        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+          <span style="font-size:16.5px; font-weight:800; color:#f8fafc;">${escapeHTML(d.charName)}</span>
+          <span style="background:rgba(56,189,248,0.18); border:1px solid rgba(56,189,248,0.45); color:#7dd3fc; font-size:11.5px; font-weight:700; padding:1px 9px; border-radius:999px;">${escapeHTML(d.jobName)} · Base Lv.${d.baseLv} / Job Lv.${d.jobLv}</span>
+          <span style="background:rgba(148,163,184,0.16); border:1px solid rgba(148,163,184,0.32); color:#cbd5e1; font-size:11px; font-weight:600; padding:1px 8px; border-radius:999px;">🖥️ ${escapeHTML(prof?.name || pid)} · 📍 ${escapeHTML(d.mapName)}</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-top:4px; font-size:11.5px;">
+          <span style="color:#fde047; font-weight:700;">💰 เหรียญติดตัว: ${d.coins.toLocaleString()}g</span>
+          ${d.vaultCoins !== null ? `<span style="color:#6ee7b7; font-weight:700;">🏦 คลังร่วม: ${Number(d.vaultCoins).toLocaleString()}g</span>` : ''}
+          <span style="color:${wtColor}; font-weight:700;">⚖️ น้ำหนัก: ${d.weightCur.toLocaleString()}/${d.weightCap.toLocaleString()} (${d.weightPct}%)</span>
+          ${d.statPoints > 0 ? `<span style="background:rgba(245,158,11,0.22);border:1px solid #fbbf24;color:#fde047;padding:0 7px;border-radius:999px;font-weight:800;">✨ แต้มสเตตัสคงเหลือ ${d.statPoints}</span>` : ''}
+          ${d.skillPoints > 0 ? `<span style="background:rgba(168,85,247,0.22);border:1px solid #c084fc;color:#e9d5ff;padding:0 7px;border-radius:999px;font-weight:800;">⚡ แต้มสกิลคงเหลือ ${d.skillPoints}</span>` : ''}
+        </div>
+      </div>
+    </div>
+    <div style="display:flex; align-items:center; gap:7px; flex-wrap:wrap;">
+      <button type="button" onclick="runNightcampCharacterAction({ action: 'smart_gear_now' })" title="ให้ระบบ Smart Gear คำนวณและสวมใส่อุปกรณ์ในกระเป๋าที่ดีที่สุดตามสายอาชีพทันที" style="background:linear-gradient(135deg,#7c3aed,#6d28d9);border:1px solid #c084fc;color:#fff;border-radius:8px;padding:6px 11px;font-size:11.5px;font-weight:700;cursor:pointer;">⚔️ จัดของดีสุดใส่ทันที</button>
+      <button type="button" onclick="refreshNightcampCharacterModal()" style="background:rgba(14,165,233,0.18);border:1px solid rgba(56,189,248,0.45);color:#7dd3fc;border-radius:8px;padding:6px 11px;font-size:11.5px;font-weight:700;cursor:pointer;">🔄 รีเฟรช</button>
+      <button type="button" onclick="closeNightcampCharacterModal(); openWebBotHUD('${escapeHTML(pid)}')" style="background:rgba(16,185,129,0.18);border:1px solid rgba(52,211,153,0.45);color:#6ee7b7;border-radius:8px;padding:6px 11px;font-size:11.5px;font-weight:700;cursor:pointer;">🎮 เมนูบอท</button>
+      <button type="button" onclick="closeNightcampCharacterModal()" style="background:rgba(239,68,68,0.18);border:1px solid rgba(248,113,113,0.45);color:#fca5a5;border-radius:8px;padding:6px 12px;font-size:12.5px;font-weight:800;cursor:pointer;">✕</button>
+    </div>
+  `;
+
+  const tab = ncCharModalState.activeTab;
+  bodyEl.innerHTML = `
+    <!-- LEFT COLUMN: Character Paperdoll, 10 Equipment Slots & 6 Base Stats Allocation -->
+    <div style="border-right:1px solid rgba(148,163,184,0.16); padding:12px 14px; overflow-y:auto; display:flex; flex-direction:column; gap:10px; background:rgba(2,6,23,0.42);">
+      <!-- HP / SP Gauges -->
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; background:rgba(15,23,42,0.75); border:1px solid rgba(148,163,184,0.2); border-radius:9px; padding:7px 10px;">
+        <div>
+          <div style="display:flex;justify-content:space-between;font-size:10.5px;font-weight:700;color:#fca5a5;margin-bottom:3px;">
+            <span>❤️ HP</span><span>${d.hp.toLocaleString()} / ${d.hpMax.toLocaleString()}</span>
+          </div>
+          <div style="height:6px;background:#020617;border-radius:999px;overflow:hidden;">
+            <div style="width:${hpPct}%;height:100%;background:linear-gradient(90deg,#ef4444,#f87171);"></div>
+          </div>
+        </div>
+        <div>
+          <div style="display:flex;justify-content:space-between;font-size:10.5px;font-weight:700;color:#93c5fd;margin-bottom:3px;">
+            <span>💙 SP</span><span>${d.sp.toLocaleString()} / ${d.spMax.toLocaleString()}</span>
+          </div>
+          <div style="height:6px;background:#020617;border-radius:999px;overflow:hidden;">
+            <div style="width:${spPct}%;height:100%;background:linear-gradient(90deg,#2563eb,#60a5fa);"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Equipment Paperdoll & Slots -->
+      <div style="background:rgba(15,23,42,0.68); border:1px solid rgba(56,189,248,0.25); border-radius:11px; padding:10px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:7px;">
+          <span style="font-size:11.5px; font-weight:800; color:#7dd3fc;">🛡️ อุปกรณ์สวมใส่ (คลิกช่องเพื่อกรองของเปลี่ยน)</span>
+          <span style="font-size:10px; color:#94a3b8;">ATK ${d.statSheet?.batk || 0} · DEF ${d.statSheet?.def || 0}</span>
+        </div>
+
+        <!-- Center Paperdoll Preview -->
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; background:radial-gradient(circle at 50% 60%, rgba(14,165,233,0.18), rgba(2,6,23,0.85)); border:1px solid rgba(56,189,248,0.25); border-radius:10px; padding:8px 12px; margin-bottom:8px;">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <div style="width:74px; height:74px; border-radius:10px; background:rgba(2,6,23,0.7); border:1px solid rgba(56,189,248,0.35); display:flex; align-items:center; justify-content:center; overflow:hidden; flex-shrink:0;">
+              ${d.heroPaperdollUrl ? `<img src="${escapeHTML(d.heroPaperdollUrl)}" alt="" style="width:70px;height:70px;object-fit:contain;">` : `<span style="font-size:30px;">🌙</span>`}
+            </div>
+            <div>
+              <div style="font-size:13px; font-weight:800; color:#e0f2fe;">${escapeHTML(d.charName)}</div>
+              <div style="font-size:11px; color:#7dd3fc; font-weight:600;">${escapeHTML(d.jobName)} (Lv.${d.baseLv} / Job ${d.jobLv})</div>
+              <div style="font-size:10px; color:#94a3b8; margin-top:2px;">
+                ${d.nearShop ? '🟢 อยู่ใกล้ร้านลุงโกโก้ (ขาย/ฝากคลังได้ทันที)' : (d.nearForge ? '🟢 อยู่ใกล้เตาป๋าหมูหริ่ง (ตีบวก/ซ่อมได้ทันที)' : '🏕️ อยู่นอกจุดร้านค้า (สวมใส่/ถอด/ใช้ยาได้ทันที)')}
+              </div>
+            </div>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <button type="button" onclick="runNightcampCharacterAction({ action: 'walk_to_coco' })" title="เดินไปหาลุงโกโก้ในค่ายเพื่อขายของหรือฝากคลัง" style="background:rgba(245,158,11,0.16);border:1px solid rgba(251,191,36,0.45);color:#fde68a;border-radius:6px;padding:3px 8px;font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap;">🛒 ไปหาลุงโกโก้</button>
+            <button type="button" onclick="runNightcampCharacterAction({ action: 'walk_to_forge' })" title="เดินไปหาป๋าหมูหริ่งในค่ายเพื่อตีบวกหรือซ่อมของ" style="background:rgba(168,85,247,0.16);border:1px solid rgba(192,132,252,0.45);color:#e9d5ff;border-radius:6px;padding:3px 8px;font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap;">🔨 ไปเตาตีบวก</button>
+          </div>
+        </div>
+
+        <!-- 2-Column Equipment Slots Grid -->
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+          <div style="display:flex; flex-direction:column; gap:5px;">
+            ${NC_CHAR_SLOTS_LEFT.map(def => renderNightcampEquipSlotCard(def, d.equipment?.[def.key] || (def.key === 'top' ? d.equipment?.robe : null))).join('')}
+          </div>
+          <div style="display:flex; flex-direction:column; gap:5px;">
+            ${NC_CHAR_SLOTS_RIGHT.map(def => renderNightcampEquipSlotCard(def, d.equipment?.[def.key] || (def.key === 'fhat' ? d.equipment?.frobe : null))).join('')}
+          </div>
+        </div>
+      </div>
+
+      <!-- 6 Base Stats Allocation Card (STR, AGI, VIT, INT, DEX, LUK) -->
+      <div style="background:rgba(15,23,42,0.75); border:1px solid rgba(250,204,21,0.32); border-radius:11px; padding:10px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:7px;">
+          <span style="font-size:11.5px; font-weight:800; color:#fde047;">⚡ ค่าสเตตัสหลัก (Base Stats)</span>
+          <span style="font-size:11px; font-weight:700; color:${d.statPoints > 0 ? '#4ade80' : '#94a3b8'};">แต้มคงเหลือ: <b>${d.statPoints}</b> แต้ม</span>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+          ${['str', 'agi', 'vit', 'int', 'dex', 'luk'].map(k => {
+            const st = d.baseStats?.[k] || { label: k.toUpperCase(), th: k, base: 5, bonus: 0, total: 5, cost: 2, canRaise: false, desc: '' };
+            return `
+              <div title="${escapeHTML(st.desc)}" style="background:rgba(2,6,23,0.65); border:1px solid rgba(148,163,184,0.22); border-radius:8px; padding:6px 8px; display:flex; align-items:center; justify-content:space-between; gap:4px;">
+                <div>
+                  <div style="font-size:11px; font-weight:800; color:#38bdf8;">${escapeHTML(st.label)} <span style="font-size:9.5px;color:#94a3b8;font-weight:500;">${escapeHTML(st.th)}</span></div>
+                  <div style="font-size:12px; font-weight:800; color:#f8fafc; font-family:'JetBrains Mono',monospace;">
+                    ${st.base}${st.bonus !== 0 ? ` <span style="color:#4ade80;font-size:10.5px;">(${st.bonus > 0 ? '+' : ''}${st.bonus})</span>` : ''}
+                  </div>
+                  <div style="font-size:8.5px; color:#64748b;">ใช้ ${st.cost} แต้ม/ขั้น</div>
+                </div>
+                <div style="display:flex; gap:3px;">
+                  <button type="button" ${st.canRaise ? '' : 'disabled'} onclick="runNightcampCharacterAction({ action: 'stat_up', stat: '${k}', count: 1 })"
+                          style="background:${st.canRaise ? '#059669' : '#1e293b'}; border:1px solid ${st.canRaise ? '#34d399' : '#334155'}; color:${st.canRaise ? '#fff' : '#64748b'}; border-radius:5px; padding:3px 7px; font-size:10.5px; font-weight:800; cursor:${st.canRaise ? 'pointer' : 'not-allowed'};">+1</button>
+                  <button type="button" ${st.canRaise ? '' : 'disabled'} onclick="runNightcampCharacterAction({ action: 'stat_up', stat: '${k}', count: 5 })"
+                          style="background:${st.canRaise ? 'rgba(16,185,129,0.22)' : '#1e293b'}; border:1px solid ${st.canRaise ? '#34d399' : '#334155'}; color:${st.canRaise ? '#6ee7b7' : '#64748b'}; border-radius:5px; padding:3px 6px; font-size:10px; font-weight:700; cursor:${st.canRaise ? 'pointer' : 'not-allowed'};">+5</button>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT COLUMN: Unified Bag (with in-game sub-categories), Camp Storage, Central Market & Detailed Combat Stats -->
+    <div style="display:flex; flex-direction:column; min-height:0; overflow:hidden;">
+      <!-- Right Navigation Main Tabs & Search Bar -->
+      <div style="padding:10px 14px; background:rgba(2,6,23,0.65); border-bottom:1px solid rgba(148,163,184,0.16); display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; flex-shrink:0;">
+        <div style="display:flex; gap:5px; flex-wrap:wrap;">
+          ${[
+            ['bag', `🎒 กระเป๋า (${(d.bagGear || []).length + (d.consumablesAndMats || []).length} · อุปกรณ์ ${d.bagUsed}/${d.bagCap})`],
+            ['storage', `🏦 คลังค่าย (${d.storeUsed}/${d.storeCap})`],
+            ['cmarket', `🏪 ตลาดกลาง & Auto-Sell (${(d.cmarket?.autoSellConfig?.rules || []).length})`],
+            ['stats', `📊 ค่าสถานะเชิงลึก`]
+          ].map(([k, lbl]) => {
+            const effTab = tab === 'mats' ? 'bag' : tab;
+            return `
+              <button type="button" onclick="switchNightcampCharTab('${k}')"
+                      style="background:${effTab === k ? (k === 'cmarket' ? 'linear-gradient(135deg,#4f46e5,#4338ca)' : 'linear-gradient(135deg,#0284c7,#0369a1)') : 'rgba(15,23,42,0.8)'}; border:1px solid ${effTab === k ? (k === 'cmarket' ? '#818cf8' : '#38bdf8') : 'rgba(148,163,184,0.28)'}; color:${effTab === k ? '#fff' : '#cbd5e1'}; border-radius:8px; padding:6px 12px; font-size:11.5px; font-weight:700; cursor:pointer;">${lbl}</button>
+            `;
+          }).join('')}
+        </div>
+        <input type="search" id="nc-char-bag-search" value="${escapeHTML(ncCharModalState.searchQuery)}" oninput="onNightcampBagSearchInput(this.value)" placeholder="🔍 ค้นหาชื่อไอเทม หรือ ออปชัน (เช่น คริติคอล, VIT)..." autocomplete="off"
+               style="width:260px; max-width:100%; background:#090d16; border:1px solid rgba(56,189,248,0.4); color:#f8fafc; border-radius:7px; padding:5px 10px; font-size:11.5px; outline:none;">
+      </div>
+
+      <!-- Right Scrollable Content -->
+      <div id="nc-char-right-content" style="flex:1; min-height:0; overflow-y:auto; padding:12px 14px;">
+        ${renderNightcampRightPaneContentHtml(d)}
+      </div>
+    </div>
+  `;
+}
+
 
 

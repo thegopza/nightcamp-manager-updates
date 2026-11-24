@@ -1,11 +1,25 @@
-// PmheeAether Manager — Party drawer (crown tab on the left edge). Backend: manager/party_api.js
+// PmheeNC Nightcamp Manager — Party & Co-op Quest Sync Drawer (crown tab + topbar button).
 (function () {
   'use strict';
   const API = (typeof API_BASE === 'string' ? API_BASE : '') + '/api/parties';
-  const EXP = { 'even-share': 'แชร์กัน (มีโบนัส)', individual: 'รับใครรับมัน' };
-  const LOOT = { personal: 'คนตีมากสุด', 'round-robin': 'วนกันรับ', leader: 'หัวหน้า' };
+  const LOOT = {
+    personal: '🎒 ใครเจอคนนั้นได้',
+    turn: '🔄 ผลัดกันรับ',
+    'round-robin': '🎲 สุ่มให้สมาชิก',
+    leader: '👑 หัวตี้เก็บ'
+  };
+  const EXP = {
+    'even-share': '⚖️ แบ่งเท่ากัน (ด้ายเชิด ดรอป +5%)',
+    individual: '⚔️ ต่างคนต่างได้'
+  };
+  const GROUP = {
+    g: '🤝 เกาะกลุ่ม (เดินเควส/ด้ายแดง)',
+    s: '🏃 แยกตีอิสระ'
+  };
   const CROWN = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 7.5l4.2 3.6L12 4l4.8 7.1L21 7.5l-1.8 10.2H4.8L3 7.5zm2 12.2h14v1.8H5v-1.8z"/></svg>';
   const CROWN_SM = CROWN.replace('<svg', '<svg width="16" height="16"');
+  const HAND_ON_SVG = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 11V6a1.5 1.5 0 0 0-3 0v4"/><path d="M15 10V4.5a1.5 1.5 0 0 0-3 0V10"/><path d="M12 9.5V5.5a1.5 1.5 0 0 0-3 0V11"/><path d="M9 11V7.5a1.5 1.5 0 0 0-3 0V15a6 6 0 0 0 6 6h2a5 5 0 0 0 5-5v-5a1.5 1.5 0 0 0-3 0"/></svg>';
+  const HAND_OFF_SVG = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 11V6a1.5 1.5 0 0 0-3 0v4" opacity="0.72"/><path d="M15 10V4.5a1.5 1.5 0 0 0-3 0V10" opacity="0.72"/><path d="M12 9.5V5.5a1.5 1.5 0 0 0-3 0V11" opacity="0.72"/><path d="M9 11V7.5a1.5 1.5 0 0 0-3 0V15a6 6 0 0 0 6 6h2a5 5 0 0 0 5-5v-5a1.5 1.5 0 0 0-3 0" opacity="0.72"/><line x1="3.5" y1="3.5" x2="20.5" y2="20.5" stroke="#ef4444" stroke-width="2.6"/><line x1="20.5" y1="3.5" x2="3.5" y2="20.5" stroke="#ef4444" stroke-width="2.6"/></svg>';
 
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const toast = (t, k) => (typeof window.showToast === 'function' ? window.showToast(t, k) : console.log('[Party]', t));
@@ -14,29 +28,45 @@
   const setText = (el, txt) => { if (el && el.textContent !== String(txt)) el.textContent = String(txt); };
   const setHtml = (el, html) => { if (el && el.innerHTML !== html) el.innerHTML = html; };
 
-  let data = { parties: [], clients: [], maxMembers: 6 };
+  let data = { parties: [], clients: [], maxMembers: 5 };
   let open = false, pollTimer = null, busy = false, pointerDown = false, pendingRender = false;
   const collapsedParties = new Set();
   let pickerState = { mode: 'leader', partyId: null };
 
+  function resolveMemberAvatarUrl(profileId) {
+    if (typeof window.getNightcampProfileAvatarUrl === 'function') {
+      return window.getNightcampProfileAvatarUrl(profileId) || '';
+    }
+    try {
+      const prof = (typeof currentProfiles !== 'undefined' && Array.isArray(currentProfiles))
+        ? currentProfiles.find(x => String(x.id) === String(profileId))
+        : null;
+      const liveUrl = prof?.liveState?.portrait;
+      if (liveUrl && liveUrl.startsWith('data:image/')) return liveUrl;
+      const cached = localStorage.getItem('nc_portrait_' + profileId);
+      if (cached && cached.startsWith('data:image/')) return cached;
+    } catch (_) {}
+    return '';
+  }
+
   function build() {
     const tab = document.createElement('button');
     tab.className = 'pt-tab'; tab.id = 'pt-tab'; tab.type = 'button';
-    tab.title = 'ปาร์ตี้'; tab.setAttribute('aria-label', 'เปิดหน้าจัดปาร์ตี้');
+    tab.title = 'ปาร์ตี้ Nightcamp (สูงสุด 5 คน)'; tab.setAttribute('aria-label', 'เปิดหน้าจัดปาร์ตี้');
     tab.innerHTML = CROWN + '<span class="pt-tab-badge" id="pt-tab-badge"></span>';
     const scrim = document.createElement('div'); scrim.className = 'pt-scrim'; scrim.id = 'pt-scrim';
     const drawer = document.createElement('aside');
-    drawer.className = 'pt-drawer'; drawer.id = 'pt-drawer'; drawer.setAttribute('aria-label', 'จัดปาร์ตี้');
+    drawer.className = 'pt-drawer'; drawer.id = 'pt-drawer'; drawer.setAttribute('aria-label', 'จัดปาร์ตี้ Nightcamp');
     drawer.innerHTML = `
       <header class="pt-head">
         <div class="pt-head-icon">${CROWN}</div>
-        <div><h2>ปาร์ตี้</h2><p>จัดตี้อัตโนมัติหรือเลือกคนเอง สูงสุด 6 คนรวมหัวตี้</p></div>
+        <div><h2>ปาร์ตี้ Nightcamp</h2><p>จัดตี้สูงสุด 5 คน · ซิงค์แชนแนลคนน้อยสุด & เดินเควสพร้อมกันในรัศมีด้ายแดง</p></div>
         <button class="pt-close" id="pt-close" type="button" aria-label="ปิด">✕</button>
       </header>
       <div class="pt-body" id="pt-body"></div>
       <footer class="pt-foot">
-        <button class="pt-add" id="pt-add" type="button">➕ เพิ่มตี้</button>
-        <div class="pt-foot-hint">เลือกหัวตี้ แล้วให้ระบบดึงคนอัตโนมัติหรือกดเลือกสมาชิกเองก็ได้<br>ตั้งให้ลูกทีมแยกตีอิสระ หรือเดินตามช่วยตีหัวตี้/คนในตี้ได้รายคน</div>
+        <button class="pt-add" id="pt-add" type="button">➕ เพิ่มตี้ (สูงสุด 5 คน)</button>
+        <div class="pt-foot-hint">💡 ตัวละครจะเริ่มรวมตี้ทันทีเมื่อออกจาก <b>"ห้องหุ่นไม้ (Lv.1)"</b> เข้าสู่แมพกลางแจ้ง (Lv.2+)<br>คนเลเวลสูงกว่าจะวาร์ปลงมาช่วยเพื่อนที่เควสแมพต่ำกว่าและเกาะกลุ่มในรัศมีด้ายแดง (600px) อัตโนมัติ</div>
       </footer>
       <section class="pt-picker" id="pt-picker" hidden>
         <div class="pt-picker-head">
@@ -87,7 +117,7 @@
     if (v) document.body.classList.remove('pm-open', 'gd-open', 'hw-open', 'cd-open');
     document.body.classList.toggle('pt-open', v);
     clearInterval(pollTimer);
-    if (v) { load(); pollTimer = setInterval(load, 5000); }
+    if (v) { load(); pollTimer = setInterval(load, 4000); }
     else { closePicker(); pollTimer = setInterval(load, 10000); }
   }
   window.openPartyDrawer = () => setOpen(true);
@@ -114,14 +144,15 @@
   }
 
   function buildFollowOptions(m, p) {
+    const isCoopMode = (p && p.expMode !== 'individual');
     const opts = [
-      { value: 'none', label: '⚔️ แยกตีอิสระ' },
-      { value: 'leader', label: '👑 ตามหัวตี้' }
+      { value: 'none', label: isCoopMode ? '🤝 เกาะกลุ่มช่วยเควส (ด้ายแดง)' : '⚔️ แยกตีอิสระ' },
+      { value: 'leader', label: '👑 เกาะติดหัวตี้' }
     ];
     for (const other of (p && p.members) || []) {
       if (!other || other.id === m.id) continue;
       const nm = other.charName || other.profileName || other.id;
-      opts.push({ value: 'member:' + other.id, label: '👣 ตาม ' + nm });
+      opts.push({ value: 'member:' + other.id, label: '👣 เกาะติด ' + nm });
     }
     return opts;
   }
@@ -132,12 +163,13 @@
     row.className = 'pt-row' + (isLeader ? ' leader' : '');
     row.dataset.rowKey = isLeader ? 'leader:' + m.id : 'member:' + m.id;
     row.innerHTML = `
-      <div class="pt-ava"></div>
-      <div class="pt-who">
-        <div class="pt-name"><span class="pt-name-txt"></span><span class="pt-lv" hidden></span></div>
+      <div class="pt-ava" data-act="inspect-char" data-id="${esc(m.id)}" title="คลิกเพื่อดูข้อมูลตัวละคร / อุปกรณ์ / กระเป๋า" style="cursor:pointer; position:relative; overflow:hidden;"></div>
+      <div class="pt-who" data-act="inspect-char" data-id="${esc(m.id)}" title="คลิกเพื่อดูข้อมูลตัวละคร / อุปกรณ์ / กระเป๋า" style="cursor:pointer;">
+        <div class="pt-name"><span class="pt-name-txt"></span><span class="pt-lv" hidden></span><span class="pt-noloot-tag" hidden>ไม่เก็บของ</span></div>
         <div class="pt-sub"></div>
       </div>
-      ${isLeader ? '' : `<select class="pt-follow-select" data-set="memberFollow" data-party="${esc(pid)}" data-member="${esc(m.id)}" title="เลือกโหมดเดินตาม / ช่วยตี"></select>`}
+      <button class="pt-noloot" type="button" data-act="toggle-noloot" data-party="${esc(pid)}" data-id="${esc(m.id)}"></button>
+      ${isLeader ? '' : `<select class="pt-follow-select" data-set="memberFollow" data-party="${esc(pid)}" data-member="${esc(m.id)}" title="เลือกโหมดร่วมกลุ่มด้ายแดง / เดินตาม"></select>`}
       <span class="pt-status"></span>
       ${isLeader ? '' : `<button class="pt-rm" type="button" title="เอาออกจากตี้" data-act="remove" data-party="${esc(pid)}" data-id="${esc(m.id)}">✕</button>`}`;
     patchMemberRowEl(row, m, p, isLeader);
@@ -150,11 +182,23 @@
     const sub = [m.profileName, m.mapName ? m.mapName + (m.channel ? ' · CH ' + m.channel : '') : null].filter(Boolean).join(' · ');
     const ava = row.querySelector('.pt-ava');
     if (ava) {
+      ava.dataset.id = String(m.id);
       const h = String(hue(displayName));
       if (ava.style.getPropertyValue('--pt-h') !== h) ava.style.setProperty('--pt-h', h);
-      if (isLeader) setHtml(ava, CROWN_SM);
-      else setText(ava, initial(displayName));
+      const portraitUrl = resolveMemberAvatarUrl(m.id);
+      if (portraitUrl) {
+        const crownBadge = isLeader
+          ? `<span style="position:absolute;right:-1px;bottom:-1px;background:#f59e0b;color:#0f172a;border-radius:999px;width:13px;height:13px;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:900;box-shadow:0 1px 4px rgba(0,0,0,0.6);">👑</span>`
+          : '';
+        setHtml(ava, `<img src="${esc(portraitUrl)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block;">${crownBadge}`);
+      } else if (isLeader) {
+        setHtml(ava, CROWN_SM);
+      } else {
+        setText(ava, initial(displayName));
+      }
     }
+    const whoEl = row.querySelector('.pt-who');
+    if (whoEl) whoEl.dataset.id = String(m.id);
     const nameTxt = row.querySelector('.pt-name-txt');
     setText(nameTxt, displayName);
     const lvEl = row.querySelector('.pt-lv');
@@ -165,6 +209,25 @@
       } else {
         lvEl.hidden = true;
       }
+    }
+    const isNoLoot = Boolean(m.noLoot || (Array.isArray(p.noLootIds) && p.noLootIds.includes(String(m.id))));
+    const noLootTag = row.querySelector('.pt-noloot-tag');
+    if (noLootTag) {
+      noLootTag.hidden = !isNoLoot;
+    }
+    const noLootBtn = row.querySelector('.pt-noloot');
+    if (noLootBtn) {
+      if (noLootBtn.dataset.party !== String(pid)) noLootBtn.dataset.party = String(pid);
+      if (noLootBtn.dataset.id !== String(m.id)) noLootBtn.dataset.id = String(m.id);
+      noLootBtn.dataset.noloot = isNoLoot ? '1' : '0';
+      noLootBtn.dataset.name = displayName;
+      const nextNlCls = 'pt-noloot' + (isNoLoot ? ' is-off' : '');
+      if (noLootBtn.className !== nextNlCls) noLootBtn.className = nextNlCls;
+      setHtml(noLootBtn, isNoLoot ? HAND_OFF_SVG : HAND_ON_SVG);
+      const nlTitle = isNoLoot
+        ? `กากบาทที่มือ: "${displayName}" ไม่เก็บของ (ฟาร์มและตีอย่างเดียว · คลิกเพื่อกลับมาเก็บของปกติ)`
+        : `เก็บของปกติ: คลิกให้เป็นกากบาทที่มือ เพื่อสั่งให้ "${displayName}" ไม่เก็บของ (ตีอย่างเดียว)`;
+      if (noLootBtn.title !== nlTitle) noLootBtn.title = nlTitle;
     }
     setText(row.querySelector('.pt-sub'), sub);
     const followSel = row.querySelector('.pt-follow-select');
@@ -185,19 +248,47 @@
           if (followSel.value !== curMode) followSel.value = curMode;
         }
       }
-      followSel.classList.toggle('is-following', curMode !== 'none');
+      followSel.classList.toggle('is-following', curMode !== 'none' || p.expMode !== 'individual');
     }
     const st = row.querySelector('.pt-status');
     if (st) {
-      const nextCls = 'pt-status ' + (m.status || '');
+      const allPartyMembers = [p.leader].concat(p.members || []).filter(Boolean);
+      const sameMapCount = allPartyMembers.filter(x => x.mapName && m.mapName && x.mapName === m.mapName && (!x.channel || !m.channel || x.channel === m.channel)).length;
+      const isTogetherWithTeammate = !isLeader && sameMapCount >= 2 && !/ค่ายกลางป่า|ห้องหุ่น/i.test(String(m.mapName || ''));
+      const effStatus = isTogetherWithTeammate ? 'joined' : (m.status || '');
+      const effText = isTogetherWithTeammate
+        ? (m.mapName === p.leader?.mapName ? 'อยู่ด้วยกัน' : 'ช่วยเควสตี้')
+        : (/ห้องหุ่น/i.test(String(m.mapName || '')) ? 'กำลังพ้นห้องหุ่น Lv.1' : (m.statusText || ''));
+      const nextCls = 'pt-status ' + effStatus;
       if (st.className !== nextCls) st.className = nextCls;
-      setText(st, m.statusText || '');
+      setText(st, effText);
     }
     const rmBtn = row.querySelector('.pt-rm');
     if (rmBtn) {
       if (rmBtn.dataset.party !== String(pid)) rmBtn.dataset.party = String(pid);
       if (rmBtn.dataset.id !== String(m.id)) rmBtn.dataset.id = String(m.id);
     }
+  }
+
+  function computePartyQuestSyncSummary(p) {
+    const all = [p.leader].concat(p.members || []).filter(Boolean);
+    const outdoor = all.filter(x => x.mapName && !/ค่ายกลางป่า|แปลงสวน|ห้องหุ่น|เมืองหลวง/i.test(String(x.mapName)));
+    if (!outdoor.length) {
+      const inTutorial = all.filter(x => /ห้องหุ่น/i.test(String(x.mapName || '')));
+      if (inTutorial.length) {
+        return `⏳ รอตัวละครออกจาก "ห้องหุ่นไม้ (Lv.1)" (${inTutorial.length} ตัว) แล้วจะรวมตี้เข้าแมพกลางแจ้งทันที`;
+      }
+      return `🏕️ สมาชิกกำลังเตรียมตัวอยู่ในค่ายแคมป์ — เมื่อออกแมพกลางแจ้งจะรวมกลุ่มที่แชนแนลคนน้อยสุดอัตโนมัติ`;
+    }
+    // Lowest level member on an outdoor map is the Co-op Quest Anchor
+    const sorted = outdoor.slice().sort((a, b) => ((Number(a.level) || 99) - (Number(b.level) || 99)));
+    const anchor = sorted[0];
+    const chTxt = anchor.channel ? ` · CH ${anchor.channel}` : '';
+    const onSameMap = outdoor.filter(x => x.mapName === anchor.mapName && (!anchor.channel || x.channel === anchor.channel)).length;
+    if (p.expMode === 'individual') {
+      return `⚔️ โหมดแยกกันฟาร์ม: สมาชิกอยู่คนละจุดแต่รับโบนัสปาร์ตี้ร่วมกัน`;
+    }
+    return `🤝 จุดรวมตี้ช่วยเควส: <b>${esc(anchor.mapName)}${esc(chTxt)}</b> (เกาะกลุ่มด้ายแดง ${onSameMap}/${all.length} คน · ช่วย ${esc(anchor.charName || anchor.profileName)} Lv.${anchor.level || 1})`;
   }
 
   function createCardEl(p) {
@@ -210,9 +301,10 @@
         <span class="pt-card-title"></span>
         <span class="pt-count"></span>
         <button class="pt-iconbtn pt-add-member-btn" type="button" title="เลือกสมาชิกเข้าตี้เอง" data-act="pick-member" data-party="${esc(p.id)}">➕</button>
-        <button class="pt-iconbtn" type="button" title="รวมทีม (เรียกสมาชิกมาหาหัวตี้)" data-act="summon" data-party="${esc(p.id)}">⤓</button>
+        <button class="pt-iconbtn" type="button" title="รวมทีมด้ายแดง (เรียกสมาชิกทุกคนมาเกาะกลุ่มช่วยเควส)" data-act="summon" data-party="${esc(p.id)}">⤓</button>
         <button class="pt-iconbtn danger" type="button" title="ยุบตี้" data-act="delete" data-party="${esc(p.id)}">🗑</button>
       </div>
+      <div class="pt-coop-banner" style="margin:6px 0;padding:6px 9px;border-radius:7px;background:rgba(16,185,129,0.11);border:1px solid rgba(52,211,153,0.35);color:#a7f3d0;font-size:10.5px;line-height:1.45;"></div>
       <div class="pt-leader-box"></div>
       <button class="pt-expand-bar" type="button" data-act="toggle-members" data-party="${esc(p.id)}" aria-expanded="true">
         <span class="pt-expand-summary"></span>
@@ -227,15 +319,16 @@
         </button>
       </div>
       <div class="pt-modes">
-        <div class="pt-field"><label for="pt-exp-${esc(p.id)}">โหมด EXP</label>
-          <select id="pt-exp-${esc(p.id)}" data-set="expMode" data-party="${esc(p.id)}">${opt(EXP, p.expMode)}</select></div>
-        <div class="pt-field"><label for="pt-loot-${esc(p.id)}">โหมดไอเทม</label>
-          <select id="pt-loot-${esc(p.id)}" data-set="lootMode" data-party="${esc(p.id)}">${opt(LOOT, p.lootMode)}</select></div>
+        <div class="pt-field"><label for="pt-loot-${esc(p.id)}">กติกาของดรอป</label>
+          <select id="pt-loot-${esc(p.id)}" data-set="lootMode" data-party="${esc(p.id)}">${opt(LOOT, LOOT[p.lootMode] ? p.lootMode : 'personal')}</select></div>
+        <div class="pt-field"><label for="pt-exp-${esc(p.id)}">กติกา EXP</label>
+          <select id="pt-exp-${esc(p.id)}" data-set="expMode" data-party="${esc(p.id)}">${opt(EXP, EXP[p.expMode] ? p.expMode : 'even-share')}</select></div>
+        <div class="pt-field" style="grid-column:1 / -1;"><label for="pt-grp-${esc(p.id)}">ออโต้ในตี้</label>
+          <select id="pt-grp-${esc(p.id)}" data-set="groupMode" data-party="${esc(p.id)}">${opt(GROUP, GROUP[p.groupMode] ? p.groupMode : 'g')}</select></div>
       </div>
       <div class="pt-toggles">
-        <label class="pt-toggle"><input type="checkbox" data-set="syncMap" data-party="${esc(p.id)}" ${p.syncMap ? 'checked' : ''}>ตามแมพ + CH หัวตี้</label>
-        <label class="pt-toggle"><input type="checkbox" data-set="autoFill" data-party="${esc(p.id)}" ${p.autoFill ? 'checked' : ''}>เติมสมาชิกอัตโนมัติ</label>
-        <label class="pt-toggle" title="เปิด/ปิดระบบ Priest เดินบัฟของตี้นี้ (ถ้าปิดจะทำแค่เชิญตี้/ซิงค์ตี้ปกติ ไม่ใช้ Flow พระเดินบัฟ)"><input type="checkbox" data-set="priestFlow" data-party="${esc(p.id)}" ${p.priestFlow !== false ? 'checked' : ''}>ระบบ Priest (บัฟตี้)</label>
+        <label class="pt-toggle"><input type="checkbox" data-set="syncMap" data-party="${esc(p.id)}" ${p.syncMap ? 'checked' : ''}>ซิงค์แมพ + CH คนน้อยสุด</label>
+        <label class="pt-toggle"><input type="checkbox" data-set="autoFill" data-party="${esc(p.id)}" ${p.autoFill ? 'checked' : ''}>เติมสมาชิกอัตโนมัติ (5 คน)</label>
       </div>
       <div class="pt-notes" hidden></div>`;
     patchCardEl(el, p);
@@ -243,9 +336,9 @@
   }
 
   function patchCardEl(cardEl, p) {
-    const full = p.count >= p.max;
-    const slots = Math.max(0, p.max - p.count);
-    const evenBlocked = p.inGame && p.inGame.evenShareAllowed === false;
+    const effMax = Math.min(5, Number(p.max) || 5);
+    const full = p.count >= effMax;
+    const slots = Math.max(0, effMax - p.count);
     const isExpanded = !collapsedParties.has(String(p.id));
 
     setText(cardEl.querySelector('.pt-card-title'), 'ตี้ ' + p.index);
@@ -253,11 +346,16 @@
     if (cnt) {
       const nextCls = 'pt-count' + (full ? ' full' : '');
       if (cnt.className !== nextCls) cnt.className = nextCls;
-      setText(cnt, p.count + '/' + p.max);
+      setText(cnt, p.count + '/' + effMax);
     }
     const addMemberBtn = cardEl.querySelector('.pt-add-member-btn');
     if (addMemberBtn) {
       addMemberBtn.hidden = full;
+    }
+
+    const coopBanner = cardEl.querySelector('.pt-coop-banner');
+    if (coopBanner) {
+      setHtml(coopBanner, computePartyQuestSyncSummary(p));
     }
 
     // Leader row (always visible)
@@ -275,7 +373,7 @@
 
     // Expand/collapse toggle bar for non-leader members
     const membersList = p.members || [];
-    const maxFollowers = Math.max(0, (p.max || 6) - 1);
+    const maxFollowers = Math.max(0, effMax - 1);
     const joinedCnt = membersList.filter(m => m.status === 'joined' || m.status === 'apart').length;
     const pendingCnt = membersList.length - joinedCnt;
     const summaryParts = [`👥 ลูกทีม ${membersList.length}/${maxFollowers} คน`];
@@ -334,28 +432,26 @@
       }
     }
 
-    // Update selects and checkboxes only if not actively focused/open
     const isSelBusy = el => window.PmUiGuard ? window.PmUiGuard.isSelectBusy(el) : (document.activeElement === el);
     const expSel = cardEl.querySelector('select[data-set="expMode"]');
-    if (expSel && !isSelBusy(expSel) && expSel.value !== p.expMode) expSel.value = p.expMode;
+    const effExp = EXP[p.expMode] ? p.expMode : 'even-share';
+    if (expSel && !isSelBusy(expSel) && expSel.value !== effExp) expSel.value = effExp;
     const lootSel = cardEl.querySelector('select[data-set="lootMode"]');
-    if (lootSel && !isSelBusy(lootSel) && lootSel.value !== p.lootMode) lootSel.value = p.lootMode;
+    const effLoot = LOOT[p.lootMode] ? p.lootMode : 'personal';
+    if (lootSel && !isSelBusy(lootSel) && lootSel.value !== effLoot) lootSel.value = effLoot;
+    const grpSel = cardEl.querySelector('select[data-set="groupMode"]');
+    const effGrp = GROUP[p.groupMode] ? p.groupMode : 'g';
+    if (grpSel && !isSelBusy(grpSel) && grpSel.value !== effGrp) grpSel.value = effGrp;
 
     const syncCb = cardEl.querySelector('input[data-set="syncMap"]');
     if (syncCb && syncCb.checked !== Boolean(p.syncMap)) syncCb.checked = Boolean(p.syncMap);
     const fillCb = cardEl.querySelector('input[data-set="autoFill"]');
     if (fillCb && fillCb.checked !== Boolean(p.autoFill)) fillCb.checked = Boolean(p.autoFill);
-    const priestFlowCb = cardEl.querySelector('input[data-set="priestFlow"]');
-    const priestFlowVal = p.priestFlow !== false;
-    if (priestFlowCb && priestFlowCb.checked !== priestFlowVal) priestFlowCb.checked = priestFlowVal;
 
     // Notes
     const notesBox = cardEl.querySelector('.pt-notes');
     if (notesBox) {
       const notesList = (p.notes || []).slice();
-      if (evenBlocked && p.expMode === 'even-share' && !notesList.some(n => n.includes('แชร์ EXP'))) {
-        notesList.push(`แชร์ EXP ได้เมื่อเลเวลต่างกันไม่เกิน ${p.inGame.levelRange}`);
-      }
       if (notesList.length) {
         notesBox.hidden = false;
         const notesHtml = notesList.map(n => `<div class="pt-note">${esc(n)}</div>`).join('');
@@ -375,7 +471,7 @@
 
     if (!data.parties.length) {
       if (!body.querySelector('.pt-empty')) {
-        body.innerHTML = `<div class="pt-empty">ยังไม่มีปาร์ตี้<br>กด <b>➕ เพิ่มตี้</b> ด้านล่างเพื่อเลือกหัวตี้</div>`;
+        body.innerHTML = `<div class="pt-empty">ยังไม่มีปาร์ตี้<br>กด <b>➕ เพิ่มตี้ (สูงสุด 5 คน)</b> ด้านล่างเพื่อเลือกหัวตี้</div>`;
       }
     } else {
       const emptyEl = body.querySelector('.pt-empty');
@@ -431,7 +527,7 @@
     btn.type = 'button';
     btn.dataset.pick = String(c.id);
     btn.innerHTML = `
-      <div class="pt-ava"></div>
+      <div class="pt-ava" style="position:relative;overflow:hidden;"></div>
       <div class="pt-who">
         <div class="pt-name"><span class="pt-name-txt"></span><span class="pt-lv" hidden></span></div>
         <div class="pt-sub"></div>
@@ -449,7 +545,12 @@
     if (ava) {
       const h = String(hue(displayName));
       if (ava.style.getPropertyValue('--pt-h') !== h) ava.style.setProperty('--pt-h', h);
-      setText(ava, initial(displayName));
+      const portraitUrl = resolveMemberAvatarUrl(c.id);
+      if (portraitUrl) {
+        setHtml(ava, `<img src="${esc(portraitUrl)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block;">`);
+      } else {
+        setText(ava, initial(displayName));
+      }
     }
     setText(btn.querySelector('.pt-name-txt'), displayName);
     const lv = btn.querySelector('.pt-lv');
@@ -464,8 +565,7 @@
     const sub = [
       c.name,
       c.online ? (c.mapName ? c.mapName + (c.channel ? ' · CH ' + c.channel : '') : 'ออนไลน์') : 'ออฟไลน์',
-      c.inGameParty ? 'มีตี้ในเกมอยู่แล้ว' : null,
-      c.planPending ? 'แผนยังเก็บเลเวล (' + c.planPending + ')' : null
+      c.inGameParty ? 'มีตี้ในเกมอยู่แล้ว' : null
     ].filter(Boolean).join(' · ');
     setText(btn.querySelector('.pt-sub'), sub);
     setText(btn.querySelector('.pt-go'), pickerState.mode === 'member' ? '+ เพิ่มเข้าตี้' : 'เลือก →');
@@ -478,7 +578,8 @@
       : null;
     if (titleEl) {
       if (targetParty) {
-        const slots = Math.max(0, (targetParty.max || 6) - targetParty.count);
+        const effMax = Math.min(5, Number(targetParty.max) || 5);
+        const slots = Math.max(0, effMax - targetParty.count);
         setText(titleEl, `เพิ่มสมาชิกเข้าตี้ ${targetParty.index} (ว่าง ${slots} ที่)`);
       } else {
         setText(titleEl, 'เลือกหัวตี้');
@@ -533,7 +634,7 @@
     try {
       const r = await api('', { leaderId });
       if (r.success === false) toast(r.error || 'เพิ่มตี้ไม่สำเร็จ', 'error');
-      else { toast('เพิ่มตี้แล้ว กำลังชวนสมาชิกที่เลเวลใกล้กัน', 'success'); closePicker(); }
+      else { toast('สร้างปาร์ตี้แล้ว · กำลังดึงสมาชิกเข้าตี้และซิงค์เควส/แชนแนลเดียวกัน', 'success'); closePicker(); }
     } finally { busy = false; }
   }
 
@@ -541,15 +642,16 @@
     busy = true;
     try {
       collapsedParties.delete(String(partyId));
-      const r = await api('/' + encodeURIComponent(partyId) + '/add-member', { profileId });
+      const r = await api('/' + encodeURIComponent(partyId) + '/add-member', { profileId, followMode: 'leader' });
       if (r.success === false) {
         toast(r.error || 'เพิ่มสมาชิกไม่สำเร็จ', 'error');
         return;
       }
       const updatedParty = (data.parties || []).find(p => String(p.id) === String(partyId));
+      const effMax = Math.min(5, Number(updatedParty?.max) || 5);
       const freeLeft = (data.clients || []).some(c => !c.assigned);
-      toast('เพิ่มสมาชิกเข้าตี้แล้ว กำลังชวนในเกม', 'success');
-      if (!updatedParty || updatedParty.count >= updatedParty.max || !freeLeft) {
+      toast('เพิ่มสมาชิกเข้าตี้แล้ว · กำลังซิงค์เข้าแชนแนลและแมพเควสตี้', 'success');
+      if (!updatedParty || updatedParty.count >= effMax || !freeLeft) {
         closePicker();
       } else {
         renderPicker();
@@ -571,17 +673,51 @@
       const r = await api('/' + encodeURIComponent(t.dataset.party) + '/settings', payload);
       if (r.success === false) toast(r.error || 'บันทึกไม่สำเร็จ', 'error');
       else if (t.dataset.set === 'memberFollow') {
-        toast(t.value === 'none' ? 'เปลี่ยนเป็นโหมดแยกตีอิสระแล้ว' : 'ตั้งค่าโหมดเดินตามแล้ว', 'success');
-      } else if (t.dataset.set === 'priestFlow') {
-        toast(t.checked ? 'เปิดระบบ Priest (เดินบัฟอัตโนมัติ) แล้ว' : 'ปิดระบบ Priest แล้ว (ทำงานเฉพาะระบบเชิญตี้ปกติ)', 'success');
+        toast('อัปเดตโหมดเดินตี้ของสมาชิกแล้ว', 'success');
+      } else if (t.dataset.set === 'expMode') {
+        toast('อัปเดตกติกา EXP ปาร์ตี้เป็น "' + (EXP[t.value] || t.value) + '" แล้ว', 'success');
+      } else if (t.dataset.set === 'lootMode') {
+        toast('อัปเดตกติกาของดรอปเป็น "' + (LOOT[t.value] || t.value) + '" แล้ว', 'success');
+      } else if (t.dataset.set === 'groupMode') {
+        toast('อัปเดตออโต้ในตี้เป็น "' + (GROUP[t.value] || t.value) + '" แล้ว', 'success');
       }
     } finally { busy = false; t.blur(); }
   }
 
   async function onClick(e) {
     const b = e.target.closest('[data-act]'); if (!b) return;
+    if (b.dataset.act === 'inspect-char' && b.dataset.id) {
+      if (typeof window.openNightcampCharacterModal === 'function') {
+        window.openNightcampCharacterModal(b.dataset.id);
+      } else if (typeof window.openCharacterModal === 'function') {
+        window.openCharacterModal(b.dataset.id);
+      }
+      return;
+    }
     const rawPid = String(b.dataset.party || '');
     const pid = encodeURIComponent(rawPid);
+    if (b.dataset.act === 'toggle-noloot' && b.dataset.id) {
+      const curNoLoot = b.dataset.noloot === '1';
+      const wantNoLoot = !curNoLoot;
+      const charName = b.dataset.name || b.dataset.id;
+      busy = true;
+      try {
+        const r = rawPid
+          ? await api('/' + pid + '/settings', { memberNoLoot: { profileId: b.dataset.id, noLoot: wantNoLoot } })
+          : await api('/toggle-noloot', { profileId: b.dataset.id, noLoot: wantNoLoot });
+        if (r.success === false) {
+          toast(r.error || 'สลับโหมดเก็บของไม่สำเร็จ', 'error');
+        } else {
+          toast(
+            wantNoLoot
+              ? `🚫✋ ตั้งค่า "${charName}" ไม่เก็บของ (ฟาร์มและตีอย่างเดียว)`
+              : `✋ ตั้งค่า "${charName}" กลับมาเก็บของตามปกติแล้ว`,
+            'success'
+          );
+        }
+      } finally { busy = false; }
+      return;
+    }
     if (b.dataset.act === 'toggle-members') {
       if (collapsedParties.has(rawPid)) collapsedParties.delete(rawPid);
       else collapsedParties.add(rawPid);
@@ -603,7 +739,7 @@
       toast(r.success === false ? (r.error || 'เอาออกไม่สำเร็จ') : 'เอาออกจากตี้แล้ว (กด + เลือกคนเข้าตี้ เพื่อดึงกลับได้ตลอด)', r.success === false ? 'error' : 'success');
     } else if (b.dataset.act === 'summon') {
       const r = await api('/' + pid + '/summon', {});
-      toast(r.success === false ? (r.error || 'รวมทีมไม่สำเร็จ') : 'หัวตี้เรียกสมาชิกมารวมแล้ว', r.success === false ? 'error' : 'success');
+      toast(r.success === false ? (r.error || 'รวมทีมไม่สำเร็จ') : 'สั่งรวมกลุ่มด้ายแดง & ซิงค์แมพเควสตี้แล้ว', r.success === false ? 'error' : 'success');
     }
   }
 

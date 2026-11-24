@@ -402,6 +402,26 @@ const pushQueueOverlayJs = q => `(() => {
   return { success: true };
 })()`;
 
+const normalizeAccountId = u => {
+  const s = String(u || '').trim().toLowerCase();
+  if (!s) return '';
+  return s.includes('@') ? s : (s + '@gmail.com');
+};
+
+const isSameAccountId = (a, b) => {
+  const sa = String(a || '').trim().toLowerCase();
+  const sb = String(b || '').trim().toLowerCase();
+  if (!sa || !sb) return sa === sb;
+  if (sa === sb) return true;
+  if (normalizeAccountId(sa) === normalizeAccountId(sb)) return true;
+  const baseA = sa.replace(/@(gmail\.com|users\.nightcamp\.invalid)$/, '');
+  const baseB = sb.replace(/@(gmail\.com|users\.nightcamp\.invalid)$/, '');
+  return Boolean(
+    baseA && baseA === baseB &&
+    (!sa.includes('@') || !sb.includes('@') || sa.endsWith('@users.nightcamp.invalid') || sb.endsWith('@users.nightcamp.invalid'))
+  );
+};
+
 const pushJs = cfg => `(() => {
   ${QUEUE_OVERLAY_HELPER_JS}
   window.__setPmRegisterQueueOverlay(null);
@@ -418,13 +438,39 @@ const pushJs = cfg => `(() => {
       activeEl.id === 'p-auth-pass'
     )
   );
-  if (patch.forceResetAuth) {
+  const normBase = u => String(u || '').trim().toLowerCase().replace(/@(gmail\\.com|users\\.nightcamp\\.invalid)$/, '');
+  const sameUser = (a, b) => {
+    const sa = String(a || '').trim().toLowerCase();
+    const sb = String(b || '').trim().toLowerCase();
+    if (!sa || !sb) return sa === sb;
+    if (sa === sb) return true;
+    const na = sa.includes('@') ? sa : (sa + '@gmail.com');
+    const nb = sb.includes('@') ? sb : (sb + '@gmail.com');
+    if (na === nb) return true;
+    return (!sa.includes('@') || !sb.includes('@') || sa.endsWith('@users.nightcamp.invalid') || sb.endsWith('@users.nightcamp.invalid')) && normBase(sa) === normBase(sb);
+  };
+  if (patch.username && c.username && sameUser(patch.username, c.username) && !String(patch.username).includes('@') && String(c.username).includes('@')) {
+    patch.username = c.username;
+  }
+  const onlineSt = String(window.NC?.Online?.status || '');
+  const isActivelyInGameOrQueue = Boolean(
+    window.NC?.OnlineLobby?.entered === true ||
+    ['online', 'reconnecting', 'connecting', 'syncing', 'checking', 'transferring', 'channel'].includes(onlineSt)
+  );
+  const isDiffUser = Boolean(patch.username && c.username && !sameUser(patch.username, c.username));
+  if (patch.forceResetAuth || (isDiffUser && !isActivelyInGameOrQueue)) {
+    const forceLogout = Boolean(patch.forceResetAuth);
     delete patch.forceResetAuth;
     c.userEditedAt = 0;
     c.verifiedLoginAt = 0;
     c.registerError = '';
     c.registerDone = false;
     try { if (window.sessionStorage) window.sessionStorage.removeItem('aetheria.session'); } catch (_) {}
+    if ((forceLogout || !isActivelyInGameOrQueue) && window.NC && window.NC.Online && window.NC.Online.account && window.NC.Online.account.kind !== 'device' && typeof window.NC.Online.logout === 'function') {
+      try { window.NC.Online.logout().catch(() => {}); } catch (_) {}
+    }
+  } else {
+    delete patch.forceResetAuth;
   }
   const hasManualUserCreds = Boolean(
     c.username && c.password && !c.generatedUser && !c.register &&
@@ -453,7 +499,7 @@ const pushJs = cfg => `(() => {
   if (c.charName !== undefined) set('p-auth-char', c.charName || '');
   if (c.autoResumeBot !== undefined) set('p-auth-resume', !!c.autoResumeBot);
   window.__ncLastFailedAuthKey = '';
-  if (c.enabled && c.username && c.password && typeof window.executeAutoLogin === 'function') {
+  if (!isActivelyInGameOrQueue && c.enabled && c.username && c.password && typeof window.executeAutoLogin === 'function') {
     setTimeout(() => { try { window.executeAutoLogin(false).catch(() => {}); } catch (_) {} }, 200);
   }
   return { success: true };
@@ -725,7 +771,7 @@ function createAuthSync({
         username: uname,
         password: pw(profile) || genPassword(),
         charName: (profile.charName && profile.charName.trim()) || genCharName(),
-        generatedUser: !hasAccount || !!profile.generatedAccount || !!profile.autoRegister
+        generatedUser: !hasAccount || !!profile.generatedAccount
       };
       pendingCreds.set(profile.id, c);
     }
@@ -867,8 +913,8 @@ function createAuthSync({
     const allProfiles = (typeof loadProfiles === 'function' ? loadProfiles() : []) || [];
     const ownedByOtherProfile = Boolean(
       cur.username &&
-      String(profile.account || '').trim().toLowerCase() !== cur.username.toLowerCase() &&
-      allProfiles.some(o => o && o.id !== profile.id && String(o.account || '').trim().toLowerCase() === cur.username.toLowerCase())
+      !isSameAccountId(profile.account, cur.username) &&
+      allProfiles.some(o => o && o.id !== profile.id && isSameAccountId(o.account, cur.username))
     );
     const manualUserEditedAt = Number(cur.userEditedAt) || 0;
     const lastManagerPushAt = Number(profile.lastAuthSyncPushAt) || 0;
@@ -876,10 +922,11 @@ function createAuthSync({
     const staleClientCredsAfterReset = Boolean(profile.autoRegister && identityChangedAt > 0 && manualUserEditedAt <= identityChangedAt);
     const hasClientCreds = Boolean(cur.username && cur.password && !cur.register && !cur.registerError);
     const managerMissingCreds = !profile.account || !pw(profile);
-    const isSameGeneratedAccount = Boolean(profile.generatedAccount && profile.account && cur.username === profile.account);
+    const managerHasExplicitUserCreds = Boolean(profile.account && pw(profile) && !profile.autoRegister && !profile.generatedAccount);
+    const isSameGeneratedAccount = Boolean(profile.generatedAccount && profile.account && isSameAccountId(cur.username, profile.account));
     const isCompletedBotSignup = Boolean(profile.autoRegister && cur.registerDone && cur.generatedUser);
-    const shouldAdoptFromClient = !staleClientCredsAfterReset && hasClientCreds && !isCompletedBotSignup && !isSameGeneratedAccount && !ownedByOtherProfile && (
-      (manualUserEditedAt > 0 && manualUserEditedAt > lastManagerPushAt) ||
+    const shouldAdoptFromClient = !staleClientCredsAfterReset && hasClientCreds && !isCompletedBotSignup && !isSameGeneratedAccount && !ownedByOtherProfile && !(managerHasExplicitUserCreds && cur.generatedUser) && (
+      (!cur.generatedUser && manualUserEditedAt > 0 && manualUserEditedAt > lastManagerPushAt) ||
       managerMissingCreds ||
       (!cur.generatedUser && (profile.autoRegister || profile.generatedAccount))
     );
@@ -889,7 +936,7 @@ function createAuthSync({
         await evalProfilePort(profile.debugPort, pushQueueOverlayJs(null), 2000);
         lastPushedQueueDigest.delete(profile.id);
       }
-      if (cur.username !== profile.account || cur.password !== pw(profile) || (cur.serverName && cur.serverName !== (profile.serverName || '')) || (cur.charNameCfg && cur.charNameCfg !== (profile.charName || '')) || profile.autoRegister || (profile.generatedAccount && !cur.generatedUser)) {
+      if (!isSameAccountId(cur.username, profile.account) || cur.username !== profile.account || cur.password !== pw(profile) || (cur.serverName && cur.serverName !== (profile.serverName || '')) || (cur.charNameCfg && cur.charNameCfg !== (profile.charName || '')) || profile.autoRegister || (profile.generatedAccount && !cur.generatedUser)) {
         credentials.setPassword(profile.id, cur.password);
         updateProfile(profile.id, {
           account: cur.username,
@@ -1041,33 +1088,58 @@ function createAuthSync({
       lastPushedQueueDigest.delete(profile.id);
     }
 
+    // If profile.account was stored without @gmail.com (or with different casing) while the client has normalized it, silently adopt the normalized email
+    if (profile.account && cur.username && isSameAccountId(cur.username, profile.account) && profile.account !== cur.username && cur.username.includes('@')) {
+      updateProfile(profile.id, { account: cur.username });
+      profile.account = cur.username;
+    }
+
     // If the user entered an ID + Password that did not exist yet on the server and the client switched to register:true
     // to sign up that exact ID + Password, let it finish registering without overwriting register:false!
-    if (profile.account && cur.username === profile.account && cur.register && !cur.registerDone && !cur.registerError) {
+    if (profile.account && isSameAccountId(cur.username, profile.account) && cur.register && !cur.registerDone && !cur.registerError) {
       return;
     }
 
-    // If Manager charName was left blank and the client generated/adopted a character name on this account, save lastCharName
-    if (profile.account && cur.username === profile.account && !profile.charName && (cur.charName || cur.charNameCfg)) {
+    // If Manager charName was left blank (or differs while already in-game on this account) and the client adopted a character name on this account, save lastCharName / charName
+    if (profile.account && isSameAccountId(cur.username, profile.account) && (cur.charName || cur.charNameCfg)) {
       const detectedChar = cur.charName || cur.charNameCfg;
-      if (detectedChar && profile.lastCharName !== detectedChar) {
-        updateProfile(profile.id, { lastCharName: detectedChar });
+      if (detectedChar) {
+        if (!profile.charName && profile.lastCharName !== detectedChar) {
+          updateProfile(profile.id, { lastCharName: detectedChar });
+          profile.lastCharName = detectedChar;
+        } else if (cur.inGame && profile.charName && cur.charName && cur.charName !== profile.charName) {
+          updateProfile(profile.id, { charName: cur.charName, lastCharName: cur.charName });
+          profile.charName = cur.charName;
+          profile.lastCharName = cur.charName;
+        }
       }
+    }
+
+    // If user toggled Auto-Login checkbox inside the in-game Bot HUD, adopt their toggle into the Manager profile
+    if (Number(cur.userToggledAt) > (Number(profile.lastAuthSyncPushAt) || 0) && cur.enabled !== (profile.autoLoginEnabled !== false)) {
+      updateProfile(profile.id, { autoLoginEnabled: Boolean(cur.enabled) });
+      profile.autoLoginEnabled = Boolean(cur.enabled);
+    }
+
+    // CRITICAL: If the client is already actively in-game (`cur.inGame === true`) and Manager does NOT have an explicit user-triggered `loginSyncPending`,
+    // NEVER push credential overwrites that could disrupt or log out an active in-game session!
+    if (cur.inGame && !profile.loginSyncPending && isSameAccountId(cur.username, profile.account)) {
+      return;
     }
 
     // Only push Manager credentials to the client when Manager actually has both account and password
     if (profile.account && pw(profile) && (
       profile.loginSyncPending ||
-      cur.username !== profile.account ||
+      !isSameAccountId(cur.username, profile.account) ||
       cur.password !== pw(profile) ||
       (profile.serverName !== undefined && cur.serverName !== (profile.serverName || '')) ||
       (Boolean(profile.charName) && cur.charNameCfg !== profile.charName) ||
-      (profile.autoLoginEnabled !== undefined && cur.enabled !== (profile.autoLoginEnabled !== false)) ||
+      (!cur.userToggledAt && profile.autoLoginEnabled !== undefined && cur.enabled !== (profile.autoLoginEnabled !== false)) ||
       (profile.autoResumeBot !== undefined && cur.autoResumeBot !== Boolean(profile.autoResumeBot))
     )) {
       const delivered = await evalProfilePort(profile.debugPort, pushJs({
         enabled: profile.autoLoginEnabled !== false,
-        preserveUserToggle: !profile.loginSyncPending && profile.autoLoginEnabled === undefined,
+        preserveUserToggle: !profile.loginSyncPending,
         username: profile.account,
         password: pw(profile),
         serverName: profile.serverName || '',
@@ -1075,7 +1147,7 @@ function createAuthSync({
         autoResumeBot: profile.autoResumeBot !== false,
         register: false,
         generatedUser: !!profile.generatedAccount,
-        ...(profile.loginSyncPending ? { registerDone: true, autoCreateChar: true, autoResumeBot: true } : {})
+        ...(profile.loginSyncPending ? { ...(profile.proxyRegistrationState === 'done' ? { registerDone: true } : { registerDone: false }), autoCreateChar: true, autoResumeBot: true } : {})
       }), 3000);
       if (delivered?.success && delivered.result?.success === true) {
         updateProfile(profile.id, { loginSyncPending: false, registerError: '', lastAuthSyncPushAt: Date.now() });

@@ -23,7 +23,7 @@ const RESTART_EXIT_CODE = 75;
 const CHECK_MS = 10 * 60 * 1000;
 const LOCAL_SCAN_MS = 30 * 1000;
 // User data and runtime state are never overwritten
-const EXCLUDE = /^(profiles|plans|presets|settings)\.json$|^data\/|^sessions\//;
+const EXCLUDE = /^(profiles|plans|presets|settings)(\.backup)?\.json$|^data\/|^sessions\//;
 
 function getBuffer(url) {
   return new Promise((resolve, reject) => {

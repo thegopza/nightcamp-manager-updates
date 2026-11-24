@@ -24,9 +24,10 @@
 const fs = require('fs');
 const path = require('path');
 
-const MAX_MEMBERS = 6;
+const MAX_MEMBERS = 5;
 const EXP_MODES = ['individual', 'even-share'];
-const LOOT_MODES = ['personal', 'round-robin', 'leader'];
+const LOOT_MODES = ['personal', 'turn', 'round-robin', 'leader'];
+const GROUP_MODES = ['g', 's'];
 const BUSY_FLAGS = ['__isNavigating', '__isWalkingToMap', '__isShopping', '__isRecovering', '__isConsolidating',
   '__isChangingJob', '__isAutoSellingNow', '__isManualSelling', '__isStoring', '__isGearRefining',
   '__isMarketScanning', '__isWeightScrollBusy', '__isCheckingPostSellChannel', '__pendingPostSellChannelCheck'];
@@ -159,6 +160,7 @@ const READ_JS = `(() => {
     targetMap: window.__targetFarmMap || (live && live.targetMap) || null,
     keptFarmMap: window.__keptFarmMap || null,
     botRunning: window.__isBotRunning === true,
+    noLootMode: Boolean(window.__noLootMode || (live && live.noLootMode)),
     returningToPriest: window.__returningToPriest === true,
     priestBuffingTarget: window.__priestBuffingTarget || null,
     lastPostSellChannelSwitch: window.__lastPostSellChannelSwitch || null,
@@ -170,7 +172,8 @@ const READ_JS = `(() => {
     partyKnown: !!g.party,
     follow: follow || null,
     party: party ? {
-      leader: party.leader, expMode: party.expMode, lootMode: party.lootMode,
+      leader: party.leader, expMode: party.expMode, lootMode: party.lootMode, groupMode: party.groupMode || 'g',
+      lastInGameRuleChangeAt: Number(party.lastInGameRuleChangeAt) || 0,
       evenShareAllowed: party.evenShareAllowed !== false, levelRange: party.levelRange, maxMembers: party.maxMembers || 6,
       members: (party.members || []).map(m => ({ name: m.name, online: m.online !== false, classId: m.classId || null, mapId: m.mapId, mapName: m.mapName, channel: m.channel, level: m.level, buffs: Array.isArray(m.buffs) ? m.buffs.map(b => ({ skillId: b.skillId, endsAt: b.endsAt })) : undefined }))
     } : null,
@@ -236,6 +239,19 @@ const ACTIONS = {
     return { success: false, error: 'no-follow' };
   })()`,
   settings: patch => sendPartyJs(Object.assign({ action: 'settings' }, patch)),
+  setNoLoot: on => `(() => {
+    const val = ${Boolean(on)};
+    if (typeof window.__setNoLootMode === 'function') return window.__setNoLootMode(val);
+    window.__noLootMode = val;
+    try {
+      localStorage.setItem('pelican_no_loot_mode', String(val));
+      if (window.NC && window.NC.Auto && window.NC.Auto.set) {
+        window.NC.Auto.set.loot = !val;
+        if (typeof window.NC.Auto.saveSet === 'function') window.NC.Auto.saveSet();
+      }
+    } catch (e) {}
+    return { success: true, noLootMode: val };
+  })()`,
   setMap: (map, walkNow) => `(() => {
     const map = ${JSON.stringify(map)};
     if (typeof window.clearSafeMap === 'function') window.clearSafeMap('ปาร์ตี้: ตามแมพหัวตี้');
@@ -299,11 +315,11 @@ const ACTIONS = {
 
 // ---------------------------------------------------------------- pure helpers (unit-tested)
 function isCityMapName(m) {
-  return /เมืองหลวง|โซลเฮเวน|ตลาดคาราวาน/.test(String(m || ''));
+  return /เมืองหลวง|โซลเฮเวน|ตลาดคาราวาน|ค่ายกลางป่า|แปลงสวน|ห้องหุ่น|\b(camp|homefarm|puppetroom)\b/i.test(String(m || ''));
 }
 
 function isPriestClass(cls) {
-  return /^(priest|acolyte)$/i.test(String(cls || '').trim());
+  return /^(priest|acolyte|bishop|starsaint|พระ|บิชอป|นักบุญแสงดาว)$/i.test(String(cls || '').trim());
 }
 
 function findPartyPriest(party, profiles, states) {
@@ -423,11 +439,13 @@ function sanitizeParty(p) {
     leaderId,
     memberIds,
     excludedIds: Array.isArray(p.excludedIds) ? p.excludedIds.map(String) : [],
+    noLootIds: Array.isArray(p.noLootIds) ? p.noLootIds.map(String) : [],
     expMode: EXP_MODES.includes(p.expMode) ? p.expMode : 'even-share',
     lootMode: LOOT_MODES.includes(p.lootMode) ? p.lootMode : 'personal',
+    groupMode: GROUP_MODES.includes(p.groupMode) ? p.groupMode : 'g',
     syncMap: p.syncMap !== false,
     autoFill: p.autoFill !== false,
-    priestFlow: p.priestFlow !== false,
+    priestFlow: Boolean(p.priestFlow === true),
     followModes: {},
     createdAt: Number(p.createdAt) || Date.now()
   };
@@ -759,6 +777,114 @@ function createPartyService(opts) {
     return r;
   }
 
+  const recentlyDisbandedAt = new Map();
+
+  function reconcileInGameParties(profiles) {
+    if (!profiles || !profiles.size) return false;
+    let changed = false;
+
+    const nameToProfileId = new Map();
+    for (const [id, p] of profiles) {
+      const s = states.get(id);
+      const cname = (s && s.ok && s.name) || (p && p.lastCharName) || '';
+      if (cname) nameToProfileId.set(String(cname).trim().toLowerCase(), id);
+    }
+
+    const taken = assignedIds(parties);
+
+    // 1. Reconcile existing Manager parties with in-game party members & rule changes
+    for (const party of parties.slice()) {
+      const L = states.get(party.leaderId);
+      const rt = prt(party.id);
+      if (L && L.ok && L.name && L.party && L.party.leader === L.name && Array.isArray(L.party.members)) {
+        rt.everFormedInGame = true;
+        // Adopt rule changes made in-game when newer than last manager change
+        const igRuleAt = Number(L.party.lastInGameRuleChangeAt || 0);
+        if (igRuleAt > 0 && igRuleAt > (rt.lastAdoptedRuleAt || 0) && igRuleAt > (rt.managerSettingsChangedAt || 0)) {
+          rt.lastAdoptedRuleAt = igRuleAt;
+          if (L.party.lootMode && LOOT_MODES.includes(L.party.lootMode) && party.lootMode !== L.party.lootMode) {
+            party.lootMode = L.party.lootMode;
+            changed = true;
+          }
+          if (L.party.expMode && EXP_MODES.includes(L.party.expMode) && party.expMode !== L.party.expMode) {
+            party.expMode = L.party.expMode;
+            changed = true;
+          }
+          if (L.party.groupMode && GROUP_MODES.includes(L.party.groupMode) && party.groupMode !== L.party.groupMode) {
+            party.groupMode = L.party.groupMode;
+            changed = true;
+          }
+        }
+        // Adopt managed members that were invited directly in-game (unless explicitly excluded by user)
+        for (const gm of L.party.members) {
+          if (!gm || !gm.name || gm.name === L.name) continue;
+          const mid = nameToProfileId.get(String(gm.name).trim().toLowerCase());
+          if (!mid || mid === party.leaderId) continue;
+          if (party.memberIds.includes(mid)) continue;
+          if (taken.has(mid)) continue;
+          if (Array.isArray(party.excludedIds) && party.excludedIds.includes(mid)) continue;
+          if (party.memberIds.length >= MAX_MEMBERS - 1) break;
+          party.memberIds.push(mid);
+          taken.add(mid);
+          changed = true;
+        }
+      } else if (
+        String(party.id || '').startsWith('party_ig_') &&
+        rt.everFormedInGame &&
+        L && L.ok && L.name &&
+        (!L.party || !Array.isArray(L.party.members) || L.party.members.length <= 1)
+      ) {
+        // Auto-discovered in-game party was disbanded inside the game
+        parties = parties.filter(x => x !== party);
+        runtime.delete(party.id);
+        changed = true;
+      }
+    }
+
+    // 2. Auto-discover new parties created directly in-game (leader is an unassigned Manager profile with >= 2 members)
+    for (const [leaderId] of profiles) {
+      if (taken.has(leaderId)) continue;
+      if (now() - (recentlyDisbandedAt.get(leaderId) || 0) < 25000) continue;
+      const S = states.get(leaderId);
+      if (!S || !S.ok || !S.name || !S.party) continue;
+      if (S.party.leader !== S.name) continue;
+      if (!Array.isArray(S.party.members) || S.party.members.length < 2) continue;
+
+      const memberIds = [];
+      for (const gm of S.party.members) {
+        if (!gm || !gm.name || gm.name === S.name) continue;
+        const mid = nameToProfileId.get(String(gm.name).trim().toLowerCase());
+        if (mid && mid !== leaderId && !taken.has(mid) && !memberIds.includes(mid) && memberIds.length < MAX_MEMBERS - 1) {
+          memberIds.push(mid);
+        }
+      }
+
+      const newParty = sanitizeParty({
+        id: 'party_ig_' + leaderId + '_' + now().toString(36),
+        leaderId,
+        memberIds,
+        autoFill: false,
+        syncMap: true,
+        priestFlow: false,
+        expMode: S.party.expMode && EXP_MODES.includes(S.party.expMode) ? S.party.expMode : 'even-share',
+        lootMode: S.party.lootMode && LOOT_MODES.includes(S.party.lootMode) ? S.party.lootMode : 'personal',
+        groupMode: S.party.groupMode && GROUP_MODES.includes(S.party.groupMode) ? S.party.groupMode : 'g',
+        createdAt: now()
+      });
+      const rt = prt(newParty.id);
+      rt.everFormedInGame = true;
+      rt.lastAdoptedRuleAt = Number(S.party.lastInGameRuleChangeAt || now());
+      parties.push(newParty);
+      taken.add(leaderId);
+      for (const mid of memberIds) taken.add(mid);
+      changed = true;
+      log('auto-discovered in-game party led by', S.name, 'members:', memberIds.length);
+    }
+
+    if (changed) save();
+    return changed;
+  }
+
   async function tickParty(party, profiles) {
     const rt = prt(party.id);
     const notes = [];
@@ -898,7 +1024,7 @@ function createPartyService(opts) {
       }
     }
 
-    // EXP / loot mode (leader only)
+    // EXP / loot / group mode (leader only)
     if (L.party && L.party.leader === L.name && now() - rt.settingsAt >= T.settingsCooldownMs) {
       if (L.party.expMode !== party.expMode) {
         if (party.expMode === 'even-share' && !L.party.evenShareAllowed) {
@@ -906,6 +1032,23 @@ function createPartyService(opts) {
         } else { rt.settingsAt = now(); await act(leaderP, ACTIONS.settings({ expMode: party.expMode }), 'exp-mode'); }
       }
       if (L.party.lootMode !== party.lootMode) { rt.settingsAt = now(); await act(leaderP, ACTIONS.settings({ lootMode: party.lootMode }), 'loot-mode'); }
+      if (party.groupMode && L.party.groupMode && L.party.groupMode !== party.groupMode) {
+        rt.settingsAt = now();
+        await act(leaderP, ACTIONS.settings({ groupMode: party.groupMode }), 'group-mode');
+      }
+    }
+
+    // Sync persisted No-Loot mode for party members
+    {
+      const noLootSet = new Set(Array.isArray(party.noLootIds) ? party.noLootIds.map(String) : []);
+      for (const id of [party.leaderId].concat(party.memberIds)) {
+        const wantNoLoot = noLootSet.has(String(id));
+        const P = profiles.get(id), S = states.get(id);
+        if (P && S && S.ok && typeof S.noLootMode === 'boolean' && S.noLootMode !== wantNoLoot) {
+          const r = await act(P, ACTIONS.setNoLoot(wantNoLoot), 'sync-noloot');
+          if (r.ok) S.noLootMode = wantNoLoot;
+        }
+      }
     }
 
     // Per-member follow / assist mode:
@@ -1016,27 +1159,16 @@ function createPartyService(opts) {
 
       const anchorOnFarm = Boolean(anchorSnap && anchorSnap.botRunning !== false && anchorSnap.mapId && !isCityMapName(anchorSnap.mapName));
       const anchorInPk = Boolean(anchorOnFarm && anchorSnap && anchorSnap.pkChannel);
+      if (anchorOnFarm && !anchorInPk && typeof anchorSnap.channel === 'number' && rt.settledMapId !== anchorSnap.mapId) {
+        rt.settledMapId = anchorSnap.mapId;
+        rt.settledChannel = anchorSnap.channel;
+        rt.settledChannelAt = now();
+      }
       const desiredCh = (anchorOnFarm && !anchorInPk && rt.settledMapId === anchorSnap.mapId && typeof rt.settledChannel === 'number')
         ? rt.settledChannel
         : (anchorSnap && !anchorSnap.pkChannel ? anchorSnap.channel : (!L.pkChannel ? L.channel : null));
-      const channelOverlapsOtherParty = Boolean(
-        anchorInPk ||
-        (chMode !== 'off' &&
-          anchorOnFarm &&
-          typeof desiredCh === 'number' &&
-          avoidChannels.includes(desiredCh) &&
-          anchorSnap.helpers &&
-          (anchorSnap.helpers.evaluateAnchorChannel || anchorSnap.helpers.findLeast))
-      );
-      const needsInitialChannelCheck = Boolean(
-        anchorInPk ||
-        channelOverlapsOtherParty ||
-        (partyChannelCheckEnabled &&
-          anchorOnFarm &&
-          rt.settledMapId !== anchorSnap.mapId &&
-          anchorSnap.helpers &&
-          anchorSnap.helpers.evaluateAnchorChannel)
-      );
+      const channelOverlapsOtherParty = false;
+      const needsInitialChannelCheck = false;
 
       const movers = [];
       // If Priest or another returning member is the Channel Anchor (or settledChannel is locked on this map) and the Leader is on a different CH on the same map, Leader moves too!
@@ -1399,98 +1531,26 @@ function createPartyService(opts) {
   }
 
   async function tickSoloProfiles(profiles) {
-    const chMode = typeof getChannelCheckMode === 'function' ? (getChannelCheckMode() || 'all') : 'all';
-    if (chMode === 'off' || chMode === 'party_only') return;
-    const taken = assignedIds(parties);
-    for (const [id, P] of profiles.entries()) {
-      if (taken.has(id)) continue;
-      const S = states.get(id);
-      if (!P || !S || !S.ok || !S.name) continue;
-      const rt = srt(id);
-      const onFarm = isSoloActivelyFarmingMap(S);
-      if (!onFarm) {
-        if (!S.mapId || isCityMapName(S.mapName)) {
-          rt.settledMapId = null;
-          rt.settledChannel = null;
-          rt.settledChannelAt = 0;
-        }
-      } else if (!S.pkChannel && typeof S.channel === 'number') {
-        const sw = S.lastPostSellChannelSwitch;
-        const swAt = (sw && sw.channel === S.channel && (!sw.mapId || sw.mapId === S.mapId) && typeof sw.at === 'number') ? sw.at : 0;
-        if (swAt && swAt > (rt.lastSwitchSeenAt || 0)) {
-          rt.lastSwitchSeenAt = swAt;
-          rt.settledMapId = S.mapId;
-          rt.settledChannel = S.channel;
-          rt.settledChannelAt = swAt;
-        } else if (chMode !== 'no_overlap' && (rt.settledMapId !== S.mapId || rt.settledChannel !== S.channel)) {
-          rt.settledMapId = S.mapId;
-          rt.settledChannel = S.channel;
-          rt.settledChannelAt = swAt || now();
-        } else if (rt.settledMapId === S.mapId && rt.settledChannel !== S.channel && !rt.moving) {
-          rt.settledChannel = S.channel;
-          rt.settledChannelAt = swAt || now();
-        }
-      }
-
-      const syncAvoidInfo = getAvoidChannelsForSolo(
-        id,
-        profiles,
-        onFarm ? S.mapId : null,
-        onFarm ? S.mapName : S.targetMap
-      );
-
-      if (S.helpers && S.helpers.updateSoloAvoidState) {
-        const soloAvoidPayload = {
-          soloMapId: onFarm ? S.mapId : null,
-          soloMapName: (onFarm ? S.mapName : S.targetMap) || null,
-          avoidChannels: syncAvoidInfo.avoidChannels,
-          otherPartyChannelsByMap: syncAvoidInfo.otherPartyChannelsByMap
-        };
-        const soloSig = !opts.timing ? JSON.stringify(soloAvoidPayload) : '';
-        if (opts.timing || rt.lastAvoidPushSig !== soloSig || (now() - (rt.lastAvoidPushAt || 0) >= 25000)) {
-          const soloRes = await act(P, ACTIONS.syncSoloAvoidState(soloAvoidPayload), 'sync-solo-avoid');
-          if (soloRes && soloRes.ok) {
-            rt.lastAvoidPushSig = soloSig;
-            rt.lastAvoidPushAt = now();
-          }
-        }
-      }
-
-      if (chMode === 'no_overlap' && S.botRunning !== false && onFarm && !planBlocked(S) && !isBusy()) {
-        const inOtherInGameParty = Boolean(S.party && Array.isArray(S.party.members) && S.party.members.length > 1 && S.party.leader && S.party.leader !== S.name);
-        const busyNow = Array.isArray(S.busy) && S.busy.length > 0;
-        if (!inOtherInGameParty && !busyNow && !rt.moving) {
-          const isOverlapped = typeof S.channel === 'number' && syncAvoidInfo.avoidChannels.includes(S.channel);
-          const needsInitialCheck = rt.settledMapId !== S.mapId && Boolean(S.helpers && S.helpers.evaluateAnchorChannel);
-          const noFreeCooldownOk = !rt.lastNoFreeChannelAt || (now() - rt.lastNoFreeChannelAt >= T.gatherCooldownMs);
-          if ((S.pkChannel || (isOverlapped && noFreeCooldownOk) || needsInitialCheck) && (S.helpers && (S.helpers.evaluateAnchorChannel || S.helpers.findLeast)) && S.helpers.moveToChannel) {
-            if (S.pkChannel || isOverlapped || now() - (rt.gatherAt || 0) >= T.gatherCooldownMs) {
-              await gatherSoloChannel(id, P, S, syncAvoidInfo.avoidChannels);
-            }
-          } else if (rt.settledMapId !== S.mapId && typeof S.channel === 'number' && !S.pkChannel) {
-            rt.settledMapId = S.mapId;
-            rt.settledChannel = S.channel;
-            rt.settledChannelAt = now();
-          }
-        }
-      }
-    }
+    // Do not auto-switch channels for solo profiles that are not assigned to any party
+    return;
   }
+
+  const shouldAutoReconcile = opts.autoReconcileInGame !== false && !opts.timing;
 
   async function tick() {
     if (ticking) return;
-    const chMode = typeof getChannelCheckMode === 'function' ? (getChannelCheckMode() || 'all') : 'all';
-    if (!parties.length && chMode !== 'no_overlap') return;
+    if (!parties.length && !shouldAutoReconcile) return;
     if (isBusy()) return;
     ticking = true;
     try {
       await refreshStates(true);
       const profiles = profileMap();
+      if (shouldAutoReconcile) reconcileInGameParties(profiles);
+      if (!parties.length) return;
       for (const party of parties.slice()) {
         if (!parties.includes(party)) continue;
         try { await tickParty(party, profiles); } catch (e) { log('tick error', party.id, e.message); prt(party.id).notes = ['ผิดพลาด: ' + e.message]; }
       }
-      try { await tickSoloProfiles(profiles); } catch (e) { log('solo tick error', e.message); }
     } finally { ticking = false; }
   }
 
@@ -1522,10 +1582,12 @@ function createPartyService(opts) {
       } else if (S.party && leaderSnap && S.party.leader !== leaderSnap.name) { status = 'other'; text = 'อยู่ตี้อื่น'; }
       else { status = 'inviting'; text = 'กำลังชวน'; }
     } else if (S && S.reason === 'not-in-game') { status = 'offline'; text = 'ยังไม่เข้าเกม'; }
+    const noLoot = Boolean(Array.isArray(party.noLootIds) && party.noLootIds.includes(String(id)));
     return {
       id, profileName: P ? P.name : id, charName: (S && S.name) || (P && P.lastCharName) || null,
       charClass: (S && S.classId) || (P ? P.lastCharClass || null : null), level: S && S.level, mapName: S && S.mapName, channel: S && S.channel,
       followMode: ft.isAnchorPriest ? 'leader' : ft.mode, followTargetId: ft.targetId, followTargetName: ft.targetName, following: (S && S.follow) || null,
+      noLoot,
       status, statusText: text
     };
   }
@@ -1537,13 +1599,14 @@ function createPartyService(opts) {
       const L = states.get(p.leaderId);
       const rt = prt(p.id);
       return {
-        id: p.id, index: i + 1, expMode: p.expMode, lootMode: p.lootMode, syncMap: p.syncMap, autoFill: p.autoFill,
-        priestFlow: p.priestFlow !== false,
+        id: p.id, index: i + 1, expMode: p.expMode, lootMode: p.lootMode, groupMode: p.groupMode || 'g', syncMap: p.syncMap, autoFill: p.autoFill,
+        priestFlow: Boolean(p.priestFlow === true),
         followModes: p.followModes || {},
+        noLootIds: Array.isArray(p.noLootIds) ? p.noLootIds : [],
         leader: Object.assign(memberView(p, p.leaderId, profiles, L), L && L.ok ? { status: 'leader', statusText: L.party && L.party.leader === L.name ? 'หัวตี้' : 'หัวตี้ (ยังไม่มีสมาชิก)' } : {}),
         members: p.memberIds.map(id => memberView(p, id, profiles, L)),
         count: 1 + p.memberIds.length, max: MAX_MEMBERS,
-        inGame: L && L.party ? { expMode: L.party.expMode, lootMode: L.party.lootMode, evenShareAllowed: L.party.evenShareAllowed, levelRange: L.party.levelRange, size: L.party.members.length } : null,
+        inGame: L && L.party ? { expMode: L.party.expMode, lootMode: L.party.lootMode, groupMode: L.party.groupMode || 'g', evenShareAllowed: L.party.evenShareAllowed, levelRange: L.party.levelRange, size: L.party.members.length } : null,
         notes: rt.notes || [], lastTickAt: rt.lastTickAt
       };
     });
@@ -1551,6 +1614,7 @@ function createPartyService(opts) {
       const S = states.get(p.id);
       return { id: p.id, name: p.name, charName: (S && S.name) || p.lastCharName || null, charClass: (S && S.classId) || p.lastCharClass || null,
         level: S && S.ok ? S.level : null, online: !!(S && S.ok && S.name), inGameParty: !!(S && S.party), assigned: taken.has(p.id),
+        noLoot: Boolean(S && S.noLootMode),
         planPending: planBlocked(S) ? S.plan.levelPending[0] : null,
         mapName: S && S.mapName, channel: S && S.channel };
     });
@@ -1564,6 +1628,10 @@ function createPartyService(opts) {
       const P = profiles.get(id), S = states.get(id);
       if (P && S && S.ok && S.helpers && S.helpers.updatePartySyncState) {
         await act(P, ACTIONS.syncClientPartyState(null), 'clear-party-sync');
+      }
+      if (P && S && S.ok && S.noLootMode) {
+        const r = await act(P, ACTIONS.setNoLoot(false), 'clear-noloot');
+        if (r.ok) S.noLootMode = false;
       }
     }
     let leaderName = null;
@@ -1582,11 +1650,45 @@ function createPartyService(opts) {
     }
   }
 
+  async function applyProfileNoLoot(profileId, wantNoLoot) {
+    const pid = String(profileId || '').trim();
+    const profiles = profileMap();
+    const P = profiles.get(pid);
+    if (!P) return { ok: false, error: 'ไม่พบโปรไฟล์ที่เลือก' };
+    const S = states.get(pid);
+    const nextVal = wantNoLoot !== undefined ? Boolean(wantNoLoot) : !(S && S.noLootMode);
+    let evalResult = { ok: true };
+    if (P.debugPort) {
+      evalResult = await act(P, ACTIONS.setNoLoot(nextVal), 'set-noloot');
+    }
+    if (S) S.noLootMode = nextVal;
+    for (const p of parties) {
+      if (p.leaderId === pid || p.memberIds.includes(pid)) {
+        if (!Array.isArray(p.noLootIds)) p.noLootIds = [];
+        if (nextVal) {
+          if (!p.noLootIds.includes(pid)) p.noLootIds.push(pid);
+        } else {
+          p.noLootIds = p.noLootIds.filter(x => x !== pid);
+        }
+      }
+    }
+    save();
+    return { ok: true, profileId: pid, noLoot: nextVal, evalOk: Boolean(evalResult && evalResult.ok) };
+  }
+
   async function handleRoute(req, res, pathname, sendJSON) {
     if (!pathname.startsWith('/api/parties')) return false;
     if (pathname === '/api/parties' && req.method === 'GET') {
       await refreshStates(false);
+      if (shouldAutoReconcile) reconcileInGameParties(profileMap());
       sendJSON(view());
+      return true;
+    }
+    if (pathname === '/api/parties/toggle-noloot' && req.method === 'POST') {
+      const body = (await readBody(req)) || {};
+      const r = await applyProfileNoLoot(body.profileId, body.noLoot);
+      if (!r.ok) { sendJSON({ success: false, error: r.error || 'สลับโหมดเก็บของไม่สำเร็จ' }, 400); return true; }
+      sendJSON(Object.assign(view(), { noLootResult: r }));
       return true;
     }
     if (pathname === '/api/parties' && req.method === 'POST') {
@@ -1601,7 +1703,7 @@ function createPartyService(opts) {
         : [];
       const party = sanitizeParty({ id: 'party_' + now().toString(36) + Math.random().toString(36).slice(2, 6), leaderId,
         memberIds: initialMembers, autoFill: body.autoFill, syncMap: body.syncMap, priestFlow: body.priestFlow, followModes: body.followModes,
-        expMode: body.expMode, lootMode: body.lootMode, createdAt: now() });
+        expMode: body.expMode, lootMode: body.lootMode, groupMode: body.groupMode, createdAt: now() });
       parties.push(party);
       save();
       setTimeout(() => tick().catch(() => {}), 50);
@@ -1616,12 +1718,16 @@ function createPartyService(opts) {
     if (m[2] === 'settings') {
       if (body.expMode !== undefined) { if (!EXP_MODES.includes(body.expMode)) { sendJSON({ success: false, error: 'โหมด EXP ไม่ถูกต้อง' }, 400); return true; } party.expMode = body.expMode; }
       if (body.lootMode !== undefined) { if (!LOOT_MODES.includes(body.lootMode)) { sendJSON({ success: false, error: 'โหมดไอเทมไม่ถูกต้อง' }, 400); return true; } party.lootMode = body.lootMode; }
+      if (body.groupMode !== undefined) { if (!GROUP_MODES.includes(body.groupMode)) { sendJSON({ success: false, error: 'โหมดออโต้ในตี้ไม่ถูกต้อง' }, 400); return true; } party.groupMode = body.groupMode; }
       if (body.syncMap !== undefined) party.syncMap = !!body.syncMap;
       if (body.autoFill !== undefined) party.autoFill = !!body.autoFill;
       if (body.priestFlow !== undefined) party.priestFlow = !!body.priestFlow;
       if (body.followModes && typeof body.followModes === 'object') {
         party.followModes = Object.assign({}, party.followModes || {}, body.followModes);
         party.followModes = sanitizeFollowModes(party);
+      }
+      if (body.memberNoLoot && typeof body.memberNoLoot === 'object') {
+        await applyProfileNoLoot(body.memberNoLoot.profileId, body.memberNoLoot.noLoot);
       }
       if (body.memberFollow && typeof body.memberFollow === 'object') {
         const mid = String(body.memberFollow.profileId || '');
@@ -1650,7 +1756,9 @@ function createPartyService(opts) {
           }
         }
       }
-      prt(party.id).settingsAt = 0;
+      const rt = prt(party.id);
+      rt.settingsAt = 0;
+      rt.managerSettingsChangedAt = now();
       save();
       setTimeout(() => tick().catch(() => {}), 50);
       sendJSON(view());
@@ -1690,6 +1798,7 @@ function createPartyService(opts) {
       const id = String(body.profileId || '');
       if (!party.memberIds.includes(id)) { sendJSON({ success: false, error: 'จอนี้ไม่ได้อยู่ในตี้' }, 400); return true; }
       party.memberIds = party.memberIds.filter(x => x !== id);
+      if (Array.isArray(party.noLootIds)) party.noLootIds = party.noLootIds.filter(x => x !== id);
       party.followModes = sanitizeFollowModes(party);
       if (!party.excludedIds.includes(id)) party.excludedIds.push(id);
       save();
@@ -1697,6 +1806,10 @@ function createPartyService(opts) {
       const S = states.get(id), L = states.get(party.leaderId);
       if (S && S.ok && S.helpers && S.helpers.updatePartySyncState) {
         await act(profiles.get(id), ACTIONS.syncClientPartyState(null), 'clear-party-sync');
+      }
+      if (S && S.ok && S.noLootMode) {
+        const r = await act(profiles.get(id), ACTIONS.setNoLoot(false), 'clear-noloot');
+        if (r.ok) S.noLootMode = false;
       }
       if (S && S.ok && S.follow) {
         const r = await act(profiles.get(id), ACTIONS.stopFollow(), 'stop-follow');
@@ -1714,6 +1827,7 @@ function createPartyService(opts) {
       return true;
     }
     if (m[2] === 'delete') {
+      recentlyDisbandedAt.set(party.leaderId, now());
       parties = parties.filter(p => p !== party);
       save();
       try { await disband(party); } catch (e) { log('disband error', e.message); }
