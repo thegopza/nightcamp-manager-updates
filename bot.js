@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PmheeNC Nightcamp Control Hub
 // @namespace    https://play.nightcamp.app/
-// @version      2.0.7
+// @version      2.0.8
 // @description  Smart Auto-Quest, Upgrade BOT AI, Smart Gear, Auto-Respawn, Auto-Register, Auto-Party, Central Market Auto-Sell & Buy/Sell Hub 24/7
 // @match        https://play.nightcamp.app/*
 // @run-at       document-start
@@ -11,7 +11,7 @@
 (function () {
   'use strict';
 
-  const NIGHTCAMP_BOT_VERSION = '2.0.7';
+  const NIGHTCAMP_BOT_VERSION = '2.0.8';
   const PELICAN_BOT_VERSION = NIGHTCAMP_BOT_VERSION;
   try {
     if (window.localStorage && !window.localStorage.getItem('nightcamp.lang')) {
@@ -4404,26 +4404,91 @@
   }
 
   // B. Auto Stat & Skill Allocation (Runs when Plan Script is ON)
-  function runAutoStatAndSkill(game, p, plan) {
+  function getActivePlanStatQueue(plan) {
+    const baseSb = (plan && plan.statBuild && typeof plan.statBuild === 'object') ? plan.statBuild : null;
+    const defaultQueue = [
+      { stat: 'INT', to: 30 }, { stat: 'DEX', to: 24 }, { stat: 'VIT', to: 24 },
+      { stat: 'INT', to: 45 }, { stat: 'DEX', to: 36 }, { stat: 'VIT', to: 36 },
+      { stat: 'INT', to: 60 }, { stat: 'DEX', to: 48 }, { stat: 'VIT', to: 48 },
+      { stat: 'INT', to: 80 }, { stat: 'DEX', to: 60 }, { stat: 'VIT', to: 60 }
+    ];
+    if (!baseSb) return defaultQueue;
+    let st = null;
+    try { st = loadPlanState(plan); } catch (_) {}
+    const activeStatRound = st ? (Number(st.activeStatResetRound) || 0) : 0;
+    const statRounds = Array.isArray(baseSb.resetRounds) ? baseSb.resetRounds : [];
+    if (activeStatRound >= 1 && statRounds[activeStatRound - 1] && Array.isArray(statRounds[activeStatRound - 1].queue) && statRounds[activeStatRound - 1].queue.length > 0) {
+      return statRounds[activeStatRound - 1].queue;
+    }
+    return (Array.isArray(baseSb.queue) && baseSb.queue.length > 0) ? baseSb.queue : defaultQueue;
+  }
+
+  function executePlanResetStatsNow(game, p, plan, st, roundNo, resetMode = 'auto') {
+    const NC = window.NC;
+    if (!NC || !game || !p || !p.base || p.dead > 0) return false;
+    const L = NC.LV40;
+    const freeBelow = Number(L?.freeBelow) || 40;
+    const lv = Number(p.lv) || 1;
+    const isFree = lv < freeBelow;
+    if (resetMode === 'free_only' && !isFree) {
+      st.activeStatResetRound = roundNo;
+      savePlanState(plan, st);
+      setPlanTaskStatus(`ℹ️ ข้ามรีสเตตัส #${roundNo} (Lv.${lv} ≥ ${freeBelow} · โหมดฟรีเท่านั้น)`);
+      return false;
+    }
+    const why = (L && typeof L.statWhy === 'function') ? L.statWhy(p) : '';
+    if (why) {
+      setPlanTaskStatus(`⚠️ รีสเตตัส #${roundNo} ไม่ได้: ${why}`);
+      return false;
+    }
+    const startSt = NC.START_STATS || { str: 5, agi: 5, vit: 5, int: 5, dex: 5, luk: 5 };
+    const spent = Object.keys(startSt).reduce((acc, k) => acc + Math.max(0, (p.base[k] | 0) - (startSt[k] | 0)), 0);
+    st.activeStatResetRound = roundNo;
+    savePlanState(plan, st);
+    if (spent <= 0) {
+      runAutoStatAndSkill(game, p, plan);
+      return true;
+    }
+    if (L && typeof L.takeTicket === 'function') {
+      try { L.takeTicket(p); } catch (_) {}
+    }
+    if (typeof NC.resetStats === 'function') {
+      NC.resetStats(p);
+    } else {
+      p.base = Object.assign({}, startSt);
+    }
+    NC.applyGear?.(game);
+    NC.saveGame?.(game);
+    try { NC.SQ?.refresh?.('status'); } catch (_) {}
+    // Hold stat allocation for 480ms so online/world.js bridge() dispatches `{ action: 'reset', kind: 'stats' }` first,
+    // then re-allocate all refunded points according to the new round's Stat Queue!
+    window.__ncStatResetHoldUntil = Date.now() + 480;
+    setPlanTaskStatus(`📊 รีเซ็ตสเตตัส #${roundNo} สำเร็จ (${isFree ? 'ฟรี <Lv.40' : 'ใช้ตั๋วรีสเตตัส'}) · กำลังลงแต้มใหม่ตามแผน...`);
+    setTimeout(() => {
+      try {
+        window.__ncStatResetHoldUntil = 0;
+        runAutoStatAndSkill(game, p, plan, true);
+        NC.SQ?.refresh?.('status');
+      } catch (_) {}
+    }, 520);
+    return true;
+  }
+
+  function runAutoStatAndSkill(game, p, plan, burstStats = false) {
     const NC = window.NC;
     if (!NC || !game || !p || !plan) return;
     if (!window.__planScriptEnabled || plan.autoStatSkillEnabled === false) return;
 
-    // 1. Allocate Status Points
+    // 1. Allocate Status Points (respects active Stat Reset Round & post-reset sync hold)
     try {
+      const holdUntil = Number(window.__ncStatResetHoldUntil || 0);
       let left = typeof NC.statusLeft === 'function' ? NC.statusLeft(p) : 0;
-      if (left > 0 && p.base) {
-        const queue = Array.isArray(plan.statBuild?.queue) && plan.statBuild.queue.length
-          ? plan.statBuild.queue
-          : [
-              { stat: 'INT', to: 30 }, { stat: 'DEX', to: 24 }, { stat: 'VIT', to: 24 },
-              { stat: 'INT', to: 45 }, { stat: 'DEX', to: 36 }, { stat: 'VIT', to: 36 },
-              { stat: 'INT', to: 60 }, { stat: 'DEX', to: 48 }, { stat: 'VIT', to: 48 },
-              { stat: 'INT', to: 80 }, { stat: 'DEX', to: 60 }, { stat: 'VIT', to: 60 }
-            ];
+      if (left > 0 && p.base && Date.now() >= holdUntil) {
+        const queue = getActivePlanStatQueue(plan);
         let raisedStat = false;
         let guard = 0;
-        while (left > 0 && guard++ < 15) {
+        const maxSteps = burstStats ? 160 : 25;
+        while (left > 0 && guard++ < maxSteps) {
           let pickedKey = null;
           for (const step of queue) {
             const k = String(step.stat || '').toLowerCase();
@@ -10614,15 +10679,20 @@
       const gold = Number(p.gold ?? p.coins) || 0;
       let latestMetMode = null;
       let resetSkillRoundCounter = 0;
+      let resetStatRoundCounter = 0;
 
       for (const trig of triggers) {
         if (!trig || !trig.id) continue;
         const acts = Array.isArray(trig.actions) ? trig.actions : [];
         const trigResetRoundMap = new Map();
+        const trigResetStatRoundMap = new Map();
         for (const act of acts) {
           if (act && act.type === 'reset_skills') {
             resetSkillRoundCounter++;
             trigResetRoundMap.set(act, resetSkillRoundCounter);
+          } else if (act && act.type === 'reset_stats') {
+            resetStatRoundCounter++;
+            trigResetStatRoundMap.set(act, resetStatRoundCounter);
           }
         }
 
@@ -10652,7 +10722,10 @@
           const needsCatchupResetRound = resetRoundForAct > 0 &&
             (Number(st.activeSkillResetRound) || 0) < resetRoundForAct &&
             (Number(st.pendingSkillResetRound) || 0) < resetRoundForAct;
-          if (isFirstTime || needsCatchupResetRound) {
+          const resetStatRoundForAct = act.type === 'reset_stats' ? (trigResetStatRoundMap.get(act) || 1) : 0;
+          const needsCatchupStatResetRound = resetStatRoundForAct > 0 &&
+            (Number(st.activeStatResetRound) || 0) < resetStatRoundForAct;
+          if (isFirstTime || needsCatchupResetRound || needsCatchupStatResetRound) {
             if (act.type === 'equip_best' || act.type === 'equip_item') {
               equipBestFromBag(game, p, act.itemName || '');
             } else if (act.type === 'change_class') {
@@ -10671,6 +10744,9 @@
                   }
                 }, 700);
               }
+            } else if (act.type === 'reset_stats') {
+              const rNo = resetStatRoundForAct || 1;
+              executePlanResetStatsNow(game, p, plan, st, rNo, act.resetMode || 'auto');
             } else if (act.type === 'reset_skills') {
               const rNo = resetRoundForAct || 1;
               const spentNow = ((NC.skillPoints?.(p) || 0) - (NC.skillLeft?.(p) || 0));

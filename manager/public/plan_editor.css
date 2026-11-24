@@ -301,6 +301,8 @@
 .pe-action.sell_trip .pe-act-icon { background: rgba(234, 179, 8, 0.15); }
 .pe-chip.reset_skills { color: #f0abfc; background: rgba(217, 70, 239, 0.14); border-color: rgba(217, 70, 239, 0.45); }
 .pe-action.reset_skills .pe-act-icon { background: rgba(217, 70, 239, 0.18); }
+.pe-chip.reset_stats { color: #7dd3fc; background: rgba(14, 165, 233, 0.15); border-color: rgba(56, 189, 248, 0.48); }
+.pe-action.reset_stats .pe-act-icon { background: rgba(14, 165, 233, 0.2); }
 
 /* Skill Builder: Multi-Round Reset Tabs (รอบเริ่มต้น / รีสกิล #1 / รีสกิล #2) */
 .skill-round-bar {

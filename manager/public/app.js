@@ -11318,6 +11318,11 @@ function planActionSummary(act) {
     const modeLbl = act.resetMode === 'gold' ? ' · Reskill Gold' : '';
     return `🔄 รีเซ็ตสกิลที่ลุงโกโก้${roundNo > 0 ? ` (รีสกิล #${roundNo})` : ''}${modeLbl}`;
   }
+  if (act.type === 'reset_stats') {
+    const roundNo = typeof window.getResetStatActionRoundNo === 'function' ? window.getResetStatActionRoundNo(act.id) : 0;
+    const modeLbl = act.resetMode === 'free_only' ? ' · เฉพาะฟรี (<Lv.40)' : '';
+    return `📊 รีเซ็ตสเตตัส${roundNo > 0 ? ` (รีสเตตัส #${roundNo})` : ''}${modeLbl}`;
+  }
   return act.type;
 }
 
@@ -11448,6 +11453,7 @@ const PLAN_ACTION_TILES = [
   { type: 'change_map', icon: '🗺️', title: 'ย้ายแมพฟาร์ม', desc: 'เดินไปแมพที่เลือก & เปิด Auto-Farm' },
   { type: 'change_class', icon: '⚔️', title: 'เปลี่ยนอาชีพ', desc: 'เปลี่ยนเป็น Class 1 / Class 2 / Class 3' },
   { type: 'reset_skills', icon: '🔄', title: 'รีเซ็ตสกิล (ลุงโกโก้)', desc: 'กลับค่ายรีสกิล & อัปสกิลตามแท็บ รีสกิล #1, #2...' },
+  { type: 'reset_stats', icon: '📊', title: 'รีเซ็ตสเตตัส (Reset Stats)', desc: 'รีแต้มสเตตัสฟรี (<Lv.40) หรือใช้ตั๋ว & อัปตามแท็บ รีสเตตัส #1, #2...' },
   { type: 'party_setup', icon: '🤝', title: 'เซ็ตปาร์ตี้ (Auto-Party)', desc: 'ตั้งตี้ / เข้าตี้ตามแท็ก / โหมดพระซัพเดินตาม' },
   { type: 'life_gather', icon: '🪓', title: 'อาชีพเสริม (Life)', desc: 'ตัดไม้ / ขุดแร่ / ปลูกผักตามจำนวน' },
   { type: 'sell_trip', icon: '🛒', title: 'กลับค่ายขายของ/ซื้อยา', desc: 'ขายขยะ & ซื้อยาแดง/ยาฟ้าที่ลุงโกโก้' },
@@ -11811,6 +11817,27 @@ function renderActionNodeHtml(trigIdx, actIdx, act) {
       </div>`;
   }
 
+  if (act.type === 'reset_stats') {
+    const rMode = act.resetMode || 'auto';
+    const roundNo = typeof window.getResetStatActionRoundNo === 'function' ? window.getResetStatActionRoundNo(act.id) : 0;
+    return `
+      <div class="pe-action reset_stats">
+        <div class="pe-act-icon">📊</div>
+        <div class="pe-act-main">
+          <div class="pe-act-title"><b>รีเซ็ตสเตตัส (Reset Stats) ${roundNo > 0 ? `(รอบรีสเตตัส #${roundNo})` : ''}</b>${del}</div>
+          <div class="pe-fields">
+            <label>เงื่อนไขการรีเซ็ตสเตตัส (กดรีได้ทุกที่ ไม่ต้องกลับค่าย)
+              <select class="form-select" onchange="updateActionField(${trigIdx}, ${actIdx}, 'resetMode', this.value)">
+                <option value="auto" ${rMode !== 'free_only' ? 'selected' : ''}>🎫 ฟรี (ต่ำกว่า Base Lv.40) หรือใช้ตั๋วรีสเตตัส (tk_stat_reset) อัตโนมัติ</option>
+                <option value="free_only" ${rMode === 'free_only' ? 'selected' : ''}>🆓 รีเฉพาะตอนฟรีเท่านั้น (Base Lv. ต่ำกว่า 40 · ไม่ใช้ตั๋ว)</option>
+              </select>
+            </label>
+          </div>
+          <small class="pe-hint">💡 เมื่อบันทึกเงื่อนไขนี้แล้ว ในปุ่ม <b>"📊 จัดการสเตตัส (Stat Build)"</b> ด้านบนจะมีแท็บ <b>"📊 รีสเตตัส #1, #2..."</b> เพิ่มขึ้นมาอัตโนมัติ เพื่อให้ตั้งลำดับการอัปสเตตัสชุดใหม่หลังรีสเตตัสรอบนี้แยกอิสระได้ (ถ้าเว้นว่างไว้ บอทจะใช้คิวสเตตัสหลัก)</small>
+        </div>
+      </div>`;
+  }
+
   return '';
 }
 
@@ -11861,6 +11888,8 @@ function addActionToTrigger(trigIdx, actionType) {
       ? (activeEditingPlan.class1Target || 'archer')
       : (activeEditingPlan.class2Target || 'ranger');
   } else if (actionType === 'reset_skills') {
+    Object.assign(newAction, { resetMode: 'auto' });
+  } else if (actionType === 'reset_stats') {
     Object.assign(newAction, { resetMode: 'auto' });
   } else if (actionType === 'life_gather') {
     Object.assign(newAction, { lifeJob: 'wood', itemId: 'lf_birch', qty: 10 });

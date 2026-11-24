@@ -7761,7 +7761,12 @@ function updatePlanEditorBadges() {
 
   if (statBadge) {
     const q = statQueueOf(activeEditingPlan.statBuild);
-    if (q.length) {
+    const statRounds = syncPlanStatResetRounds(activeEditingPlan);
+    if (statRounds.length > 0) {
+      const rParts = [`เริ่ม ${q.length}`].concat(statRounds.map((r, idx) => `รี#${idx + 1} ${(r.queue || []).length}`));
+      statBadge.innerText = `${rParts.join(' · ')} ขั้น`;
+      statBadge.style.background = 'rgba(56, 189, 248, 0.48)';
+    } else if (q.length) {
       const sb = statFinal(q);
       const top = STAT_KEYS.filter(k => sb[k] > 1).sort((x, y) => sb[y] - sb[x]).slice(0, 2);
       statBadge.innerText = `${q.length} ขั้น · ${top.map(k => `${k} ${sb[k]}`).join(' / ')}`;
@@ -8529,7 +8534,127 @@ const STAT_PRESETS = {
   int_dex: [['INT', 30], ['DEX', 30], ['VIT', 20], ['INT', 45], ['DEX', 45], ['AGI', 25], ['INT', 65], ['DEX', 65], ['VIT', 35], ['INT', 80], ['DEX', 80], ['VIT', 50]],
   vit_tank: [['VIT', 35], ['STR', 25], ['DEX', 20], ['VIT', 50], ['STR', 40], ['AGI', 30], ['VIT', 65], ['STR', 55], ['VIT', 80], ['STR', 70], ['AGI', 50]]
 };
-let statWork = null;   // the queue being edited (written to the plan only on save)
+let statWork = null;   // the queue being edited for the active round
+let statResetRoundsWork = []; // working copies of resetRounds while editing in Stat Builder
+let currentStatResetRound = 0; // 0 = initial build (before reset), 1..N = รีสเตตัส #1..#N
+
+function listPlanStatResetSteps(plan) {
+  const p = plan || activeEditingPlan;
+  if (!p || !Array.isArray(p.triggers)) return [];
+  const steps = [];
+  let roundNo = 0;
+  for (const trig of p.triggers) {
+    if (!trig || !Array.isArray(trig.actions)) continue;
+    const whenText = typeof window.planWhenText === 'function'
+      ? window.planWhenText(trig)
+      : (trig.type === 'job_level' ? `Job Lv.${trig.targetLevel || 1}` : trig.type === 'zeny' ? `เงิน ≥ ${(Number(trig.targetZeny) || 0).toLocaleString()}g` : `Base Lv.${trig.targetLevel || 1}`);
+    for (const act of trig.actions) {
+      if (act && act.type === 'reset_stats') {
+        roundNo++;
+        steps.push({
+          roundNo,
+          actionId: act.id || `reset_stat_${roundNo}`,
+          triggerId: trig.id || '',
+          whenText,
+          resetMode: act.resetMode || 'auto'
+        });
+      }
+    }
+  }
+  return steps;
+}
+
+function getResetStatActionRoundNo(actionId) {
+  if (!actionId) return 0;
+  const steps = listPlanStatResetSteps(activeEditingPlan);
+  const found = steps.find(s => s.actionId === actionId);
+  return found ? found.roundNo : 0;
+}
+window.listPlanStatResetSteps = listPlanStatResetSteps;
+window.getResetStatActionRoundNo = getResetStatActionRoundNo;
+
+function buildPriorityOrderFromStatQueue(queue) {
+  const priorityOrder = [];
+  (queue || []).forEach(e => { if (e && e.stat && !priorityOrder.includes(e.stat)) priorityOrder.push(e.stat); });
+  ['STR', 'AGI', 'DEX', 'VIT', 'INT', 'LUK'].forEach(k => { if (!priorityOrder.includes(k)) priorityOrder.push(k); });
+  return priorityOrder;
+}
+
+function syncPlanStatResetRounds(plan) {
+  if (!plan) return [];
+  if (!plan.statBuild || typeof plan.statBuild !== 'object') {
+    plan.statBuild = { queue: [], targets: { STR: 1, AGI: 1, VIT: 1, INT: 1, DEX: 1, LUK: 1 }, priorityOrder: ['STR', 'AGI', 'DEX', 'VIT', 'INT', 'LUK'], resetRounds: [] };
+  }
+  const sb = plan.statBuild;
+  const steps = listPlanStatResetSteps(plan);
+  const oldRounds = Array.isArray(sb.resetRounds) ? sb.resetRounds : [];
+  const usedOldIdx = new Set();
+
+  const newRounds = steps.map((step, idx) => {
+    let matchIdx = oldRounds.findIndex((r, i) => !usedOldIdx.has(i) && r && r.roundId && r.roundId === step.actionId);
+    if (matchIdx === -1 && idx < oldRounds.length && !usedOldIdx.has(idx) && oldRounds[idx]) {
+      matchIdx = idx;
+    }
+    if (matchIdx >= 0) usedOldIdx.add(matchIdx);
+    const prev = matchIdx >= 0 ? oldRounds[matchIdx] : null;
+    const rawQ = normalizeStatQueue(prev?.queue || []);
+    return {
+      roundNo: step.roundNo,
+      roundId: step.actionId,
+      triggerId: step.triggerId,
+      label: step.whenText,
+      queue: rawQ,
+      targets: statFinal(rawQ),
+      priorityOrder: buildPriorityOrderFromStatQueue(rawQ)
+    };
+  });
+  sb.resetRounds = newRounds;
+  return newRounds;
+}
+
+let statWorkMain = null; // working copy of initial round (round 0)
+
+function getStatWorkForRound(rNo) {
+  if (rNo >= 1 && statResetRoundsWork[rNo - 1]) {
+    return statResetRoundsWork[rNo - 1].queue;
+  }
+  return statWorkMain;
+}
+
+function setStatWorkForRound(rNo, q) {
+  if (rNo >= 1 && statResetRoundsWork[rNo - 1]) {
+    statResetRoundsWork[rNo - 1].queue = q;
+  } else {
+    statWorkMain = q;
+  }
+  statWork = q;
+}
+
+function switchStatResetRound(roundNo) {
+  if (!activeEditingPlan) return;
+  if (statWork) {
+    setStatWorkForRound(currentStatResetRound, normalizeStatQueue(statWork));
+  }
+  const nextRound = (roundNo >= 1 && roundNo <= statResetRoundsWork.length) ? roundNo : 0;
+  currentStatResetRound = nextRound;
+  statWork = getStatWorkForRound(currentStatResetRound);
+  renderStatBuilderUI();
+}
+window.switchStatResetRound = switchStatResetRound;
+
+function copyStatRoundFromPrevious() {
+  if (currentStatResetRound < 1) return;
+  const prevQ = getStatWorkForRound(currentStatResetRound - 1) || [];
+  const curQ = getStatWorkForRound(currentStatResetRound) || [];
+  if (curQ.length > 0) {
+    const prevName = currentStatResetRound === 1 ? 'รอบเริ่มต้น (ก่อนรีสเตตัส)' : `รีสเตตัส #${currentStatResetRound - 1}`;
+    if (!confirm(`แทนที่คิวสเตตัสของ "รีสเตตัส #${currentStatResetRound}" ด้วยคิวจาก "${prevName}" หรือไม่?`)) return;
+  }
+  const cloned = normalizeStatQueue(prevQ.map(x => ({ stat: x.stat, to: x.to })));
+  setStatWorkForRound(currentStatResetRound, cloned);
+  renderStatBuilderUI();
+}
+window.copyStatRoundFromPrevious = copyStatRoundFromPrevious;
 
 // Status points to raise a stat from v to v + 1 (game: floor((v - 1) / 10) + 2)
 const statPointCost = v => Math.floor((v - 1) / 10) + 2;
@@ -8571,7 +8696,14 @@ function statStepFrom(q) {
 
 function openStatBuilderModal() {
   if (!activeEditingPlan) return;
-  statWork = statQueueOf(activeEditingPlan.statBuild);
+  const rounds = syncPlanStatResetRounds(activeEditingPlan);
+  statWorkMain = statQueueOf(activeEditingPlan.statBuild);
+  statResetRoundsWork = rounds.map(r => ({
+    ...r,
+    queue: normalizeStatQueue(r.queue || [])
+  }));
+  currentStatResetRound = 0;
+  statWork = statWorkMain;
   renderStatBuilderUI();
   const modal = document.getElementById("stat-builder-modal");
   if (modal) modal.style.display = 'flex';
@@ -8579,6 +8711,46 @@ function openStatBuilderModal() {
 
 function renderStatBuilderUI() {
   if (!statWork) return;
+  const roundBar = document.getElementById('stat-round-tabs-bar');
+  if (roundBar) {
+    const initCount = (statWorkMain || []).length;
+    const initBtn = `
+      <button type="button" class="skill-round-btn round-init ${currentStatResetRound === 0 ? 'active' : ''}" onclick="switchStatResetRound(0)" title="ลำดับสเตตัสที่จะอัปตั้งแต่เริ่มเกม (ก่อนถึงเงื่อนไขรีสเตตัส)">
+        <span>🟢 รอบเริ่มต้น (ก่อนรีสเตตัส)</span>
+        <span class="skill-round-pts">${initCount} ขั้น</span>
+      </button>
+    `;
+    const resetBtns = statResetRoundsWork.map((r, idx) => {
+      const rNo = idx + 1;
+      const rCount = (r.queue || []).length;
+      const isOn = currentStatResetRound === rNo;
+      return `
+        <button type="button" class="skill-round-btn ${isOn ? 'active' : ''}" onclick="switchStatResetRound(${rNo})" title="ลำดับสเตตัสชุดใหม่ที่จะอัปหลังจากบอทรีเซ็ตสเตตัส ครั้งที่ ${rNo} (${escapeHTML(r.label || '')})">
+          <span>📊 รีสเตตัส #${rNo}</span>
+          <span class="skill-round-when">(${escapeHTML(r.label || '')})</span>
+          <span class="skill-round-pts">${rCount} ขั้น</span>
+        </button>
+      `;
+    }).join('');
+    const rightControls = currentStatResetRound >= 1
+      ? `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+           <span class="skill-round-hint">🎯 กำลังจัดสเตตัสของ <b>รีสเตตัส #${currentStatResetRound} (${escapeHTML(statResetRoundsWork[currentStatResetRound - 1]?.label || '')})</b></span>
+           <button type="button" class="btn btn-secondary btn-sm" onclick="copyStatRoundFromPrevious()" style="font-size:11px;padding:3px 10px;border-color:rgba(56,189,248,0.45);color:#7dd3fc;background:rgba(14,165,233,0.14);">
+             📋 คัดลอกจาก${currentStatResetRound === 1 ? 'รอบเริ่มต้น' : 'รีสเตตัส #' + (currentStatResetRound - 1)}
+           </button>
+         </div>`
+      : (statResetRoundsWork.length > 0
+          ? `<span class="skill-round-hint">💡 คลิกเลือกแท็บ <b>📊 รีสเตตัส #1${statResetRoundsWork.length > 1 ? ` .. #${statResetRoundsWork.length}` : ''}</b> เพื่อตั้งลำดับสเตตัสชุดใหม่หลังรีสเตตัสแยกแต่ละรอบได้</span>`
+          : `<span class="skill-round-hint">💡 หากเพิ่มเงื่อนไข <b>"📊 รีเซ็ตสเตตัส (Reset Stats)"</b> ในแผน แถบ <b>"📊 รีสเตตัส #1, #2..."</b> จะแสดงขึ้นมาให้จัดสเตตัสแยกตามรอบอัตโนมัติ</span>`);
+    roundBar.innerHTML = `
+      <div class="skill-round-tabs">
+        ${initBtn}
+        ${resetBtns}
+      </div>
+      ${rightControls}
+    `;
+  }
+
   const final = statFinal(statWork);
   const grid = document.getElementById('stat-cards-grid');
   if (grid) {
@@ -8642,13 +8814,13 @@ function statQueueAdd(stat, n) {
     if (last && last.stat === stat) last.to = to;
     else statWork.push({ stat, to });
   }
-  statWork = normalizeStatQueue(statWork);
+  setStatWorkForRound(currentStatResetRound, normalizeStatQueue(statWork));
   renderStatBuilderUI();
 }
 function statQueueRemove(i) {
   if (!statWork) return;
   statWork.splice(i, 1);
-  statWork = normalizeStatQueue(statWork);
+  setStatWorkForRound(currentStatResetRound, normalizeStatQueue(statWork));
   renderStatBuilderUI();
 }
 function statQueueMove(i, dir) {
@@ -8656,13 +8828,13 @@ function statQueueMove(i, dir) {
   const j = i + dir;
   if (j < 0 || j >= statWork.length) return;
   [statWork[i], statWork[j]] = [statWork[j], statWork[i]];
-  statWork = normalizeStatQueue(statWork);
+  setStatWorkForRound(currentStatResetRound, normalizeStatQueue(statWork));
   renderStatBuilderUI();
 }
 function resetStatQueue() {
   if (!statWork || !statWork.length) return;
-  if (!confirm('ล้างลำดับการอัปสเตตัสทั้งหมด?')) return;
-  statWork = [];
+  if (!confirm('ล้างลำดับการอัปสเตตัสของรอบนี้ทั้งหมด?')) return;
+  setStatWorkForRound(currentStatResetRound, []);
   renderStatBuilderUI();
 }
 window.statQueueAdd = statQueueAdd;
@@ -8672,21 +8844,33 @@ window.statQueueMove = statQueueMove;
 function applyStatPreset(presetKey) {
   const p = STAT_PRESETS[presetKey];
   if (!p || !statWork) return;
-  if (statWork.length && !confirm('แทนที่ลำดับปัจจุบันด้วย Preset นี้?')) return;
-  statWork = normalizeStatQueue(p.map(([stat, to]) => ({ stat, to })));
+  if (statWork.length && !confirm('แทนที่ลำดับรอบปัจจุบันด้วย Preset นี้?')) return;
+  setStatWorkForRound(currentStatResetRound, normalizeStatQueue(p.map(([stat, to]) => ({ stat, to }))));
   renderStatBuilderUI();
 }
 
 function saveStatBuild() {
-  if (!activeEditingPlan || !statWork) return;
-  const queue = normalizeStatQueue(statWork);
+  if (!activeEditingPlan || !statWorkMain) return;
+  setStatWorkForRound(currentStatResetRound, normalizeStatQueue(statWork || []));
+  const queue = normalizeStatQueue(statWorkMain);
   const targets = statFinal(queue);
-  // older bots read targets + priority: first appearance order, the rest after
-  const priorityOrder = [];
-  queue.forEach(e => { if (!priorityOrder.includes(e.stat)) priorityOrder.push(e.stat); });
-  ['DEX', 'AGI', 'LUK', 'VIT', 'INT', 'STR'].forEach(k => { if (!priorityOrder.includes(k)) priorityOrder.push(k); });
-  activeEditingPlan.statBuild = { queue, targets, priorityOrder };
+  const priorityOrder = buildPriorityOrderFromStatQueue(queue);
+  const resetRounds = statResetRoundsWork.map(r => {
+    const rq = normalizeStatQueue(r.queue || []);
+    return {
+      roundNo: r.roundNo,
+      roundId: r.roundId,
+      triggerId: r.triggerId,
+      label: r.label,
+      queue: rq,
+      targets: statFinal(rq),
+      priorityOrder: buildPriorityOrderFromStatQueue(rq)
+    };
+  });
+  activeEditingPlan.statBuild = { queue, targets, priorityOrder, resetRounds };
   statWork = null;
+  statWorkMain = null;
+  statResetRoundsWork = [];
   if (typeof markPlanDirty === 'function') markPlanDirty();
   updatePlanEditorBadges();
   const modal = document.getElementById("stat-builder-modal");
@@ -8694,6 +8878,8 @@ function saveStatBuild() {
 }
 function closeStatBuilder() {
   statWork = null;
+  statWorkMain = null;
+  statResetRoundsWork = [];
   const modal = document.getElementById("stat-builder-modal");
   if (modal) modal.style.display = 'none';
 }
