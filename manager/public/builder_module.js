@@ -8431,6 +8431,7 @@ function applySkillPreset() {
   const c1 = activeEditingPlan.class1Target || 'archer';
   const c2 = activeEditingPlan.class2Target || 'ranger';
   const c3 = getPlanClass3Id(activeEditingPlan);
+  const hasResetRoundsInPlan = listPlanSkillResetSteps(activeEditingPlan).length > 0;
 
   sb.skillPointQueue = [];
   sb.plannedLevels = {};
@@ -8441,7 +8442,40 @@ function applySkillPreset() {
     for (let i = 0; i < count; i++) addSkillPoint(id, true);
   };
 
-  // Nightcamp Standard Build: Skip Novice (0 pts) so all 9 Traveler points carry over into Class 1 / Class 2 / Class 3!
+  // 1. If editing Round 0 (รอบเริ่มต้น) on a plan with Reset Skill triggers: focus 58 points on Class 1 fast leveling!
+  if (currentSkillResetRound === 0 && hasResetRoundsInPlan) {
+    if (c1 === 'rogue') {
+      [['ro_dagger', 10], ['ro_double', 10], ['ro_vital', 10], ['sonic', 5], ['envenom', 9], ['ro_venomheart', 10], ['body', 4]].forEach(([id, n]) => pushMany(id, n));
+      sb.autoOff = ['ro_hide'];
+    } else {
+      const list = SKILLS_DATABASE[c1] || [];
+      for (const sk of list) {
+        const spent = (sb.skillPointQueue || []).length;
+        if (spent >= 58) break;
+        const maxSpend = Math.max(0, (sk.maxLevel || 5) - (sk.freeLevel || 0));
+        pushMany(sk.id, Math.min(maxSpend, 58 - spent));
+      }
+    }
+    renderSkillBuilderUI();
+    return;
+  }
+
+  // 2. Curated Puppeteer (นักเชิดหุ่น -> จ้าวโรงหุ่นราตรี) build aligned 100% to ไม้เชิดหุ่น + โล่
+  if (c2 === 'puppeteer') {
+    [
+      ['pp_puppet', 9], ['pp_strings', 10], ['pp_dance', 10], ['pp_theatre', 5],
+      ['shadowstep', 2], ['ro_hide', 1], ['pp_control', 10], ['pp_soulstring', 5],
+      ['pp_guide', 10], ['pp_swap', 5], ['body', 10], ['mastery', 10],
+      ['ro_venomheart', 10], ['mind', 10],
+      ['so_acts', 9], ['so_awaken', 5], ['so_dance', 10], ['so_swap', 10],
+      ['envenom', 9], ['venomdust', 6]
+    ].forEach(([id, n]) => pushMany(id, n));
+    sb.autoOff = ['ro_hide', 'shadowstep', 'pp_stretch', 'pp_bind'];
+    renderSkillBuilderUI();
+    return;
+  }
+
+  // 3. Nightcamp Standard Build: Skip Novice (0 pts) so all 9 Traveler points carry over!
   const fillTier = (tierKey, maxPts) => {
     const list = SKILLS_DATABASE[tierKey] || [];
     let before = (sb.skillPointQueue || []).length;
@@ -8453,9 +8487,16 @@ function applySkillPreset() {
       pushMany(sk.id, want);
     }
   };
-  fillTier(c1, 32);
-  fillTier(c2, 70);
-  fillTier(c3, 54);
+  if (currentSkillResetRound >= 1) {
+    // Post-reset round: pour points directly into Class 2 (auto-adding minimal Class 1 prerequisites) + Class 3!
+    fillTier(c2, 102);
+    fillTier(c1, Math.max(0, 107 - (sb.skillPointQueue || []).length));
+    fillTier(c3, 54);
+  } else {
+    fillTier(c1, 32);
+    fillTier(c2, 70);
+    fillTier(c3, 54);
+  }
 
   renderSkillBuilderUI();
 }

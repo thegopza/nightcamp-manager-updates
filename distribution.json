@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "sourceCommit": "7e7797ce7ee3e2721e2a7eed2f6feafeddef2456",
+  "sourceCommit": "691e6e555c646a2aec7190bce0a5d980b6d2ebd6",
   "files": [
     {
       "path": "manager/asset_cache.js",
@@ -152,7 +152,7 @@
     },
     {
       "path": "manager/public/builder_module.js",
-      "sha256": "25361b9bca2e11df9b67762ed08d15dfd13446a3b185446226182194404a3198"
+      "sha256": "3f80e0c68356ff574df1ecd4dadf67a426942f41d82035e1cdfc1addae4bcff3"
     },
     {
       "path": "manager/public/card_manager.css",
@@ -320,7 +320,7 @@
     },
     {
       "path": "manager/server.js",
-      "sha256": "2412621f57bcb256c9c12defb8518074a6757e73ced460e71da70dbf73ba0483"
+      "sha256": "cf8a8ae33f3a179f80eea510256fffbbaf0b381286d7da6d562f21fc0efcc98d"
     },
     {
       "path": "manager/test_isolation.js",

@@ -721,44 +721,62 @@ function buildDefaultNightcampRoguePuppeteerPlan() {
       targets: { STR: 80, AGI: 80, VIT: 35, INT: 1, DEX: 45, LUK: 45 },
       priorityOrder: ["STR", "AGI", "DEX", "LUK", "VIT", "INT"]
     },
+    preferredWeaponType: "puppet",
     skillBuild: {
       skillPointQueue: [
-        // Traveler (9 pts)
-        "mastery", "mastery", "mastery", "mastery", "mastery",
-        "body", "body", "body", "body",
-        // Class 1 Rogue (49 pts)
+        // Round 0 (ก่อนรีสกิล - ช่วงโจร Class 1 Job 1->50: ข้ามโนวิซ 0 แต้ม เทลงมีดโจร 58 แต้มฟาร์มไวสุด)
         "ro_dagger", "ro_dagger", "ro_dagger", "ro_dagger", "ro_dagger", "ro_dagger", "ro_dagger", "ro_dagger", "ro_dagger", "ro_dagger",
         "ro_double", "ro_double", "ro_double", "ro_double", "ro_double", "ro_double", "ro_double", "ro_double", "ro_double", "ro_double",
         "ro_vital", "ro_vital", "ro_vital", "ro_vital", "ro_vital", "ro_vital", "ro_vital", "ro_vital", "ro_vital", "ro_vital",
         "sonic", "sonic", "sonic", "sonic", "sonic",
-        "shadowstep", "shadowstep",
-        "ro_hide", "ro_hide",
-        "ro_backstab", "ro_backstab", "ro_backstab", "ro_backstab", "ro_backstab", "ro_backstab", "ro_backstab", "ro_backstab", "ro_backstab", "ro_backstab",
-        // Class 2 Puppeteer (49 pts)
-        "pp_puppet", "pp_puppet", "pp_puppet", "pp_puppet", "pp_puppet", "pp_puppet", "pp_puppet", "pp_puppet", "pp_puppet",
-        "pp_strings", "pp_strings", "pp_strings", "pp_strings", "pp_strings", "pp_strings", "pp_strings", "pp_strings", "pp_strings", "pp_strings",
-        "pp_dance", "pp_dance", "pp_dance", "pp_dance", "pp_dance", "pp_dance", "pp_dance", "pp_dance", "pp_dance", "pp_dance",
-        "pp_swap",
-        "pp_control", "pp_control", "pp_control", "pp_control", "pp_control",
-        "pp_guide", "pp_guide", "pp_guide", "pp_guide",
-        "pp_soulstring", "pp_soulstring", "pp_soulstring", "pp_soulstring", "pp_soulstring",
-        "pp_theatre", "pp_theatre", "pp_theatre", "pp_theatre", "pp_theatre",
-        // Class 3 Showmaster (49 pts)
-        "so_acts", "so_acts", "so_acts", "so_acts", "so_acts", "so_acts", "so_acts", "so_acts", "so_acts",
-        "so_awaken", "so_awaken", "so_awaken", "so_awaken", "so_awaken",
-        "so_dance", "so_dance", "so_dance", "so_dance", "so_dance", "so_dance", "so_dance", "so_dance", "so_dance", "so_dance",
-        "so_swap", "so_swap", "so_swap", "so_swap", "so_swap", "so_swap", "so_swap", "so_swap", "so_swap", "so_swap",
-        "so_stretch", "so_stretch", "so_stretch", "so_stretch", "so_stretch", "so_stretch", "so_stretch", "so_stretch", "so_stretch", "so_stretch",
-        "so_bind", "so_bind", "so_bind", "so_bind", "so_bind"
+        "envenom", "envenom", "envenom", "envenom", "envenom", "envenom", "envenom", "envenom", "envenom",
+        "ro_venomheart", "ro_venomheart", "ro_venomheart", "ro_venomheart", "ro_venomheart", "ro_venomheart", "ro_venomheart", "ro_venomheart", "ro_venomheart", "ro_venomheart",
+        "body", "body", "body", "body"
       ],
       plannedLevels: {
-        mastery: 5, body: 4,
-        ro_dagger: 10, ro_double: 10, ro_vital: 10, sonic: 5, shadowstep: 2, ro_hide: 2, ro_backstab: 10,
-        pp_puppet: 9, pp_strings: 10, pp_dance: 10, pp_swap: 1, pp_control: 5, pp_guide: 4, pp_soulstring: 5, pp_theatre: 5,
-        so_acts: 9, so_awaken: 5, so_dance: 10, so_swap: 10, so_stretch: 10, so_bind: 5
+        ro_dagger: 10, ro_double: 10, ro_vital: 10, sonic: 5, envenom: 9, ro_venomheart: 10, body: 4
       },
-      autoOff: ["pp_stretch", "pp_bind", "ro_hide"],
-      facets: {}
+      autoOff: ["ro_hide"],
+      facets: {},
+      resetRounds: [
+        {
+          round: 1,
+          label: "รีสกิล #1",
+          skillPointQueue: [
+            // 58 แต้มแรกหลังรีสกิลที่ลุงโกโก้ทันทีที่เปลี่ยนเป็น นักเชิดหุ่น Job Lv.1:
+            "pp_puppet", "pp_puppet", "pp_puppet", "pp_puppet", "pp_puppet", "pp_puppet", "pp_puppet", "pp_puppet", "pp_puppet",
+            "pp_strings", "pp_strings", "pp_strings", "pp_strings", "pp_strings", "pp_strings", "pp_strings", "pp_strings", "pp_strings", "pp_strings",
+            "pp_dance", "pp_dance", "pp_dance", "pp_dance", "pp_dance", "pp_dance", "pp_dance", "pp_dance", "pp_dance", "pp_dance",
+            "pp_theatre", "pp_theatre", "pp_theatre", "pp_theatre", "pp_theatre",
+            "shadowstep", "shadowstep", "ro_hide",
+            "pp_control", "pp_control", "pp_control", "pp_control", "pp_control", "pp_control", "pp_control", "pp_control", "pp_control", "pp_control",
+            "pp_soulstring", "pp_soulstring", "pp_soulstring", "pp_soulstring", "pp_soulstring",
+            "pp_guide", "pp_guide", "pp_guide", "pp_guide", "pp_guide", "pp_guide",
+            // อีก 49 แต้มระหว่างเก็บ Job นักเชิดหุ่น (รวม 107 แต้ม):
+            "pp_guide", "pp_guide", "pp_guide", "pp_guide",
+            "pp_swap", "pp_swap", "pp_swap", "pp_swap", "pp_swap",
+            "body", "body", "body", "body", "body", "body", "body", "body", "body", "body",
+            "mastery", "mastery", "mastery", "mastery", "mastery", "mastery", "mastery", "mastery", "mastery", "mastery",
+            "ro_venomheart", "ro_venomheart", "ro_venomheart", "ro_venomheart", "ro_venomheart", "ro_venomheart", "ro_venomheart", "ro_venomheart", "ro_venomheart", "ro_venomheart",
+            "mind", "mind", "mind", "mind", "mind", "mind", "mind", "mind", "mind", "mind",
+            // อีก 49 แต้มตอนขึ้น Class 3 จ้าวโรงหุ่นราตรี (รวม 156 แต้ม สายไม้เชิดหุ่น+โล่ 100%):
+            "so_acts", "so_acts", "so_acts", "so_acts", "so_acts", "so_acts", "so_acts", "so_acts", "so_acts",
+            "so_awaken", "so_awaken", "so_awaken", "so_awaken", "so_awaken",
+            "so_dance", "so_dance", "so_dance", "so_dance", "so_dance", "so_dance", "so_dance", "so_dance", "so_dance", "so_dance",
+            "so_swap", "so_swap", "so_swap", "so_swap", "so_swap", "so_swap", "so_swap", "so_swap", "so_swap", "so_swap",
+            "envenom", "envenom", "envenom", "envenom", "envenom", "envenom", "envenom", "envenom", "envenom",
+            "venomdust", "venomdust", "venomdust", "venomdust", "venomdust", "venomdust"
+          ],
+          plannedLevels: {
+            pp_puppet: 9, pp_strings: 10, pp_dance: 10, pp_theatre: 5,
+            shadowstep: 2, ro_hide: 1, pp_control: 10, pp_soulstring: 5,
+            pp_guide: 10, pp_swap: 5, body: 10, mastery: 10, ro_venomheart: 10, mind: 10,
+            so_acts: 9, so_awaken: 5, so_dance: 10, so_swap: 10, envenom: 9, venomdust: 6
+          },
+          autoOff: ["ro_hide", "shadowstep", "pp_stretch", "pp_bind"],
+          facets: {}
+        }
+      ]
     },
     triggers: [
       {
@@ -786,37 +804,38 @@ function buildDefaultNightcampRoguePuppeteerPlan() {
         targetLevel: 12,
         actions: [
           { id: "act_nc_sell12", type: "sell_trip", sellMaterials: true, redQty: 30, blueQty: 20 },
-          { id: "act_nc_map12", type: "change_map", targetMap: "graveyard", targetMonster: "" },
+          { id: "act_nc_map12", type: "change_map", targetMap: "farm2", targetMonster: "" },
           { id: "act_nc_eq12", type: "equip_best", itemName: "" }
         ]
       },
       {
-        id: "trig_nc_lv24",
+        id: "trig_nc_lv16",
         type: "base_level",
-        targetLevel: 24,
+        targetLevel: 16,
         actions: [
-          { id: "act_nc_map24", type: "change_map", targetMap: "giantbones", targetMonster: "" },
-          { id: "act_nc_eq24", type: "equip_best", itemName: "" }
+          { id: "act_nc_sell16", type: "sell_trip", sellMaterials: true, redQty: 30, blueQty: 20 },
+          { id: "act_nc_map16", type: "change_map", targetMap: "marsh", targetMonster: "" },
+          { id: "act_nc_eq16", type: "equip_best", itemName: "" }
         ]
       },
       {
-        id: "trig_nc_lv30",
+        id: "trig_nc_lv21",
         type: "base_level",
-        targetLevel: 30,
+        targetLevel: 21,
         actions: [
-          { id: "act_nc_sell30", type: "sell_trip", sellMaterials: true, redQty: 30, blueQty: 25 },
-          { id: "act_nc_map30", type: "change_map", targetMap: "coffinhollow", targetMonster: "" },
-          { id: "act_nc_eq30", type: "equip_best", itemName: "" }
+          { id: "act_nc_sell21", type: "sell_trip", sellMaterials: true, redQty: 35, blueQty: 25 },
+          { id: "act_nc_map21", type: "change_map", targetMap: "graveyard", targetMonster: "" },
+          { id: "act_nc_eq21", type: "equip_best", itemName: "" }
         ]
       },
       {
-        id: "trig_nc_lv36",
+        id: "trig_nc_lv27",
         type: "base_level",
-        targetLevel: 36,
+        targetLevel: 27,
         actions: [
-          { id: "act_nc_sell36", type: "sell_trip", sellMaterials: true, redQty: 30, blueQty: 30 },
-          { id: "act_nc_map36", type: "change_map", targetMap: "crypt1", targetMonster: "" },
-          { id: "act_nc_eq36", type: "equip_best", itemName: "" }
+          { id: "act_nc_sell27", type: "sell_trip", sellMaterials: true, redQty: 35, blueQty: 25 },
+          { id: "act_nc_map27", type: "change_map", targetMap: "giantbones", targetMonster: "" },
+          { id: "act_nc_eq27", type: "equip_best", itemName: "" }
         ]
       },
       {
@@ -826,62 +845,98 @@ function buildDefaultNightcampRoguePuppeteerPlan() {
         targetLevel: 50,
         actions: [
           { id: "act_nc_c2", type: "change_class", targetClass: "puppeteer" },
+          { id: "act_nc_rst_c2", type: "reset_skills", resetMode: "auto" },
           { id: "act_nc_eq_c2", type: "equip_best", itemName: "" }
         ]
       },
       {
-        id: "trig_nc_lv48",
+        id: "trig_nc_lv35",
         type: "base_level",
-        targetLevel: 48,
+        targetLevel: 35,
         actions: [
-          { id: "act_nc_sell48", type: "sell_trip", sellMaterials: true, redQty: 30, blueQty: 30 },
-          { id: "act_nc_map48", type: "change_map", targetMap: "crypt2", targetMonster: "" },
-          { id: "act_nc_eq48", type: "equip_best", itemName: "" }
+          { id: "act_nc_sell35", type: "sell_trip", sellMaterials: true, redQty: 35, blueQty: 30 },
+          { id: "act_nc_map35", type: "change_map", targetMap: "coffinhollow", targetMonster: "" },
+          { id: "act_nc_eq35", type: "equip_best", itemName: "" }
         ]
       },
       {
-        id: "trig_nc_lv58",
+        id: "trig_nc_lv42",
         type: "base_level",
-        targetLevel: 58,
+        targetLevel: 42,
         actions: [
-          { id: "act_nc_map58", type: "change_map", targetMap: "poisonvillage", targetMonster: "" },
-          { id: "act_nc_eq58", type: "equip_best", itemName: "" }
+          { id: "act_nc_sell42", type: "sell_trip", sellMaterials: true, redQty: 35, blueQty: 30 },
+          { id: "act_nc_map42", type: "change_map", targetMap: "crypt1", targetMonster: "" },
+          { id: "act_nc_eq42", type: "equip_best", itemName: "" }
         ]
       },
       {
-        id: "trig_nc_lv64",
+        id: "trig_nc_lv50",
         type: "base_level",
-        targetLevel: 64,
+        targetLevel: 50,
         actions: [
-          { id: "act_nc_map64", type: "change_map", targetMap: "silentfarm", targetMonster: "" },
-          { id: "act_nc_eq64", type: "equip_best", itemName: "" }
+          { id: "act_nc_sell50", type: "sell_trip", sellMaterials: true, redQty: 35, blueQty: 30 },
+          { id: "act_nc_map50", type: "change_map", targetMap: "crypt2", targetMonster: "" },
+          { id: "act_nc_eq50", type: "equip_best", itemName: "" }
         ]
       },
       {
-        id: "trig_nc_lv73",
+        id: "trig_nc_lv59",
         type: "base_level",
-        targetLevel: 73,
+        targetLevel: 59,
         actions: [
-          { id: "act_nc_map73", type: "change_map", targetMap: "nightmarket", targetMonster: "" },
-          { id: "act_nc_eq73", type: "equip_best", itemName: "" }
+          { id: "act_nc_sell59", type: "sell_trip", sellMaterials: true, redQty: 35, blueQty: 30 },
+          { id: "act_nc_map59", type: "change_map", targetMap: "poisonvillage", targetMonster: "" },
+          { id: "act_nc_eq59", type: "equip_best", itemName: "" }
         ]
       },
       {
-        id: "trig_nc_lv80",
+        id: "trig_nc_lv66",
         type: "base_level",
-        targetLevel: 80,
+        targetLevel: 66,
         actions: [
-          { id: "act_nc_map80", type: "change_map", targetMap: "warehouses", targetMonster: "" },
-          { id: "act_nc_eq80", type: "equip_best", itemName: "" }
+          { id: "act_nc_sell66", type: "sell_trip", sellMaterials: true, redQty: 35, blueQty: 30 },
+          { id: "act_nc_map66", type: "change_map", targetMap: "silentfarm", targetMonster: "" },
+          { id: "act_nc_eq66", type: "equip_best", itemName: "" }
         ]
       },
       {
-        id: "trig_nc_lv87",
+        id: "trig_nc_lv74",
         type: "base_level",
-        targetLevel: 87,
+        targetLevel: 74,
         actions: [
-          { id: "act_nc_map87", type: "change_map", targetMap: "shipgrave", targetMonster: "" },
-          { id: "act_nc_eq87", type: "equip_best", itemName: "" }
+          { id: "act_nc_sell74", type: "sell_trip", sellMaterials: true, redQty: 35, blueQty: 30 },
+          { id: "act_nc_map74", type: "change_map", targetMap: "nightmarket", targetMonster: "" },
+          { id: "act_nc_eq74", type: "equip_best", itemName: "" }
+        ]
+      },
+      {
+        id: "trig_nc_job50_c2",
+        type: "job_level",
+        classId: "puppeteer",
+        targetLevel: 50,
+        actions: [
+          { id: "act_nc_c3", type: "change_class", targetClass: "showmaster" },
+          { id: "act_nc_eq_c3", type: "equip_best", itemName: "" }
+        ]
+      },
+      {
+        id: "trig_nc_lv81",
+        type: "base_level",
+        targetLevel: 81,
+        actions: [
+          { id: "act_nc_sell81", type: "sell_trip", sellMaterials: true, redQty: 35, blueQty: 30 },
+          { id: "act_nc_map81", type: "change_map", targetMap: "warehouses", targetMonster: "" },
+          { id: "act_nc_eq81", type: "equip_best", itemName: "" }
+        ]
+      },
+      {
+        id: "trig_nc_lv88",
+        type: "base_level",
+        targetLevel: 88,
+        actions: [
+          { id: "act_nc_sell88", type: "sell_trip", sellMaterials: true, redQty: 35, blueQty: 30 },
+          { id: "act_nc_map88", type: "change_map", targetMap: "shipgrave", targetMonster: "" },
+          { id: "act_nc_eq88", type: "equip_best", itemName: "" }
         ]
       }
     ],
@@ -1533,19 +1588,21 @@ function normalizePlansData(raw) {
       const trigs = Array.isArray(p.triggers) ? p.triggers : [];
       const hasLegacyMq25 = trigs.some(t => Array.isArray(t?.actions) && t.actions.some(a => a?.untilQuest === "MQ25" || a?.id === "act_nc_aq46"));
       const hasLegacyPuppet = p.id === "plan_1795450519812_17" && (!p.class3Target || trigs.some(t => t?.id === "puppet_lv12"));
-      const hasZombie24 = trigs.some(t => t?.id === "trig_nc_lv24");
-      if (freshBuiltinById[p.id] && (hasLegacyMq25 || !hasZombie24)) {
+      const hasZombieRoute = trigs.some(t => t?.id === "trig_nc_lv24" || t?.id === "trig_nc_lv27");
+      const hasResetRounds = Array.isArray(p.skillBuild?.resetRounds) && p.skillBuild.resetRounds.length > 0;
+      if (freshBuiltinById[p.id] && (hasLegacyMq25 || !hasZombieRoute || ((p.id === "plan_nc_rogue_puppeteer_1_50" || p.id === "plan_nc_party5_slot3_dps_puppeteer") && !hasResetRounds))) {
         const fresh = freshBuiltinById[p.id]();
         p.triggers = fresh.triggers;
         if (p.id === "plan_nc_rogue_puppeteer_1_50" || p.id === "plan_nc_party5_slot3_dps_puppeteer") {
           p.skillBuild = fresh.skillBuild;
+          p.preferredWeaponType = "puppet";
         }
         p.updatedAt = Date.now();
         migrated = true;
-      } else if (hasLegacyPuppet || (p.id === "plan_1795450519812_17" && !hasZombie24)) {
+      } else if (hasLegacyPuppet || (p.id === "plan_1795450519812_17" && (!hasZombieRoute || !hasResetRounds))) {
         const fresh = buildDefaultNightcampRoguePuppeteerPlan();
         p.name = "🎎 [ลุยเดี่ยวหุ่นเชิด] ฟาร์มเดี่ยว | โจร ➔ นักเชิดหุ่น ➔ จ้าวโรงหุ่นราตรี (ฟาร์มซอมบี้ชาวนายาว + หุ่นรบตีตามทุกฮิต + เชิดมอน 2 ตัว + โรงละครหุ่นเชิด Lv.1–99)";
-        p.description = "บิ้วลุยเดี่ยวหุ่นเชิดสายไม้เชิดหุ่น+โล่: ทำเควสถึง Lv.12 เปลี่ยนโจร ➔ ฟาร์มซอมบี้ชาวนา (เนินสุสานโบสถ์ร้าง ➔ หุบซี่โครงยักษ์ ➔ หุบหมอกโลงศพ ➔ สุสานใต้ดิน ชั้น 1–2) รับ Job EXP 0.9 ยาวๆ · เรียกหุ่นรบถาวร (0 SP) + ชักใยหุ่นตีตามทุกฮิต + ระบำหุ่น + เชิดมอน 2 ตัวช่วยรุม + เชือกชักวิญญาณหุ่นประกอบใหม่เอง + โรงละครหุ่นเชิด 5800% ATK";
+        p.description = "บิ้วลุยเดี่ยวหุ่นเชิดสายไม้เชิดหุ่น+โล่ (2 รอบรีสกิล): รอบเริ่มต้นข้ามโนวิซอัปมีดโจร 58 แต้มฟาร์มไว ➔ พอ Job 50 เปลี่ยนนักเชิดหุ่น + รีสกิล #1 ฟรีที่ลุงโกโก้ เท 58 แต้มลง หุ่นรบ Lv.10 (หุ่นโล่เลือด 165% ยั่วยุมอน) + ชักใยหุ่น Lv.10 + ระบำหุ่น Lv.10 + โรงละครหุ่น Lv.5 + เชิดมอน Lv.10 + เชือกชักวิญญาณ Lv.5 ทันทีตั้งแต่ Job 1!";
         p.autoQuestEnabled = true;
         p.autoJobChange = true;
         p.autoStatSkillEnabled = true;
@@ -1554,6 +1611,7 @@ function normalizePlansData(raw) {
         p.class2Target = "puppeteer";
         p.class2JobLevel = 50;
         p.class3Target = "showmaster";
+        p.preferredWeaponType = "puppet";
         p.statBuild = {
           queue: [
             { stat: "STR", to: 25 }, { stat: "AGI", to: 25 }, { stat: "VIT", to: 20 }, { stat: "DEX", to: 20 },
@@ -1565,30 +1623,7 @@ function normalizePlansData(raw) {
           priorityOrder: ["STR", "AGI", "VIT", "DEX", "LUK", "INT"]
         };
         p.skillBuild = fresh.skillBuild;
-        p.triggers = [
-          fresh.triggers[0],
-          fresh.triggers[1],
-          {
-            id: "trig_nc_lv12",
-            type: "base_level",
-            targetLevel: 12,
-            actions: [
-              { id: "act_nc_sell12", type: "sell_trip", sellMaterials: true, redQty: 30, blueQty: 20 },
-              { id: "act_nc_map12", type: "change_map", targetMap: "farm2", targetMonster: "" },
-              { id: "act_nc_eq12", type: "equip_best", itemName: "" }
-            ]
-          },
-          {
-            id: "trig_nc_lv16",
-            type: "base_level",
-            targetLevel: 16,
-            actions: [
-              { id: "act_nc_map16", type: "change_map", targetMap: "graveyard", targetMonster: "" },
-              { id: "act_nc_eq16", type: "equip_best", itemName: "" }
-            ]
-          },
-          ...fresh.triggers.slice(3)
-        ];
+        p.triggers = fresh.triggers;
         p.updatedAt = Date.now();
         migrated = true;
       }
