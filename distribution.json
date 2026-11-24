@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "sourceCommit": "691e6e555c646a2aec7190bce0a5d980b6d2ebd6",
+  "sourceCommit": "f3e09abfde0a1664300c9c1f262746f8c387a06f",
   "files": [
     {
       "path": "manager/asset_cache.js",
@@ -140,7 +140,7 @@
     },
     {
       "path": "manager/public/app.js",
-      "sha256": "d414a62c4100892b07c020587f7203a13eb9317c35c54d753011115e207000ac"
+      "sha256": "05a06c24f9783433fbf896198e5de50bdf8ba721bd464f01779966e6b655d7c9"
     },
     {
       "path": "manager/public/bot_update.css",
@@ -168,11 +168,11 @@
     },
     {
       "path": "manager/public/device_manager.css",
-      "sha256": "a32d134d3bd65edd3b78b515e7891c86a47469107528c9fce11b45b4330aef9b"
+      "sha256": "18a0b67dd0e43adad396c21b137615eb0f78153c66f71b9d7c159b248af54bd7"
     },
     {
       "path": "manager/public/device_manager.js",
-      "sha256": "6ab9a4ea175534f8e99d054a7aafc205dc5fdc29bc5a07f5a8f684b89abcab12"
+      "sha256": "f9c84df1ec7e79189db8132598e2382639bfae5fbb88858f4a3ee67eedea7f83"
     },
     {
       "path": "manager/public/fleet_dashboard.css",
@@ -208,7 +208,7 @@
     },
     {
       "path": "manager/public/index.html",
-      "sha256": "e749f00cf2ec50aea8af2d10ba45361ed41b18469c678f0b8b1bd5d26ace2f49"
+      "sha256": "d2c064f0341d6753a198d7f8a11cbd4522d708cf6c1e738447b309c4bb7e839e"
     },
     {
       "path": "manager/public/inventory_market.css",
@@ -289,6 +289,18 @@
     {
       "path": "manager/public/update_log.js",
       "sha256": "eebd6253a8a4767b834b5c5bb907704ff8ed08b15d5d5ddc39db5bdf40455a99"
+    },
+    {
+      "path": "manager/public/wiki/calc.js",
+      "sha256": "d1a4d5871a163d4137fefc9af7901f3a58aadf6e93503b60c916425754325c91"
+    },
+    {
+      "path": "manager/public/wiki/data.json",
+      "sha256": "494c303f161b6604804d47bdcb80d6954b0e5dfa0363b40adeaee693e07ecd29"
+    },
+    {
+      "path": "manager/public/wiki/index.html",
+      "sha256": "d1b400e9b9606eb16d42fa0f1af380471255dfd3f1efe5834d25efefdbb211db"
     },
     {
       "path": "manager/remote_fleet.js",

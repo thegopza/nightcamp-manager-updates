@@ -472,6 +472,26 @@
     `;
 
     document.body.appendChild(tab);
+    if (!document.getElementById('wk-tab')) {
+      const wikiTab = document.createElement('a');
+      wikiTab.id = 'wk-tab';
+      wikiTab.href = '/wiki/index.html';
+      wikiTab.target = '_blank';
+      wikiTab.rel = 'noopener';
+      wikiTab.title = 'เปิดคัมภีร์ฐานข้อมูล Night Camp Wiki SS2 (มอนสเตอร์ / ของสวมใส่ / ชุดเซ็ต / การ์ด / รูน / สกิล / แผนที่ / วัตถุดิบ) ในแท็บใหม่ (Alt+คลิก เพื่อเปิดในหน้า Manager)';
+      wikiTab.innerHTML = `
+        <span class="wk-tab-icon">📖</span>
+        <span class="wk-tab-label">Wiki</span>
+        <span class="wk-tab-badge">SS2</span>
+      `;
+      wikiTab.addEventListener('click', (e) => {
+        if (e.altKey && typeof window.switchMainTab === 'function') {
+          e.preventDefault();
+          window.switchMainTab('wiki');
+        }
+      });
+      document.body.appendChild(wikiTab);
+    }
     document.body.appendChild(backdrop);
     document.body.appendChild(drawer);
 

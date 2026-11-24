@@ -7119,6 +7119,11 @@ function switchMainTab(tabName) {
     if (typeof window.loadAutoFarmDashboard === "function") {
       window.loadAutoFarmDashboard(true);
     }
+  } else if (tabName === "wiki") {
+    const wikiFrame = document.getElementById("nc-wiki-iframe");
+    if (wikiFrame && !wikiFrame.getAttribute("src")) {
+      wikiFrame.setAttribute("src", wikiFrame.getAttribute("data-src") || "/wiki/index.html");
+    }
   }
   window.dispatchEvent(new CustomEvent("pm-main-tab-changed", { detail: { tabName } }));
 }

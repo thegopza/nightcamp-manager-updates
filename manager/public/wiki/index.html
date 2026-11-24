@@ -1,0 +1,2439 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Night Camp Wiki &amp; Codex — คัมภีร์ฐานข้อมูล Night Camp SS2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<script>
+(function () {
+  const mq = matchMedia('(prefers-color-scheme: dark)');
+  const apply = () => {
+    const t = localStorage.getItem('theme') || 'dark';
+    document.documentElement.dataset.theme = t === 'system' ? (mq.matches ? 'dark' : 'light') : t;
+    document.querySelectorAll('[data-t]').forEach((b) => b.classList.toggle('on', b.dataset.t === t));
+  };
+  window.setTheme = (t) => { localStorage.setItem('theme', t); apply(); };
+  mq.addEventListener('change', apply);
+  apply();
+  document.addEventListener('DOMContentLoaded', apply);
+})();
+</script>
+<style>
+:root {
+  --bg: #070b14;
+  --bg-grad: radial-gradient(circle at 16% 0%, rgba(56, 189, 248, 0.12) 0%, transparent 42%),
+             radial-gradient(circle at 84% 8%, rgba(139, 92, 246, 0.12) 0%, transparent 46%),
+             radial-gradient(circle at 50% 100%, rgba(245, 158, 11, 0.07) 0%, transparent 50%),
+             #070b14;
+  --card: rgba(15, 23, 42, 0.82);
+  --card-hover: rgba(20, 30, 55, 0.94);
+  --ink: #f1f5f9;
+  --mut: #94a3b8;
+  --line: rgba(148, 163, 184, 0.16);
+  --line-strong: rgba(56, 189, 248, 0.38);
+  --acc: #38bdf8;
+  --acc-2: #8b5cf6;
+  --gold: #f59e0b;
+  --ok: #10b981;
+  --field: rgba(9, 14, 26, 0.88);
+  --hit: rgba(245, 158, 11, 0.18);
+  --head: rgba(10, 15, 29, 0.88);
+  --good: #34d399;
+  --bad: #f87171;
+  --shadow-card: 0 10px 28px -6px rgba(0, 0, 0, 0.55);
+  --shadow-hover: 0 18px 40px -8px rgba(14, 165, 233, 0.24);
+  --spring: cubic-bezier(0.16, 1, 0.3, 1);
+  color-scheme: dark;
+}
+:root[data-theme=light] {
+  --bg: #f1f5f9;
+  --bg-grad: radial-gradient(circle at 16% 0%, rgba(14, 165, 233, 0.10) 0%, transparent 45%),
+             radial-gradient(circle at 84% 8%, rgba(139, 92, 246, 0.08) 0%, transparent 45%),
+             #f1f5f9;
+  --card: rgba(255, 255, 255, 0.92);
+  --card-hover: #ffffff;
+  --ink: #0f172a;
+  --mut: #64748b;
+  --line: rgba(100, 116, 139, 0.20);
+  --line-strong: rgba(2, 132, 199, 0.45);
+  --acc: #0284c7;
+  --acc-2: #6d28d9;
+  --gold: #d97706;
+  --ok: #059669;
+  --field: #f8fafc;
+  --hit: #fef3c7;
+  --head: rgba(255, 255, 255, 0.92);
+  --good: #059669;
+  --bad: #dc2626;
+  --shadow-card: 0 8px 24px -6px rgba(15, 23, 42, 0.08);
+  --shadow-hover: 0 16px 36px -8px rgba(2, 132, 199, 0.18);
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  min-height: 100vh;
+  font: 13.5px/1.5 'Plus Jakarta Sans', 'IBM Plex Sans Thai', system-ui, -apple-system, sans-serif;
+  background: var(--bg-grad);
+  background-attachment: fixed;
+  color: var(--ink);
+  overflow-x: hidden;
+}
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.25); }
+::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.28); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(56, 189, 248, 0.55); }
+
+/* Ambient floating lantern particles */
+.bg-orb {
+  position: fixed;
+  border-radius: 50%;
+  filter: blur(80px);
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.45;
+  animation: orbFloat 16s ease-in-out infinite alternate;
+}
+.bg-orb.o1 { width: 360px; height: 360px; top: -110px; left: -80px; background: rgba(56, 189, 248, 0.18); }
+.bg-orb.o2 { width: 420px; height: 420px; top: 20%; right: -140px; background: rgba(139, 92, 246, 0.16); animation-delay: -5s; }
+.bg-orb.o3 { width: 320px; height: 320px; bottom: -100px; left: 28%; background: rgba(245, 158, 11, 0.12); animation-delay: -9s; }
+@keyframes orbFloat {
+  0% { transform: translate3d(0, 0, 0) scale(1); }
+  100% { transform: translate3d(24px, -28px, 0) scale(1.08); }
+}
+
+/* Header & Navigation */
+header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: var(--head);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--line);
+  padding: 10px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.28);
+}
+.head-top {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-right: 4px;
+}
+.brand-badge {
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.24), rgba(139, 92, 246, 0.28));
+  border: 1px solid rgba(56, 189, 248, 0.48);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 19px;
+  box-shadow: 0 6px 18px rgba(14, 165, 233, 0.22);
+}
+.brand-title {
+  display: flex;
+  flex-direction: column;
+}
+.brand-title h1 {
+  font-size: 16.5px;
+  font-weight: 800;
+  margin: 0;
+  letter-spacing: -0.3px;
+  background: linear-gradient(90deg, #38bdf8, #a78bfa, #fbbf24);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.brand-title small {
+  font-size: 11px;
+  color: var(--mut);
+  font-weight: 500;
+  margin-top: -2px;
+}
+
+.search-wrap {
+  flex: 1;
+  min-width: 240px;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.search-ic {
+  position: absolute;
+  left: 12px;
+  color: var(--mut);
+  font-size: 14px;
+  pointer-events: none;
+}
+#q {
+  width: 100%;
+  padding: 9px 74px 9px 36px;
+  border-radius: 11px;
+  border: 1px solid var(--line);
+  background: var(--field);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13.5px;
+  transition: border-color 0.2s var(--spring), box-shadow 0.2s var(--spring), transform 0.18s var(--spring);
+}
+#q:focus {
+  outline: none;
+  border-color: var(--acc);
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.18);
+}
+.search-kbd {
+  position: absolute;
+  right: 10px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10.5px;
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: rgba(148, 163, 184, 0.14);
+  border: 1px solid var(--line);
+  color: var(--mut);
+  pointer-events: none;
+}
+.search-clear {
+  position: absolute;
+  right: 54px;
+  border: 0;
+  background: rgba(148, 163, 184, 0.18);
+  color: var(--ink);
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  font-size: 11px;
+  cursor: pointer;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+.search-clear.show { display: inline-flex; }
+
+.seg {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  background: var(--field);
+  border-radius: 10px;
+  padding: 2px;
+  gap: 2px;
+}
+.seg button {
+  background: transparent;
+  border: 0;
+  color: var(--mut);
+  padding: 5px 10px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.18s var(--spring), color 0.18s var(--spring), transform 0.12s var(--spring);
+}
+.seg button:hover { color: var(--ink); }
+.seg button:active { transform: scale(0.95); }
+.seg button.on {
+  background: linear-gradient(135deg, #0284c7, #6366f1);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(2, 132, 199, 0.35);
+}
+
+/* Main Category Tabs */
+.tabs-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.tabs {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+.tabs button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  padding: 7px 13px;
+  font-weight: 700;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--mut);
+  cursor: pointer;
+  transition: transform 0.18s var(--spring), border-color 0.18s var(--spring), background 0.18s var(--spring), color 0.18s var(--spring), box-shadow 0.18s var(--spring);
+}
+.tabs button:hover {
+  transform: translateY(-2px);
+  color: var(--ink);
+  border-color: rgba(56, 189, 248, 0.42);
+}
+.tabs button:active { transform: scale(0.96); }
+.tabs button.on {
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.25), rgba(139, 92, 246, 0.28));
+  border-color: var(--acc);
+  color: var(--ink);
+  box-shadow: 0 6px 20px -4px rgba(56, 189, 248, 0.35);
+}
+.tab-badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10.5px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.15);
+  color: var(--mut);
+  font-weight: 700;
+}
+.tabs button.on .tab-badge {
+  background: var(--acc);
+  color: #020617;
+}
+.tab-badge.hit- match {
+  background: var(--gold);
+  color: #020617;
+}
+
+/* Omni-Search Quick Jump Strip */
+#omni-strip {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 7px 12px;
+  border-radius: 10px;
+  background: linear-gradient(90deg, rgba(56, 189, 248, 0.12), rgba(139, 92, 246, 0.12));
+  border: 1px solid rgba(56, 189, 248, 0.32);
+  font-size: 12px;
+  animation: fadeSlideDown 0.22s var(--spring) forwards;
+}
+#omni-strip.show { display: flex; }
+@keyframes fadeSlideDown {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Breadcrumb History Bar */
+#crumb-bar {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 6px 18px;
+  background: rgba(14, 165, 233, 0.08);
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+}
+#crumb-bar.show { display: flex; }
+.crumb-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 7px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 11.5px;
+  font-weight: 600;
+  transition: transform 0.15s var(--spring), border-color 0.15s ease;
+}
+.crumb-item:hover {
+  transform: translateY(-1px);
+  border-color: var(--acc);
+}
+
+.meta-row {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  color: var(--mut);
+  font-size: 12px;
+  padding: 8px 18px 0;
+}
+
+/* Layout Grid */
+.wrap {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 310px 1fr;
+  gap: 16px;
+  padding: 12px 18px 28px;
+  align-items: start;
+}
+aside {
+  position: sticky;
+  top: 116px;
+  max-height: calc(100vh - 132px);
+  overflow: auto;
+  background: var(--card);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 14px;
+  box-shadow: var(--shadow-card);
+}
+aside h3 {
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--acc);
+  margin: 14px 0 7px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+aside h3:first-child { margin-top: 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.chip {
+  border: 1px solid var(--line);
+  background: var(--field);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--ink);
+  transition: transform 0.15s var(--spring), border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+.chip:hover {
+  border-color: var(--acc);
+  transform: translateY(-1px);
+}
+.chip:active { transform: scale(0.95); }
+.chip.on {
+  background: linear-gradient(135deg, #0284c7, #6366f1);
+  border-color: var(--acc);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3);
+}
+.chip small { opacity: 0.72; margin-left: 4px; font-family: 'JetBrains Mono', monospace; font-size: 10px; }
+
+select, input[type=number] {
+  width: 100%;
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 12.5px;
+  background: var(--field);
+  color: var(--ink);
+}
+select:focus, input[type=number]:focus {
+  outline: none;
+  border-color: var(--acc);
+}
+input[type=range] { width: 100%; accent-color: var(--acc); }
+.row2 { display: flex; gap: 6px; align-items: center; }
+.row2 input[type=number] { width: 88px; }
+.mode { display: flex; gap: 5px; margin-top: 6px; flex-wrap: wrap; }
+.btn {
+  border: 1px solid var(--line);
+  background: var(--field);
+  color: var(--ink);
+  border-radius: 8px;
+  padding: 6px 11px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  transition: transform 0.15s var(--spring), border-color 0.15s ease, background 0.15s ease;
+}
+.btn:hover { border-color: var(--acc); transform: translateY(-1px); }
+.btn:active { transform: scale(0.96); }
+
+.bar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+  background: var(--card);
+  border: 1px solid var(--line);
+  padding: 9px 14px;
+  border-radius: 12px;
+}
+.bar .count { font-weight: 800; font-size: 13.5px; color: var(--acc); }
+.bar select { width: auto; }
+
+/* Cards Grid & Staggered Cascade Animation */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(335px, 1fr));
+  gap: 14px;
+}
+@keyframes cardCascadeIn {
+  from { opacity: 0; transform: translate3d(0, 14px, 0) scale(0.985); }
+  to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
+.c {
+  position: relative;
+  background: var(--card);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow: var(--shadow-card);
+  transition: transform 0.22s var(--spring), border-color 0.22s var(--spring), box-shadow 0.22s var(--spring), background 0.22s ease;
+  animation: cardCascadeIn 0.32s var(--spring) both;
+}
+.c:nth-child(1) { animation-delay: 0.01s; }
+.c:nth-child(2) { animation-delay: 0.03s; }
+.c:nth-child(3) { animation-delay: 0.05s; }
+.c:nth-child(4) { animation-delay: 0.07s; }
+.c:nth-child(5) { animation-delay: 0.09s; }
+.c:nth-child(6) { animation-delay: 0.11s; }
+.c:nth-child(7) { animation-delay: 0.13s; }
+.c:nth-child(8) { animation-delay: 0.15s; }
+.c:hover {
+  transform: translate3d(0, -3px, 0);
+  background: var(--card-hover);
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow-hover);
+}
+.c.rar-rare { border-left: 3px solid #3b82f6; }
+.c.rar-epic { border-left: 3px solid #a855f7; }
+.c.rar-legend { border-left: 3px solid #f59e0b; box-shadow: 0 10px 28px -6px rgba(245, 158, 11, 0.18); }
+.c.rar-boss { border-left: 3px solid #ef4444; box-shadow: 0 10px 28px -6px rgba(239, 68, 68, 0.2); }
+.c.flash-highlight {
+  animation: pulseHighlight 1.6s var(--spring);
+}
+@keyframes pulseHighlight {
+  0%, 100% { box-shadow: var(--shadow-card); }
+  30% { box-shadow: 0 0 0 3px #f59e0b, 0 0 36px rgba(245, 158, 11, 0.65); transform: scale(1.015); }
+}
+
+.top { display: flex; gap: 11px; align-items: center; }
+.top img {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  background: radial-gradient(circle, rgba(56, 189, 248, 0.14) 0%, var(--field) 75%);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  flex: none;
+  padding: 3px;
+  transition: transform 0.22s var(--spring);
+}
+.c:hover .top img { transform: scale(1.06); }
+.ai {
+  display: inline-block;
+  flex: none;
+  vertical-align: middle;
+  background-color: var(--field);
+  border-radius: 8px;
+}
+.top .ai { border-radius: 11px; border: 1px solid var(--line); }
+.row-ic { display: flex; gap: 7px; align-items: center; }
+.tiers .ai { margin-right: 4px; }
+.top .n { font-weight: 800; font-size: 15px; line-height: 1.3; }
+.s { font-size: 12px; color: var(--mut); }
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  color: #fff;
+  font-weight: 700;
+  vertical-align: 1px;
+  margin-right: 3px;
+  margin-bottom: 2px;
+}
+.tag.o {
+  background: rgba(148, 163, 184, 0.08);
+  border: 1px solid var(--line);
+  color: var(--mut);
+}
+
+/* Interactive Entity Pills (Hover to preview, Click to inspect/jump) */
+.elink {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 8px;
+  background: var(--field);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  margin: 2px 3px 2px 0;
+  transition: transform 0.16s var(--spring), border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
+}
+.elink:hover {
+  transform: translateY(-2px);
+  border-color: var(--acc);
+  background: rgba(56, 189, 248, 0.14);
+  box-shadow: 0 5px 14px rgba(14, 165, 233, 0.22);
+}
+.elink:active { transform: scale(0.96); }
+.elink .rate {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10.5px;
+  color: #fbbf24;
+  font-weight: 700;
+}
+.elink.rar-rare { border-color: rgba(59, 130, 246, 0.48); }
+.elink.rar-epic { border-color: rgba(168, 85, 247, 0.52); }
+.elink.rar-legend { border-color: rgba(245, 158, 11, 0.65); background: rgba(245, 158, 11, 0.1); }
+
+/* Monster Stats Mini-Grid */
+.mstat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 5px;
+  background: var(--field);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 7px 9px;
+  font-size: 11.5px;
+}
+.mstat-cell {
+  display: flex;
+  flex-direction: column;
+}
+.mstat-cell small {
+  font-size: 10px;
+  color: var(--mut);
+  text-transform: uppercase;
+}
+.mstat-cell b {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--ink);
+}
+.drop-sec {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 4px;
+  border-top: 1px dashed var(--line);
+}
+.drop-lbl {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--mut);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.drop-pills {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.pin-btn {
+  margin-left: auto;
+  border: 1px solid var(--line);
+  background: var(--field);
+  color: var(--mut);
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: transform 0.16s var(--spring), color 0.16s ease, border-color 0.16s ease;
+}
+.pin-btn:hover { transform: scale(1.1); border-color: var(--gold); color: var(--gold); }
+.pin-btn.on { color: #fbbf24; border-color: rgba(245, 158, 11, 0.6); background: rgba(245, 158, 11, 0.15); }
+
+.art { font-weight: 700; }
+.art span { font-weight: 400; color: var(--mut); font-size: 12px; }
+.d { font-size: 12.8px; line-height: 1.48; }
+.eff { display: flex; gap: 6px; align-items: flex-start; font-size: 12.5px; }
+.eff .b { flex: none; font-size: 10.5px; font-weight: 700; color: #fff; border-radius: 5px; padding: 1px 6px; margin-top: 1px; }
+.eff .gap { color: var(--mut); font-size: 11px; }
+.eff.hit { background: var(--hit); border-radius: 6px; padding: 2px 5px; margin: -2px -5px; }
+.maps { font-size: 12px; color: var(--mut); }
+.empty { padding: 48px 20px; text-align: center; color: var(--mut); grid-column: 1 / -1; background: var(--card); border: 1px dashed var(--line); border-radius: 16px; }
+.gain { font-size: 21px; font-weight: 800; color: var(--good); font-family: 'JetBrains Mono', monospace; }
+.gain.neg { color: var(--bad); }
+.gain.na { font-size: 12.5px; font-weight: 600; color: var(--mut); font-family: inherit; }
+.tiers { font-size: 12px; display: grid; grid-template-columns: auto 1fr; gap: 3px 8px; }
+.tiers b { color: var(--mut); }
+.tiers .cur { color: var(--ink); font-weight: 700; }
+details summary { cursor: pointer; font-size: 12px; color: var(--acc); font-weight: 700; user-select: none; }
+.jl { font-size: 12px; margin: 5px 0 0; }
+.jl b { color: var(--mut); font-weight: 600; }
+table.rt { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 4px; }
+table.rt td, table.rt th { padding: 5px 6px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
+table.rt th { color: var(--mut); font-weight: 700; font-size: 11px; text-transform: uppercase; }
+table.rt td.num { text-align: right; white-space: nowrap; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+.pos { color: var(--good); }
+.negc { color: var(--bad); }
+.calc {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  align-items: center;
+  font-size: 12.5px;
+  box-shadow: var(--shadow-card);
+}
+.calc label { display: flex; gap: 6px; align-items: center; font-weight: 600; }
+.calc input[type=number] { width: 64px; }
+.help {
+  font-size: 12px;
+  color: var(--mut);
+  background: var(--card);
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+  padding: 9px 14px;
+  margin-bottom: 12px;
+}
+.best {
+  font-size: 12.5px;
+  background: var(--field);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px 10px;
+}
+.best .gain { font-size: 15.5px; }
+.rtip { cursor: pointer; border-bottom: 1px dotted var(--acc); }
+.chip.blk { background: var(--bad); border-color: var(--bad); color: #fff; text-decoration: line-through; }
+tr.blocked td { opacity: 0.45; }
+tr.blocked .rtip { text-decoration: line-through; }
+.bk { border: 0; background: transparent; cursor: pointer; padding: 0 3px; font-size: 12px; opacity: 0.75; }
+.bk:hover { opacity: 1; }
+
+/* Universal Floating Hover Preview Card (#tip) */
+#tip {
+  position: fixed;
+  z-index: 200;
+  max-width: 390px;
+  min-width: 260px;
+  background: rgba(11, 17, 32, 0.96);
+  backdrop-filter: blur(16px);
+  color: #f1f5f9;
+  border: 1px solid rgba(56, 189, 248, 0.55);
+  border-radius: 14px;
+  padding: 12px 14px;
+  font-size: 12px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.75), 0 0 24px rgba(56, 189, 248, 0.2);
+  pointer-events: none;
+  display: none;
+  animation: tipSpringIn 0.16s var(--spring) forwards;
+}
+@keyframes tipSpringIn {
+  from { opacity: 0; transform: scale(0.95) translateY(4px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+#tip .h { display: flex; gap: 10px; align-items: center; font-weight: 800; font-size: 14px; margin-bottom: 6px; }
+#tip .h img { width: 46px; height: 46px; object-fit: contain; background: rgba(15, 23, 42, 0.9); border-radius: 10px; border: 1px solid rgba(148, 163, 184, 0.2); padding: 2px; }
+#tip .tiers { margin: 6px 0; }
+#tip .tip-hint { margin-top: 6px; padding-top: 5px; border-top: 1px dashed rgba(148, 163, 184, 0.22); font-size: 10.5px; color: #38bdf8; font-weight: 600; }
+
+/* Interactive Entity Inspector Modal (#inspector-backdrop) */
+#inspector-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 150;
+  background: rgba(3, 7, 18, 0.72);
+  backdrop-filter: blur(8px);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+}
+#inspector-backdrop.open { display: flex; }
+#inspector-card {
+  width: min(760px, 96vw);
+  max-height: 88vh;
+  overflow-y: auto;
+  background: var(--card-hover);
+  border: 1px solid var(--line-strong);
+  border-radius: 20px;
+  padding: 20px 22px;
+  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.8), 0 0 40px rgba(56, 189, 248, 0.18);
+  animation: modalSpring 0.28s var(--spring) forwards;
+}
+@keyframes modalSpring {
+  0% { opacity: 0; transform: scale(0.94) translateY(14px); }
+  70% { opacity: 1; transform: scale(1.01) translateY(-2px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+.insp-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+.insp-actions { display: flex; gap: 6px; align-items: center; }
+
+@media (max-width: 860px) {
+  .wrap { grid-template-columns: 1fr; }
+  aside { position: static; max-height: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+</style>
+</head>
+<body>
+<div class="bg-orb o1"></div>
+<div class="bg-orb o2"></div>
+<div class="bg-orb o3"></div>
+
+<header>
+  <div class="head-top">
+    <div class="brand">
+      <div class="brand-badge">📖</div>
+      <div class="brand-title">
+        <h1>Night Camp Codex &amp; Wiki</h1>
+        <small id="meta">คัมภีร์ฐานข้อมูลมอนสเตอร์ · แมพ · ของดรอป · เซ็ต · การ์ด · รูน · สกิล</small>
+      </div>
+    </div>
+    <div class="search-wrap">
+      <span class="search-ic">🔍</span>
+      <input id="q" type="search" autocomplete="off">
+      <button type="button" class="search-clear" id="q-clear" title="ล้างคำค้นหา">✕</button>
+      <span class="search-kbd">Ctrl+K</span>
+    </div>
+    <div class="seg" id="lang">
+      <button data-l="th">🇹🇭 ไทย</button>
+      <button data-l="en">🇬🇧 EN</button>
+    </div>
+    <div class="seg" aria-label="Theme">
+      <button data-t="light" onclick="setTheme('light')" title="โหมดสว่าง">☀️</button>
+      <button data-t="dark" onclick="setTheme('dark')" title="โหมดมืด">🌙</button>
+      <button data-t="system" onclick="setTheme('system')" title="ตามระบบ">🖥️</button>
+    </div>
+  </div>
+  <div class="tabs-row">
+    <div class="tabs" id="tabs">
+      <button data-view="monsters"></button>
+      <button data-view="equip"></button>
+      <button data-view="sets"></button>
+      <button data-view="cards"></button>
+      <button data-view="runes"></button>
+      <button data-view="skills"></button>
+      <button data-view="maps"></button>
+      <button data-view="mats"></button>
+    </div>
+  </div>
+  <div id="omni-strip"></div>
+</header>
+
+<div id="crumb-bar"></div>
+
+<div class="wrap">
+  <aside id="side"></aside>
+  <main>
+    <div id="calcbar"></div>
+    <div class="bar">
+      <span class="count" id="count"></span>
+      <label id="sortL"><span></span> <select id="sort"></select></label>
+      <button class="btn" id="btn-pinned-only" title="แสดงเฉพาะรายการที่ปักหมุดไว้">⭐ ปักหมุด (<span id="pin-count">0</span>)</button>
+      <button class="btn" id="reset"></button>
+    </div>
+    <div id="help"></div>
+    <div class="grid" id="grid"></div>
+  </main>
+</div>
+
+<div id="tip"></div>
+
+<div id="inspector-backdrop">
+  <div id="inspector-card">
+    <div class="insp-head">
+      <div id="insp-crumb" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:12px;color:var(--mut);"></div>
+      <div class="insp-actions">
+        <button type="button" class="btn" id="insp-back" style="display:none;">⬅ ย้อนกลับ</button>
+        <button type="button" class="btn" id="insp-jump-tab">🔎 เปิดในหน้าหมวดหมู่</button>
+        <button type="button" class="btn" id="insp-close">✕ ปิด (Esc)</button>
+      </div>
+    </div>
+    <div id="insp-body"></div>
+  </div>
+</div>
+
+<script src="calc.js"></script>
+<script>
+const IMG = 'https://play.nightcamp.app/wiki/assets/m/';
+const UI = {
+  th: {
+    monsters: '👾 มอนสเตอร์', equip: '🛡️ ของสวมใส่', sets: '🧩 ชุดเซ็ต', cards: '🃏 การ์ด', runes: '💎 รูน', skills: '⚔️ สกิล', maps: '🗺️ แผนที่', mats: '🧪 วัตถุดิบ & อาชีพเสริม',
+    reset: '🔄 ล้างตัวกรอง', sort: 'เรียงตาม', all: 'ทั้งหมด',
+    qMonsters: 'ค้นหามอนสเตอร์: ชื่อมอน, ของดรอป, การ์ด, รูน, แมพ, ธาตุ, เผ่า ...',
+    qCards: 'ค้นหาการ์ด: ชื่อมอน, ชื่อวิชาการ์ด, แมพ, เอฟเฟกต์ (เช่น ดูดเลือด, ลดร่าย) ...',
+    qRunes: 'ค้นหารูน: ชื่อรูน, คำอธิบาย, มอนที่ดรอป ...',
+    qSkills: 'ค้นหาสกิล: ชื่อสกิล, อาชีพ, รูนที่ใส่ได้ ...',
+    qEquip: 'ค้นหาของสวมใส่: ชื่อไอเทม, สเตตัส, สกิลที่บวก, ชื่อเซ็ต, มอนที่ดรอป ...',
+    qSets: 'ค้นหาชุดเซ็ต / เซ็ตบอส: ชื่อเซ็ต, โบนัส 2 ชิ้น / 3 ชิ้น, ความสามารถเซ็ต, ชิ้นส่วน ...',
+    qMaps: 'ค้นหาแผนที่: ชื่อแมพ, ภูมิภาค, มอนสเตอร์ในแมพ, ของดรอปในแมพ ...',
+    qMats: 'ค้นหาวัตถุดิบ / อาหารบัฟ / ปลา / แร่ / ไม้ ...',
+    meta: (m, i, s, c, r, sk, mp) => `มอน ${m} ตัว · อุปกรณ์ ${i} ชิ้น · เซ็ต ${s} ชุด · การ์ด ${c} ใบ · รูน ${r} แบบ · สกิล ${sk} ท่า · แมพ ${mp} แห่ง`,
+    count: (a, b, u) => `แสดง ${a.toLocaleString()} / ${b.toLocaleString()} ${u}`,
+    uMon: 'ตัว', uCard: 'ใบ', uRune: 'รูน', uSkill: 'สกิล', uItem: 'ชิ้น', uSet: 'เซ็ต', uMap: 'แมพ', uMat: 'รายการ',
+    none: 'ไม่พบข้อมูลที่ตรงกับตัวกรอง (ลองกด "ล้างตัวกรอง" หรือเปลี่ยนคำค้นหา)',
+    effects: 'เอฟเฟกต์การ์ด', anyOf: 'มีอันใดอันหนึ่ง', allOf: 'ต้องมีครบทุกอัน', sub: 'ธาตุ / สถานะของเอฟเฟกต์', trig: 'เงื่อนไขทำงาน',
+    mtype: 'ประเภทมอนสเตอร์', region: 'ภูมิภาค', race: 'เผ่าพันธุ์', artEl: 'ธาตุของสกิลการ์ด', defEl: 'ธาตุป้องกันมอน', lv: 'ช่วงเลเวล', min: 'ต่ำสุด', max: 'สูงสุด',
+    allRegions: 'ทุกภูมิภาค', allRaces: 'ทุกเผ่าพันธุ์', allEls: 'ทุกธาตุ',
+    sVal: 'ค่าเอฟเฟกต์ที่เลือก (มาก→น้อย)', sLv: 'เลเวล (น้อย→มาก)', sLvd: 'เลเวล (มาก→น้อย)', sCd: 'คูลดาวน์ (น้อย→มาก)', sName: 'ชื่อ (ก-ฮ / A-Z)',
+    sExp: 'Base EXP (มาก→น้อย)', sJexp: 'Job EXP (มาก→น้อย)', sHp: 'เลือด HP (น้อย→มาก)', sDrops: 'จำนวนของดรอป (มาก→น้อย)',
+    sGain: 'ดาเมจเพิ่ม (มาก→น้อย)', sBest: 'คอมโบ 2 รูนที่ดีที่สุด (มาก→น้อย)', sJob: 'อาชีพ',
+    sPrice: 'ราคาขาย NPC (มาก→น้อย)',
+    dropsRune: 'ดรอปรูน', cdS: (s) => `CD ${s} วิ`,
+    kind: 'ชนิดรูน', fitsOn: 'ใส่ในสกิลแบบ', job: 'อาชีพ', allJobs: 'ทุกอาชีพ', onlyJob: 'เฉพาะรูนที่อาชีพนี้ใส่ได้',
+    kinds: { skill: 'รูนสกิล', proc: 'รูน Proc', pierce: 'รูนเจาะ', gun: 'รูนปืน' },
+    splitL: 'รูนแยก', near: 'เป้าใกล้ (โดนทุกชุด)', far: 'เป้าไกล (โดนชุดกลาง)', nearTip: 'รูนแยกยิงสกิลซ้ำเอียงข้างละ 12.6° เป้าตัวเดียวที่อยู่ใกล้โดนทุกชุด อยู่ไกลโดนแค่ชุดกลาง (ลูกปรายกระจายไม่ขึ้นกับระยะ เพราะเติมเม็ดในกรวยเดิม)',
+    tier: 'ขั้นรูน', target: 'เป้า', single: 'ตัวเดียว', pack: 'ฝูง', nT: 'จำนวนตัว', time: 'เวลา', night: 'กลางคืน', day: 'กลางวัน',
+    rollB: 'โรลโบนัส', rollD: 'โรลข้อเสีย', mode: 'สูตร', modeS2: 'ออนไลน์ SS2 (เพดาน +50%)', modeOff: 'ออฟไลน์ (คูณตรงๆ)',
+    gainLbl: 'ดาเมจรวมของสกิล', noDmg: 'ไม่เพิ่มดาเมจโดยตรง', fitSkills: (n) => `ใส่ได้ ${n} สกิล`, dropFrom: 'ดรอปจากมอนสเตอร์', spellDrop: (lv, els, r) => `มอน Lv ${lv}+ ธาตุ ${els} · ${r}% ต่อการฆ่า`,
+    noDrop: 'ไม่มีมอนดรอป', basicSlot: 'ใส่ช่องตีธรรมดาได้ด้วย (Lv 40 / 70)',
+    help: '💡 ชี้เมาส์ที่ มอนสเตอร์ / ไอเทม / ชุดเซ็ต / การ์ด / รูน / แมพ เพื่อดูข้อมูลตัวอย่างแบบละเอียดทันที หรือ "คลิก" เพื่อเปิดหน้าต่างเชื่อมโยงข้อมูลข้ามหมวดหมู่! (ตัวเลขดาเมจรูนคำนวณจาก bl_runes.js และ NC.BL.fits โหมดออนไลน์ SS2 เพดานโบนัสฮิต +50%)',
+    perCast: 'ต่อการกด', hitsL: 'ฮิต/ครั้ง', hitsTip: 'จำนวนฮิตต่อการกดหนึ่งครั้ง เดาจากคำอธิบายสกิล แก้เองได้ (มีผลกับรูนค้างและรูนตกฟ้า ที่ตีเท่าฮิตเดียว)',
+    noHit: 'สกิลนี้ไม่ทำดาเมจเอง (บัพ / ฮีล / ดีบัพ / วาง / สลับ ฯลฯ) รูนที่เพิ่มดาเมจจึงไม่มีผล ตารางด้านล่างบอกว่ารูนแต่ละตัวทำอะไรกับสกิลนี้แทน',
+    nd: { haste: (c) => `คูลดาวน์ ×${c.toFixed(2)} ร่ายบัพได้บ่อยขึ้น (ส่วนดาเมจ −10% ไม่มีผล)`, blood: (h) => `ใช้ HP แทน SP (1 SP = ${h} HP) ส่วนโบนัสดาเมจไม่มีผล`, none: () => 'ไม่มีผล: สกิลนี้ไม่ทำดาเมจ' },
+    blockH: 'บล็อครูน', blockTip: 'รูนที่บล็อกจะไม่ถูกเลือกเป็นรูนดีสุด / คอมโบดีสุด (กด 🚫 ในตารางรูนของแต่ละสกิลก็ได้)', unblock: (n) => `ปลดบล็อกทั้งหมด (${n})`,
+    blockOne: 'บล็อครูนนี้', unblockOne: 'ปลดบล็อก', blockedN: (n) => `ไม่นับ ${n} รูนที่บล็อก`,
+    acceptRune: 'รับรูน', anyRune: 'รูนไหนก็ได้', skType: 'ชนิดสกิล', slots: (a, b) => `ช่องรูน Lv ${a}${b ? ' / ' + b : ''}`,
+    bestOne: 'รูนเดี่ยวดีสุด', bestTwo: 'คอมโบ 2 รูนดีสุด', allFit: (n) => `รูนที่ใส่ได้ทั้งหมด (${n})`, mulAtk: (m) => `${m}% ATK ที่เลเวลสูงสุด`,
+    onlyAny: 'สกิลนี้ใส่ได้แค่รูนทุกสกิล (เร็ว / เลือด / จันทร์)',
+    eItems: 'รายชิ้น', eSets: 'ชุดเซ็ต & เซ็ตบอส', slot: 'ช่องสวมใส่', rarity: 'ความหายาก', hasStat: 'มีค่าสเตตัส', setF: 'ประเภทเซ็ต', line: 'สายชุดเซ็ต',
+    wtype: 'ชนิดอาวุธ', allWt: 'ทุกชนิดอาวุธ', source: 'แหล่งที่ได้รับ', itemLv: 'เลเวลไอเทม', view: 'รูปแบบการแสดง',
+    setFlags: { set: 'ชิ้นส่วนชุดเซ็ต (80 เซ็ต)', bset: 'ชิ้นส่วนเซ็ตบอส (5 เซ็ต)', none: 'อุปกรณ์ทั่วไป (ไม่มีเซ็ต)' },
+    srcN: { mon: 'มอนดรอป', boss: 'บอสดรอป', gacha: 'ตู้กาชา', world: 'ดรอปทั่วโลก', forge: 'ตีเหล็ก / ของเริ่มต้น' },
+    rarN: { common: 'ธรรมดา', rare: 'หายาก', epic: 'มหากาพย์', legend: 'ตำนาน', fashion: 'แฟชั่น' },
+    kindN: { A: 'ธรรมดา', B: 'มีคุณสมบัติ', C: 'Proc', D: 'บอส', L: 'ตำนาน' },
+    sStat: 'ค่าสเตตัสที่เลือก (มาก→น้อย)', sAtk: 'ATK อาวุธ (มาก→น้อย)', sMon: 'เลเวลมอนที่ดรอป (น้อย→มาก)', farm: 'แมพฟาร์ม',
+    piece2: 'โบนัสใส่ 2 ชิ้น', piece3: 'โบนัสใส่ครบ 3 ชิ้น', passive: 'เอฟเฟกต์พิเศษประจำเซ็ต', partOf: 'ชุดเซ็ต', partOfB: 'เซ็ตบอส',
+    bsetHow: 'สวมใส่ หมวกบอส + เครื่องประดับบอส + อาวุธบอสตัวเดียวกันชนิดใดก็ได้ 1 ชิ้น (ครบ 3 ชิ้น)', bsetW: (n) => `อาวุธบอสในเซ็ตนี้ (${n} ชนิดอาวุธ — คลิกเพื่อดูสเตตัส)`, grade: 'เกรด',
+    boost: (s, j, a, b, c) => `${s} (${j})${a ? ` ดาเมจ +${a}%` : ''}${b ? ` ร่าย −${b}%` : ''}${c ? ` คูลดาวน์ −${c}%` : ''}`,
+    lineN: { hv: 'Heavy (เกราะหนัก)', lt: 'Light (ชุดหนัง)', mg: 'Cloth (ชุดผ้า)', rg: 'Ranger (นักเดินทาง)' },
+    stF: { skill: 'พลังสกิล', cdr: 'คูลดาวน์สกิล', spd: 'ความเร็วเดิน', crit: 'คริ', atk: 'ATK' },
+    ty: { phys: 'กายภาพ', magic: 'เวท', best: 'ATK/MATK สูงกว่า', hybrid: 'ผสม', debuff: 'ดีบัฟ', heal: 'ฮีล', buff: 'บัฟ' },
+    dropFilter: 'กรองของดรอปจากมอน',
+    dropHas: { equip: '🛡️ ดรอปของสวมใส่', set: '🧩 ดรอปของเซ็ต', card: '🃏 มีการ์ดวิชามอน', rune: '💎 ดรอปรูน', rareMat: '✨ วัตถุดิบแรร์' },
+    mapKind: 'ประเภทแผนที่',
+    mapKinds: { field: 'แมพฟาร์ม (Field)', dungeon: 'ดันเจี้ยน (Dungeon)', boss: 'ห้องบอส (Boss)', camp: 'ค่าย/เมือง (Camp)', secret: 'แมพลับ (Secret)' },
+    matCat: 'หมวดหมู่วัตถุดิบ & อาชีพเสริม',
+    matCats: { all: '📦 วัตถุดิบทั้งหมด', rare: '✨ วัตถุดิบแรร์ / บอส', dishes: '🍲 อาหารบัฟ (ทำอาหาร)', fish: '🎣 ปลา (ตกปลา 30 ชนิด)', crops: '🌾 พืชผัก (ปลูกผัก)', ore: '⛏️ แร่ & ไม้ (ขุดแร่/ตัดไม้)', refine: '🔨 ตารางตีบวก (+1 ถึง +10)' },
+    notes: {
+      split: (n, h, k) => `ยิงทั้งสกิลซ้ำอีก ${n} ชุด เอียงข้างละ 12.6°${h > 1 ? ` (${h} → ${h * (1 + n)} ฮิต)` : ''} ทุกฮิต −${Math.round((1 - k) * 100)}%`,
+      splitIn: (b, n, k) => `เติมเม็ดในกรวยเดิม ${b} → ${b + n} เม็ด ทุกเม็ด −${Math.round((1 - k) * 100)}%`,
+      pierce: () => 'ทะลุศัตรูในแนว',
+      bounce: (n, h, k) => `เด้งต่อ ${n} ตัว ตัวละ ${Math.round(k * 100)}% ได้ 1 ชุดต่อการกด${h > 1 ? ` (สกิลนี้ ${h} ฮิต แต่เด้งได้ทุก 0.12 วิ)` : ''} ต้องมีตัวถัดไป`,
+      echo: (h, k, d) => `ร่ายซ้ำทั้งสกิล${h > 1 ? ` (${h} ฮิต)` : ''} ที่ ${Math.round(k * 100)}%${d > 0 ? ` · สกิลนี้ตีนาน ${d} วิ: ลดเฉพาะฮิตในช่วง 1.2 วิหลังร่ายซ้ำ` : ''}`,
+      area: (s) => `พื้นที่ ×${s.toFixed(2)}`,
+      linger: (d, h) => `วงค้าง ${d} วิ ตีเท่าฮิตเดียว${h > 1 ? ` (สกิลนี้ ${h} ฮิต/ครั้ง)` : ''} ถ้าเป้ายืนในวง`,
+      haste: (c) => `คูลดาวน์ ×${c.toFixed(2)} (ดาเมจต่อเวลา)`,
+      delay: (c, k) => `ดีเลย์หลังร่าย ×${c.toFixed(2)} · ถ้ากดรัวจนติดดีเลย์ เหลือ ×${(k / c).toFixed(2)}`,
+      blood: (h) => `ใช้ HP แทน SP (1 SP = ${h.toFixed(2)} HP)`,
+      execute: (a, k) => `×${k.toFixed(2)} เมื่อเป้าเลือด < ${a * 100}% (เฉลี่ยทั้งตัว)`,
+      corrode: (h, k) => `พิษ ${Math.round(k * 100)}% ของฮิต ติดใหม่ได้เมื่อพิษเดิมเหลือ ≤2 วิ${h > 1 ? ` (ราว 1 ครั้งต่อการกด จาก ${h} ฮิต)` : ''}`,
+      curse: (f, cd) => (f >= 1 ? 'เป้ารับดาเมจเพิ่ม 5 วิ (ฮิตแรกไม่ได้ แต่ฮิตต่อๆ ไปได้)' : f > 0 ? `ฮิตแรกไม่ได้: นับ ${Math.round(f * 100)}% ของฮิต` : `สกิลนี้ฮิตเดียว CD ${cd} วิ: ไม่ได้ประโยชน์เอง`) + ' · ตีธรรมดา/สกิลอื่นของเราได้ด้วย',
+      skyfall: (n, h) => `ดาวตก ${n} ลูก ตีเท่าฮิตเดียว${h > 1 ? ` (สกิลนี้ ${h} ฮิต/ครั้ง)` : ''}`,
+      rush: () => 'พุ่งเข้าหาเป้าก่อนตี',
+      ambush: (h) => `เฉพาะฮิตแรกที่โดนมอนแต่ละตัว${h > 1 ? ` (1 จาก ${h} ฮิต)` : ''}`,
+      night: () => 'กลางคืน',
+      day: () => 'กลางวัน (ลดดาเมจ)',
+      procPack: () => 'Proc (ค่าที่เกมประกาศ)',
+      procAlone: (a) => a ? `Proc ใส่ตัวเดียวได้ ×${a}` : 'Proc ไม่ทำงานกับเป้าตัวเดียว',
+      armor: (v) => `เจาะเกราะ ${v}% (ขึ้นกับเกราะมอน)`,
+      guard: (g) => `ลดดาเมจที่รับ ${Math.round(g * 100)}%`,
+      util: () => 'ยูทิลิตี้ ไม่เพิ่มดาเมจ',
+    },
+  },
+  en: {
+    monsters: '👾 Monsters', equip: '🛡️ Equipment', sets: '🧩 Sets', cards: '🃏 Cards', runes: '💎 Runes', skills: '⚔️ Skills', maps: '🗺️ Maps', mats: '🧪 Materials & Life',
+    reset: '🔄 Clear filters', sort: 'Sort by', all: 'All',
+    qMonsters: 'Search monsters: name, drops, card, rune, map, element, race ...',
+    qCards: 'Search cards: monster, card art, map, effect ...',
+    qRunes: 'Search runes: rune name, description, drop monster ...',
+    qSkills: 'Search skills: skill name, job, fitting rune ...',
+    qEquip: 'Search equipment: item, stat, skill bonus, set, drop monster ...',
+    qSets: 'Search sets & boss sets: set name, 2pc/3pc bonus, passive, pieces ...',
+    qMaps: 'Search maps: map name, region, monsters, drops ...',
+    qMats: 'Search materials, buff dishes, fish, ore, wood ...',
+    meta: (m, i, s, c, r, sk, mp) => `${m} monsters · ${i} items · ${s} sets · ${c} cards · ${r} runes · ${sk} skills · ${mp} maps`,
+    count: (a, b, u) => `Showing ${a.toLocaleString()} / ${b.toLocaleString()} ${u}`,
+    uMon: 'monsters', uCard: 'cards', uRune: 'runes', uSkill: 'skills', uItem: 'items', uSet: 'sets', uMap: 'maps', uMat: 'entries',
+    none: 'No entries match your filters.',
+    effects: 'Card effects', anyOf: 'Any of them', allOf: 'All of them', sub: 'Element / status of the effect', trig: 'Trigger',
+    mtype: 'Monster type', region: 'Region', race: 'Race', artEl: 'Art element', defEl: 'Monster element', lv: 'Level range', min: 'min', max: 'max',
+    allRegions: 'All regions', allRaces: 'All races', allEls: 'All elements',
+    sVal: 'Chosen effect value (high→low)', sLv: 'Level (low→high)', sLvd: 'Level (high→low)', sCd: 'Cooldown (low→high)', sName: 'Name',
+    sExp: 'Base EXP (high→low)', sJexp: 'Job EXP (high→low)', sHp: 'HP (low→high)', sDrops: 'Drop count (high→low)',
+    sGain: 'Damage gain (high→low)', sBest: 'Best 2-rune combo (high→low)', sJob: 'Job',
+    sPrice: 'NPC price (high→low)',
+    dropsRune: 'Drops rune', cdS: (s) => `CD ${s} s`,
+    kind: 'Rune kind', fitsOn: 'Goes into', job: 'Job', allJobs: 'All jobs', onlyJob: 'Only runes this job can use',
+    kinds: { skill: 'Skill rune', proc: 'Proc rune', pierce: 'Pierce rune', gun: 'Gun rune' },
+    splitL: 'Split', near: 'Near (all volleys hit)', far: 'Far (middle volley only)', nearTip: 'The split rune recasts the skill turned 12.6° each side: a lone target close by takes every volley, a far one only the middle (the buckshot adds pellets to its own cone instead)',
+    tier: 'Tier', target: 'Target', single: 'Single', pack: 'Pack', nT: 'Monsters', time: 'Time', night: 'Night', day: 'Day',
+    rollB: 'Bonus roll', rollD: 'Drawback roll', mode: 'Rule', modeS2: 'Online SS2 (+50% cap)', modeOff: 'Offline (plain multiply)',
+    gainLbl: 'Skill damage total', noDmg: 'No direct damage', fitSkills: (n) => `Fits ${n} skills`, dropFrom: 'Drops from', spellDrop: (lv, els, r) => `Lv ${lv}+ ${els} monsters · ${r}% a kill`,
+    noDrop: 'No monster drops it', basicSlot: 'Also fits the basic attack slots (Lv 40 / 70)',
+    help: '💡 Hover any Monster, Item, Set, Card, Rune, or Map to preview its full stats & drops, or click it to inspect and cross-navigate!',
+    perCast: 'a cast', hitsL: 'hits a cast', hitsTip: 'Hits one cast deals, guessed from the skill text; change it if wrong (it matters for Linger and Skyfall, which are worth one hit)',
+    noHit: 'This skill deals no damage itself (buff / heal / debuff / setup ...), so damage runes do nothing; the table says what each rune does here instead',
+    nd: { haste: (c) => `Cooldown ×${c.toFixed(2)}: cast the buff more often (its −10% damage does nothing)`, blood: (h) => `Pays HP instead of SP (1 SP = ${h} HP); its damage bonus does nothing`, none: () => 'No effect: this skill deals no damage' },
+    blockH: 'Block runes', blockTip: 'Blocked runes are left out of the best single / best combo (or press 🚫 in a skill’s rune table)', unblock: (n) => `Unblock all (${n})`,
+    blockOne: 'Block this rune', unblockOne: 'Unblock', blockedN: (n) => `${n} blocked rune(s) left out`,
+    acceptRune: 'Accepts rune', anyRune: 'Any rune', skType: 'Skill type', slots: (a, b) => `Rune slots at Lv ${a}${b ? ' / ' + b : ''}`,
+    bestOne: 'Best single rune', bestTwo: 'Best 2-rune combo', allFit: (n) => `Every rune that fits (${n})`, mulAtk: (m) => `${m}% ATK at max level`,
+    onlyAny: 'Only the all-skill runes fit (Swift / Blood / Moon)',
+    eItems: 'Items', eSets: 'Sets & Boss Sets', slot: 'Slot', rarity: 'Rarity', hasStat: 'Has stat', setF: 'Set type', line: 'Set line',
+    wtype: 'Weapon type', allWt: 'All weapon types', source: 'Comes from', itemLv: 'Item level', view: 'Show as',
+    setFlags: { set: 'Armour set piece (80 sets)', bset: 'Boss set piece (5 sets)', none: 'No set' },
+    srcN: { mon: 'Monster drop', boss: 'Boss drop', gacha: 'Gacha', world: 'World drop', forge: 'Forge / starter' },
+    rarN: { common: 'Common', rare: 'Rare', epic: 'Epic', legend: 'Legend', fashion: 'Fashion' },
+    kindN: { A: 'Plain', B: 'Trait', C: 'Proc', D: 'Boss', L: 'Legend' },
+    sStat: 'Chosen stat value (high→low)', sAtk: 'Weapon ATK (high→low)', sMon: 'Drop monster level (low→high)', farm: 'Farm at',
+    piece2: '2 pieces', piece3: 'Full 3 pieces', passive: 'Set ability', partOf: 'Armour set', partOfB: 'Boss set',
+    bsetHow: 'Wear the hat + accessory + any one weapon of the same boss', bsetW: (n) => `Set weapons (${n} kinds)`, grade: 'Grade',
+    boost: (s, j, a, b, c) => `${s} (${j})${a ? ` +${a}% damage` : ''}${b ? ` −${b}% cast` : ''}${c ? ` −${c}% cooldown` : ''}`,
+    lineN: { hv: 'Heavy', lt: 'Light', mg: 'Cloth', rg: 'Ranger' },
+    stF: { skill: 'Skill power', cdr: 'Skill cooldown', spd: 'Move speed', crit: 'Critical', atk: 'ATK' },
+    ty: { phys: 'Physical', magic: 'Magic', best: 'Higher of ATK/MATK', hybrid: 'Hybrid', debuff: 'Debuff', heal: 'Heal', buff: 'Buff' },
+    dropFilter: 'Filter monster drops',
+    dropHas: { equip: '🛡️ Drops Equipment', set: '🧩 Drops Set Piece', card: '🃏 Has Monster Card', rune: '💎 Drops Rune', rareMat: '✨ Rare Material' },
+    mapKind: 'Map kind',
+    mapKinds: { field: 'Field', dungeon: 'Dungeon', boss: 'Boss Room', camp: 'Camp', secret: 'Secret Map' },
+    matCat: 'Materials & Life Skills',
+    matCats: { all: '📦 All Materials', rare: '✨ Rare / Boss Materials', dishes: '🍲 Buff Dishes (Cooking)', fish: '🎣 Fish (30 species)', crops: '🌾 Crops (Farming)', ore: '⛏️ Ore & Wood', refine: '🔨 Refine Table (+1..+10)' },
+    notes: {
+      split: (n, h, k) => `Recasts the whole skill ${n} more time(s), turned 12.6° each side${h > 1 ? ` (${h} → ${h * (1 + n)} hits)` : ''}, every hit −${Math.round((1 - k) * 100)}%`,
+      splitIn: (b, n, k) => `Extra pellets in the same cone: ${b} → ${b + n}, each −${Math.round((1 - k) * 100)}%`,
+      pierce: () => 'Pierces the line',
+      bounce: (n, h, k) => `Bounces on to ${n} more at ${Math.round(k * 100)}%, one chain a cast${h > 1 ? ` (this skill hits ${h}×, a chain only every 0.12 s)` : ''}; needs another target`,
+      echo: (h, k, d) => `Recasts the whole skill${h > 1 ? ` (${h} hits)` : ''} at ${Math.round(k * 100)}%${d > 0 ? ` · lasts ${d} s: only hits within 1.2 s of the recast are cut` : ''}`,
+      area: (s) => `Area ×${s.toFixed(2)}`,
+      linger: (d, h) => `Ring ${d} s at one hit's power${h > 1 ? ` (this skill: ${h} hits a cast)` : ''}, if the target stays`,
+      haste: (c) => `Cooldown ×${c.toFixed(2)} (damage over time)`,
+      delay: (c, k) => `After-cast delay ×${c.toFixed(2)} · spammed into its delay: ×${(k / c).toFixed(2)}`,
+      blood: (h) => `HP instead of SP (1 SP = ${h.toFixed(2)} HP)`,
+      execute: (a, k) => `×${k.toFixed(2)} below ${a * 100}% HP (averaged)`,
+      corrode: (h, k) => `Poison worth ${Math.round(k * 100)}% of a hit, set again only at ≤2 s left${h > 1 ? ` (about once a cast of ${h} hits)` : ''}`,
+      curse: (f, cd) => (f >= 1 ? 'Target takes more for 5 s (not your first hit, the next ones)' : f > 0 ? `Not the first hit: counts ${Math.round(f * 100)}% of the hits` : `One hit, CD ${cd} s: no gain for this skill itself`) + ' · your basic attacks / other skills gain too',
+      skyfall: (n, h) => `${n} falling star(s) at one hit's power${h > 1 ? ` (this skill: ${h} hits a cast)` : ''}`,
+      rush: () => 'Dashes in before the hit',
+      ambush: (h) => `Only your first hit on each monster${h > 1 ? ` (1 of ${h} hits)` : ''}`,
+      night: () => 'Night',
+      day: () => 'Day (less damage)',
+      procPack: () => 'Proc (game’s figure)',
+      procAlone: (a) => a ? `Proc alone on one target ×${a}` : 'Proc does nothing on a lone target',
+      armor: (v) => `Armour pierce ${v}% (depends on the monster)`,
+      guard: (g) => `Take ${Math.round(g * 100)}% less damage`,
+      util: () => 'Utility, no damage',
+    },
+  },
+};
+
+const CARD_KEY = {
+  amp: ['ดาเมจธาตุ +%', 'Element damage +%'], sp: ['ลด SP สกิล', 'Skill SP cost −'], dbl: ['Double attack', 'Double attack'], hp: ['Max HP +%', 'Max HP +%'],
+  area: ['ระยะสกิล +%', 'Skill area +%'], cdr: ['ลดคูลดาวน์สกิล', 'Skill cooldown −'], cast: ['ลด Cast time', 'Cast time −'], boss: ['ดาเมจใส่บอส', 'Damage to bosses'],
+  react: ['Reactions +%', 'Reactions +%'], leech: ['Life steal (ดูดเลือด)', 'Life steal'], critd: ['Crit damage', 'Crit damage'], res: ['ลดดาเมจธาตุที่รับ', 'Element damage taken −'],
+  est: ['โอกาสติดสถานะ (ธาตุ)', 'Status chance (element)'], status: ['ทำให้ศัตรูติดสถานะ', 'Inflict status'], guard: ['ลดดาเมจที่รับ (ชั่วคราว)', 'Damage taken − (short)'],
+  heal: ['ฮีล HP', 'Heal HP'], haste: ['ตี+เดินเร็วขึ้น', 'Attack & move faster'], vuln: ['ศัตรูรับดาเมจเพิ่ม', 'Target takes more'], spirit: ['เรียกวิญญาณช่วยตี', 'Spirit fights beside you'],
+  dmg: ['Spirit strike', 'Spirit strike'], burst: ['Spirit burst', 'Spirit burst'],
+};
+const TRIG = {
+  always: ['Always (ติดตัว)', 'Always'], hit: ['ตอนตีโดน', 'On hit'], far: ['ตีระยะไกล', 'Far hit'], first: ['ตีแรกใส่มอน', 'First hit'], kill: ['ตอนฆ่า', 'On kill'],
+  skill: ['ตอนใช้สกิล', 'On skill'], dash: ['ตอน dash', 'On dash'], hurt: ['ตอนโดนตี', 'When hit'], crowd: ['มอนรอบตัว 3 ตัว', '3 monsters around'], low: ['HP ต่ำกว่า 40%', 'HP under 40%'], crit: ['ตอนคริ', 'On crit'],
+};
+const STATUS_TH = { Burn: 'ติดไฟ', Poison: 'พิษ', Shock: 'ช็อต', Crack: 'แตกร้าว', Freeze: 'แช่แข็ง', Slow: 'ช้า', Stun: 'มึน', Bleed: 'เลือดไหล', Chill: 'หนาว', Blind: 'ตาบอด', Curse: 'คำสาป', Silence: 'ใบ้', Sleep: 'หลับ', burn: 'ติดไฟ', poison: 'พิษ', shock: 'ช็อต', crack: 'แตกร้าว', freeze: 'แช่แข็ง', slow: 'ช้า', stun: 'มึน', bleed: 'เลือดไหล', chill: 'หนาว', blind: 'ตาบอด', curse: 'คำสาป', silence: 'ใบ้', sleep: 'หลับ' };
+const TYPE_N = { Field: ['ทั่วไป', 'Field'], Elite: ['อีลิท', 'Elite'], Boss: ['บอส', 'Boss'], 'Root Boss': ['บอสราก', 'Root Boss'], 'Story Boss': ['บอสเนื้อเรื่อง', 'Story Boss'] };
+const TRIG_C = { always: '#10b981', hit: '#3b82f6', far: '#06b6d4', first: '#8b5cf6', kill: '#ef4444', skill: '#6366f1', dash: '#f59e0b', hurt: '#d97706', crowd: '#65a30d', low: '#dc2626', crit: '#ec4899' };
+const TYPE_C = { Field: '#10b981', Elite: '#f59e0b', Boss: '#ef4444', 'Root Boss': '#7c3aed', 'Story Boss': '#a855f7' };
+const EL_C = { neutral: '#64748b', water: '#3b82f6', earth: '#b45309', fire: '#ef4444', wind: '#10b981', poison: '#8b5cf6', holy: '#eab308', shadow: '#4c1d95', ghost: '#6366f1', undead: '#4d7c0f' };
+const KIND_C = { skill: '#7c3aed', proc: '#e11d48', pierce: '#2563eb', gun: '#d97706' };
+const ON_C = { proj: '#2563eb', area: '#d97706', melee: '#e11d48', attack: '#7c3aed', buff: '#059669', pet: '#b45309', any: '#64748b' };
+const RAR_C = { common: '#64748b', rare: '#3b82f6', epic: '#a855f7', legend: '#f59e0b', fashion: '#ec4899' };
+const LINE_C = { hv: '#ef4444', lt: '#10b981', mg: '#8b5cf6', rg: '#f59e0b' };
+const SLOT_ORDER = ['weapon', 'hat', 'top', 'pants', 'robe', 'acc', 'glasses', 'cape', 'shield'];
+const ST_PCT = new Set(['crit', 'atk', 'skill', 'cdr', 'spd', 'hpPct', 'spPct', 'matk']);
+const ST_ORDER = ['str', 'agi', 'vit', 'int', 'dex', 'luk', 'def', 'mdef', 'hp', 'sp', 'hit', 'flee', 'crit', 'atk', 'skill', 'cdr', 'spd'];
+const ROMAN = ['', 'I', 'II', 'III'];
+const ATL = 'https://play.nightcamp.app/wiki/data/wiki_';
+
+function ico(ic, size) {
+  if (!ic) return `<i class="ai" style="width:${size}px;height:${size}px"></i>`;
+  const [kind, i] = ic, m = D.meta.atlas[kind];
+  if (!m) return `<i class="ai" style="width:${size}px;height:${size}px"></i>`;
+  const k = size / m.cell, rows = Math.ceil(m.n / m.cols);
+  const file = `${ATL}${kind === 'h128' ? 'hats128' : kind}.webp?v=${D.meta.atlasV}`;
+  return `<i class="ai" style="width:${size}px;height:${size}px;background:url(${file}) -${(i % m.cols) * m.cell * k}px -${Math.floor(i / m.cols) * m.cell * k}px/${m.cols * m.cell * k}px ${rows * m.cell * k}px no-repeat"></i>`;
+}
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const pctS = (f) => (f >= 0 ? '+' : '−') + Math.abs(f * 100).toFixed(1).replace(/\.0$/, '') + '%';
+const fmtRate = (r) => r == null ? '' : (r * 100 >= 1 ? +(r * 100).toFixed(2) : +(r * 100).toFixed(4)) + '%';
+
+let LANG = localStorage.getItem('lang') || 'th';
+const VALID_VIEWS = ['monsters', 'equip', 'sets', 'cards', 'runes', 'skills', 'maps', 'mats'];
+let VIEW = localStorage.getItem('view') || 'monsters';
+if (!VALID_VIEWS.includes(VIEW)) VIEW = 'monsters';
+const T = () => UI[LANG];
+const L = (o) => (o == null ? '' : typeof o === 'string' ? o : (o[LANG] || o.th || o.en || ''));
+const P = (arr) => arr[LANG === 'th' ? 0 : 1];
+let D, S;
+let PINNED = new Set(JSON.parse(localStorage.getItem('nc_wiki_pins') || '[]'));
+let PIN_ONLY = false;
+let NAV_HISTORY = [];
+
+function togglePin(key) {
+  if (PINNED.has(key)) PINNED.delete(key);
+  else PINNED.add(key);
+  localStorage.setItem('nc_wiki_pins', JSON.stringify([...PINNED]));
+  updatePinUI();
+}
+function updatePinUI() {
+  const el = document.getElementById('pin-count');
+  if (el) el.textContent = PINNED.size;
+  const btn = document.getElementById('btn-pinned-only');
+  if (btn) btn.classList.toggle('on', PIN_ONLY);
+}
+function pinBtnHtml(key) {
+  const on = PINNED.has(key);
+  return `<button type="button" class="pin-btn${on ? ' on' : ''}" data-pin="${esc(key)}" title="${on ? 'เอาออกจากรายการปักหมุด' : 'ปักหมุดรายการนี้'}">${on ? '⭐' : '☆'}</button>`;
+}
+
+const CALC0 = () => ({ tier: 3, n: 1, night: true, qb: 0, qd: 0, mode: 's2', near: true });
+const fresh = () => ({
+  q: '',
+  // monsters
+  mType: new Set(), mReg: '', mRace: '', mEl: '', mDrops: new Set(), mLvMin: '', mLvMax: '', sortM: 'lv',
+  // cards
+  keys: new Set(), mode: 'any', trig: new Set(), sub: '', type: new Set(), region: '', race: '', artEl: '', lvMin: '', lvMax: '', sortC: 'val',
+  // runes
+  rKind: new Set(), rOn: new Set(), rJob: '', sortR: 'gain',
+  // skills
+  sJob: '', sRune: '', sTy: new Set(), sortS: 'best',
+  // equip & sets
+  eMode: 'items', eSlot: new Set(), eRar: new Set(), eStat: new Set(), eSet: new Set(), eLine: new Set(), eSrc: new Set(), eWt: '', eLvMin: '', eLvMax: '', sortE: 'mon',
+  // maps
+  mpReg: '', mpKind: new Set(), sortMp: 'lv',
+  // mats & life
+  mtCat: 'all', sortMt: 'price',
+  calc: (S && S.calc) || CALC0(),
+});
+
+fetch('data.json').then((r) => r.json()).then((j) => {
+  D = j;
+  D.monsters = D.monsters || [];
+  D.maps = D.maps || [];
+  D.materials = D.materials || [];
+  D.life = D.life || { skills: [], dishes: [], crops: [], fish: [], ore: [], wood: [], refine: {} };
+  S = fresh();
+
+  D.R = Object.fromEntries(D.runes.map((r) => [r.k, r]));
+  D.J = Object.fromEntries(D.jobs.map((x) => [x.id, x]));
+  D.C = Object.fromEntries(D.cards.map((c) => [c.id, c]));
+  D.M = Object.fromEntries(D.monsters.map((m) => [m.id, m]));
+  D.MP = Object.fromEntries(D.maps.map((m) => [m.id, m]));
+  D.MT = Object.fromEntries(D.materials.map((m) => [m.id, m]));
+
+  // Map Thai/EN display name -> mapId for reverse lookup
+  D.MAP_BY_NAME = {};
+  for (const mp of D.maps) {
+    if (mp.n.th) D.MAP_BY_NAME[mp.n.th] = mp.id;
+    if (mp.n.en) D.MAP_BY_NAME[mp.n.en] = mp.id;
+  }
+  // Monster Thai/EN display name -> monId
+  D.MON_BY_NAME = {};
+  for (const m of D.monsters) {
+    if (m.n.th) D.MON_BY_NAME[m.n.th] = m.id;
+    if (m.n.en) D.MON_BY_NAME[m.n.en] = m.id;
+  }
+
+  D.fitBy = {};
+  for (const s of D.skills) for (const k of s.fit) (D.fitBy[k] = D.fitBy[k] || []).push(s);
+
+  const E = D.equip;
+  E.I = Object.fromEntries(E.items.map((i) => [i.id, i]));
+  E.S = Object.fromEntries(E.sets.map((s) => [s.id, s]));
+  E.B = Object.fromEntries(E.bsets.map((b) => [b.boss, b]));
+
+  // Build search text index for every entity
+  for (const c of D.cards) {
+    c._t = [c.id, c.mon.en, c.mon.th, c.art.en, c.art.th, c.d.en, c.d.th, ...c.maps.flatMap((m) => [m.en, m.th]), ...c.eff.flatMap((e) => e.txt.flatMap((x) => [x.en, x.th]))].join(' ').toLowerCase();
+  }
+  for (const r of D.runes) {
+    r._t = [r.k, r.n.en, r.n.th, ...r.t.flatMap((x) => [x.en, x.th]), ...(r.drops || []).flatMap((d) => [d[3].en, d[3].th])].join(' ').toLowerCase();
+  }
+  for (const s of D.skills) {
+    s.dmg = !!s.mul && !['buff', 'heal'].includes(s.type);
+    const J = D.J[s.job] || { n: { en: '', th: '' } };
+    s._t = [s.id, s.n.en, s.n.th, s.d.en, s.d.th, J.n.en, J.n.th].join(' ').toLowerCase();
+  }
+  for (const i of E.items) {
+    const st = i.set && E.S[i.set], bs = i.bset && E.B[i.bset];
+    i._t = [i.id, i.n.en, i.n.th, i.d.en, i.d.th, i.ab && i.ab.en, i.ab && i.ab.th, i.src.n && i.src.n.en, i.src.n && i.src.n.th, st && st.n.en, st && st.n.th, bs && bs.n.en, bs && bs.n.th, i.wt && E.wt[i.wt] && E.wt[i.wt].th, i.wt, ...(i.wsk || []).flatMap((w) => [w[0].en, w[0].th, w[1].en, w[1].th])].filter(Boolean).join(' ').toLowerCase();
+  }
+  for (const s of E.sets) {
+    s._t = [s.id, s.n.en, s.n.th, s.b2.en, s.b2.th, s.b3.en, s.b3.th, s.pas.en, s.pas.th, ...s.pcs.flatMap((p) => { const i = E.I[p]; return i ? [i.n.en, i.n.th, i._t] : []; })].join(' ').toLowerCase();
+  }
+  for (const b of E.bsets) {
+    b._t = [b.boss, b.n.en, b.n.th, b.bn.en, b.bn.th, b.text.en, b.text.th].join(' ').toLowerCase();
+  }
+  for (const m of D.monsters) {
+    const c = D.C[m.id];
+    const rn = m.rune && D.R[m.rune[0]];
+    const dropNames = (m.drops || []).flatMap(([iid]) => {
+      const it = E.I[iid];
+      if (!it) return [];
+      const st = it.set && E.S[it.set];
+      return [it.n.en, it.n.th, st && st.n.en, st && st.n.th];
+    });
+    const matNames = (m.mats || []).flatMap(([mid]) => {
+      const mt = D.MT[mid];
+      return mt ? [mt.n.en, mt.n.th] : [];
+    });
+    m._hasSetDrop = (m.drops || []).some(([iid]) => E.I[iid] && (E.I[iid].set || E.I[iid].bset));
+    m._hasRareMat = (m.mats || []).some(([mid]) => D.MT[mid] && D.MT[mid].rare);
+    m._t = [
+      m.id, m.n.en, m.n.th, `lv${m.lv}`, `lv ${m.lv}`,
+      m.el, D.meta.el[m.el]?.th, m.race, D.meta.race[m.race]?.th,
+      ...m.maps.flatMap((mp) => [mp.en, mp.th]),
+      ...(c ? [c.art.en, c.art.th, c.d.en, c.d.th] : []),
+      ...(rn ? [rn.n.en, rn.n.th] : []),
+      ...dropNames, ...matNames
+    ].filter(Boolean).join(' ').toLowerCase();
+  }
+  for (const mp of D.maps) {
+    const monNames = (mp.mons || []).flatMap((mid) => {
+      const m = D.M[mid];
+      return m ? [m.n.en, m.n.th, m._t] : [];
+    });
+    const lvM = /(\d+)/.exec(mp.lv || '');
+    mp._lvNum = lvM ? +lvM[1] : (mp.mons && mp.mons.length && D.M[mp.mons[0]] ? D.M[mp.mons[0]].lv : 1);
+    mp._t = [mp.id, mp.n.en, mp.n.th, mp.lv, D.meta.reg[mp.region]?.th, D.meta.reg[mp.region]?.en, ...(mp.zones || []).flatMap((z) => [z.en, z.th]), ...monNames].filter(Boolean).join(' ').toLowerCase();
+  }
+  for (const mt of D.materials) {
+    mt._t = [mt.id, mt.n.en, mt.n.th, mt.d.en, mt.d.th, mt.from && mt.from.en, mt.from && mt.from.th, ...(mt.drops || []).flatMap((d) => [d[3].en, d[3].th])].filter(Boolean).join(' ').toLowerCase();
+  }
+
+  wire();
+  updatePinUI();
+  render();
+});
+
+function wire() {
+  document.getElementById('tabs').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-view]');
+    if (!b) return;
+    switchView(b.dataset.view);
+  });
+  document.getElementById('omni-strip').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-oview]');
+    if (!b) return;
+    switchView(b.dataset.oview);
+  });
+  document.getElementById('lang').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-l]');
+    if (!b) return;
+    LANG = b.dataset.l;
+    localStorage.setItem('lang', LANG);
+    render();
+  });
+  const qIn = document.getElementById('q');
+  const qClr = document.getElementById('q-clear');
+  qIn.addEventListener('input', (e) => {
+    S.q = e.target.value;
+    qClr.classList.toggle('show', Boolean(S.q));
+    draw();
+    drawOmniStrip();
+  });
+  qClr.addEventListener('click', () => {
+    S.q = '';
+    qIn.value = '';
+    qClr.classList.remove('show');
+    draw();
+    drawOmniStrip();
+    qIn.focus();
+  });
+  window.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      qIn.focus();
+      qIn.select();
+    } else if (e.key === 'Escape') {
+      closeInspector();
+    }
+  });
+  document.getElementById('sort').addEventListener('change', (e) => {
+    S[sortKey()] = e.target.value;
+    draw();
+  });
+  document.getElementById('reset').addEventListener('click', () => {
+    S = fresh();
+    PIN_ONLY = false;
+    qIn.value = '';
+    qClr.classList.remove('show');
+    updatePinUI();
+    render();
+  });
+  document.getElementById('btn-pinned-only').addEventListener('click', () => {
+    PIN_ONLY = !PIN_ONLY;
+    updatePinUI();
+    draw();
+  });
+
+  const side = document.getElementById('side');
+  side.addEventListener('click', (ev) => {
+    const b = ev.target.closest('button');
+    if (!b) return;
+    if (b.dataset.block) toggleBlock(b.dataset.block);
+    else if (b.dataset.unblock) { BLOCK.clear(); localStorage.setItem('blocked', '[]'); }
+    else if (b.dataset.mode) S.mode = b.dataset.mode;
+    else if (b.dataset.emode) {
+      if (b.dataset.emode === 'sets') { switchView('sets'); return; }
+      S.eMode = b.dataset.emode;
+    } else if (b.dataset.mtcat) {
+      S.mtCat = b.dataset.mtcat;
+    } else if (b.parentElement.dataset.set) {
+      const set = S[b.parentElement.dataset.set];
+      const v = b.dataset.v;
+      set.has(v) ? set.delete(v) : set.add(v);
+    }
+    drawSide();
+    draw();
+  });
+  side.addEventListener('change', (ev) => {
+    const t = ev.target;
+    if (t.dataset.sel != null) { S[t.dataset.sel] = t.value; drawSide(); draw(); }
+  });
+  side.addEventListener('input', (ev) => {
+    const t = ev.target;
+    if (t.dataset.num) { S[t.dataset.num] = t.value; draw(); }
+  });
+
+  document.getElementById('grid').addEventListener('change', (ev) => {
+    const el = ev.target.closest('[data-hits]');
+    if (!el) return;
+    const s = D.skills.find((x) => x.id === el.dataset.hits), v = Math.max(1, Math.round(+el.value || 1));
+    if (v === s.hits) delete HITS[s.id]; else HITS[s.id] = v;
+    localStorage.setItem('hits', JSON.stringify(HITS));
+    draw();
+  });
+
+  // Global delegated click handler for Pins, Rune Blocking, Set links & Cross-Entity Navigation (`data-go`)
+  document.addEventListener('click', (ev) => {
+    const pinB = ev.target.closest('[data-pin]');
+    if (pinB) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      togglePin(pinB.dataset.pin);
+      pinB.classList.toggle('on', PINNED.has(pinB.dataset.pin));
+      pinB.textContent = PINNED.has(pinB.dataset.pin) ? '⭐' : '☆';
+      if (PIN_ONLY) draw();
+      return;
+    }
+    const blkB = ev.target.closest('#grid button[data-block]');
+    if (blkB) {
+      ev.preventDefault();
+      toggleBlock(blkB.dataset.block);
+      const open = [...document.querySelectorAll('#grid details[open]')].map((d) => d.closest('.c')?.dataset?.sid).filter(Boolean);
+      drawSide();
+      draw();
+      for (const id of open) {
+        const d = document.querySelector(`#grid .c[data-sid="${id}"] details`);
+        if (d) d.open = true;
+      }
+      return;
+    }
+    const goSet = ev.target.closest('[data-goset]');
+    if (goSet) {
+      ev.preventDefault();
+      switchView('sets');
+      S.q = goSet.dataset.goset;
+      document.getElementById('q').value = S.q;
+      document.getElementById('q-clear').classList.add('show');
+      drawSide();
+      draw();
+      scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    const goEl = ev.target.closest('[data-go]');
+    if (goEl) {
+      ev.preventDefault();
+      const [kind, id] = goEl.dataset.go.split(':');
+      openInspector(kind, id, true);
+      return;
+    }
+  });
+
+  // Inspector controls
+  document.getElementById('inspector-backdrop').addEventListener('click', (e) => {
+    if (e.target.id === 'inspector-backdrop') closeInspector();
+  });
+  document.getElementById('insp-close').addEventListener('click', closeInspector);
+  document.getElementById('insp-back').addEventListener('click', () => {
+    if (NAV_HISTORY.length > 1) {
+      NAV_HISTORY.pop();
+      const prev = NAV_HISTORY[NAV_HISTORY.length - 1];
+      openInspector(prev.kind, prev.id, false);
+    }
+  });
+  document.getElementById('insp-jump-tab').addEventListener('click', () => {
+    const cur = NAV_HISTORY[NAV_HISTORY.length - 1];
+    if (!cur) return;
+    closeInspector();
+    jumpToEntityInTab(cur.kind, cur.id);
+  });
+
+  const cb = document.getElementById('calcbar');
+  cb.addEventListener('click', (ev) => {
+    const b = ev.target.closest('button[data-c]');
+    if (!b) return;
+    const [k, v] = b.dataset.c.split('=');
+    S.calc[k] = k === 'night' || k === 'near' ? v === '1' : isNaN(+v) ? v : +v;
+    drawCalc();
+    draw();
+  });
+  cb.addEventListener('input', (ev) => {
+    const t = ev.target;
+    if (!t.dataset.ci) return;
+    S.calc[t.dataset.ci] = t.type === 'range' ? +t.value / 100 : Math.max(2, +t.value || 2);
+    if (t.type === 'range') t.nextElementSibling.textContent = pctS(+t.value / 100);
+    draw();
+  });
+}
+
+function switchView(v) {
+  if (!VALID_VIEWS.includes(v)) return;
+  VIEW = v;
+  if (v === 'sets') S.eMode = 'sets';
+  else if (v === 'equip') S.eMode = 'items';
+  localStorage.setItem('view', VIEW);
+  render();
+}
+
+const sortKey = () => ({
+  monsters: 'sortM', equip: 'sortE', sets: 'sortE', cards: 'sortC', runes: 'sortR', skills: 'sortS', maps: 'sortMp', mats: 'sortMt'
+}[VIEW]);
+
+function render() {
+  document.documentElement.lang = LANG;
+  const countsByView = {
+    monsters: D.monsters.length,
+    equip: D.equip.items.length,
+    sets: D.equip.sets.length + D.equip.bsets.length,
+    cards: D.cards.length,
+    runes: D.runes.length,
+    skills: D.skills.length,
+    maps: D.maps.length,
+    mats: D.materials.length
+  };
+  document.querySelectorAll('#tabs [data-view]').forEach((b) => {
+    const k = b.dataset.view;
+    b.innerHTML = `<span>${T()[k]}</span><span class="tab-badge">${countsByView[k] || 0}</span>`;
+    b.classList.toggle('on', k === VIEW);
+  });
+  document.querySelectorAll('#lang [data-l]').forEach((b) => b.classList.toggle('on', b.dataset.l === LANG));
+  const qPlaceholderKey = {
+    monsters: 'qMonsters', equip: 'qEquip', sets: 'qSets', cards: 'qCards', runes: 'qRunes', skills: 'qSkills', maps: 'qMaps', mats: 'qMats'
+  }[VIEW];
+  document.getElementById('q').placeholder = T()[qPlaceholderKey] || '';
+  document.getElementById('reset').textContent = T().reset;
+  document.querySelector('#sortL span').textContent = T().sort;
+  const opts = {
+    monsters: [['lv', 'sLv'], ['lvd', 'sLvd'], ['exp', 'sExp'], ['jexp', 'sJexp'], ['hp', 'sHp'], ['drops', 'sDrops'], ['n', 'sName']],
+    cards: [['val', 'sVal'], ['lv', 'sLv'], ['lvd', 'sLvd'], ['cd', 'sCd'], ['n', 'sName']],
+    runes: [['gain', 'sGain'], ['mon', 'sMon'], ['n', 'sName']],
+    skills: [['best', 'sBest'], ['job', 'sJob'], ['n', 'sName']],
+    equip: [['mon', 'sMon'], ['lv', 'sLv'], ['lvd', 'sLvd'], ['stat', 'sStat'], ['atk', 'sAtk'], ['n', 'sName']],
+    sets: [['mon', 'sMon'], ['lv', 'sLv'], ['lvd', 'sLvd'], ['stat', 'sStat'], ['n', 'sName']],
+    maps: [['lv', 'sLv'], ['lvd', 'sLvd'], ['n', 'sName']],
+    mats: [['price', 'sPrice'], ['mon', 'sMon'], ['n', 'sName']]
+  }[VIEW];
+  const selEl = document.getElementById('sort');
+  selEl.innerHTML = opts.map(([v, k]) => `<option value="${v}">${T()[k]}</option>`).join('');
+  selEl.value = S[sortKey()];
+  document.getElementById('meta').textContent = T().meta(
+    D.monsters.length, D.equip.items.length, D.equip.sets.length + D.equip.bsets.length,
+    D.cards.length, D.runes.length, D.skills.length, D.maps.length
+  );
+  document.getElementById('help').innerHTML = `<div class="help">${esc(T().help)}</div>`;
+  drawCalc();
+  drawSide();
+  draw();
+  drawOmniStrip();
+}
+
+function draw() {
+  ({
+    monsters: drawMonsters,
+    equip: drawEquip,
+    sets: drawSetsView,
+    cards: drawCards,
+    runes: drawRunes,
+    skills: drawSkills,
+    maps: drawMaps,
+    mats: drawMats
+  })[VIEW]();
+}
+
+function drawOmniStrip() {
+  const strip = document.getElementById('omni-strip');
+  if (!S.q || !S.q.trim()) {
+    strip.classList.remove('show');
+    strip.innerHTML = '';
+    return;
+  }
+  const hits = [
+    ['monsters', T().monsters, D.monsters.filter((x) => qOk(x._t)).length],
+    ['equip', T().equip, D.equip.items.filter((x) => qOk(x._t)).length],
+    ['sets', T().sets, D.equip.sets.filter((x) => qOk(x._t)).length + D.equip.bsets.filter((x) => qOk(x._t)).length],
+    ['cards', T().cards, D.cards.filter((x) => qOk(x._t)).length],
+    ['runes', T().runes, D.runes.filter((x) => qOk(x._t)).length],
+    ['skills', T().skills, D.skills.filter((x) => qOk(x._t)).length],
+    ['maps', T().maps, D.maps.filter((x) => qOk(x._t)).length],
+    ['mats', T().mats, D.materials.filter((x) => qOk(x._t)).length]
+  ].filter(([, , n]) => n > 0);
+  if (!hits.length) {
+    strip.classList.remove('show');
+    return;
+  }
+  strip.classList.add('show');
+  strip.innerHTML = `<b style="color:var(--acc);">⚡ พบ "${esc(S.q)}" ในหมวดหมู่:</b> ` +
+    hits.map(([k, lbl, n]) => `<button type="button" class="chip ${k === VIEW ? 'on' : ''}" data-oview="${k}">${lbl} <b>(${n})</b></button>`).join('');
+}
+
+// ---------------- shared helpers
+function counts(list, f) { const m = {}; for (const c of list) for (const v of new Set(f(c))) m[v] = (m[v] || 0) + 1; return m; }
+function chips(id, map, set, label) {
+  return `<div class="chips" data-set="${id}">` + Object.keys(map).map((k) => `<button class="chip ${set.has(k) ? 'on' : ''}" data-v="${esc(k)}">${esc(label(k))}<small>${map[k]}</small></button>`).join('') + '</div>';
+}
+function sel(id, opts, cur, all) {
+  return `<select data-sel="${id}"><option value="">${esc(all)}</option>` + opts.map(([v, t]) => `<option value="${esc(v)}" ${cur === v ? 'selected' : ''}>${esc(t)}</option>`).join('') + '</select>';
+}
+function setCount(a, b, u) { document.getElementById('count').textContent = T().count(a, b, T()[u]); }
+const words = () => S.q.toLowerCase().split(/\s+/).filter(Boolean);
+const qOk = (t) => words().every((w) => (t || '').includes(w));
+const elName = (k) => (k ? L(D.meta.el[k]) || k : '');
+const subName = (s) => (LANG === 'th' ? (D.meta.el[s.toLowerCase()] ? D.meta.el[s.toLowerCase()].th : STATUS_TH[s] || s) : s);
+function jobOpts() {
+  return D.jobs.filter((j) => D.skills.some((s) => s.job === j.id)).sort((a, b) => a.tier - b.tier || L(a.n).localeCompare(L(b.n))).map((j) => [j.id, `${'·'.repeat(j.tier)} ${L(j.n)}`]);
+}
+
+// Entity Pill Builders (Hoverable + Clickable)
+function itemPillHtml(iid, rate) {
+  const it = D.equip.I[iid];
+  if (!it) return '';
+  const setBadge = it.set ? ' <span style="color:#a78bfa;font-size:10px;">[เซ็ต]</span>' : (it.bset ? ' <span style="color:#f87171;font-size:10px;">[เซ็ตบอส]</span>' : '');
+  return `<a href="#" class="elink rar-${it.r || 'common'}" data-go="item:${esc(iid)}" data-tip="item:${esc(iid)}">${ico(it.ic, 20)}<span>${esc(L(it.n))}${setBadge}</span>${rate != null ? `<span class="rate">${fmtRate(rate)}</span>` : ''}</a>`;
+}
+function monPillHtml(mid, rate, customLv) {
+  const m = D.M[mid];
+  if (!m) return `<span class="elink">💀 ${esc(mid)}</span>`;
+  return `<a href="#" class="elink" data-go="mon:${esc(mid)}" data-tip="mon:${esc(mid)}">💀 <span>${esc(L(m.n))} <small style="color:var(--mut)">Lv.${customLv || m.lv}</small></span>${rate != null ? `<span class="rate">${fmtRate(rate)}</span>` : ''}</a>`;
+}
+function mapPillHtml(mapObjOrId) {
+  const mid = typeof mapObjOrId === 'string' ? mapObjOrId : (D.MAP_BY_NAME[L(mapObjOrId)] || D.MAP_BY_NAME[mapObjOrId?.en] || '');
+  const mp = mid && D.MP[mid];
+  const label = mp ? L(mp.n) : L(mapObjOrId);
+  if (!mp) return `<span class="elink">📍 ${esc(label)}</span>`;
+  return `<a href="#" class="elink" data-go="map:${esc(mp.id)}" data-tip="map:${esc(mp.id)}">📍 <span>${esc(label)}</span>${mp.lv ? `<small style="color:var(--mut)">${esc(mp.lv)}</small>` : ''}</a>`;
+}
+function matPillHtml(matId, rate) {
+  const mt = D.MT[matId];
+  if (!mt) return '';
+  return `<a href="#" class="elink${mt.rare ? ' rar-legend' : ''}" data-go="mat:${esc(matId)}" data-tip="mat:${esc(matId)}">${ico(mt.ic, 18)}<span>${esc(L(mt.n))}</span>${rate != null ? `<span class="rate">${fmtRate(rate)}</span>` : ''}</a>`;
+}
+function cardPillHtml(monId) {
+  const c = D.C[monId];
+  if (!c) return '';
+  return `<a href="#" class="elink rar-epic" data-go="card:${esc(monId)}" data-tip="card:${esc(monId)}">🃏 <span>การ์ด${esc(L(c.mon))} (${esc(L(c.art))})</span><span class="rate">${+(D.meta.rate * 100).toFixed(2)}%</span></a>`;
+}
+function runePillHtml(rk, rate) {
+  const r = D.R[rk];
+  if (!r) return '';
+  return `<a href="#" class="elink rar-rare" data-go="rune:${esc(rk)}" data-tip="rune:${esc(rk)}">${ico(r.ic[0], 18)}<span>${esc(L(r.n))} I</span>${rate != null ? `<span class="rate">${fmtRate(rate)}</span>` : ''}</a>`;
+}
+
+// ---------------- 1. MONSTERS TAB
+function drawSideMonsters() {
+  const t = T();
+  const yc = counts(D.monsters, (m) => [m.type]);
+  const ymap = Object.fromEntries(Object.keys(TYPE_C).filter((k) => yc[k]).map((k) => [k, yc[k]]));
+  const regs = [...new Set(D.monsters.flatMap((m) => m.regions))].map((r) => [r, L(D.meta.reg[r])]);
+  const races = [...new Set(D.monsters.map((m) => m.race).filter(Boolean))].map((r) => [r, L(D.meta.race[r]) || r]);
+  const els = [...new Set(D.monsters.map((m) => m.el).filter(Boolean))].map((e) => [e, elName(e)]);
+  const dropCounts = {
+    equip: D.monsters.filter((m) => m.drops && m.drops.length > 0).length,
+    set: D.monsters.filter((m) => m._hasSetDrop).length,
+    card: D.monsters.filter((m) => m.hasCard).length,
+    rune: D.monsters.filter((m) => m.rune).length,
+    rareMat: D.monsters.filter((m) => m._hasRareMat).length,
+  };
+  return `<h3>${t.mtype}</h3>${chips('mType', ymap, S.mType, (k) => P(TYPE_N[k]))}
+    <h3>${t.dropFilter}</h3>${chips('mDrops', dropCounts, S.mDrops, (k) => t.dropHas[k])}
+    <h3>${t.region}</h3>${sel('mReg', regs, S.mReg, t.allRegions)}
+    <h3>${t.race}</h3>${sel('mRace', races, S.mRace, t.allRaces)}
+    <h3>${t.defEl}</h3>${sel('mEl', els, S.mEl, t.allEls)}
+    <h3>${t.lv}</h3><div class="row2"><input type="number" data-num="mLvMin" placeholder="${t.min}" value="${S.mLvMin}"> – <input type="number" data-num="mLvMax" placeholder="${t.max}" value="${S.mLvMax}"></div>`;
+}
+function passMonster(m) {
+  if (PIN_ONLY && !PINNED.has('mon:' + m.id)) return false;
+  if (S.q && !qOk(m._t)) return false;
+  if (S.mType.size && !S.mType.has(m.type)) return false;
+  if (S.mReg && !m.regions.includes(S.mReg)) return false;
+  if (S.mRace && m.race !== S.mRace) return false;
+  if (S.mEl && m.el !== S.mEl) return false;
+  if (S.mLvMin !== '' && m.lv < +S.mLvMin) return false;
+  if (S.mLvMax !== '' && m.lv > +S.mLvMax) return false;
+  if (S.mDrops.has('equip') && !(m.drops && m.drops.length)) return false;
+  if (S.mDrops.has('set') && !m._hasSetDrop) return false;
+  if (S.mDrops.has('card') && !m.hasCard) return false;
+  if (S.mDrops.has('rune') && !m.rune) return false;
+  if (S.mDrops.has('rareMat') && !m._hasRareMat) return false;
+  return true;
+}
+function drawMonsters() {
+  const Lm = D.monsters.filter(passMonster);
+  const dropCnt = (m) => (m.drops?.length || 0) + (m.mats?.length || 0) + (m.hasCard ? 1 : 0) + (m.rune ? 1 : 0);
+  const by = {
+    lv: (a, b) => a.lv - b.lv,
+    lvd: (a, b) => b.lv - a.lv,
+    exp: (a, b) => (b.exp || 0) - (a.exp || 0),
+    jexp: (a, b) => (b.jexp || 0) - (a.jexp || 0),
+    hp: (a, b) => (a.hp || 0) - (b.hp || 0),
+    drops: (a, b) => dropCnt(b) - dropCnt(a),
+    n: (a, b) => L(a.n).localeCompare(L(b.n))
+  }[S.sortM];
+  Lm.sort((a, b) => by(a, b) || a.lv - b.lv);
+  setCount(Lm.length, D.monsters.length, 'uMon');
+  document.getElementById('grid').innerHTML = Lm.map(monsterHtml).join('') || `<div class="empty">${T().none}</div>`;
+}
+function monsterHtml(m) {
+  const atkStr = Array.isArray(m.atk) ? `${m.atk[0]}–${m.atk[1]}` : m.atk;
+  const edrops = (m.drops || []).map(([iid, rate]) => itemPillHtml(iid, rate)).join('');
+  const mdrops = (m.mats || []).map(([mid, rate]) => matPillHtml(mid, rate)).join('');
+  const cPill = m.hasCard ? cardPillHtml(m.id) : '';
+  const rPill = m.rune ? runePillHtml(m.rune[0], m.rune[1]) : '';
+  const mapPills = (m.mapIds || []).map((id) => mapPillHtml(id)).join('');
+  return `<div class="c${m.boss ? ' rar-boss' : ''}" data-entity="mon:${esc(m.id)}">
+    <div class="top">
+      <img src="${IMG}${encodeURIComponent(m.img)}.webp" alt="" loading="lazy" onerror="this.style.visibility='hidden'">
+      <div style="flex:1;min-width:0;">
+        <div class="n"><a href="#" data-go="mon:${esc(m.id)}" style="color:inherit;text-decoration:none;">${esc(L(m.n))}</a> <span class="tag" style="background:${TYPE_C[m.type]}">${esc(P(TYPE_N[m.type]))}</span></div>
+        <div class="s">Lv.<b>${m.lv}</b>${m.race ? ' · ' + esc(L(D.meta.race[m.race]) || m.race) : ''} · <span class="tag" style="background:${EL_C[m.el] || '#64748b'};padding:0 6px;font-size:10px;">${esc(elName(m.el))}</span>${m.st ? ` · สถานะ: <b>${esc(STATUS_TH[m.st] || m.st)}</b>` : ''}</div>
+      </div>
+      ${pinBtnHtml('mon:' + m.id)}
+    </div>
+    <div class="mstat-grid">
+      <div class="mstat-cell"><small>❤️ HP</small><b>${(m.hp || 0).toLocaleString()}</b></div>
+      <div class="mstat-cell"><small>⚔️ ATK</small><b>${atkStr}</b></div>
+      <div class="mstat-cell"><small>🛡️ DEF / MDEF</small><b>${m.def} / ${m.mdef}</b></div>
+      <div class="mstat-cell"><small>🎯 HIT / FLEE</small><b>${m.hit} / ${m.flee}</b></div>
+      <div class="mstat-cell"><small>✨ Base EXP</small><b style="color:#34d399">${(m.exp || 0).toLocaleString()}</b></div>
+      <div class="mstat-cell"><small>📘 Job EXP</small><b style="color:#38bdf8">${(m.jexp || 0).toLocaleString()}</b></div>
+      <div class="mstat-cell"><small>🧱 เกราะ</small><b>${esc(m.arm || '-')} ${m.armBar ? `(${m.armBar})` : ''}</b></div>
+      <div class="mstat-cell"><small>⚡ EXP/100HP</small><b>${m.hp > 0 ? ((m.exp * 100) / m.hp).toFixed(1) : '-'}</b></div>
+    </div>
+    ${edrops ? `<div class="drop-sec"><div class="drop-lbl">🛡️ อุปกรณ์ที่ดรอป (${m.drops.length}):</div><div class="drop-pills">${edrops}</div></div>` : ''}
+    ${(cPill || rPill) ? `<div class="drop-sec"><div class="drop-lbl">🃏 การ์ด &amp; 💎 รูน:</div><div class="drop-pills">${cPill}${rPill}</div></div>` : ''}
+    ${mdrops ? `<div class="drop-sec"><div class="drop-lbl">🧪 วัตถุดิบ (${m.mats.length}):</div><div class="drop-pills">${mdrops}</div></div>` : ''}
+    <div class="drop-sec"><div class="drop-lbl">📍 แผนที่ที่เกิด:</div><div class="drop-pills">${mapPills || '<span class="s">–</span>'}</div></div>
+  </div>`;
+}
+
+// ---------------- calculator bar (runes and skills)
+function drawCalc() {
+  const el = document.getElementById('calcbar');
+  if (VIEW !== 'runes' && VIEW !== 'skills') { el.innerHTML = ''; return; }
+  const C = S.calc, t = T();
+  const seg = (k, opts) => `<span class="seg">${opts.map(([v, lab]) => `<button data-c="${k}=${v}" class="${(k === 'night' || k === 'near') ? (C[k] === (v === 1) ? 'on' : '') : String(C[k]) === String(v) ? 'on' : ''}">${lab}</button>`).join('')}</span>`;
+  el.innerHTML = `<div class="calc">
+    <label>${t.tier} ${seg('tier', [[1, 'I'], [2, 'II'], [3, 'III']])}</label>
+    <label>${t.target} ${seg('n', [[1, t.single], [C.n > 1 ? C.n : 5, t.pack]])} ${C.n > 1 ? `<input type="number" min="2" max="20" data-ci="n" value="${C.n}" title="${t.nT}">` : ''}</label>
+    <label>${t.time} ${seg('night', [[1, '🌙 ' + t.night], [0, '☀️ ' + t.day]])}</label>
+    <label title="${esc(t.nearTip)}">${t.splitL} ${seg('near', [[1, t.near], [0, t.far]])}</label>
+    <label>${t.mode} ${seg('mode', [['s2', t.modeS2], ['offline', t.modeOff]])}</label>
+    <label>${t.rollB} <input type="range" min="-25" max="10" step="1" data-ci="qb" value="${Math.round(C.qb * 100)}" style="width:100px"><span>${pctS(C.qb)}</span></label>
+    <label>${t.rollD} <input type="range" min="-25" max="10" step="1" data-ci="qd" value="${Math.round(C.qd * 100)}" style="width:100px"><span>${pctS(C.qd)}</span></label>
+  </div>`;
+}
+
+const HITS = JSON.parse(localStorage.getItem('hits') || '{}');
+const hitsOf = (sk) => (sk ? HITS[sk.id] || sk.hits || 1 : 1);
+const sc = (sk) => ({ n: S.calc.n, night: S.calc.night, qb: S.calc.qb, qd: S.calc.qd, splitAll: S.calc.near, splitIn: sk && sk.splitIn, hits: hitsOf(sk), cd: sk ? sk.cd : null, dur: sk ? sk.dur : 0 });
+const eff = (R, t, sk) => RuneCalc.effect(R, t || S.calc.tier, sc(sk));
+const gainOf = (list) => RuneCalc.total(list, S.calc.mode, D.meta) - 1;
+function noteText(o) { if (!o.note) return ''; const f = T().notes[o.note[0]]; return f ? f(...o.note.slice(1)) : ''; }
+function gainHtml(o, cls = 'gain') {
+  if (o.none) return `<span class="${cls} na">${esc(T().noDmg)}</span>`;
+  const g = gainOf([o]);
+  return `<span class="${cls}${g < 0 ? ' neg' : ''}">${pctS(g)}</span>`;
+}
+const BLOCK = new Set(JSON.parse(localStorage.getItem('blocked') || '[]'));
+const toggleBlock = (k) => { BLOCK.has(k) ? BLOCK.delete(k) : BLOCK.add(k); localStorage.setItem('blocked', JSON.stringify([...BLOCK])); };
+function bestCombos(s) {
+  if (!s.dmg) return { one: null, two: null };
+  const os = s.fit.filter((k) => !BLOCK.has(k)).map((k) => [k, eff(D.R[k], 0, s)]).filter(([, o]) => !o.none);
+  let one = null, two = null;
+  for (const [k, o] of os) { const g = gainOf([o]); if (!one || g > one.g) one = { g, ks: [k] }; }
+  for (let i = 0; i < os.length; i++) for (let j = i + 1; j < os.length; j++) { const g = gainOf([os[i][1], os[j][1]]); if (!two || g > two.g) two = { g, ks: [os[i][0], os[j][0]] }; }
+  return { one, two };
+}
+const slotLv = (s) => { const m = s.max || 10; return [Math.max(1, Math.ceil(m / 2)), m >= 2 ? m : null]; };
+
+// ---------------- 2. CARDS TAB
+function drawSideCards() {
+  const t = T();
+  const kc = counts(D.cards, (c) => c.eff.map((e) => e.key)); const kmap = Object.fromEntries(Object.keys(CARD_KEY).filter((k) => kc[k]).map((k) => [k, kc[k]]));
+  const tc = counts(D.cards, (c) => c.eff.map((e) => e.trig)); const tmap = Object.fromEntries(Object.keys(TRIG).filter((k) => tc[k]).map((k) => [k, tc[k]]));
+  const subs = [...new Set(D.cards.flatMap((c) => c.eff.map((e) => e.sub).filter(Boolean)))].sort();
+  const yc = counts(D.cards, (c) => [c.type]); const ymap = Object.fromEntries(Object.keys(TYPE_C).filter((k) => yc[k]).map((k) => [k, yc[k]]));
+  const regs = [...new Set(D.cards.flatMap((c) => c.regions))].map((r) => [r, L(D.meta.reg[r])]);
+  const races = [...new Set(D.cards.map((c) => c.race).filter(Boolean))].map((r) => [r, L(D.meta.race[r]) || r]);
+  const els = [...new Set(D.cards.map((c) => c.el))].map((e) => [e, elName(e)]);
+  return `<h3>${t.effects}</h3>${chips('keys', kmap, S.keys, (k) => P(CARD_KEY[k]))}
+     <div class="mode"><button class="chip ${S.mode === 'any' ? 'on' : ''}" data-mode="any">${t.anyOf}</button><button class="chip ${S.mode === 'all' ? 'on' : ''}" data-mode="all">${t.allOf}</button></div>
+     <h3>${t.sub}</h3>${sel('sub', subs.map((s) => [s, subName(s)]), S.sub, t.all)}
+     <h3>${t.trig}</h3>${chips('trig', tmap, S.trig, (k) => P(TRIG[k]))}
+     <h3>${t.mtype}</h3>${chips('type', ymap, S.type, (k) => P(TYPE_N[k]))}
+     <h3>${t.region}</h3>${sel('region', regs, S.region, t.allRegions)}
+     <h3>${t.race}</h3>${sel('race', races, S.race, t.allRaces)}
+     <h3>${t.artEl}</h3>${sel('artEl', els, S.artEl, t.allEls)}
+     <h3>${t.lv}</h3><div class="row2"><input type="number" data-num="lvMin" placeholder="${t.min}" value="${S.lvMin}"> – <input type="number" data-num="lvMax" placeholder="${t.max}" value="${S.lvMax}"></div>`;
+}
+const effOk = (e) => (!S.keys.size || S.keys.has(e.key)) && (!S.trig.size || S.trig.has(e.trig)) && (!S.sub || e.sub === S.sub);
+const effFilter = () => S.keys.size || S.trig.size || S.sub;
+function passCard(c) {
+  if (PIN_ONLY && !PINNED.has('card:' + c.id)) return false;
+  if (S.q && !qOk(c._t)) return false;
+  if (S.type.size && !S.type.has(c.type)) return false;
+  if (S.region && !c.regions.includes(S.region)) return false;
+  if (S.race && c.race !== S.race) return false;
+  if (S.artEl && c.el !== S.artEl) return false;
+  if (S.lvMin !== '' && c.lv < +S.lvMin) return false;
+  if (S.lvMax !== '' && c.lv > +S.lvMax) return false;
+  if (effFilter()) {
+    if (S.mode === 'all' && S.keys.size > 1) { for (const k of S.keys) if (!c.eff.some((e) => e.key === k && (!S.trig.size || S.trig.has(e.trig)) && (!S.sub || e.sub === S.sub))) return false; }
+    else if (!c.eff.some(effOk)) return false;
+  }
+  return true;
+}
+const bestVal = (c) => Math.max(-1, ...c.eff.filter((e) => (effFilter() ? effOk(e) : true)).map((e) => e.val ?? -1));
+function drawCards() {
+  const Lc = D.cards.filter(passCard);
+  const by = { val: (a, b) => bestVal(b) - bestVal(a) || a.lv - b.lv, lv: (a, b) => a.lv - b.lv, lvd: (a, b) => b.lv - a.lv, cd: (a, b) => a.cd - b.cd || a.lv - b.lv, n: (a, b) => L(a.mon).localeCompare(L(b.mon)) }[S.sortC];
+  Lc.sort((a, b) => by(a, b) || L(a.mon).localeCompare(L(b.mon)));
+  setCount(Lc.length, D.cards.length, 'uCard');
+  document.getElementById('grid').innerHTML = Lc.map(cardHtml).join('') || `<div class="empty">${T().none}</div>`;
+}
+function cardHtml(c) {
+  const effs = c.eff.map((e) => {
+    const hit = effFilter() && effOk(e) ? ' hit' : '';
+    const badge = e.trig === 'always' ? P(TRIG.always).split(' ')[0] : L(e.txt[0]);
+    const body = e.trig === 'always' ? L(e.txt[0]) : L(e.txt[1]);
+    const gap = e.trig !== 'always' && e.txt[2] ? ` <span class="gap">(${esc(L(e.txt[2]))})</span>` : '';
+    return `<div class="eff${hit}"><span class="b" style="background:${TRIG_C[e.trig] || '#64748b'}">${esc(badge)}</span><span>${esc(body)}${gap}</span></div>`;
+  }).join('');
+  const rn = c.rune && D.R[c.rune];
+  const mapPills = (c.maps || []).map((mp) => mapPillHtml(mp)).join('');
+  return `<div class="c rar-epic" data-entity="card:${esc(c.id)}">
+    <div class="top"><img src="${IMG}${encodeURIComponent(c.img)}.webp" alt="" loading="lazy" onerror="this.style.visibility='hidden'">
+      <div style="flex:1;min-width:0;"><div class="n"><a href="#" data-go="mon:${esc(c.id)}" data-tip="mon:${esc(c.id)}" style="color:inherit;text-decoration:none;">🃏 ${esc(L(c.mon))}</a> <span class="tag" style="background:${TYPE_C[c.type]}">${esc(P(TYPE_N[c.type]))}</span></div>
+      <div class="s">Lv ${c.lv}${c.race ? ' · ' + esc(L(D.meta.race[c.race]) || c.race) : ''}${c.mel ? ' · ' + esc(elName(c.mel)) : ''}</div></div>
+      ${pinBtnHtml('card:' + c.id)}
+    </div>
+    <div class="art">${esc(L(c.art))} <span class="tag" style="background:${EL_C[c.el] || '#64748b'}">${esc(elName(c.el))}</span> <span>${T().cdS(c.cd)}</span></div>
+    <div class="d">${esc(L(c.d))}</div>
+    ${effs}
+    <div class="drop-sec">
+      <div class="drop-pills">${monPillHtml(c.id, D.meta.rate)}${mapPills}${rn ? runePillHtml(rn.k) : ''}</div>
+    </div>
+  </div>`;
+}
+
+// ---------------- 3. RUNES TAB
+function drawSideRunes() {
+  const t = T();
+  const kc = counts(D.runes, (r) => [r.kind]); const oc = counts(D.runes, (r) => [r.on]);
+  return `<h3>${t.kind}</h3>${chips('rKind', kc, S.rKind, (k) => t.kinds[k] || k)}
+    <h3>${t.fitsOn}</h3>${chips('rOn', oc, S.rOn, (k) => L(D.meta.on[k]))}
+    <h3>${t.onlyJob}</h3>${sel('rJob', jobOpts(), S.rJob, t.allJobs)}`;
+}
+function passRune(r) {
+  if (PIN_ONLY && !PINNED.has('rune:' + r.k)) return false;
+  if (S.q && !qOk(r._t)) return false;
+  if (S.rKind.size && !S.rKind.has(r.kind)) return false;
+  if (S.rOn.size && !S.rOn.has(r.on)) return false;
+  if (S.rJob && !(D.fitBy[r.k] || []).some((s) => s.job === S.rJob)) return false;
+  return true;
+}
+function drawRunes() {
+  const Lr = D.runes.filter(passRune).map((r) => ({ r, o: eff(r) }));
+  const g = (x) => (x.o.none ? -9 : gainOf([x.o]));
+  const mlv = (x) => (x.r.drops.length ? Math.min(...x.r.drops.map((d) => d[2])) : x.r.spellEls && x.r.spellEls.length ? 70 : 9999);
+  if (S.sortR === 'gain') Lr.sort((a, b) => g(b) - g(a));
+  else if (S.sortR === 'mon') Lr.sort((a, b) => mlv(a) - mlv(b) || g(b) - g(a));
+  else Lr.sort((a, b) => L(a.r.n).localeCompare(L(b.r.n)));
+  setCount(Lr.length, D.runes.length, 'uRune');
+  document.getElementById('grid').innerHTML = Lr.map(runeHtml).join('') || `<div class="empty">${T().none}</div>`;
+}
+function skillsByJob(list) {
+  const by = {}; for (const s of list) (by[s.job] = by[s.job] || []).push(s);
+  return Object.entries(by).sort((a, b) => D.J[a[0]].tier - D.J[b[0]].tier).map(([j, ss]) => `<div class="jl">${ico(D.J[j].ic, 20)} <b>${esc(L(D.J[j].n))}:</b> ${ss.map((s) => `<a href="#" class="elink" data-go="skill:${esc(s.id)}" data-tip="skill:${esc(s.id)}">${ico(s.ic, 18)} ${esc(L(s.n))}</a>`).join('')}</div>`).join('');
+}
+function runeHtml({ r, o }) {
+  const t = T(), fit = (D.fitBy[r.k] || []).filter((s) => !S.rJob || s.job === S.rJob);
+  const tiers = r.t.map((x, i) => `<b>${ico(r.ic[i], 22)}${ROMAN[i + 1]}</b><span class="${i + 1 === S.calc.tier ? 'cur' : ''}">${esc(L(x))}</span>`).join('');
+  const ds = [...r.drops].sort((a, b) => a[2] - b[2] || b[1] - a[1]);
+  const dRow = ([id, c, lv, , maps]) => `<div style="margin-bottom:4px;">${monPillHtml(id, c, lv)}${(maps || []).map((m) => mapPillHtml(m)).join('')}</div>`;
+  const drops = ds.length ? ds.slice(0, 4).map(dRow).join('') + (ds.length > 4 ? `<details><summary>+${ds.length - 4}</summary>${ds.slice(4).map(dRow).join('')}</details>` : '')
+    : r.spellEls && r.spellEls.length ? t.spellDrop(70, r.spellEls.map(elName).join('/'), 0.002) : t.noDrop;
+  return `<div class="c rar-rare" data-entity="rune:${esc(r.k)}">
+    <div class="top">${ico(r.ic[S.calc.tier - 1], 52)}<div style="flex:1;min-width:0;"><div class="n">${esc(L(r.n))} ${ROMAN[S.calc.tier]}</div>
+      <div><span class="tag" style="background:${KIND_C[r.kind]}">${esc(t.kinds[r.kind])}</span><span class="tag" style="background:${ON_C[r.on]}">${esc(L(D.meta.on[r.on]))}</span>${r.el ? `<span class="tag" style="background:${EL_C[r.el] || '#64748b'}">${esc(elName(r.el))}</span>` : ''}</div></div>
+      ${pinBtnHtml('rune:' + r.k)}
+    </div>
+    <div>${gainHtml(o)} <span class="s">${o.none ? '' : t.gainLbl} · ${esc(noteText(o))}${o.cond ? ' ⚠' : ''}</span></div>
+    <div class="tiers">${tiers}</div>
+    ${r.kind === 'proc' ? `<div class="s">${esc(t.basicSlot)}</div>` : ''}
+    <details><summary>${esc(t.fitSkills(fit.length))}</summary>${skillsByJob(fit)}</details>
+    <div class="drop-sec"><div class="drop-lbl">${t.dropFrom}:</div><div>${drops}</div></div>
+  </div>`;
+}
+
+// ---------------- 4. SKILLS TAB
+function drawSideSkills() {
+  const t = T(); const tc = counts(D.skills, (s) => [s.type]);
+  const ro = D.runes.map((r) => [r.k, `${L(r.n)} (${(D.fitBy[r.k] || []).length})`]);
+  return `<h3>${t.job}</h3>${sel('sJob', jobOpts(), S.sJob, t.allJobs)}
+    <h3>${t.acceptRune}</h3>${sel('sRune', ro, S.sRune, t.anyRune)}
+    <h3>${t.skType}</h3>${chips('sTy', tc, S.sTy, (k) => t.ty[k] || k)}
+    <h3>🚫 ${t.blockH}</h3><div class="s" style="margin-bottom:6px">${esc(t.blockTip)}</div>
+    <div class="chips">${D.runes.filter((r) => !eff(r).none).map((r) => `<button class="chip${BLOCK.has(r.k) ? ' blk' : ''}" data-block="${r.k}">${ico(r.ic[S.calc.tier - 1], 16)} ${esc(L(r.n))}</button>`).join('')}</div>
+    ${BLOCK.size ? `<div class="mode"><button class="chip" data-unblock="1">${esc(t.unblock(BLOCK.size))}</button></div>` : ''}`;
+}
+function passSkill(s) {
+  if (PIN_ONLY && !PINNED.has('skill:' + s.id)) return false;
+  if (S.q && !qOk(s._t)) return false;
+  if (S.sJob && s.job !== S.sJob) return false;
+  if (S.sRune && !s.fit.includes(S.sRune)) return false;
+  if (S.sTy.size && !S.sTy.has(s.type)) return false;
+  return true;
+}
+function drawSkills() {
+  const Ls = D.skills.filter(passSkill).map((s) => ({ s, b: bestCombos(s) }));
+  const bg = (x) => (x.b.two ? x.b.two.g : x.b.one ? x.b.one.g : -9);
+  const by = { best: (a, b) => bg(b) - bg(a), job: (a, b) => D.J[a.s.job].tier - D.J[b.s.job].tier || L(D.J[a.s.job].n).localeCompare(L(D.J[b.s.job].n)), n: (a, b) => L(a.s.n).localeCompare(L(b.s.n)) }[S.sortS];
+  Ls.sort((a, b) => by(a, b) || L(a.s.n).localeCompare(L(b.s.n)));
+  setCount(Ls.length, D.skills.length, 'uSkill');
+  document.getElementById('grid').innerHTML = Ls.map(skillHtml).join('') || `<div class="empty">${T().none}</div>`;
+}
+const rName = (k) => `${L(D.R[k].n)} ${ROMAN[S.calc.tier]}`;
+function noDmgEff(R) {
+  const t = S.calc.tier, N = R.num || {};
+  const text = { haste: () => T().nd.haste(N.c[t - 1]), blood: () => T().nd.blood(N.hp[t - 1]), moonrite: () => T().nd.none() }[R.k];
+  return { none: true, note: null, txt: text ? text() : L(R.t[t - 1]) };
+}
+function skillHtml({ s, b }) {
+  const t = T(), [s1, s2] = slotLv(s);
+  const rows = s.fit.map((k) => ({ k, o: s.dmg ? eff(D.R[k], 0, s) : noDmgEff(D.R[k], s) })).sort((a, c) => (c.o.none ? -9 : gainOf([c.o])) - (a.o.none ? -9 : gainOf([a.o])));
+  const table = `<table class="rt"><tbody>${rows.map(({ k, o }) => `<tr class="${BLOCK.has(k) ? 'blocked' : ''}"${S.sRune === k ? ' style="background:var(--hit)"' : ''}><td><button class="bk" data-block="${k}" title="${esc(BLOCK.has(k) ? t.unblockOne : t.blockOne)}">${BLOCK.has(k) ? '↩' : '🚫'}</button> <span class="rtip" data-go="rune:${k}" data-tip="rune:${k}">${ico(D.R[k].ic[S.calc.tier - 1], 20)} ${esc(L(D.R[k].n))}</span><br><span class="s">${esc(o.txt || noteText(o))}</span></td><td class="num ${o.none ? '' : gainOf([o]) < 0 ? 'negc' : 'pos'}">${o.none ? '–' : pctS(gainOf([o]))}</td></tr>`).join('')}</tbody></table>`;
+  const onlyAny = !s.kinds.length;
+  const atk = (g) => { const m = s.mul && s.mul * hitsOf(s); return m ? ` <span class="s">(${t.perCast} ${Math.round(m)}% → ${Math.round(m * (1 + g))}% ATK)</span>` : ''; };
+  return `<div class="c" data-sid="${s.id}" data-entity="skill:${esc(s.id)}">
+    <div class="top">${ico(s.ic, 52)}<div style="flex:1;min-width:0;"><div class="n">${esc(L(s.n))}</div>
+      <div class="s">${ico(D.J[s.job].ic, 18)} ${esc(L(D.J[s.job].n))} · ${esc(t.ty[s.type] || s.type)}${s.el ? ' · ' + esc(elName(s.el)) : ''}${s.cd ? ' · ' + t.cdS(s.cd) : ''}</div></div>
+      ${pinBtnHtml('skill:' + s.id)}
+    </div>
+    <div>${s.kinds.map((k) => k === 'kshot' ? '' : `<span class="tag" style="background:${ON_C[k] || '#64748b'}">${esc(L(D.meta.on[k]) || k)}</span>`).join('')}<span class="tag o">${esc(t.slots(s1, s2))}</span> <label class="s" title="${esc(t.hitsTip)}">≈ <input type="number" min="1" max="500" data-hits="${s.id}" value="${hitsOf(s)}" style="width:56px;padding:2px 4px"> ${t.hitsL}</label></div>
+    <div class="d">${esc(L(s.d))}</div>
+    ${!s.dmg ? `<div class="best">🛈 ${esc(t.noHit)}</div>` : onlyAny ? `<div class="s">⚠ ${esc(t.onlyAny)}</div>` : ''}
+    ${s.fit.some((k) => BLOCK.has(k)) ? `<div class="s">🚫 ${esc(t.blockedN(s.fit.filter((k) => BLOCK.has(k)).length))}</div>` : ''}
+    ${b.one ? `<div class="best">${t.bestOne}: <span class="rtip" data-go="rune:${b.one.ks[0]}" data-tip="rune:${b.one.ks[0]}">${ico(D.R[b.one.ks[0]].ic[S.calc.tier - 1], 20)} <b>${esc(rName(b.one.ks[0]))}</b></span> <span class="gain">${pctS(b.one.g)}</span>${atk(b.one.g)}</div>` : ''}
+    ${b.two ? `<div class="best">${t.bestTwo}: <b>${b.two.ks.map((k) => `<span class="rtip" data-go="rune:${k}" data-tip="rune:${k}">${ico(D.R[k].ic[S.calc.tier - 1], 20)} ${esc(rName(k))}</span>`).join(' + ')}</b> <span class="gain">${pctS(b.two.g)}</span>${atk(b.two.g)}</div>` : ''}
+    <details><summary>${esc(t.allFit(s.fit.length))}</summary>${table}</details>
+  </div>`;
+}
+
+// ---------------- 5. EQUIPMENT & 6. SETS TABS
+const stLabel = (k) => T().stF[k] || { hp: 'Max HP', sp: 'Max SP' }[k] || k.toUpperCase();
+const stVal = (k, v) => (ST_PCT.has(k) ? `${k === 'cdr' ? '−' : '+'}${+(v * 100).toFixed(1)}%` : `${v >= 0 ? '+' : ''}${v}`);
+const setFlag = (i) => (i.set ? 'set' : i.bset ? 'bset' : 'none');
+
+function drawSideEquip() {
+  const t = T(), E = D.equip;
+  if (VIEW === 'sets' || S.eMode === 'sets') {
+    const lc = counts(E.sets, (s) => [s.line]);
+    return `<h3>${t.line}</h3>${chips('eLine', lc, S.eLine, (k) => t.lineN[k] || k)}
+      <h3>${t.hasStat}</h3>${chips('eStat', statCounts(E.items.filter((i) => i.set || i.bset)), S.eStat, stLabel)}
+      <h3>${t.itemLv}</h3><div class="row2"><input type="number" data-num="eLvMin" placeholder="${t.min}" value="${S.eLvMin}"> – <input type="number" data-num="eLvMax" placeholder="${t.max}" value="${S.eLvMax}"></div>`;
+  }
+  const sc0 = counts(E.items, (i) => [i.s]); const smap = Object.fromEntries(SLOT_ORDER.filter((k) => sc0[k]).map((k) => [k, sc0[k]]));
+  const rc = counts(E.items, (i) => [i.r]); const rmap = Object.fromEntries(Object.keys(RAR_C).filter((k) => rc[k]).map((k) => [k, rc[k]]));
+  const fc = counts(E.items, (i) => [setFlag(i)]);
+  const oc = counts(E.items, (i) => [i.src.t]);
+  const wts = Object.entries(E.wt).map(([k, v]) => [k, L(v)]);
+  return `<h3>${t.slot}</h3>${chips('eSlot', smap, S.eSlot, (k) => L(E.slots[k]) || k)}
+    <h3>${t.setF}</h3>${chips('eSet', fc, S.eSet, (k) => t.setFlags[k])}
+    <h3>${t.rarity}</h3>${chips('eRar', rmap, S.eRar, (k) => t.rarN[k] || k)}
+    <h3>${t.hasStat}</h3>${chips('eStat', statCounts(E.items), S.eStat, stLabel)}
+    <h3>${t.source}</h3>${chips('eSrc', oc, S.eSrc, (k) => t.srcN[k] || k)}
+    <h3>${t.wtype}</h3>${sel('eWt', wts, S.eWt, t.allWt)}
+    <h3>${t.itemLv}</h3><div class="row2"><input type="number" data-num="eLvMin" placeholder="${t.min}" value="${S.eLvMin}"> – <input type="number" data-num="eLvMax" placeholder="${t.max}" value="${S.eLvMax}"></div>`;
+}
+function statCounts(list) { const c = counts(list, (i) => Object.keys(i.st).filter((k) => i.st[k])); return Object.fromEntries(ST_ORDER.filter((k) => c[k]).map((k) => [k, c[k]])); }
+const monLv = (i) => (i && i.src && i.src.lv != null ? i.src.lv : 9999);
+const lvOk = (lv) => (S.eLvMin === '' || lv >= +S.eLvMin) && (S.eLvMax === '' || lv <= +S.eLvMax);
+const statSum = (i) => [...S.eStat].reduce((a, k) => a + (ST_PCT.has(k) ? (i.st[k] || 0) * 100 : i.st[k] || 0), 0);
+function passItem(i) {
+  if (PIN_ONLY && !PINNED.has('item:' + i.id)) return false;
+  if (S.q && !qOk(i._t)) return false;
+  if (S.eSlot.size && !S.eSlot.has(i.s)) return false;
+  if (S.eRar.size && !S.eRar.has(i.r)) return false;
+  if (S.eSet.size && !S.eSet.has(setFlag(i))) return false;
+  if (S.eSrc.size && !S.eSrc.has(i.src.t)) return false;
+  if (S.eWt && i.wt !== S.eWt) return false;
+  if (S.eStat.size && ![...S.eStat].every((k) => i.st[k])) return false;
+  return lvOk(i.lv);
+}
+function drawSetsView() {
+  const E = D.equip;
+  const setSum = (s) => s.pcs.reduce((a, p) => a + (E.I[p] ? statSum(E.I[p]) : 0), 0);
+  const ok = (s) => (!PIN_ONLY || PINNED.has('set:' + s.id)) && (!S.q || qOk(s._t)) && (!S.eLine.size || S.eLine.has(s.line)) && lvOk(s.lv) && (!S.eStat.size || [...S.eStat].every((k) => s.pcs.some((p) => E.I[p] && E.I[p].st[k])));
+  const Ls = E.sets.filter(ok);
+  const setMon = (s) => Math.min(...s.pcs.map((p) => monLv(E.I[p])));
+  const by = { mon: (a, b) => setMon(a) - setMon(b) || a.lv - b.lv, lv: (a, b) => a.lv - b.lv, lvd: (a, b) => b.lv - a.lv, stat: (a, b) => setSum(b) - setSum(a), atk: (a, b) => a.lv - b.lv, n: (a, b) => L(a.n).localeCompare(L(b.n)) }[S.sortE];
+  Ls.sort((a, b) => by(a, b) || a.line.localeCompare(b.line));
+  const Lb = S.eLine.size || S.eStat.size ? [] : E.bsets.filter((b) => (!PIN_ONLY || PINNED.has('bset:' + b.boss)) && (!S.q || qOk(b._t)) && lvOk(b.blv || 0));
+  const key = (x) => (x.boss ? x.blv || 0 : S.sortE === 'mon' ? setMon(x) : x.lv);
+  const all = S.sortE === 'mon' || S.sortE === 'lv' ? [...Ls, ...Lb].sort((a, b) => key(a) - key(b)) : S.sortE === 'lvd' ? [...Ls, ...Lb].sort((a, b) => key(b) - key(a)) : [...Lb, ...Ls];
+  setCount(Ls.length + Lb.length, E.sets.length + E.bsets.length, 'uSet');
+  document.getElementById('grid').innerHTML = all.map((x) => (x.boss ? bsetHtml(x) : setHtml(x))).join('') || `<div class="empty">${T().none}</div>`;
+}
+function drawEquip() {
+  if (S.eMode === 'sets' && VIEW === 'sets') { drawSetsView(); return; }
+  const E = D.equip;
+  const Li = E.items.filter(passItem);
+  const by = { mon: (a, b) => monLv(a) - monLv(b) || a.lv - b.lv, lv: (a, b) => a.lv - b.lv, lvd: (a, b) => b.lv - a.lv, stat: (a, b) => statSum(b) - statSum(a), atk: (a, b) => (b.atk || 0) - (a.atk || 0), n: (a, b) => L(a.n).localeCompare(L(b.n)) }[S.sortE];
+  Li.sort((a, b) => by(a, b) || L(a.n).localeCompare(L(b.n)));
+  setCount(Li.length, E.items.length, 'uItem');
+  const MAX = 320;
+  document.getElementById('grid').innerHTML = Li.slice(0, MAX).map(itemHtml).join('') + (Li.length > MAX ? `<div class="empty">… +${Li.length - MAX} (${LANG === 'th' ? 'กรองหรือพิมพ์ค้นหาเพิ่มเพื่อดูรายการที่เหลือ' : 'narrow filters to see more'})</div>` : '') || `<div class="empty">${T().none}</div>`;
+}
+const stHtml = (st) => ST_ORDER.filter((k) => st[k]).map((k) => `<span class="tag o"${S.eStat.has(k) ? ' style="border-color:var(--acc);color:var(--ink)"' : ''}>${esc(stLabel(k))} ${stVal(k, st[k])}</span>`).join('');
+function srcHtml(s) {
+  const t = T();
+  if (s.id && D.M[s.id]) {
+    return `<div class="drop-pills">${monPillHtml(s.id, s.rate, s.lv)}${(s.maps || []).map((m) => mapPillHtml(m)).join('')}</div>`;
+  }
+  if (s.n) return `💀 ${esc(L(s.n))} (Lv ${s.lv})${s.rate != null && s.rate < 1 ? ` · ${fmtRate(s.rate)}` : ''}`;
+  return `<span class="s">📦 ${esc(t.srcN[s.t] || s.t)}${s.t === 'world' && s.rate ? ` · ${fmtRate(s.rate)}` : ''}</span>`;
+}
+function itemHtml(i) {
+  const t = T(), E = D.equip, st = i.set && E.S[i.set], bs = i.bset && E.B[i.bset];
+  return `<div class="c rar-${i.r || 'common'}" data-entity="item:${esc(i.id)}">
+    <div class="top">${ico(i.ic, 56)}<div style="flex:1;min-width:0;"><div class="n"><a href="#" data-go="item:${esc(i.id)}" style="color:inherit;text-decoration:none;">${esc(L(i.n))}</a></div>
+      <div><span class="tag" style="background:${RAR_C[i.r] || '#64748b'}">${esc(t.rarN[i.r] || i.r)}</span><span class="tag o">${esc(L(E.slots[i.s]) || i.s)}</span>${i.wt ? `<span class="tag o">${esc(L(E.wt[i.wt]) || i.wt)}</span>` : ''}${i.el && i.el !== 'neutral' ? `<span class="tag" style="background:${EL_C[i.el] || '#64748b'}">${esc(elName(i.el))}</span>` : ''}${i.k ? `<span class="tag o">${esc(t.kindN[i.k] || i.k)}</span>` : ''} <span class="s">Lv.${i.lv}</span></div></div>
+      ${pinBtnHtml('item:' + i.id)}
+    </div>
+    ${i.atk ? `<div><b style="color:#fbbf24">⚔️ ATK ${i.atk}</b></div>` : ''}
+    ${Object.keys(i.st).some((k) => i.st[k]) ? `<div>${stHtml(i.st)}</div>` : ''}
+    ${i.ab ? `<div class="d" style="color:#38bdf8">✨ ${esc(L(i.ab))}</div>` : ''}
+    ${(i.wsk || []).map((b) => `<div class="s" style="color:#a78bfa">⚔️ ${esc(t.boost(L(b[0]), L(b[1]), b[2], b[3], b[4]))}</div>`).join('')}
+    <div class="s">${esc(L(i.d))}</div>
+    ${st ? `<div class="best">🧩 ${t.partOf}: <a href="#" class="elink" data-go="set:${esc(st.id)}" data-tip="set:${esc(st.id)}"><b>${esc(L(st.n))}</b></a> <span class="s">(${esc(t.lineN[st.line])})</span></div>` : ''}
+    ${bs ? `<div class="best">👑 ${t.partOfB}: <a href="#" class="elink rar-boss" data-go="bset:${esc(bs.boss)}" data-tip="bset:${esc(bs.boss)}"><b>${esc(L(bs.n))}</b></a></div>` : ''}
+    <div class="drop-sec">${srcHtml(i.src)}</div>
+  </div>`;
+}
+function pieceHtml(id) {
+  const i = D.equip.I[id];
+  if (!i) return '';
+  return `<tr>
+    <td>
+      <a href="#" class="elink rar-${i.r || 'common'}" data-go="item:${esc(i.id)}" data-tip="item:${esc(i.id)}">${ico(i.ic, 32)}<b>${esc(L(i.n))}</b></a>
+      <div class="s" style="margin-top:2px;">${esc(L(D.equip.slots[i.s]) || i.s)} · Lv.${i.lv} · ${stHtml(i.st)}</div>
+      ${i.ab ? `<div class="s" style="color:#38bdf8">✨ ${esc(L(i.ab))}</div>` : ''}
+    </td>
+    <td>${srcHtml(i.src)}</td>
+  </tr>`;
+}
+function setHtml(s) {
+  const t = T();
+  return `<div class="c rar-epic" data-entity="set:${esc(s.id)}">
+    <div class="top"><div style="flex:1;min-width:0;"><div class="n">🧩 <a href="#" data-go="set:${esc(s.id)}" style="color:inherit;text-decoration:none;">${esc(L(s.n))}</a></div>
+      <div><span class="tag" style="background:${LINE_C[s.line]}">${esc(t.lineN[s.line] || s.line)}</span><span class="tag o">${t.grade} ${s.g}</span> <span class="s">Lv.${s.lv}</span></div></div>
+      ${pinBtnHtml('set:' + s.id)}
+    </div>
+    <div class="best">
+      <div><b style="color:#38bdf8">• ${t.piece2}:</b> ${esc(L(s.b2))}</div>
+      <div><b style="color:#a78bfa">• ${t.piece3}:</b> ${esc(L(s.b3))}</div>
+      <div style="margin-top:3px;"><b style="color:#fbbf24">★ ${t.passive}:</b> ${esc(L(s.pas))}</div>
+    </div>
+    <table class="rt"><tbody>${s.pcs.map(pieceHtml).join('')}</tbody></table>
+  </div>`;
+}
+function bsetHtml(b) {
+  const t = T(), E = D.equip, ws = b.w.map((w) => E.I[w]).filter(Boolean);
+  return `<div class="c rar-boss" data-entity="bset:${esc(b.boss)}">
+    <div class="top"><img src="${IMG}${encodeURIComponent(b.boss)}.webp" alt="" loading="lazy" onerror="this.style.visibility='hidden'"><div style="flex:1;min-width:0;"><div class="n">👑 <a href="#" data-go="bset:${esc(b.boss)}" style="color:inherit;text-decoration:none;">${esc(L(b.n))}</a></div>
+      <div class="s">${monPillHtml(b.boss, null, b.blv)}</div></div>
+      ${pinBtnHtml('bset:' + b.boss)}
+    </div>
+    <div class="best"><b style="color:#fbbf24">★ ${t.passive}:</b> ${esc(L(b.text))}<br><span class="s">${esc(t.bsetHow)}</span></div>
+    <table class="rt"><tbody>${pieceHtml(b.hat)}${pieceHtml(b.acc)}</tbody></table>
+    <details><summary>${esc(t.bsetW(ws.length))}</summary><div class="drop-pills" style="margin-top:6px;">${ws.map((w) => itemPillHtml(w.id)).join('')}</div></details>
+  </div>`;
+}
+
+// ---------------- 7. MAPS TAB
+function drawSideMaps() {
+  const t = T();
+  const regs = [...new Set(D.maps.map((m) => m.region).filter(Boolean))].map((r) => [r, L(D.meta.reg[r]) || r]);
+  const kc = counts(D.maps, (m) => [m.secret ? 'secret' : m.kind]);
+  return `<h3>${t.region}</h3>${sel('mpReg', regs, S.mpReg, t.allRegions)}
+    <h3>${t.mapKind}</h3>${chips('mpKind', kc, S.mpKind, (k) => t.mapKinds[k] || k)}`;
+}
+function passMap(mp) {
+  if (PIN_ONLY && !PINNED.has('map:' + mp.id)) return false;
+  if (S.q && !qOk(mp._t)) return false;
+  if (S.mpReg && mp.region !== S.mpReg) return false;
+  if (S.mpKind.size) {
+    const k = mp.secret ? 'secret' : mp.kind;
+    if (!S.mpKind.has(k)) return false;
+  }
+  return true;
+}
+function drawMaps() {
+  const Lmp = D.maps.filter(passMap);
+  const by = {
+    lv: (a, b) => a._lvNum - b._lvNum,
+    lvd: (a, b) => b._lvNum - a._lvNum,
+    n: (a, b) => L(a.n).localeCompare(L(b.n))
+  }[S.sortMp];
+  Lmp.sort((a, b) => by(a, b) || L(a.n).localeCompare(L(b.n)));
+  setCount(Lmp.length, D.maps.length, 'uMap');
+  document.getElementById('grid').innerHTML = Lmp.map(mapCardHtml).join('') || `<div class="empty">${T().none}</div>`;
+}
+function mapCardHtml(mp) {
+  const mons = (mp.mons || []).map((mid) => D.M[mid]).filter(Boolean);
+  const monPills = mons.map((m) => {
+    const mlvArr = mp.mlv && mp.mlv[m.id];
+    const lvTxt = Array.isArray(mlvArr) ? `${mlvArr[0]}–${mlvArr[1]}` : m.lv;
+    return monPillHtml(m.id, null, lvTxt);
+  }).join('');
+  // Collect notable equipment & runes dropped on this map
+  const mapEquipIds = [...new Set(mons.flatMap((m) => (m.drops || []).map((d) => d[0])))];
+  const mapRunes = [...new Set(mons.map((m) => m.rune && m.rune[0]).filter(Boolean))];
+  const equipPills = mapEquipIds.slice(0, 8).map((iid) => itemPillHtml(iid)).join('') +
+    (mapEquipIds.length > 8 ? `<span class="s"> +${mapEquipIds.length - 8} ชิ้น</span>` : '');
+  const runePills = mapRunes.map((rk) => runePillHtml(rk)).join('');
+  return `<div class="c" data-entity="map:${esc(mp.id)}">
+    <div class="top">
+      <div class="brand-badge" style="width:48px;height:48px;font-size:22px;">🗺️</div>
+      <div style="flex:1;min-width:0;">
+        <div class="n"><a href="#" data-go="map:${esc(mp.id)}" style="color:inherit;text-decoration:none;">${esc(L(mp.n))}</a> <span class="s">(${esc(mp.id)})</span></div>
+        <div>
+          ${mp.lv ? `<span class="tag" style="background:#0284c7">${esc(mp.lv)}</span>` : ''}
+          ${mp.region && D.meta.reg[mp.region] ? `<span class="tag o">${esc(L(D.meta.reg[mp.region]))}</span>` : ''}
+          <span class="tag o">${esc(T().mapKinds[mp.secret ? 'secret' : mp.kind] || mp.kind)}</span>
+        </div>
+      </div>
+      ${pinBtnHtml('map:' + mp.id)}
+    </div>
+    ${mp.zones && mp.zones.length ? `<div class="s">🧭 <b>โซนย่อยในแมพ:</b> ${mp.zones.map((z) => esc(L(z))).join(' · ')}</div>` : ''}
+    <div class="drop-sec">
+      <div class="drop-lbl">👾 มอนสเตอร์ในแมพนี้ (${mons.length}):</div>
+      <div class="drop-pills">${monPills || '<span class="s">ไม่มีมอนสเตอร์ (เขตปลอดภัย)</span>'}</div>
+    </div>
+    ${(equipPills || runePills) ? `<div class="drop-sec"><div class="drop-lbl">🎁 ของดรอปเด่นในแมพนี้:</div><div class="drop-pills">${runePills}${equipPills}</div></div>` : ''}
+  </div>`;
+}
+
+// ---------------- 8. MATERIALS, COOKING, LIFE SKILLS & REFINE TAB
+function drawSideMats() {
+  const t = T();
+  return `<h3>${t.matCat}</h3>
+    <div class="chips" style="flex-direction:column;align-items:stretch;">
+      ${Object.entries(t.matCats).map(([k, lbl]) => `<button type="button" class="chip ${S.mtCat === k ? 'on' : ''}" data-mtcat="${k}" style="text-align:left;padding:7px 11px;">${esc(lbl)}</button>`).join('')}
+    </div>`;
+}
+function drawMats() {
+  const Lf = D.life || {};
+  if (S.mtCat === 'dishes') {
+    const list = (Lf.dishes || []).filter((d) => !S.q || qOk([d.id, d.n.en, d.n.th].join(' ').toLowerCase()));
+    setCount(list.length, (Lf.dishes || []).length, 'uMat');
+    document.getElementById('grid').innerHTML = list.map((d) => {
+      const buffTxt = Object.entries(d.buff || {}).map(([k, v]) => `${k.toUpperCase()} +${v}%`).join(' · ');
+      const ingPills = Object.entries(d.mats || {}).map(([mid, qty]) => `${matPillHtml(mid)} <b style="font-size:11.5px;">×${qty}</b>`).join(' ');
+      return `<div class="c rar-rare">
+        <div class="top">${ico(d.ic, 52)}<div><div class="n">🍲 ${esc(L(d.n))}</div><div class="s">ทำอาหาร Lv.${d.lv} · หม้อขั้น ${d.pot} · ค่าทำ ${d.coins}g · +${d.xp} XP</div></div></div>
+        <div class="best"><b style="color:#34d399">✨ บัฟอาหาร (30 นาที):</b> <b>${esc(buffTxt)}</b></div>
+        <div class="drop-sec"><div class="drop-lbl">🥕 วัตถุดิบที่ใช้ทำ:</div><div class="drop-pills">${ingPills}</div></div>
+      </div>`;
+    }).join('') || `<div class="empty">${T().none}</div>`;
+    return;
+  }
+  if (S.mtCat === 'fish') {
+    const list = (Lf.fish || []).filter((f) => !S.q || qOk([f.id, f.n.en, f.n.th].join(' ').toLowerCase()));
+    setCount(list.length, (Lf.fish || []).length, 'uMat');
+    document.getElementById('grid').innerHTML = list.map((f) => `<div class="c">
+      <div class="top">${ico(f.ic, 52)}<div><div class="n">🎣 ${esc(L(f.n))}</div><div class="s">ตกปลา Lv.${f.lv} · เบ็ดขั้น ${f.rod} · ราคาขาย <b style="color:#fbbf24">${f.price}g</b> · +${f.xp} XP</div></div></div>
+      <div class="s">🌊 <b>แหล่งน้ำ:</b> ${(f.waters || []).map((w) => esc(L(w))).join(', ')} · ขนาด ${f.cm ? f.cm.join('–') + ' cm' : '-'}</div>
+    </div>`).join('') || `<div class="empty">${T().none}</div>`;
+    return;
+  }
+  if (S.mtCat === 'crops') {
+    const list = (Lf.crops || []).filter((c) => !S.q || qOk([c.id, c.n.en, c.n.th].join(' ').toLowerCase()));
+    setCount(list.length, (Lf.crops || []).length, 'uMat');
+    document.getElementById('grid').innerHTML = list.map((c) => `<div class="c">
+      <div class="top">${ico(c.ic, 52)}<div><div class="n">🌾 ${esc(L(c.n))}</div><div class="s">ปลูกผัก Lv.${c.lv} · โตใน <b>${c.mins} นาที</b> · ราคาเมล็ด ${c.price}g · +${c.xp} XP</div></div></div>
+      <div class="drop-pills">${matPillHtml(c.mat)}${c.seed ? matPillHtml(c.seed) : ''}</div>
+    </div>`).join('') || `<div class="empty">${T().none}</div>`;
+    return;
+  }
+  if (S.mtCat === 'ore') {
+    const ores = (Lf.ore || []).map((o) => Object.assign({ _k: '⛏️ แร่' }, o));
+    const woods = (Lf.wood || []).map((w) => Object.assign({ _k: '🪓 ไม้' }, w));
+    const list = [...ores, ...woods].filter((x) => !S.q || qOk([x.id, x.n.en, x.n.th].join(' ').toLowerCase()));
+    setCount(list.length, ores.length + woods.length, 'uMat');
+    document.getElementById('grid').innerHTML = list.map((x) => `<div class="c">
+      <div class="top">${ico(x.ic, 52)}<div><div class="n">${x._k}: ${esc(L(x.n))}</div><div class="s">เลเวลอาชีพเสริม Lv.${x.lv} · อุปกรณ์ขั้น ${x.tier} · ตี ${x.hits} ครั้ง · +${x.xp} XP</div></div></div>
+      <div class="drop-pills">${matPillHtml(x.mat)}</div>
+    </div>`).join('') || `<div class="empty">${T().none}</div>`;
+    return;
+  }
+  if (S.mtCat === 'refine') {
+    const rf = Lf.refine || {};
+    const tab = rf.tab || {};
+    const costs = rf.cost || {};
+    const ores = rf.ore || {};
+    setCount(4, 4, 'uMat');
+    document.getElementById('grid').innerHTML = [1, 2, 3, 4].map((g) => {
+      const oreId = ores[String(g)];
+      const rows = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((lv) => {
+        const rate = tab[String(g)]?.[String(lv)] ?? '-';
+        const cost = costs[String(g)]?.[lv - 1] ?? 0;
+        const brk = rf.brk?.[String(lv)] ? `<span style="color:#f87171">โอกาสแตก ${rf.brk[String(lv)]}%</span>` : '<span style="color:#34d399">ไม่แตก</span>';
+        return `<tr><td><b>+${lv}</b></td><td class="num pos">${rate}%</td><td class="num">${cost.toLocaleString()}g</td><td>${brk}</td></tr>`;
+      }).join('');
+      return `<div class="c rar-epic">
+        <div class="n">🔨 ตารางตีบวกอุปกรณ์ เกรด G${g}</div>
+        <div class="s">แร่ที่ใช้ตีบวก: ${oreId ? matPillHtml(oreId) : '-'}</div>
+        <table class="rt"><thead><tr><th>ขั้น</th><th style="text-align:right">โอกาสติด</th><th style="text-align:right">ค่าตีบวก</th><th>หมายเหตุ</th></tr></thead><tbody>${rows}</tbody></table>
+      </div>`;
+    }).join('');
+    return;
+  }
+
+  // Default: All Materials or Rare Materials
+  const Lmt = D.materials.filter((m) => {
+    if (PIN_ONLY && !PINNED.has('mat:' + m.id)) return false;
+    if (S.mtCat === 'rare' && !m.rare) return false;
+    if (S.q && !qOk(m._t)) return false;
+    return true;
+  });
+  const mlv = (m) => (m.drops && m.drops.length ? m.drops[0][2] : 9999);
+  const by = {
+    price: (a, b) => (b.p || 0) - (a.p || 0),
+    mon: (a, b) => mlv(a) - mlv(b),
+    n: (a, b) => L(a.n).localeCompare(L(b.n))
+  }[S.sortMt];
+  Lmt.sort((a, b) => by(a, b) || L(a.n).localeCompare(L(b.n)));
+  setCount(Lmt.length, D.materials.length, 'uMat');
+  const MAX = 300;
+  document.getElementById('grid').innerHTML = Lmt.slice(0, MAX).map((m) => {
+    const drops = (m.drops || []).slice(0, 6).map(([mid, rate, lv]) => monPillHtml(mid, rate, lv)).join('');
+    return `<div class="c${m.rare ? ' rar-legend' : ''}" data-entity="mat:${esc(m.id)}">
+      <div class="top">${ico(m.ic, 48)}<div style="flex:1;min-width:0;"><div class="n"><a href="#" data-go="mat:${esc(m.id)}" style="color:inherit;text-decoration:none;">${esc(L(m.n))}</a> ${m.rare ? '<span class="tag" style="background:#f59e0b">Rare</span>' : ''}</div>
+        <div class="s">ราคาขาย NPC: <b style="color:#fbbf24">${(m.p || 0).toLocaleString()}g</b> · <span style="font-family:monospace;font-size:11px;">${esc(m.id)}</span></div></div>
+        ${pinBtnHtml('mat:' + m.id)}
+      </div>
+      <div class="s">${esc(L(m.d))}</div>
+      ${drops ? `<div class="drop-sec"><div class="drop-lbl">💀 ดรอปจากมอนสเตอร์:</div><div class="drop-pills">${drops}</div></div>` : (m.from ? `<div class="s">📍 แหล่งที่มา: ${esc(L(m.from))}</div>` : '')}
+    </div>`;
+  }).join('') + (Lmt.length > MAX ? `<div class="empty">… +${Lmt.length - MAX} รายการ (พิมพ์ค้นหาเพื่อกรองเฉพาะวัตถุดิบที่ต้องการ)</div>` : '') || `<div class="empty">${T().none}</div>`;
+}
+
+// ---------------- UNIVERSAL HOVER PREVIEW CARD (#tip)
+function buildEntityTipHtml(kind, id) {
+  const t = T();
+  if (kind === 'rune') {
+    const r = D.R[id];
+    if (!r) return '';
+    const o = eff(r);
+    const tiers = r.t.map((x, i) => `<b>${ico(r.ic[i], 18)}${ROMAN[i + 1]}</b><span class="${i + 1 === S.calc.tier ? 'cur' : ''}">${esc(L(x))}</span>`).join('');
+    return `<div class="h">${ico(r.ic[S.calc.tier - 1], 36)}<div><div>${esc(L(r.n))} ${ROMAN[S.calc.tier]}</div><div class="s">${esc(t.kinds[r.kind])} · ${esc(L(D.meta.on[r.on]))}</div></div></div>
+      <div class="tiers">${tiers}</div>
+      <div>${gainHtml(o, 'gain')} <span class="s">${o.none ? '' : t.gainLbl} · ${esc(noteText(o))}</span></div>
+      <div class="tip-hint">🖱️ คลิกเพื่อดูสกิลที่ใส่รูนนี้ได้และมอนที่ดรอป</div>`;
+  }
+  if (kind === 'mon') {
+    const m = D.M[id];
+    if (!m) return '';
+    const atkStr = Array.isArray(m.atk) ? `${m.atk[0]}–${m.atk[1]}` : m.atk;
+    const dropNames = (m.drops || []).slice(0, 5).map(([iid, r]) => {
+      const it = D.equip.I[iid];
+      return it ? `${L(it.n)} (${fmtRate(r)})` : '';
+    }).filter(Boolean).join(', ');
+    return `<div class="h"><img src="${IMG}${encodeURIComponent(m.img)}.webp" alt=""><div><div>${esc(L(m.n))} <span class="tag" style="background:${TYPE_C[m.type]}">${esc(P(TYPE_N[m.type]))}</span></div><div class="s">Lv.${m.lv} · ${esc(elName(m.el))} · ${esc(L(D.meta.race[m.race]) || m.race)}</div></div></div>
+      <div class="s">❤️ HP <b>${(m.hp || 0).toLocaleString()}</b> · ⚔️ ATK <b>${atkStr}</b> · ✨ EXP <b>${m.exp}</b> / Job <b>${m.jexp}</b></div>
+      ${dropNames ? `<div class="s" style="margin-top:4px;color:#7dd3fc;">🛡️ <b>ดรอปของสวมใส่:</b> ${esc(dropNames)}${m.drops.length > 5 ? ` (+${m.drops.length - 5})` : ''}</div>` : ''}
+      ${m.maps && m.maps.length ? `<div class="s" style="margin-top:2px;">📍 <b>แมพ:</b> ${esc(m.maps.map(L).join(', '))}</div>` : ''}
+      <div class="tip-hint">🖱️ คลิกเพื่อดูตารางของดรอปทั้งหมดของมอนตัวนี้</div>`;
+  }
+  if (kind === 'item') {
+    const i = D.equip.I[id];
+    if (!i) return '';
+    const st = i.set && D.equip.S[i.set], bs = i.bset && D.equip.B[i.bset];
+    return `<div class="h">${ico(i.ic, 44)}<div><div>${esc(L(i.n))}</div><div class="s"><span class="tag" style="background:${RAR_C[i.r] || '#64748b'}">${esc(t.rarN[i.r] || i.r)}</span> ${esc(L(D.equip.slots[i.s]) || i.s)} · Lv.${i.lv}</div></div></div>
+      ${i.atk ? `<div><b style="color:#fbbf24">⚔️ ATK ${i.atk}</b></div>` : ''}
+      ${Object.keys(i.st).some((k) => i.st[k]) ? `<div style="margin:4px 0;">${stHtml(i.st)}</div>` : ''}
+      ${i.ab ? `<div class="s" style="color:#38bdf8">✨ ${esc(L(i.ab))}</div>` : ''}
+      ${(i.wsk || []).map((b) => `<div class="s" style="color:#a78bfa">⚔️ ${esc(t.boost(L(b[0]), L(b[1]), b[2], b[3], b[4]))}</div>`).join('')}
+      ${st ? `<div class="s" style="margin-top:4px;color:#c4b5fd;">🧩 <b>เซ็ต ${esc(L(st.n))}:</b> 2 ชิ้น (${esc(L(st.b2))}) · 3 ชิ้น (${esc(L(st.b3))})</div>` : ''}
+      ${bs ? `<div class="s" style="margin-top:4px;color:#fca5a5;">👑 <b>เซ็ตบอส ${esc(L(bs.n))}:</b> ${esc(L(bs.text))}</div>` : ''}
+      ${i.src && i.src.n ? `<div class="s" style="margin-top:4px;">💀 ดรอปจาก: <b>${esc(L(i.src.n))} (Lv.${i.src.lv})</b> ${i.src.rate ? `· <span style="color:#fbbf24">${fmtRate(i.src.rate)}</span>` : ''}</div>` : ''}
+      <div class="tip-hint">🖱️ คลิกเพื่อดูรายละเอียดไอเทมและชุดเซ็ตที่เกี่ยวข้อง</div>`;
+  }
+  if (kind === 'set') {
+    const s = D.equip.S[id];
+    if (!s) return '';
+    return `<div class="h"><div class="brand-badge">🧩</div><div><div>${esc(L(s.n))}</div><div class="s">${esc(t.lineN[s.line])} · เกรด ${s.g} · Lv.${s.lv}</div></div></div>
+      <div class="s"><b style="color:#38bdf8">• 2 ชิ้น:</b> ${esc(L(s.b2))}<br><b style="color:#a78bfa">• 3 ชิ้น:</b> ${esc(L(s.b3))}<br><b style="color:#fbbf24">★ เซ็ต:</b> ${esc(L(s.pas))}</div>
+      <div class="tip-hint">🖱️ คลิกเพื่อดูชิ้นส่วนทั้ง 3 ชิ้นและมอนสเตอร์ที่ดรอป</div>`;
+  }
+  if (kind === 'bset') {
+    const b = D.equip.B[id];
+    if (!b) return '';
+    return `<div class="h"><img src="${IMG}${encodeURIComponent(b.boss)}.webp" alt=""><div><div>👑 ${esc(L(b.n))}</div><div class="s">${esc(L(b.bn))} · Lv.${b.blv || '-'}</div></div></div>
+      <div class="s"><b style="color:#fbbf24">★ ความสามารถเซ็ตบอส:</b> ${esc(L(b.text))}</div>
+      <div class="tip-hint">🖱️ คลิกเพื่อดูหมวก ประดับ และอาวุธบอสทั้ง ${b.w.length} ชนิด</div>`;
+  }
+  if (kind === 'card') {
+    const c = D.C[id];
+    if (!c) return '';
+    return `<div class="h"><img src="${IMG}${encodeURIComponent(c.img)}.webp" alt=""><div><div>🃏 การ์ด${esc(L(c.mon))}</div><div class="s">${esc(L(c.art))} · ${esc(elName(c.el))} · CD ${c.cd}s</div></div></div>
+      <div class="s">${esc(L(c.d))}</div>
+      <div class="tip-hint">🖱️ คลิกเพื่อดูเอฟเฟกต์การ์ดและแมพที่ไปฟาร์ม</div>`;
+  }
+  if (kind === 'mat') {
+    const m = D.MT[id];
+    if (!m) return '';
+    return `<div class="h">${ico(m.ic, 38)}<div><div>${esc(L(m.n))}</div><div class="s">ราคาขาย NPC: <b style="color:#fbbf24">${m.p}g</b></div></div></div>
+      <div class="s">${esc(L(m.d))}</div>
+      <div class="tip-hint">🖱️ คลิกเพื่อดูมอนสเตอร์ทั้งหมดที่ดรอปวัตถุดิบนี้</div>`;
+  }
+  if (kind === 'map') {
+    const mp = D.MP[id];
+    if (!mp) return '';
+    const mNames = (mp.mons || []).map((mid) => D.M[mid] && L(D.M[mid].n)).filter(Boolean).join(', ');
+    return `<div class="h"><div class="brand-badge">🗺️</div><div><div>${esc(L(mp.n))}</div><div class="s">${esc(mp.lv || '')} · ${esc(L(D.meta.reg[mp.region]) || mp.region)}</div></div></div>
+      <div class="s">👾 <b>มอนสเตอร์ (${(mp.mons || []).length}):</b> ${esc(mNames || 'เขตปลอดภัย')}</div>
+      <div class="tip-hint">🖱️ คลิกเพื่อดูมอนสเตอร์และของดรอปทั้งหมดในแมพนี้</div>`;
+  }
+  if (kind === 'skill') {
+    const s = D.skills.find((x) => x.id === id);
+    if (!s) return '';
+    return `<div class="h">${ico(s.ic, 38)}<div><div>${esc(L(s.n))}</div><div class="s">${esc(L(D.J[s.job]?.n))} · CD ${s.cd || 0}s</div></div></div>
+      <div class="s">${esc(L(s.d))}</div>
+      <div class="tip-hint">🖱️ คลิกเพื่อดูตารางคอมโบรูนที่ดีที่สุดของสกิลนี้</div>`;
+  }
+  return '';
+}
+
+(function () {
+  const tip = () => document.getElementById('tip');
+  let cur = null;
+  document.addEventListener('mouseover', (e) => {
+    const el = e.target.closest && e.target.closest('[data-tip],[data-rk]');
+    if (!el) {
+      if (cur) { tip().style.display = 'none'; cur = null; }
+      return;
+    }
+    if (el !== cur) {
+      cur = el;
+      const spec = el.dataset.tip || ('rune:' + el.dataset.rk);
+      const [kind, id] = spec.split(':');
+      const html = buildEntityTipHtml(kind, id);
+      if (!html) { tip().style.display = 'none'; return; }
+      tip().innerHTML = html;
+      tip().style.display = 'block';
+    }
+  });
+  document.addEventListener('mousemove', (e) => {
+    if (!cur) return;
+    const T0 = tip(), w = T0.offsetWidth, h = T0.offsetHeight;
+    let x = e.clientX + 16, y = e.clientY + 16;
+    if (x + w > innerWidth - 10) x = e.clientX - w - 16;
+    if (y + h > innerHeight - 10) y = Math.max(10, e.clientY - h - 16);
+    T0.style.left = x + 'px';
+    T0.style.top = y + 'px';
+  });
+  addEventListener('scroll', () => {
+    if (cur) { tip().style.display = 'none'; cur = null; }
+  }, true);
+})();
+
+// ---------------- INTERACTIVE ENTITY INSPECTOR MODAL & BREADCRUMB TRAIL
+function getEntityTitle(kind, id) {
+  if (kind === 'mon' && D.M[id]) return `👾 ${L(D.M[id].n)}`;
+  if (kind === 'item' && D.equip.I[id]) return `🛡️ ${L(D.equip.I[id].n)}`;
+  if (kind === 'set' && D.equip.S[id]) return `🧩 ${L(D.equip.S[id].n)}`;
+  if (kind === 'bset' && D.equip.B[id]) return `👑 ${L(D.equip.B[id].n)}`;
+  if (kind === 'card' && D.C[id]) return `🃏 การ์ด${L(D.C[id].mon)}`;
+  if (kind === 'rune' && D.R[id]) return `💎 ${L(D.R[id].n)}`;
+  if (kind === 'skill') { const s = D.skills.find((x) => x.id === id); return s ? `⚔️ ${L(s.n)}` : id; }
+  if (kind === 'map' && D.MP[id]) return `🗺️ ${L(D.MP[id].n)}`;
+  if (kind === 'mat' && D.MT[id]) return `🧪 ${L(D.MT[id].n)}`;
+  return `${kind}:${id}`;
+}
+
+function openInspector(kind, id, pushHistory = true) {
+  document.getElementById('tip').style.display = 'none';
+  if (pushHistory) {
+    const last = NAV_HISTORY[NAV_HISTORY.length - 1];
+    if (!last || last.kind !== kind || last.id !== id) {
+      NAV_HISTORY.push({ kind, id, title: getEntityTitle(kind, id) });
+      if (NAV_HISTORY.length > 10) NAV_HISTORY.shift();
+    }
+  }
+  let bodyHtml = '';
+  if (kind === 'mon' && D.M[id]) bodyHtml = monsterHtml(D.M[id]);
+  else if (kind === 'item' && D.equip.I[id]) {
+    const it = D.equip.I[id];
+    bodyHtml = itemHtml(it);
+    if (it.set && D.equip.S[it.set]) bodyHtml += `<div style="margin-top:12px;">${setHtml(D.equip.S[it.set])}</div>`;
+    if (it.bset && D.equip.B[it.bset]) bodyHtml += `<div style="margin-top:12px;">${bsetHtml(D.equip.B[it.bset])}</div>`;
+  } else if (kind === 'set' && D.equip.S[id]) bodyHtml = setHtml(D.equip.S[id]);
+  else if (kind === 'bset' && D.equip.B[id]) bodyHtml = bsetHtml(D.equip.B[id]);
+  else if (kind === 'card' && D.C[id]) bodyHtml = cardHtml(D.C[id]);
+  else if (kind === 'rune' && D.R[id]) bodyHtml = runeHtml({ r: D.R[id], o: eff(D.R[id]) });
+  else if (kind === 'skill') {
+    const sk = D.skills.find((x) => x.id === id);
+    if (sk) bodyHtml = skillHtml({ s: sk, b: bestCombos(sk) });
+  } else if (kind === 'map' && D.MP[id]) bodyHtml = mapCardHtml(D.MP[id]);
+  else if (kind === 'mat' && D.MT[id]) {
+    const m = D.MT[id];
+    const drops = (m.drops || []).map(([mid, rate, lv]) => monPillHtml(mid, rate, lv)).join('');
+    bodyHtml = `<div class="c${m.rare ? ' rar-legend' : ''}">
+      <div class="top">${ico(m.ic, 52)}<div><div class="n">${esc(L(m.n))}</div><div class="s">ราคาขาย NPC: <b style="color:#fbbf24">${m.p}g</b> · ${esc(m.id)}</div></div></div>
+      <div class="d">${esc(L(m.d))}</div>
+      <div class="drop-sec"><div class="drop-lbl">💀 ดรอปจากมอนสเตอร์ (${(m.drops || []).length}):</div><div class="drop-pills">${drops || '<span class="s">–</span>'}</div></div>
+    </div>`;
+  }
+  if (!bodyHtml) return;
+  document.getElementById('insp-body').innerHTML = bodyHtml;
+  const backBtn = document.getElementById('insp-back');
+  backBtn.style.display = NAV_HISTORY.length > 1 ? 'inline-flex' : 'none';
+  document.getElementById('insp-crumb').innerHTML = NAV_HISTORY.map((h, idx) =>
+    `<span class="crumb-item" onclick="jumpHistoryIdx(${idx})">${esc(h.title)}</span>`
+  ).join(' <span style="opacity:.5">➔</span> ');
+  document.getElementById('inspector-backdrop').classList.add('open');
+  renderCrumbBar();
+}
+
+window.jumpHistoryIdx = function (idx) {
+  if (idx < 0 || idx >= NAV_HISTORY.length) return;
+  NAV_HISTORY = NAV_HISTORY.slice(0, idx + 1);
+  const cur = NAV_HISTORY[NAV_HISTORY.length - 1];
+  openInspector(cur.kind, cur.id, false);
+};
+
+function closeInspector() {
+  document.getElementById('inspector-backdrop').classList.remove('open');
+}
+
+function renderCrumbBar() {
+  const bar = document.getElementById('crumb-bar');
+  if (!NAV_HISTORY.length) {
+    bar.classList.remove('show');
+    return;
+  }
+  bar.classList.add('show');
+  bar.innerHTML = `<span style="color:var(--mut);font-weight:700;">🕓 ประวัติการเปิดดูล่าสุด:</span>` +
+    NAV_HISTORY.map((h) => `<button type="button" class="crumb-item" data-go="${esc(h.kind + ':' + h.id)}">${esc(h.title)}</button>`).join('');
+}
+
+function jumpToEntityInTab(kind, id) {
+  const tabMap = { mon: 'monsters', item: 'equip', set: 'sets', bset: 'sets', card: 'cards', rune: 'runes', skill: 'skills', map: 'maps', mat: 'mats' };
+  const targetView = tabMap[kind] || 'monsters';
+  S = fresh();
+  PIN_ONLY = false;
+  updatePinUI();
+  let queryName = '';
+  if (kind === 'mon' && D.M[id]) queryName = L(D.M[id].n);
+  else if (kind === 'item' && D.equip.I[id]) queryName = L(D.equip.I[id].n);
+  else if (kind === 'set' && D.equip.S[id]) queryName = L(D.equip.S[id].n);
+  else if (kind === 'bset' && D.equip.B[id]) queryName = L(D.equip.B[id].n);
+  else if (kind === 'card' && D.C[id]) queryName = L(D.C[id].mon);
+  else if (kind === 'rune' && D.R[id]) queryName = L(D.R[id].n);
+  else if (kind === 'skill') { const s = D.skills.find((x) => x.id === id); if (s) queryName = L(s.n); }
+  else if (kind === 'map' && D.MP[id]) queryName = L(D.MP[id].n);
+  else if (kind === 'mat' && D.MT[id]) queryName = L(D.MT[id].n);
+  S.q = queryName;
+  document.getElementById('q').value = S.q;
+  document.getElementById('q-clear').classList.toggle('show', Boolean(S.q));
+  switchView(targetView);
+  setTimeout(() => {
+    const card = document.querySelector(`[data-entity="${kind}:${id}"]`);
+    if (card) {
+      card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      card.classList.add('flash-highlight');
+    }
+  }, 60);
+}
+
+function drawSide() {
+  document.getElementById('side').innerHTML = ({
+    monsters: drawSideMonsters,
+    equip: drawSideEquip,
+    sets: drawSideEquip,
+    cards: drawSideCards,
+    runes: drawSideRunes,
+    skills: drawSideSkills,
+    maps: drawSideMaps,
+    mats: drawSideMats
+  })[VIEW]();
+}
+</script>
+</body>
+</html>

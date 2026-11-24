@@ -542,6 +542,9 @@
             <button type="button" class="tab-btn" data-tab="autofarm" id="tab-btn-autofarm" role="tab" style="display:none;">
               <span class="icon">🌾</span> ระบบ Auto Farm <span class="tab-count" id="tab-count-autofarm">0</span>
             </button>
+            <button type="button" class="tab-btn" data-tab="wiki" id="tab-btn-wiki" role="tab" title="เปิดคัมภีร์ฐานข้อมูล Night Camp SS2 (คลิกเพื่อดูในหน้านี้ หรือคลิกไอคอน 📖 Wiki ใต้ปุ่ม Device ขวามือเพื่อเปิดแยกแท็บใหม่)">
+              <span class="icon">📖</span> คัมภีร์ Wiki <span class="tab-count" style="background:rgba(245,158,11,0.22);color:#fde68a;border:1px solid rgba(251,191,36,0.4);">SS2</span>
+            </button>
             <button type="button" class="tab-btn nc-aetheria-only" data-tab="zeny" role="tab">
               <span class="icon">💰</span> ระบบรวมเงิน
             </button>
@@ -1015,6 +1018,32 @@
 
           <!-- AUTO-FARM PROFILES CARDS GRID -->
           <div id="af-profiles-grid" class="profiles-grid" style="position:relative;"></div>
+        </div>
+      </section>
+
+      <!-- TAB: NIGHTCAMP WIKI & CODEX SS2 -->
+      <section class="tab-pane" data-pane="wiki" id="wiki-pane">
+        <div style="display:flex;flex-direction:column;gap:10px;padding:4px 0 18px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;padding:10px 16px;background:linear-gradient(135deg,rgba(15,23,42,0.95),rgba(30,27,75,0.85));border:1px solid rgba(251,191,36,0.35);border-radius:14px;box-shadow:0 8px 24px rgba(0,0,0,0.4);">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="font-size:22px;">📖</span>
+              <div>
+                <div style="font-size:14px;font-weight:800;color:#fef3c7;">คัมภีร์ฐานข้อมูล Night Camp SS2 (Interactive Wiki &amp; Codex)</div>
+                <div style="font-size:11.5px;color:#94a3b8;">มอนสเตอร์ 482 ตัว · ของสวมใส่ 2,130 ชิ้น · ชุดเซ็ต 85 เซ็ต · การ์ด 338 ใบ · รูน 47 แบบ · สกิล 214 ท่า · แผนที่ 176 แมพ · วัตถุดิบ 1,530 รายการ (ชี้ดูของดรอป &amp; คลิกเชื่อมโยงข้อมูลได้ทุกจุด)</div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <a href="/wiki/index.html" target="_blank" rel="noopener" class="btn btn-primary btn-sm" style="text-decoration:none;background:linear-gradient(135deg,#f59e0b,#d97706);border:1px solid rgba(253,224,71,0.5);color:#0f172a;font-weight:800;padding:7px 14px;">
+                ↗ เปิดแยกอีกแท็บเต็มจอ (New Tab)
+              </a>
+              <button type="button" class="btn btn-ghost btn-sm" onclick="window.switchMainTab && window.switchMainTab('profiles')" style="padding:7px 12px;">
+                🎮 กลับหน้ารายชื่อจอเกม
+              </button>
+            </div>
+          </div>
+          <div style="border-radius:16px;overflow:hidden;border:1px solid rgba(148,163,184,0.22);box-shadow:0 16px 44px rgba(0,0,0,0.55);background:#070a12;height:calc(100vh - 190px);min-height:680px;">
+            <iframe id="nc-wiki-iframe" data-src="/wiki/index.html" title="Night Camp SS2 Wiki &amp; Codex" style="width:100%;height:100%;border:none;display:block;background:#070a12;"></iframe>
+          </div>
         </div>
       </section>
     </main>
