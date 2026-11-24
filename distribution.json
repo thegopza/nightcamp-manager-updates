@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "sourceCommit": "fab3c0e0db502b1734607e5972b1790749672fdc",
+  "sourceCommit": "bac43eb6d9bfd04f128fb2a5ee02fd8497bb2f4e",
   "files": [
     {
       "path": "manager/asset_cache.js",
@@ -140,7 +140,23 @@
     },
     {
       "path": "manager/public/app.js",
-      "sha256": "de8772d6f2690f60e5febe86d8ffe060d95c9e5ef38ad0d5f89b41e6001f24be"
+      "sha256": "dd91112bf673b789ed0af2109a82e5ce9a93053b53a827d1bb25d23e8994b0fc"
+    },
+    {
+      "path": "manager/public/assets/updates/ui_v212_bag_rightclick.jpg",
+      "sha256": "cff4bba9ce8fcdc518a432446dc40df213d54edacaa423926c7eb1a97bb18b86"
+    },
+    {
+      "path": "manager/public/assets/updates/ui_v212_item_wl_button.jpg",
+      "sha256": "157e285b8b4ed45a765338e6dbb6238235c9a445fb3c8d43dad46b5094d7b76b"
+    },
+    {
+      "path": "manager/public/assets/updates/ui_v212_market_tab.jpg",
+      "sha256": "b75ac037eab2f363ab228bb2031dfb3d2fb42f1d19f238c034d023477d3a7173"
+    },
+    {
+      "path": "manager/public/assets/updates/ui_v212_wl_dialog.jpg",
+      "sha256": "0694d443fac4800ab2293e56188989ee9d65263ac8739c53d45ed633efe6b9c4"
     },
     {
       "path": "manager/public/bot_update.css",
@@ -208,7 +224,7 @@
     },
     {
       "path": "manager/public/index.html",
-      "sha256": "61684581e0e35ccdf9e5dee643982dde4376822f24c0d635e520fed8fb6262f2"
+      "sha256": "643326ec03d52ceec49a0db9d322e83d3b2e280106b33cf5b3dff5c2c5ae2348"
     },
     {
       "path": "manager/public/inventory_market.css",
@@ -288,7 +304,7 @@
     },
     {
       "path": "manager/public/update_log.js",
-      "sha256": "310726fcf8c8018c75702d3d2711ce6eef7e1f74b8e49c135f50c53a82528cfa"
+      "sha256": "407dd6dc51d23533dbe8ee5a4906d4901cc7c168981e4b2bfaf43f72366a3d5b"
     },
     {
       "path": "manager/public/wiki/calc.js",

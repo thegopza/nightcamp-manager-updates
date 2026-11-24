@@ -7208,8 +7208,8 @@ window.switchMainTab = switchMainTab;
         if (tBtn) tBtn.style.display = nextTrainerUnlocked ? "inline-block" : "none";
         if (tBar) {
           tBar.style.gridTemplateColumns = nextTrainerUnlocked
-            ? "1.05fr 0.85fr 0.85fr 0.78fr 0.85fr"
-            : "1.15fr 0.95fr 0.95fr 0.85fr";
+            ? "0.95fr 0.78fr 0.8fr 0.85fr 0.85fr 0.9fr"
+            : "1.05fr 0.85fr 0.88fr 0.92fr 0.92fr";
         }
         if (!nextTrainerUnlocked && tPane && tPane.style.display !== "none") {
           hEl.querySelector("#p-nc-tab-bot")?.click();
@@ -8890,13 +8890,14 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
   </div>
   ` : ''}
 
-  <!-- 5-Tab Bar matching in-game bot.js v2.0.7 (Trainer tab gated by secretAccess.trainer) -->
-  <div id="p-nc-tabbar" style="display:grid; grid-template-columns:${(window.__secretTrainerUnlocked || state?.trainerAccessUnlocked) ? '1.05fr 0.85fr 0.85fr 0.78fr 0.85fr' : '1.15fr 0.95fr 0.95fr 0.85fr'}; gap:3px; background:rgba(2, 6, 23, 0.72); border:1px solid rgba(148, 163, 184, 0.24); border-radius:7px; padding:3px;">
-    <button type="button" id="p-nc-tab-bot" style="padding:5px 4px; border:0; border-radius:5px; font-size:10.5px; font-weight:700; cursor:pointer; background:#0284c7; color:#fff; white-space:nowrap;">🚀 บอท & เควส</button>
-    <button type="button" id="p-nc-tab-potions" style="padding:5px 4px; border:0; border-radius:5px; font-size:10.5px; font-weight:700; cursor:pointer; background:transparent; color:#94a3b8; white-space:nowrap;">🧪 ระบบยา</button>
-    <button type="button" id="p-nc-tab-sell" style="padding:5px 4px; border:0; border-radius:5px; font-size:10.5px; font-weight:700; cursor:pointer; background:transparent; color:#94a3b8; white-space:nowrap;">🛒 ซื้อ/ขาย</button>
-    <button type="button" id="p-nc-tab-settings" style="padding:5px 4px; border:0; border-radius:5px; font-size:10.5px; font-weight:700; cursor:pointer; background:transparent; color:#94a3b8; white-space:nowrap;">⚙️ ตั้งค่า</button>
-    <button type="button" id="p-nc-tab-trainer" style="display:${(window.__secretTrainerUnlocked || state?.trainerAccessUnlocked) ? 'inline-block' : 'none'}; padding:5px 4px; border:0; border-radius:5px; font-size:10.5px; font-weight:700; cursor:pointer; background:transparent; color:#fda4af; white-space:nowrap;" title="ระบบพิเศษสำหรับผู้ได้รับอนุมัติ Access">🧲 Trainer</button>
+  <!-- 5/6-Tab Bar matching in-game bot.js v2.1.2 (Trainer tab gated by secretAccess.trainer) -->
+  <div id="p-nc-tabbar" style="display:grid; grid-template-columns:${(window.__secretTrainerUnlocked || state?.trainerAccessUnlocked) ? '0.95fr 0.78fr 0.8fr 0.85fr 0.85fr 0.9fr' : '1.05fr 0.85fr 0.88fr 0.92fr 0.92fr'}; gap:3px; background:rgba(2, 6, 23, 0.72); border:1px solid rgba(148, 163, 184, 0.24); border-radius:7px; padding:3px;">
+    <button type="button" id="p-nc-tab-bot" style="padding:5px 3px; border:0; border-radius:5px; font-size:10px; font-weight:700; cursor:pointer; background:#0284c7; color:#fff; white-space:nowrap;">🚀 บอท</button>
+    <button type="button" id="p-nc-tab-potions" style="padding:5px 3px; border:0; border-radius:5px; font-size:10px; font-weight:700; cursor:pointer; background:transparent; color:#94a3b8; white-space:nowrap;">🧪 ยา</button>
+    <button type="button" id="p-nc-tab-sell" style="padding:5px 3px; border:0; border-radius:5px; font-size:10px; font-weight:700; cursor:pointer; background:transparent; color:#94a3b8; white-space:nowrap;">🛒 ขาย</button>
+    <button type="button" id="p-nc-tab-market" style="padding:5px 3px; border:0; border-radius:5px; font-size:10px; font-weight:700; cursor:pointer; background:transparent; color:#5eead4; white-space:nowrap;">🏪 ตลาด</button>
+    <button type="button" id="p-nc-tab-settings" style="padding:5px 3px; border:0; border-radius:5px; font-size:10px; font-weight:700; cursor:pointer; background:transparent; color:#94a3b8; white-space:nowrap;">⚙️ ตั้งค่า</button>
+    <button type="button" id="p-nc-tab-trainer" style="display:${(window.__secretTrainerUnlocked || state?.trainerAccessUnlocked) ? 'inline-block' : 'none'}; padding:5px 3px; border:0; border-radius:5px; font-size:10px; font-weight:700; cursor:pointer; background:transparent; color:#fda4af; white-space:nowrap;" title="ระบบพิเศษสำหรับผู้ได้รับอนุมัติ Access">🧲 Trainer</button>
   </div>
 
   <!-- TAB 1: 🚀 บอท & เควส -->
@@ -9246,32 +9247,73 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
         ${isCentral ? '🛒 สั่งทุกจอกลับค่ายไปขายของ & ฝากคลังทันที' : '🛒 สั่งกลับค่ายไปขายของ & ฝากคลังทันที'}
       </button>
     </div>
+  </div>
 
-    <div class="p-card" style="background:rgba(49,46,129,0.28); border:1px solid rgba(129,140,248,0.48); border-radius:7px; padding:8px; display:flex; flex-direction:column; gap:5px; font-size:10px;">
+  <!-- TAB 4: 🏪 ตลาด (CENTRAL MARKET AUTO-SELL WL) -->
+  <div id="p-nc-pane-market" style="display:none; flex-direction:column; gap:7px;">
+    <div class="p-card" style="background:linear-gradient(145deg, rgba(19,78,74,0.42), rgba(49,46,129,0.34)); border:1px solid rgba(45,212,191,0.5); border-radius:8px; padding:8px; display:flex; flex-direction:column; gap:6px; font-size:10px;">
       <div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
-        <label style="display:flex; align-items:center; gap:5px; font-size:10.5px; font-weight:700; color:#c7d2fe; cursor:pointer;" title="เมื่อกลับค่ายจะนำไอเทมที่ตั้งไว้ในรายการ Auto-Sell ตลาดกลาง ไปวางขายบนชั้นของลุงโกโก้อัตโนมัติ พร้อมป้องกันไม่ให้ขายทิ้งร้าน NPC">
-          <input type="checkbox" id="p-nc-cm-autosell-enabled" ${(st.cmarketAutoSellConfig?.enabled) ? 'checked' : ''} style="accent-color:#818cf8;">
-          <span>🏪 เปิด Auto-Sell ตลาดกลาง (${(st.cmarketAutoSellConfig?.rules || []).length} รายการ)</span>
+        <label style="display:flex; align-items:center; gap:6px; font-size:11.5px; font-weight:800; color:#e9d5ff; cursor:pointer;" title="เมื่อกลับค่ายจะนำไอเทมตามรายการ WL ตลาดด้านล่างไปตั้งขายอัตโนมัติ พร้อมป้องกันไม่ให้ขายทิ้งร้าน NPC">
+          <input type="checkbox" id="p-nc-cm-autosell-enabled" ${(st.cmarketAutoSellConfig?.enabled) ? 'checked' : ''} style="accent-color:#14b8a6; width:15px; height:15px;">
+          <span>เปิดใช้งาน Auto-Sell ตลาด</span>
         </label>
-        <select id="p-nc-cm-price-strategy" style="background:#090d16; border:1px solid rgba(129,140,248,0.5); color:#e0e7ff; border-radius:4px; font-size:9.5px; padding:2px 4px;">
+        <span id="p-nc-cm-quota-badge" style="font-size:10px; font-weight:800; color:#7dd3fc; background:rgba(2,6,23,0.72); border:1px solid rgba(56,189,248,0.48); border-radius:5px; padding:2px 7px; white-space:nowrap;">โควตา: ${Number(st.cmarketSummary?.openSlotCount ?? 0)}/${Number(st.cmarketSummary?.maxSlots ?? 12)}</span>
+      </div>
+
+      <div style="display:flex; align-items:center; gap:5px; border-top:1px solid rgba(148,163,184,0.18); padding-top:5px;">
+        <span style="font-size:10px; color:#c4b5fd; font-weight:700; white-space:nowrap;">⚖️ กลยุทธ์:</span>
+        <select id="p-nc-cm-price-strategy" style="flex:1; min-width:0; background:#090d16; border:1px solid rgba(129,140,248,0.5); color:#e0e7ff; border-radius:4px; font-size:10px; font-weight:700; padding:3px 5px;">
           <option value="undercut_1" ${(st.cmarketAutoSellConfig?.priceStrategy || 'undercut_1') === 'undercut_1' ? 'selected' : ''}>ตัดราคาต่ำสุด 1g (ข้ามราคาล่อ)</option>
           <option value="lowest" ${st.cmarketAutoSellConfig?.priceStrategy === 'lowest' ? 'selected' : ''}>เท่ากับราคาต่ำสุดในตลาด</option>
-          <option value="median" ${st.cmarketAutoSellConfig?.priceStrategy === 'median' ? 'selected' : ''}>ราคากลาง (FairTrade)</option>
+          <option value="median" ${st.cmarketAutoSellConfig?.priceStrategy === 'median' ? 'selected' : ''}>ราคากลางสมดุล (FairTrade)</option>
           <option value="band_max" ${st.cmarketAutoSellConfig?.priceStrategy === 'band_max' ? 'selected' : ''}>ราคาเพดานสูงสุด</option>
         </select>
       </div>
-      <div style="font-size:9.5px; color:#a5b4fc; background:rgba(2,6,23,0.5); border-radius:4px; padding:3px 6px; line-height:1.35;">
-        ${escapeHTML(st.cmarketLastLog || '🛡️ ไอเทมในรายการตลาดกลางจะถูกป้องกันไม่ให้ขายทิ้งร้านลุงโกโก้อัตโนมัติ')}
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px; font-size:9.5px; color:#cbd5e1;">
+        <label style="display:flex; align-items:center; gap:4px; cursor:pointer;">
+          <input type="checkbox" id="p-nc-cm-auto-claim" ${st.cmarketAutoSellConfig?.autoClaimMail !== false ? 'checked' : ''} style="accent-color:#10b981;">
+          <span>📬 รับเงินจดหมายออโต้</span>
+        </label>
+        <label style="display:flex; align-items:center; gap:4px; cursor:pointer;">
+          <input type="checkbox" id="p-nc-cm-auto-unlist" ${st.cmarketAutoSellConfig?.autoUnlistExpired !== false ? 'checked' : ''} style="accent-color:#38bdf8;">
+          <span>🔄 ถอนของหมดเวลาออโต้</span>
+        </label>
       </div>
+
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:5px;">
-        <button type="button" class="p-btn" id="p-btn-nc-open-cmarket-modal" style="background:rgba(79,70,229,0.28); border:1px solid rgba(129,140,248,0.55); color:#e0e7ff; border-radius:6px; font-size:10.5px; font-weight:700; padding:6px; cursor:pointer;">
-          ⚙️ ตั้งค่ารายการตลาดกลาง
+        <button type="button" class="p-btn" id="p-btn-nc-cm-add-toggle" style="margin:0; background:linear-gradient(135deg,#059669,#10b981); border:1px solid #34d399; color:#fff; border-radius:6px; font-size:10.5px; font-weight:800; padding:6px; cursor:pointer;">
+          ➕ เพิ่มรายการลงขาย
         </button>
-        <button type="button" class="p-btn" id="p-btn-nc-cm-sell-now" style="background:linear-gradient(135deg,#4f46e5,#4338ca); border:1px solid #818cf8; color:#fff; border-radius:6px; font-size:10.5px; font-weight:700; padding:6px; cursor:pointer;">
-          ${isCentral ? '⚡ สั่งทุกจอลงขายทันที' : '⚡ สั่งลงขายตลาดกลางทันที'}
+        <button type="button" class="p-btn" id="p-btn-nc-cm-sell-now" style="margin:0; background:linear-gradient(135deg,#0284c7,#0369a1); border:1px solid #38bdf8; color:#fff; border-radius:6px; font-size:10.5px; font-weight:800; padding:6px; cursor:pointer;">
+          ${isCentral ? '⚡ ตรวจสอบทุกจอทันที' : '⚡ ตรวจสอบทันที'}
         </button>
       </div>
+
+      <div id="p-nc-cm-add-box" style="display:none; flex-direction:column; gap:5px; background:rgba(2,6,23,0.78); border:1px solid rgba(52,211,153,0.45); border-radius:6px; padding:6px;">
+        <input type="text" id="p-nc-cm-add-input" placeholder="พิมพ์ชื่อไอเทม เช่น หินออปชัน, ด้ายเหล็ก, การ์ด..." autocomplete="off" style="width:100%; box-sizing:border-box; background:#090d16; border:1px solid rgba(56,189,248,0.45); color:#fff; border-radius:4px; font-size:10.5px; padding:4px 6px;">
+        <div style="display:flex; align-items:center; gap:4px;">
+          <span style="font-size:9.5px; color:#cbd5e1; white-space:nowrap;">ครบ ≥</span>
+          <input type="number" id="p-nc-cm-add-min" value="10" min="1" max="9999" style="width:52px; background:#090d16; border:1px solid rgba(129,140,248,0.5); color:#fde047; font-weight:700; border-radius:4px; font-size:10.5px; padding:2px 4px; text-align:center;">
+          <select id="p-nc-cm-add-mode" style="flex:1; background:#090d16; border:1px solid rgba(168,85,247,0.5); color:#f1f5f9; border-radius:4px; font-size:10px; padding:2px 4px;">
+            <option value="all">ขายหมดในตัว</option>
+            <option value="min">ขายเป็นชุด (Pack)</option>
+            <option value="single">ขายทีละ 1 ชิ้น</option>
+          </select>
+          <button type="button" id="p-btn-nc-cm-add-save" style="padding:3px 9px; border:1px solid #34d399; border-radius:4px; background:#059669; color:#fff; font-size:10px; font-weight:800; cursor:pointer; white-space:nowrap;">เพิ่ม</button>
+        </div>
+      </div>
+
+      <div id="p-nc-cm-autosell-status" style="font-size:9.5px; color:#a5b4fc; background:rgba(2,6,23,0.55); border-radius:5px; padding:4px 6px; line-height:1.35;">
+        ${escapeHTML(st.cmarketLastLog || '🛡️ ของใน WL ตลาดจะไม่ถูกขายร้าน NPC · กดเพิ่มในหน้าไอเทมในเกมได้ด้วย')}
+      </div>
+
+      <button type="button" class="p-btn" id="p-btn-nc-open-cmarket-modal" style="margin:0; width:100%; background:rgba(79,70,229,0.26); border:1px solid rgba(129,140,248,0.5); color:#c7d2fe; border-radius:6px; font-size:10px; font-weight:700; padding:5px; cursor:pointer;">
+        🏪 เปิดจัดการตลาดกลางเต็มจอ (ค้นหา / คัดลอกไปจออื่น)
+      </button>
     </div>
+
+    <div id="p-nc-cm-rules-list" style="display:flex; flex-direction:column; gap:6px;"></div>
   </div>
 
   <!-- TAB 4: ⚙️ ตั้งค่า -->
@@ -9652,15 +9694,17 @@ async function openWebBotHUD(profileId) {
     isCentral: isCentral
   };
 
-  // 5-Tab switchers (🚀 บอท & เควส | 🧪 ระบบยา | 🛒 ซื้อ/ขาย | ⚙️ ตั้งค่า | 🧲 Trainer)
+  // 5/6-Tab switchers (🚀 บอท | 🧪 ยา | 🛒 ขาย | 🏪 ตลาด | ⚙️ ตั้งค่า | 🧲 Trainer)
   const tabBotBtn = hudEl.querySelector('#p-nc-tab-bot');
   const tabPotBtn = hudEl.querySelector('#p-nc-tab-potions');
   const tabSellBtn = hudEl.querySelector('#p-nc-tab-sell');
+  const tabMarketBtn = hudEl.querySelector('#p-nc-tab-market');
   const tabSetBtn = hudEl.querySelector('#p-nc-tab-settings');
   const tabTrainerBtn = hudEl.querySelector('#p-nc-tab-trainer');
   const paneBot = hudEl.querySelector('#p-nc-pane-bot');
   const panePot = hudEl.querySelector('#p-nc-pane-potions');
   const paneSell = hudEl.querySelector('#p-nc-pane-sell');
+  const paneMarket = hudEl.querySelector('#p-nc-pane-market');
   const paneSet = hudEl.querySelector('#p-nc-pane-settings');
   const paneTrainer = hudEl.querySelector('#p-nc-pane-trainer');
   const switchTab = (tab) => {
@@ -9669,6 +9713,7 @@ async function openWebBotHUD(profileId) {
     if (paneBot) paneBot.style.display = tab === 'bot' ? 'flex' : 'none';
     if (panePot) panePot.style.display = tab === 'potions' ? 'flex' : 'none';
     if (paneSell) paneSell.style.display = tab === 'sell' ? 'flex' : 'none';
+    if (paneMarket) paneMarket.style.display = tab === 'market' ? 'flex' : 'none';
     if (paneSet) paneSet.style.display = tab === 'settings' ? 'flex' : 'none';
     if (paneTrainer) paneTrainer.style.display = tab === 'trainer' ? 'flex' : 'none';
     if (tabBotBtn) {
@@ -9683,6 +9728,10 @@ async function openWebBotHUD(profileId) {
       tabSellBtn.style.background = tab === 'sell' ? '#d97706' : 'transparent';
       tabSellBtn.style.color = tab === 'sell' ? '#fff' : '#94a3b8';
     }
+    if (tabMarketBtn) {
+      tabMarketBtn.style.background = tab === 'market' ? '#0d9488' : 'transparent';
+      tabMarketBtn.style.color = tab === 'market' ? '#fff' : '#5eead4';
+    }
     if (tabSetBtn) {
       tabSetBtn.style.background = tab === 'settings' ? '#7c3aed' : 'transparent';
       tabSetBtn.style.color = tab === 'settings' ? '#fff' : '#94a3b8';
@@ -9695,6 +9744,7 @@ async function openWebBotHUD(profileId) {
   if (tabBotBtn) tabBotBtn.onclick = () => switchTab('bot');
   if (tabPotBtn) tabPotBtn.onclick = () => switchTab('potions');
   if (tabSellBtn) tabSellBtn.onclick = () => switchTab('sell');
+  if (tabMarketBtn) tabMarketBtn.onclick = () => switchTab('market');
   if (tabSetBtn) tabSetBtn.onclick = () => switchTab('settings');
   if (tabTrainerBtn) tabTrainerBtn.onclick = () => switchTab('trainer');
 
@@ -10058,6 +10108,103 @@ async function openWebBotHUD(profileId) {
     };
   }
 
+  const cmClaimCb = hudEl.querySelector('#p-nc-cm-auto-claim');
+  if (cmClaimCb) {
+    cmClaimCb.onchange = async () => {
+      try {
+        await sendWebHudAction(profileId, {
+          type: 'eval',
+          code: `(typeof window.__setCMarketAutoSellConfig === 'function' ? window.__setCMarketAutoSellConfig({ autoClaimMail: ${Boolean(cmClaimCb.checked)} }) : null)`
+        });
+      } catch (_) {}
+    };
+  }
+
+  const cmUnlistCb = hudEl.querySelector('#p-nc-cm-auto-unlist');
+  if (cmUnlistCb) {
+    cmUnlistCb.onchange = async () => {
+      try {
+        await sendWebHudAction(profileId, {
+          type: 'eval',
+          code: `(typeof window.__setCMarketAutoSellConfig === 'function' ? window.__setCMarketAutoSellConfig({ autoUnlistExpired: ${Boolean(cmUnlistCb.checked)} }) : null)`
+        });
+      } catch (_) {}
+    };
+  }
+
+  const cmAddToggleBtn = hudEl.querySelector('#p-btn-nc-cm-add-toggle');
+  const cmAddBox = hudEl.querySelector('#p-nc-cm-add-box');
+  const cmAddInput = hudEl.querySelector('#p-nc-cm-add-input');
+  const cmAddMin = hudEl.querySelector('#p-nc-cm-add-min');
+  const cmAddMode = hudEl.querySelector('#p-nc-cm-add-mode');
+  const cmAddSaveBtn = hudEl.querySelector('#p-btn-nc-cm-add-save');
+  if (cmAddToggleBtn && cmAddBox) {
+    cmAddToggleBtn.onclick = () => {
+      const open = cmAddBox.style.display === 'none';
+      cmAddBox.style.display = open ? 'flex' : 'none';
+      if (open) setTimeout(() => cmAddInput?.focus?.(), 20);
+    };
+  }
+  if (cmAddSaveBtn) {
+    cmAddSaveBtn.onclick = async () => {
+      const rawName = String(cmAddInput?.value || '').trim();
+      if (!rawName) {
+        if (typeof showToast === 'function') showToast('⚠️ กรุณาพิมพ์ชื่อไอเทมก่อนกดเพิ่ม', 'warning');
+        return;
+      }
+      const rulePayload = {
+        itemId: rawName,
+        itemName: rawName,
+        kind: 'auto',
+        minQty: Math.max(1, Math.min(9999, Math.floor(Number(cmAddMin?.value) || 1))),
+        sellMode: ['all', 'min', 'single'].includes(cmAddMode?.value) ? cmAddMode.value : 'all',
+        reserveQty: 0,
+        customPrice: 0,
+        enabled: true
+      };
+      try {
+        await sendWebHudAction(profileId, {
+          type: 'eval',
+          code: `(typeof window.__addOrUpdateCMarketRule === 'function' ? window.__addOrUpdateCMarketRule(${JSON.stringify(rulePayload)}, { enableMaster: true }) : null)`
+        });
+        if (cmAddInput) cmAddInput.value = '';
+        if (cmAddBox) cmAddBox.style.display = 'none';
+        if (typeof showToast === 'function') showToast(`🏪 เพิ่ม "${rawName}" ลง WL ตลาดแล้ว!`, 'success');
+      } catch (_) {}
+    };
+  }
+
+  const cmRulesListEl = hudEl.querySelector('#p-nc-cm-rules-list');
+  if (cmRulesListEl) {
+    cmRulesListEl.onchange = async (ev) => {
+      const el = ev.target;
+      const rid = el?.getAttribute?.('data-wcm-id');
+      const field = el?.getAttribute?.('data-wcm-field');
+      if (!rid || !field) return;
+      const val = field === 'enabled'
+        ? Boolean(el.checked)
+        : (field === 'minQty' ? Math.max(1, Math.min(9999, Math.floor(Number(el.value) || 1))) : String(el.value || 'all'));
+      try {
+        await sendWebHudAction(profileId, {
+          type: 'eval',
+          code: `(() => { const cfg = window.__cmarketAutoSellConfig; if (!cfg || !Array.isArray(cfg.rules)) return; const list = cfg.rules.map(r => Object.assign({}, r)); const h = list.find(r => String(r.id) === ${JSON.stringify(rid)}); if (!h) return; h[${JSON.stringify(field)}] = ${JSON.stringify(val)}; window.__setCMarketAutoSellConfig({ rules: list }, false); })()`
+        });
+      } catch (_) {}
+    };
+    cmRulesListEl.onclick = async (ev) => {
+      const delBtn = ev.target?.closest?.('[data-wcm-del]');
+      if (!delBtn) return;
+      const rid = delBtn.getAttribute('data-wcm-del');
+      if (!rid) return;
+      try {
+        await sendWebHudAction(profileId, {
+          type: 'eval',
+          code: `(typeof window.__removeCMarketRule === 'function' ? window.__removeCMarketRule(${JSON.stringify(rid)}) : null)`
+        });
+      } catch (_) {}
+    };
+  }
+
   const openCMModalBtn = hudEl.querySelector('#p-btn-nc-open-cmarket-modal');
   if (openCMModalBtn) {
     openCMModalBtn.onclick = () => {
@@ -10407,6 +10554,64 @@ function populateWebHudData(profileId, data) {
   } else {
     if (typeof st.autoSellEnabled === 'boolean') setField('#p-nc-autosell-enabled', st.autoSellEnabled, true);
     if (st.autoSellWeightPct) setField('#p-nc-autosell-pct', st.autoSellWeightPct, false);
+  }
+
+  if (st.cmarketAutoSellConfig && typeof st.cmarketAutoSellConfig === 'object') {
+    const cmc = st.cmarketAutoSellConfig;
+    setField('#p-nc-cm-autosell-enabled', Boolean(cmc.enabled), true);
+    setField('#p-nc-cm-price-strategy', cmc.priceStrategy || 'undercut_1', false);
+    setField('#p-nc-cm-auto-claim', cmc.autoClaimMail !== false, true);
+    setField('#p-nc-cm-auto-unlist', cmc.autoUnlistExpired !== false, true);
+  }
+  const cmStatEl = hud.querySelector('#p-nc-cm-autosell-status');
+  if (cmStatEl && st.cmarketLastLog) cmStatEl.textContent = st.cmarketLastLog;
+  const cmQuotaEl = hud.querySelector('#p-nc-cm-quota-badge');
+  if (cmQuotaEl && st.cmarketSummary) {
+    const op = Number(st.cmarketSummary.openSlotCount ?? 0);
+    const mx = Number(st.cmarketSummary.maxSlots ?? 12);
+    cmQuotaEl.textContent = `โควตา: ${op}/${mx}`;
+    cmQuotaEl.style.borderColor = op >= mx ? 'rgba(248,113,113,0.65)' : 'rgba(56,189,248,0.48)';
+    cmQuotaEl.style.color = op >= mx ? '#fca5a5' : '#7dd3fc';
+  }
+  const cmListEl = hud.querySelector('#p-nc-cm-rules-list');
+  if (cmListEl && !cmListEl.contains(document.activeElement)) {
+    const rawRules = Array.isArray(st.cmarketSummary?.ruleStates) && st.cmarketSummary.ruleStates.length > 0
+      ? st.cmarketSummary.ruleStates
+      : (Array.isArray(st.cmarketAutoSellConfig?.rules) ? st.cmarketAutoSellConfig.rules : []);
+    const sig = JSON.stringify(rawRules.map(r => [r.id, r.itemId, r.itemName, r.kind, r.isSingle, r.minQty, r.sellMode, r.enabled, r.statusLabel]));
+    if (cmListEl.dataset.sig !== sig) {
+      cmListEl.dataset.sig = sig;
+      if (rawRules.length === 0) {
+        cmListEl.innerHTML = `<div style="text-align:center; padding:12px 8px; font-size:10px; color:#94a3b8; background:rgba(2,6,23,0.48); border:1px dashed rgba(45,212,191,0.32); border-radius:7px; line-height:1.45;">🏪 ยังไม่มีรายการ WL ตลาดกลาง<br><span style="color:#5eead4;">กด ➕ เพิ่มรายการลงขาย หรือเพิ่มจากหน้าไอเทมในเกมได้เลย</span></div>`;
+      } else {
+        cmListEl.innerHTML = rawRules.map((r, idx) => {
+          const isSingle = Boolean(r.isSingle || r.kind === 'item' || r.kind === 'rune');
+          const stCol = r.statusKey === 'ready' ? '#6ee7b7' : (r.statusKey === 'waiting' ? '#fde68a' : (r.statusKey === 'listed' ? '#7dd3fc' : '#94a3b8'));
+          const ctrl = isSingle
+            ? `<div style="font-size:9.5px; color:#fcd34d; background:rgba(2,6,23,0.48); border-radius:4px; padding:3px 6px;">⚔️ ขายทีละ 1 ชิ้น (ข้ามชิ้นที่สวมใส่/ล็อก)</div>`
+            : `<div style="display:flex; align-items:center; gap:5px; font-size:10px; color:#cbd5e1;">` +
+                `<span style="white-space:nowrap;">ครบ ≥</span>` +
+                `<input type="number" data-wcm-field="minQty" data-wcm-id="${escapeHTML(r.id)}" min="1" max="9999" value="${Number(r.minQty) || 1}" style="width:48px; background:#090d16; border:1px solid rgba(129,140,248,0.45); color:#7dd3fc; font-weight:800; border-radius:4px; font-size:10px; padding:2px 4px; text-align:center;">` +
+                `<span>ชิ้น</span>` +
+                `<select data-wcm-field="sellMode" data-wcm-id="${escapeHTML(r.id)}" style="flex:1; min-width:0; background:#090d16; border:1px solid rgba(168,85,247,0.5); color:#f1f5f9; border-radius:4px; font-size:9.5px; font-weight:700; padding:2px 4px;">` +
+                  `<option value="all" ${r.sellMode === 'all' ? 'selected' : ''}>ขายหมดในตัว</option>` +
+                  `<option value="min" ${r.sellMode === 'min' ? 'selected' : ''}>ขายเป็นชุด (${Number(r.minQty) || 1} ชิ้น)</option>` +
+                  `<option value="single" ${r.sellMode === 'single' ? 'selected' : ''}>ขายทีละ 1 ชิ้น</option>` +
+                `</select>` +
+              `</div>`;
+          return `<div style="background:rgba(15,23,42,0.86); border:1px solid ${r.ready ? 'rgba(52,211,153,0.58)' : 'rgba(139,92,246,0.4)'}; border-radius:7px; padding:6px 7px; display:flex; flex-direction:column; gap:5px; opacity:${r.enabled !== false ? '1' : '0.58'};">` +
+            `<div style="display:flex; align-items:center; gap:5px;">` +
+              `<span style="font-size:10px; font-weight:800; color:#c084fc;">#${idx + 1}</span>` +
+              `<input type="checkbox" data-wcm-field="enabled" data-wcm-id="${escapeHTML(r.id)}" ${r.enabled !== false ? 'checked' : ''} style="accent-color:#14b8a6; width:14px; height:14px; cursor:pointer;">` +
+              `<div style="flex:1; min-width:0; font-size:10.5px; font-weight:800; color:#f8fafc; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHTML(r.itemName || r.itemId)}</div>` +
+              `<button type="button" data-wcm-del="${escapeHTML(r.id)}" style="width:20px; height:20px; border:0; border-radius:4px; background:#ef4444; color:#fff; font-size:12px; font-weight:900; line-height:1; cursor:pointer;">−</button>` +
+            `</div>` +
+            ctrl +
+            (r.statusLabel ? `<div style="font-size:9px; color:${stCol}; font-weight:600;">${escapeHTML(r.statusLabel)}</div>` : '') +
+          `</div>`;
+        }).join('');
+      }
+    }
   }
 
   if (st.perfConfig && typeof st.perfConfig === 'object') {
@@ -16564,7 +16769,8 @@ async function addNightcampCMarketAutoSellRuleFromForm() {
   if (!pid) return;
   const rawInput = String(document.getElementById('nc-cm-add-name')?.value || '').trim();
   const minQty = Math.max(1, Math.floor(Number(document.getElementById('nc-cm-add-minqty')?.value) || 1));
-  const sellMode = document.getElementById('nc-cm-add-mode')?.value === 'min' ? 'min' : 'all';
+  const rawMode = document.getElementById('nc-cm-add-mode')?.value || 'all';
+  const sellMode = ['all', 'min', 'single'].includes(rawMode) ? rawMode : 'all';
   const customPrice = Math.max(0, Math.floor(Number(document.getElementById('nc-cm-add-price')?.value) || 0));
   const reserveQty = Math.max(0, Math.floor(Number(document.getElementById('nc-cm-add-reserve')?.value) || 0));
   if (!rawInput) {
@@ -16630,7 +16836,7 @@ async function updateNightcampCMarketRuleField(ruleId, field, rawVal) {
   else if (field === 'minQty') rule.minQty = Math.max(1, Math.min(9999, Math.floor(Number(rawVal) || 1)));
   else if (field === 'reserveQty') rule.reserveQty = Math.max(0, Math.min(9999, Math.floor(Number(rawVal) || 0)));
   else if (field === 'customPrice') rule.customPrice = Math.max(0, Math.floor(Number(rawVal) || 0));
-  else if (field === 'sellMode') rule.sellMode = rawVal === 'min' ? 'min' : 'all';
+  else if (field === 'sellMode') rule.sellMode = ['all', 'min', 'single'].includes(rawVal) ? rawVal : 'all';
   await persistAndSyncNightcampCMarketConfig(cur, false);
 }
 window.updateNightcampCMarketRuleField = updateNightcampCMarketRuleField;
@@ -17355,7 +17561,8 @@ function renderNightcampCMarketTabHtml(d) {
             <span style="font-size:9.5px; color:#94a3b8;">รูปแบบการขาย:</span>
             <select id="nc-cm-add-mode" style="width:100%; background:#090d16; border:1px solid rgba(56,189,248,0.4); color:#e2e8f0; border-radius:6px; padding:5px 6px; font-size:10.5px;">
               <option value="all">ขายทั้งหมดในตัว</option>
-              <option value="min">ขายทีละจำนวนขั้นต่ำ</option>
+              <option value="min">ขายเป็นชุด (ตามขั้นต่ำ)</option>
+              <option value="single">ขายทีละ 1 ชิ้น</option>
             </select>
           </div>
           <div style="display:flex; flex-direction:column; gap:2px;">
@@ -17495,8 +17702,9 @@ function renderNightcampCMarketTabHtml(d) {
                   <span>โหมดขาย:</span>
                   <select onchange="updateNightcampCMarketRuleField('${escapeHTML(r.id)}', 'sellMode', this.value)"
                           style="background:#090d16; border:1px solid rgba(129,140,248,0.45); color:#e2e8f0; border-radius:5px; padding:2px 5px; font-size:10px;">
-                    <option value="all" ${r.sellMode !== 'min' ? 'selected' : ''}>ขายหมดในตัว</option>
-                    <option value="min" ${r.sellMode === 'min' ? 'selected' : ''}>ขายทีละขั้นต่ำ</option>
+                    <option value="all" ${r.sellMode === 'all' ? 'selected' : ''}>ขายหมดในตัว</option>
+                    <option value="min" ${r.sellMode === 'min' ? 'selected' : ''}>ขายเป็นชุด (${r.minQty} ชิ้น)</option>
+                    <option value="single" ${r.sellMode === 'single' ? 'selected' : ''}>ขายทีละ 1 ชิ้น</option>
                   </select>
                 </label>
                 <label style="display:flex; align-items:center; justify-content:space-between; gap:5px; color:#cbd5e1;">
