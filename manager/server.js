@@ -1502,6 +1502,115 @@ function buildDefaultNightcampWolfHunterPlan() {
   return buildDefaultNightcampPriestPlan();
 }
 
+
+// Complete v2.0.9 built-in plan upgrade specs (2-round skill builds + Class 1/2 Weapon Type locks + Class 3 triggers)
+const BUILTIN_PLAN_V209_SPECS = {
+  "plan_nc_priest_bishop_1_50": {"c1w":"staff","c2w":"book","r0":[["holylight",9],["pr_demonbane",10],["magnus",5],["pr_heal",9],["blessing",9],["pr_agi",10],["pr_protect",3],["pr_angelus",3]],"r0Off":["pr_resurrect"],"r1":[["pr_heal",9],["blessing",9],["holylight",4],["pr_protect",3],["pr_angelus",3],["bi_heal",9],["bi_barrier",10],["bi_meditatio",5],["bi_magnificat",5],["bi_turnundead",10],["bi_sanctuary",10],["bi_miracle",5],["bi_assumptio",5],["bi_lexdivina",5],["pr_demonbane",10],["body",5],["ss_faith",9],["ss_awaken",5],["ss_heal",10],["ss_turn",10],["ss_sanct",10],["ss_lex",5]],"r1Off":["pr_resurrect"]},
+  "plan_nc_priest_wisp_1_50": {"c1w":"staff","c2w":"bell","r0":[["holylight",9],["pr_demonbane",10],["magnus",5],["pr_heal",9],["blessing",9],["pr_agi",10],["pr_protect",6]],"r0Off":["pr_resurrect"],"r1":[["pr_macemastery",1],["ws_flock",9],["ws_swarm",10],["ws_swift",10],["ws_heart",5],["ws_call",10],["ws_rush",10],["ws_mark",5],["ws_latch",9],["ws_embrace",10],["ws_burst",5],["ws_night",5],["blessing",9],["pr_protect",9],["st_merge",9],["st_awaken",5],["st_rush",10],["st_mark",10],["st_latch",10],["st_burst",5]],"r1Off":["pr_resurrect"]},
+  "plan_nc_priest_monk_1_50": {"c1w":"mace","c2w":"knuckle","r0":[["pr_macemastery",10],["pr_duple",10],["blessing",9],["pr_heal",9],["pr_agi",10],["pr_protect",10]],"r0Off":["pr_resurrect"],"r1":[["pr_macemastery",3],["mo_triple",10],["mo_ironfist",10],["mo_ironbody",5],["mo_fury",5],["mo_spheres",5],["mo_chi",9],["mo_palms",10],["mo_combo",10],["mo_impact",10],["mo_asura",5],["mo_dodge",10],["pr_duple",10],["body",5],["mf_combo",9],["mf_awaken",5],["mf_storm",10],["mf_palms",10],["mf_impact",10],["mf_crush",5]],"r1Off":["pr_resurrect"]},
+  "plan_1795450519812_17": {"c1w":"dagger","c2w":"puppet","r0":[["ro_dagger",10],["ro_double",10],["ro_vital",10],["sonic",5],["envenom",9],["ro_venomheart",10],["body",4]],"r0Off":["ro_hide"],"r1":[["pp_puppet",9],["pp_strings",10],["pp_dance",10],["pp_theatre",5],["shadowstep",2],["ro_hide",1],["pp_control",10],["pp_soulstring",5],["pp_guide",10],["pp_swap",5],["body",10],["mastery",10],["ro_venomheart",10],["mind",10],["so_acts",9],["so_awaken",5],["so_dance",10],["so_swap",10],["envenom",9],["venomdust",6]],"r1Off":["ro_hide","shadowstep","pp_stretch","pp_bind"]},
+  "plan_nc_rogue_puppeteer_1_50": {"c1w":"dagger","c2w":"puppet","r0":[["ro_dagger",10],["ro_double",10],["ro_vital",10],["sonic",5],["envenom",9],["ro_venomheart",10],["body",4]],"r0Off":["ro_hide"],"r1":[["pp_puppet",9],["pp_strings",10],["pp_dance",10],["pp_theatre",5],["shadowstep",2],["ro_hide",1],["pp_control",10],["pp_soulstring",5],["pp_guide",10],["pp_swap",5],["body",10],["mastery",10],["ro_venomheart",10],["mind",10],["so_acts",9],["so_awaken",5],["so_dance",10],["so_swap",10],["envenom",9],["venomdust",6]],"r1Off":["ro_hide","shadowstep","pp_stretch","pp_bind"]},
+  "plan_nc_priest_lightkeeper_1_50": {"c1w":"staff","c2w":"torch","r0":[["holylight",9],["pr_demonbane",10],["magnus",5],["pr_heal",9],["blessing",9],["pr_agi",10],["pr_protect",6]],"r0Off":["pr_resurrect"],"r1":[["pr_macemastery",1],["holylight",2],["lk_radiance",10],["lk_lighthouse",5],["lk_torchmastery",10],["lk_swing",9],["lk_plant",5],["lk_faith",10],["lk_lamp",9],["lk_flare",10],["lk_wick",10],["lk_flash",10],["lk_dawn",5],["pr_demonbane",10],["body",1],["bc_beam",9],["bc_awaken",5],["bc_swing",10],["bc_flare",10],["bc_dawn",10],["bc_flash",5]],"r1Off":["pr_resurrect"]},
+  "plan_nc_knight_berserker_1_50": {"c1w":"gsword","c2w":"gaxe","r0":[["kn_swordmastery",10],["kn_quicken",10],["kn_cleave",10],["kn_aurablade",5],["kn_ironskin",10],["bash",9],["kn_bowling",4]],"r0Off":["kn_berserk"],"r1":[["kn_swordmastery",3],["kn_quicken",1],["bk_smash",9],["bk_leap",10],["bk_hurl",10],["bk_frenzy",10],["bk_pact",5],["bk_titan",5],["bk_warcry",10],["bk_roar",5],["kn_ironskin",10],["body",10],["mastery",10],["mind",9],["bm_moon",9],["bm_awaken",5],["bm_smash",10],["bm_leap",10],["bk_crosscut",1],["bm_cross",10],["mind",1],["kn_provoke",3]],"r1Off":["kn_berserk"]},
+  "plan_nc_mage_archmage_1_50": {"c1w":"staff","c2w":"staff","r0":[["thunder",9],["mg_stormheart",10],["mg_staffmastery",10],["mg_autospell",10],["mg_sprecovery",10],["mg_memorize",5],["mg_fireheart",4]],"r0Off":[],"r1":[["thunder",4],["mg_stormheart",10],["mg_staffmastery",5],["mg_autospell",5],["am_chain",10],["am_lordthunder",10],["am_overcharge",1],["am_chainreact",5],["am_trinity",5],["am_orbfire",1],["am_orbwater",1],["am_orbwind",1],["am_orbfire",9],["am_orbwater",9],["am_orbwind",6],["am_arcaneflux",10],["am_convergence",5],["am_doublecast",10],["ax_planets",9],["ax_awaken",5],["ax_chain",10],["ax_lord",10],["ax_orbs",10],["ax_recall",5]],"r1Off":[]},
+  "plan_nc_party5_slot1_tank_paladin": {"c1w":"sword","c2w":"mace","r0":[["kn_swordmastery",10],["kn_quicken",10],["kn_cleave",10],["kn_ironskin",10],["guard",9],["kn_provoke",5],["judgment",4]],"r0Off":["kn_berserk"],"r1":[["guard",9],["kn_ironskin",10],["kn_provoke",5],["judgment",1],["pal_strike",9],["pal_faith",10],["pal_cross",10],["pal_devotion",5],["pal_layhands",10],["pal_heaven",5],["pal_aegis",5],["pal_reflect",5],["pal_shieldchain",10],["body",10],["mind",3],["dw_dawn",9],["dw_awaken",5],["dw_cross",10],["dw_hands",10],["dw_chain",10],["dw_strike",5]],"r1Off":["kn_berserk"]},
+  "plan_nc_party5_slot2_support_bishop": {"c1w":"staff","c2w":"book","r0":[["holylight",9],["pr_heal",9],["pr_resurrect",5],["blessing",9],["pr_agi",10],["pr_protect",5],["pr_angelus",5],["pr_demonbane",3],["magnus",3]],"r0Off":[],"r1":[["pr_heal",9],["pr_resurrect",5],["blessing",9],["pr_agi",10],["pr_protect",3],["pr_angelus",3],["bi_heal",9],["bi_barrier",5],["bi_magnificat",5],["bi_barrier",5],["bi_assumptio",5],["bi_sanctuary",10],["bi_miracle",5],["bi_meditatio",5],["bi_clementia",10],["bi_canto",5],["holylight",4],["bi_turnundead",3],["bi_lexdivina",1],["ss_faith",9],["ss_awaken",5],["ss_heal",10],["ss_sanct",10],["ss_turn",10],["ss_lex",1]],"r1Off":[]},
+  "plan_nc_party5_slot3_dps_puppeteer": {"c1w":"dagger","c2w":"puppet","r0":[["ro_dagger",10],["ro_double",10],["ro_vital",10],["sonic",5],["envenom",9],["ro_venomheart",10],["body",4]],"r0Off":["ro_hide"],"r1":[["pp_puppet",9],["pp_strings",10],["pp_dance",10],["pp_theatre",5],["shadowstep",2],["ro_hide",1],["pp_control",10],["pp_soulstring",5],["pp_guide",10],["pp_swap",5],["body",10],["mastery",10],["ro_venomheart",10],["mind",10],["so_acts",9],["so_awaken",5],["so_dance",10],["so_swap",10],["envenom",9],["venomdust",6]],"r1Off":["ro_hide","shadowstep","pp_stretch","pp_bind"]},
+  "plan_nc_party5_slot4_dps_archmage": {"c1w":"staff","c2w":"staff","r0":[["thunder",9],["mg_stormheart",10],["mg_staffmastery",10],["mg_autospell",10],["mg_sprecovery",10],["mg_memorize",5],["mg_fireheart",4]],"r0Off":[],"r1":[["thunder",4],["mg_stormheart",10],["mg_staffmastery",5],["mg_autospell",5],["am_chain",10],["am_lordthunder",10],["am_overcharge",1],["am_chainreact",5],["am_trinity",5],["am_orbfire",1],["am_orbwater",1],["am_orbwind",1],["am_orbfire",9],["am_orbwater",9],["am_orbwind",6],["am_arcaneflux",10],["am_convergence",5],["am_doublecast",10],["ax_planets",9],["ax_awaken",5],["ax_chain",10],["ax_lord",10],["ax_orbs",10],["ax_recall",5]],"r1Off":[]},
+  "plan_nc_party5_slot5_bard_maestro": {"c1w":"bow","c2w":"instrument","r0":[["ar_bowmastery",10],["ar_doubleshot",10],["double",9],["shower",9],["ar_owl",10],["ar_concentrate",5],["starshot",5]],"r0Off":[],"r1":[["double",2],["bd_tempo",9],["bd_warm",10],["bd_band",5],["bd_stars",10],["bd_note",10],["bd_noterain",7],["bd_festival",5],["bd_noterain",3],["bd_groove",5],["ar_owl",10],["ar_concentrate",5],["body",10],["mind",10],["mastery",6],["mt_band",9],["mt_awaken",5],["mt_note",10],["mt_rain",10],["mastery",4],["bd_twirl",1],["mt_twirl",10]],"r1Off":[]},
+  "plan_nc_party5_slot5_aura_lightkeeper": {"c1w":"staff","c2w":"torch","r0":[["holylight",9],["pr_demonbane",10],["magnus",5],["pr_heal",9],["blessing",9],["pr_agi",10],["pr_protect",6]],"r0Off":["pr_resurrect"],"r1":[["pr_macemastery",1],["holylight",2],["lk_radiance",10],["lk_lighthouse",5],["lk_torchmastery",10],["lk_swing",9],["lk_plant",5],["lk_faith",10],["lk_lamp",9],["lk_flare",10],["lk_wick",10],["lk_flash",10],["lk_dawn",5],["pr_demonbane",10],["body",1],["bc_beam",9],["bc_awaken",5],["bc_swing",10],["bc_flare",10],["bc_dawn",10],["bc_flash",5]],"r1Off":["pr_resurrect"]}
+};
+
+function expandSkillPairsV209(pairs) {
+  const queue = [];
+  const plannedLevels = {};
+  for (const [sid, cnt] of (pairs || [])) {
+    const n = Number(cnt) || 0;
+    for (let i = 0; i < n; i++) queue.push(sid);
+    if (n > 0) plannedLevels[sid] = (plannedLevels[sid] || 0) + n;
+  }
+  return { queue, plannedLevels };
+}
+
+function applyV209BuiltinPlanUpgrade(p) {
+  if (!p || typeof p !== "object") return false;
+  const spec = BUILTIN_PLAN_V209_SPECS[p.id];
+  if (!spec) return false;
+  if ((Number(p.planSchemaVersion) || 0) >= 209) return false;
+
+  p.preferredWeaponType = spec.c2w;
+
+  // Upgrade 2-round skill build (R0 58 pts Class 1 + R1 156 pts post-reset Class 2/3)
+  if (Array.isArray(spec.r0) && spec.r0.length > 0 && Array.isArray(spec.r1) && spec.r1.length > 0) {
+    const r0 = expandSkillPairsV209(spec.r0);
+    const r1 = expandSkillPairsV209(spec.r1);
+    const existingFacets = (p.skillBuild && p.skillBuild.facets) ? p.skillBuild.facets : {};
+    const existingR1Facets = (p.skillBuild && Array.isArray(p.skillBuild.resetRounds) && p.skillBuild.resetRounds[0] && p.skillBuild.resetRounds[0].facets)
+      ? p.skillBuild.resetRounds[0].facets
+      : {};
+    p.skillBuild = {
+      skillPointQueue: r0.queue,
+      plannedLevels: r0.plannedLevels,
+      autoOff: Array.isArray(spec.r0Off) ? spec.r0Off.slice() : [],
+      facets: existingFacets,
+      resetRounds: [
+        {
+          round: 1,
+          label: "รีสกิล #1",
+          skillPointQueue: r1.queue,
+          plannedLevels: r1.plannedLevels,
+          autoOff: Array.isArray(spec.r1Off) ? spec.r1Off.slice() : [],
+          facets: existingR1Facets
+        }
+      ]
+    };
+  }
+
+  // Upgrade triggers: Class 1 Weapon Type lock, Class 2 Reset Skills + Weapon Type lock, Class 3 Job 50 promotion
+  const trigs = Array.isArray(p.triggers) ? p.triggers : (p.triggers = []);
+  const t10 = trigs.find(t => t && t.type === "job_level" && Number(t.targetLevel) === 10 && (!t.classId || t.classId === "traveler" || t.classId === "novice"));
+  if (t10) {
+    t10.actions = (t10.actions || []).filter(a => a && a.type !== "set_weapon_type");
+    const cIdx = t10.actions.findIndex(a => a.type === "change_class");
+    const wt1 = { id: "act_nc_wt_c1", type: "set_weapon_type", weaponType: spec.c1w };
+    if (cIdx >= 0) t10.actions.splice(cIdx + 1, 0, wt1);
+    else t10.actions.unshift(wt1);
+  }
+
+  const c1Lower = String(p.class1Target || "").toLowerCase();
+  const c2Lower = String(p.class2Target || "").toLowerCase();
+  const t50c1 = trigs.find(t => t && t.type === "job_level" && Number(t.targetLevel) === 50 && String(t.classId || "").toLowerCase() === c1Lower);
+  if (t50c1) {
+    t50c1.actions = [
+      { id: "act_nc_c2", type: "change_class", targetClass: p.class2Target },
+      { id: "act_nc_rst_c2", type: "reset_skills", resetMode: "auto" },
+      { id: "act_nc_wt_c2", type: "set_weapon_type", weaponType: spec.c2w },
+      { id: "act_nc_eq_c2", type: "equip_best", itemName: "" }
+    ];
+  }
+
+  const hasT50c2 = trigs.some(t => t && t.type === "job_level" && Number(t.targetLevel) === 50 && String(t.classId || "").toLowerCase() === c2Lower);
+  if (!hasT50c2 && p.class3Target) {
+    const idx80 = trigs.findIndex(t => t && t.type === "base_level" && Number(t.targetLevel) >= 80);
+    const t50c2 = {
+      id: "trig_nc_job50_c2",
+      type: "job_level",
+      classId: p.class2Target,
+      targetLevel: 50,
+      actions: [
+        { id: "act_nc_c3", type: "change_class", targetClass: p.class3Target },
+        { id: "act_nc_eq_c3", type: "equip_best", itemName: "" }
+      ]
+    };
+    if (idx80 >= 0) trigs.splice(idx80, 0, t50c2);
+    else trigs.push(t50c2);
+  }
+
+  p.planSchemaVersion = 209;
+  p.updatedAt = Date.now();
+  return true;
+}
+
 function normalizePlansData(raw) {
   if (raw && Array.isArray(raw.profiles)) {
     let migrated = false;
@@ -1647,6 +1756,9 @@ function normalizePlansData(raw) {
         }
       }
     }
+    for (const p of raw.profiles) {
+      if (applyV209BuiltinPlanUpgrade(p)) migrated = true;
+    }
     const result = {
       profiles: raw.profiles,
       assignments: raw.assignments || {},
@@ -1674,7 +1786,8 @@ function normalizePlansData(raw) {
     buildDefaultNightcampParty5Slot5BardPlan(),
     buildDefaultNightcampParty5Slot5LightkeeperPlan()
   ];
-  const assignments = {};
+  defaultProfiles.forEach(applyV209BuiltinPlanUpgrade);
+    const assignments = {};
   return { profiles: defaultProfiles, assignments };
 }
 
