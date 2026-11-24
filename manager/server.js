@@ -3296,7 +3296,10 @@ function queryClientState(port) {
   }
   const promise = new Promise((resolve) => {
     // 1. Try rich state via POST /api/eval (avoids HTTP URL/header overflow on large LIVE_STATE_EVAL)
-    const payload = JSON.stringify({ code: LIVE_STATE_EVAL });
+    const accSt = typeof humanCheckSolver?.getAccessState === 'function' ? humanCheckSolver.getAccessState() : null;
+    const trainerUnlocked = Boolean(accSt?.secretAccess?.trainer || accSt?.secretAccess?.features?.trainer);
+    const evalCode = `try { if (typeof window.__setTrainerAccessUnlocked === 'function') window.__setTrainerAccessUnlocked(${trainerUnlocked}); } catch (_) {}\n` + LIVE_STATE_EVAL;
+    const payload = JSON.stringify({ code: evalCode });
     const req = http.request({
       hostname: '127.0.0.1',
       port: port,
@@ -4137,6 +4140,12 @@ function buildClientActionEvalCode(payload) {
       } catch (e) {}
       return typeof window.importAllBotSettings === 'function' ? window.importAllBotSettings(${JSON.stringify(payload.configJson)}) : { success: false, error: 'import function not available' };
     })()`;
+  } else if (payload.type === 'update-trainer') {
+    return `if (typeof window.__setTrainerConfig === 'function') window.__setTrainerConfig(${JSON.stringify(payload.config || {})});`;
+  } else if (payload.type === 'pull-mob-now') {
+    return `if (typeof window.__triggerPullMobNow === 'function') window.__triggerPullMobNow();`;
+  } else if (payload.type === 'pull-item-now') {
+    return `if (typeof window.__triggerPullItemNow === 'function') window.__triggerPullItemNow();`;
   } else if (payload.type === 'eval' && payload.code) {
     return payload.code;
   }

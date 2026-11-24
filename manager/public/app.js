@@ -7194,6 +7194,37 @@ window.switchMainTab = switchMainTab;
         window.switchMainTab("profiles");
       }
     }
+
+    const nextTrainerUnlocked = Boolean(secretAccess.trainer || (secretAccess.features && secretAccess.features.trainer));
+    const prevTrainerUnlocked = Boolean(window.__secretTrainerUnlocked);
+    window.__secretTrainerUnlocked = nextTrainerUnlocked;
+    if (typeof activeWebHuds === "object" && activeWebHuds) {
+      for (const pid of Object.keys(activeWebHuds)) {
+        const hEl = activeWebHuds[pid]?.el;
+        if (!hEl) continue;
+        const tBtn = hEl.querySelector("#p-nc-tab-trainer");
+        const tBar = hEl.querySelector("#p-nc-tabbar");
+        const tPane = hEl.querySelector("#p-nc-pane-trainer");
+        if (tBtn) tBtn.style.display = nextTrainerUnlocked ? "inline-block" : "none";
+        if (tBar) {
+          tBar.style.gridTemplateColumns = nextTrainerUnlocked
+            ? "1.05fr 0.85fr 0.85fr 0.78fr 0.85fr"
+            : "1.15fr 0.95fr 0.95fr 0.85fr";
+        }
+        if (!nextTrainerUnlocked && tPane && tPane.style.display !== "none") {
+          hEl.querySelector("#p-nc-tab-bot")?.click();
+        }
+      }
+    }
+    if (nextTrainerUnlocked !== prevTrainerUnlocked && Array.isArray(currentProfiles)) {
+      const online = currentProfiles.filter(p => p && p.isRunning);
+      if (online.length > 0 && typeof sendWebHudAction === "function") {
+        sendWebHudAction("__central__", {
+          type: "eval",
+          code: `(typeof window.__setTrainerAccessUnlocked === 'function' ? window.__setTrainerAccessUnlocked(${nextTrainerUnlocked}) : (window.__trainerAccessUnlocked = ${nextTrainerUnlocked}))`
+        }).catch(() => {});
+      }
+    }
   };
 
   async function saveAutoFarmConfig(extraPatch = {}) {
@@ -8737,12 +8768,13 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
   </div>
   ` : ''}
 
-  <!-- 4-Tab Bar matching in-game bot.js v1.9.2 -->
-  <div style="display:grid; grid-template-columns:1.15fr 0.95fr 0.95fr 0.85fr; gap:3px; background:rgba(2, 6, 23, 0.72); border:1px solid rgba(148, 163, 184, 0.24); border-radius:7px; padding:3px;">
+  <!-- 5-Tab Bar matching in-game bot.js v2.0.7 (Trainer tab gated by secretAccess.trainer) -->
+  <div id="p-nc-tabbar" style="display:grid; grid-template-columns:${(window.__secretTrainerUnlocked || state?.trainerAccessUnlocked) ? '1.05fr 0.85fr 0.85fr 0.78fr 0.85fr' : '1.15fr 0.95fr 0.95fr 0.85fr'}; gap:3px; background:rgba(2, 6, 23, 0.72); border:1px solid rgba(148, 163, 184, 0.24); border-radius:7px; padding:3px;">
     <button type="button" id="p-nc-tab-bot" style="padding:5px 4px; border:0; border-radius:5px; font-size:10.5px; font-weight:700; cursor:pointer; background:#0284c7; color:#fff; white-space:nowrap;">🚀 บอท & เควส</button>
     <button type="button" id="p-nc-tab-potions" style="padding:5px 4px; border:0; border-radius:5px; font-size:10.5px; font-weight:700; cursor:pointer; background:transparent; color:#94a3b8; white-space:nowrap;">🧪 ระบบยา</button>
     <button type="button" id="p-nc-tab-sell" style="padding:5px 4px; border:0; border-radius:5px; font-size:10.5px; font-weight:700; cursor:pointer; background:transparent; color:#94a3b8; white-space:nowrap;">🛒 ซื้อ/ขาย</button>
     <button type="button" id="p-nc-tab-settings" style="padding:5px 4px; border:0; border-radius:5px; font-size:10.5px; font-weight:700; cursor:pointer; background:transparent; color:#94a3b8; white-space:nowrap;">⚙️ ตั้งค่า</button>
+    <button type="button" id="p-nc-tab-trainer" style="display:${(window.__secretTrainerUnlocked || state?.trainerAccessUnlocked) ? 'inline-block' : 'none'}; padding:5px 4px; border:0; border-radius:5px; font-size:10.5px; font-weight:700; cursor:pointer; background:transparent; color:#fda4af; white-space:nowrap;" title="ระบบพิเศษสำหรับผู้ได้รับอนุมัติ Access">🧲 Trainer</button>
   </div>
 
   <!-- TAB 1: 🚀 บอท & เควส -->
@@ -9230,6 +9262,56 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
     </div>
     `}
   </div>
+
+  <!-- TAB 5: 🧲 TRAINER (SECRET ACCESS GATED) -->
+  <div id="p-nc-pane-trainer" style="display:none; flex-direction:column; gap:8px;">
+    <div style="background:linear-gradient(135deg, rgba(136,19,55,0.45), rgba(76,29,149,0.45)); border:1px solid rgba(244,63,94,0.55); border-radius:7px; padding:6px 8px; display:flex; align-items:center; justify-content:space-between; gap:6px;">
+      <span style="font-size:11px; font-weight:800; color:#fda4af;">🧲 โหมดทดสอบ Trainer (VIP Access)</span>
+      <span style="font-size:9.5px; background:rgba(244,63,94,0.22); border:1px solid rgba(244,63,94,0.5); color:#fecdd3; padding:1px 6px; border-radius:999px; font-weight:700;">🔐 อนุมัติแล้ว</span>
+    </div>
+
+    <div class="p-card" style="background:rgba(127,29,29,0.36); border:1px solid rgba(248,113,113,0.5); border-radius:7px; padding:8px; display:flex; flex-direction:column; gap:6px;">
+      <label style="display:flex; align-items:center; gap:6px; font-size:11.5px; font-weight:800; color:#fca5a5; cursor:pointer;">
+        <input type="checkbox" id="p-nc-trainer-pull-mob" ${(state?.trainerConfig?.pullMobEnabled) ? 'checked' : ''} style="accent-color:#ef4444; width:15px; height:15px;">
+        <span>🧲 Pull Mob ทั้งจอ (ดึงมอนเข้าหาตัวอัตโนมัติ)</span>
+      </label>
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:6px;">
+        <span style="font-size:10px; color:#fecaca; white-space:nowrap;">📡 รัศมีดึงมอน:</span>
+        <select id="p-nc-trainer-pull-mob-radius" style="flex:1; min-width:0; background:#090d16; border:1px solid rgba(248,113,113,0.55); color:#fff; border-radius:4px; font-size:10.5px; font-weight:700; padding:3px 6px; cursor:pointer;">
+          <option value="1800" ${Number(state?.trainerConfig?.pullMobRadius || 1800) === 1800 ? 'selected' : ''}>🌐 ทั้งจอ / ทั้งแมพ (1,800 px)</option>
+          <option value="950" ${Number(state?.trainerConfig?.pullMobRadius) === 950 ? 'selected' : ''}>📺 รอบหน้าจอ (950 px)</option>
+          <option value="580" ${Number(state?.trainerConfig?.pullMobRadius) === 580 ? 'selected' : ''}>🎯 ระยะสกิล/ยิงไกล (580 px)</option>
+        </select>
+      </div>
+      <label style="display:flex; align-items:center; gap:6px; font-size:10px; color:#fde68a; cursor:pointer; line-height:1.35;">
+        <input type="checkbox" id="p-nc-trainer-pull-mob-aggro" ${(state?.trainerConfig?.pullMobAggro !== false) ? 'checked' : ''} style="accent-color:#f59e0b;">
+        <span>⚡ ส่งคลื่นล่อ Aggro เซิร์ฟเวอร์ (ลากมอนทั้งจอวิ่งกรูเข้าหาตัวละคร)</span>
+      </label>
+      <div id="p-nc-trainer-mob-status" style="font-size:10px; color:#cbd5e1; background:rgba(2,6,23,0.65); border:1px solid rgba(248,113,113,0.25); border-radius:5px; padding:5px 7px; line-height:1.4;">
+        ${state?.trainerMobStatusHtml || '🎯 พร้อมดึงมอนสเตอร์ทั้งจอเข้าหาตัวละคร'}
+      </div>
+      <button type="button" class="p-btn" id="p-btn-nc-pull-mob-now" style="width:100%; padding:6px 8px; border:1px solid #f87171; border-radius:5px; background:linear-gradient(135deg,#e11d48,#be123c); color:#fff; font-size:11px; font-weight:800; cursor:pointer;">
+        ${isCentral ? '⚡ สั่งทุกจอดึงมอนทั้งจอทันที' : '⚡ กดดึงมอนทั้งจอเข้ามาหาตัวทันที'}
+      </button>
+    </div>
+
+    <div class="p-card" style="background:rgba(6,78,59,0.38); border:1px solid rgba(52,211,153,0.5); border-radius:7px; padding:8px; display:flex; flex-direction:column; gap:6px;">
+      <label style="display:flex; align-items:center; gap:6px; font-size:11.5px; font-weight:800; color:#6ee7b7; cursor:pointer;">
+        <input type="checkbox" id="p-nc-trainer-pull-item" ${(state?.trainerConfig?.pullItemEnabled) ? 'checked' : ''} style="accent-color:#10b981; width:15px; height:15px;">
+        <span>🧲 Pull Item ทั้งจอ (ดูดของดรอปทั้งจอเข้าตัว)</span>
+      </label>
+      <label style="display:flex; align-items:center; gap:6px; font-size:10px; color:#a7f3d0; cursor:pointer; line-height:1.35;">
+        <input type="checkbox" id="p-nc-trainer-pull-item-rush" ${(state?.trainerConfig?.pullItemRush !== false) ? 'checked' : ''} style="accent-color:#10b981;">
+        <span>⚡ ดูดเข้าตัว + พุ่งกวาดของตกไกลทั้งแมพอัตโนมัติ (Server Magnet)</span>
+      </label>
+      <div id="p-nc-trainer-item-status" style="font-size:10px; color:#cbd5e1; background:rgba(2,6,23,0.65); border:1px solid rgba(52,211,153,0.25); border-radius:5px; padding:5px 7px; line-height:1.4;">
+        ${state?.trainerItemStatusHtml || '💎 พร้อมดูดไอเทมดรอปบนพื้นทั้งจอเข้ากระเป๋า'}
+      </div>
+      <button type="button" class="p-btn" id="p-btn-nc-pull-item-now" style="width:100%; padding:6px 8px; border:1px solid #34d399; border-radius:5px; background:linear-gradient(135deg,#059669,#047857); color:#fff; font-size:11px; font-weight:800; cursor:pointer;">
+        ${isCentral ? '⚡ สั่งทุกจอดูดไอเทมทั้งจอทันที' : '⚡ กดดูดไอเทมดรอปทั้งจอทันที'}
+      </button>
+    </div>
+  </div>
 </div>
 `;
 }
@@ -9448,21 +9530,25 @@ async function openWebBotHUD(profileId) {
     isCentral: isCentral
   };
 
-  // 4-Tab switchers (🚀 บอท & เควส | 🧪 ระบบยา | 🛒 ซื้อ/ขาย | ⚙️ ตั้งค่า)
+  // 5-Tab switchers (🚀 บอท & เควส | 🧪 ระบบยา | 🛒 ซื้อ/ขาย | ⚙️ ตั้งค่า | 🧲 Trainer)
   const tabBotBtn = hudEl.querySelector('#p-nc-tab-bot');
   const tabPotBtn = hudEl.querySelector('#p-nc-tab-potions');
   const tabSellBtn = hudEl.querySelector('#p-nc-tab-sell');
   const tabSetBtn = hudEl.querySelector('#p-nc-tab-settings');
+  const tabTrainerBtn = hudEl.querySelector('#p-nc-tab-trainer');
   const paneBot = hudEl.querySelector('#p-nc-pane-bot');
   const panePot = hudEl.querySelector('#p-nc-pane-potions');
   const paneSell = hudEl.querySelector('#p-nc-pane-sell');
   const paneSet = hudEl.querySelector('#p-nc-pane-settings');
+  const paneTrainer = hudEl.querySelector('#p-nc-pane-trainer');
   const switchTab = (tab) => {
+    if (tab === 'trainer' && !window.__secretTrainerUnlocked) tab = 'bot';
     if (activeWebHuds[profileId]) activeWebHuds[profileId].activeTab = tab;
     if (paneBot) paneBot.style.display = tab === 'bot' ? 'flex' : 'none';
     if (panePot) panePot.style.display = tab === 'potions' ? 'flex' : 'none';
     if (paneSell) paneSell.style.display = tab === 'sell' ? 'flex' : 'none';
     if (paneSet) paneSet.style.display = tab === 'settings' ? 'flex' : 'none';
+    if (paneTrainer) paneTrainer.style.display = tab === 'trainer' ? 'flex' : 'none';
     if (tabBotBtn) {
       tabBotBtn.style.background = tab === 'bot' ? '#0284c7' : 'transparent';
       tabBotBtn.style.color = tab === 'bot' ? '#fff' : '#94a3b8';
@@ -9479,11 +9565,16 @@ async function openWebBotHUD(profileId) {
       tabSetBtn.style.background = tab === 'settings' ? '#7c3aed' : 'transparent';
       tabSetBtn.style.color = tab === 'settings' ? '#fff' : '#94a3b8';
     }
+    if (tabTrainerBtn) {
+      tabTrainerBtn.style.background = tab === 'trainer' ? '#e11d48' : 'transparent';
+      tabTrainerBtn.style.color = tab === 'trainer' ? '#fff' : '#fda4af';
+    }
   };
   if (tabBotBtn) tabBotBtn.onclick = () => switchTab('bot');
   if (tabPotBtn) tabPotBtn.onclick = () => switchTab('potions');
   if (tabSellBtn) tabSellBtn.onclick = () => switchTab('sell');
   if (tabSetBtn) tabSetBtn.onclick = () => switchTab('settings');
+  if (tabTrainerBtn) tabTrainerBtn.onclick = () => switchTab('trainer');
 
   // Central actions
   const centralStartBtn = hudEl.querySelector('#p-btn-central-start-bot');
@@ -9896,6 +9987,48 @@ async function openWebBotHUD(profileId) {
     };
   });
 
+  // Tab 5: 🧲 Trainer (Pull Mob & Pull Item)
+  const sendTrainerPatch = async (patch) => {
+    try {
+      await sendWebHudAction(profileId, {
+        type: 'update-trainer',
+        config: patch
+      });
+    } catch (_) {}
+  };
+  [
+    ['#p-nc-trainer-pull-mob', 'pullMobEnabled', 'bool'],
+    ['#p-nc-trainer-pull-mob-radius', 'pullMobRadius', 'num'],
+    ['#p-nc-trainer-pull-mob-aggro', 'pullMobAggro', 'bool'],
+    ['#p-nc-trainer-pull-item', 'pullItemEnabled', 'bool'],
+    ['#p-nc-trainer-pull-item-rush', 'pullItemRush', 'bool']
+  ].forEach(([sel, key, kind]) => {
+    const el = hudEl.querySelector(sel);
+    if (!el) return;
+    el.onchange = () => {
+      const val = kind === 'bool' ? Boolean(el.checked) : Math.max(300, Number(el.value) || 1800);
+      sendTrainerPatch({ [key]: val });
+    };
+  });
+  const pullMobNowBtn = hudEl.querySelector('#p-btn-nc-pull-mob-now');
+  if (pullMobNowBtn) {
+    pullMobNowBtn.onclick = async () => {
+      try {
+        await sendWebHudAction(profileId, { type: 'pull-mob-now' });
+        if (!isCentral && typeof showToast === 'function') showToast('🧲 สั่งดึงมอนสเตอร์ทั้งจอเข้าหาตัวแล้ว!', 'success');
+      } catch (_) {}
+    };
+  }
+  const pullItemNowBtn = hudEl.querySelector('#p-btn-nc-pull-item-now');
+  if (pullItemNowBtn) {
+    pullItemNowBtn.onclick = async () => {
+      try {
+        await sendWebHudAction(profileId, { type: 'pull-item-now' });
+        if (!isCentral && typeof showToast === 'function') showToast('🧲 สั่งดูดไอเทมดรอปทั้งจอเข้าหาตัวแล้ว!', 'success');
+      } catch (_) {}
+    };
+  }
+
   const passToggle = hudEl.querySelector('#p-auth-toggle-pass');
   const passInp = hudEl.querySelector('#p-auth-pass');
   if (passToggle && passInp) {
@@ -10163,6 +10296,19 @@ function populateWebHudData(profileId, data) {
     setField('#p-nc-perf-hide-players', pfc.hideOtherPlayers !== false, true);
     setField('#p-nc-perf-fps-cap', pfc.fpsCap ?? 30, false);
   }
+
+  if (st.trainerConfig && typeof st.trainerConfig === 'object') {
+    const tc = st.trainerConfig;
+    setField('#p-nc-trainer-pull-mob', Boolean(tc.pullMobEnabled), true);
+    setField('#p-nc-trainer-pull-mob-radius', tc.pullMobRadius || 1800, false);
+    setField('#p-nc-trainer-pull-mob-aggro', tc.pullMobAggro !== false, true);
+    setField('#p-nc-trainer-pull-item', Boolean(tc.pullItemEnabled), true);
+    setField('#p-nc-trainer-pull-item-rush', tc.pullItemRush !== false, true);
+  }
+  const trainerMobEl = hud.querySelector('#p-nc-trainer-mob-status');
+  if (trainerMobEl && st.trainerMobStatusHtml) trainerMobEl.innerHTML = st.trainerMobStatusHtml;
+  const trainerItemEl = hud.querySelector('#p-nc-trainer-item-status');
+  if (trainerItemEl && st.trainerItemStatusHtml) trainerItemEl.innerHTML = st.trainerItemStatusHtml;
 
   const btn = hud.querySelector('#p-btn-toggle-bot');
   if (btn) {
