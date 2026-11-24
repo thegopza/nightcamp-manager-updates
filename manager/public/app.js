@@ -8642,51 +8642,173 @@ function renderNightcampServerOptions(selectedServer) {
 
 const NIGHTCAMP_FARM_MAP_OPTIONS = [
   ['auto', '⚡ อัตโนมัติตามเลเวล (Auto Level Map)'],
-  ['farm', '[Lv.1-10] ไร่ฟักทอง (farm)'],
-  ['curinghouse', '[Lv.5-10] โรงบ่มใบยา (curinghouse)'],
-  ['melonfield', '[Lv.6-12] แปลงแตงโม (melonfield)'],
-  ['windpump', '[Lv.7-13] กังหันสูบน้ำ (windpump)'],
-  ['batcave', '[Lv.8-16] ถ้ำค้างคาว (batcave)'],
-  ['meadow', '[Lv.8-18] ทุ่งหญ้าแสงจันทร์ (meadow)'],
-  ['apiary', '[Lv.10-18] สวนรังผึ้ง (apiary)'],
-  ['appleslope', '[Lv.10-18] เนินสวนแอปเปิล (appleslope)'],
-  ['dandelion', '[Lv.12-20] ทุ่งดอกแดนดิไลออน (dandelion)'],
-  ['cornmaze', '[Lv.12-20] เขาวงกตข้าวโพด (cornmaze)'],
-  ['farm2', '[Lv.12-22] ไร่ฟักทองในลึก (farm2)'],
-  ['marsh', '[Lv.15-25] บึงหมอกพิษ (marsh)'],
-  ['reedmaze', '[Lv.16-26] พงกกริมน้ำ (reedmaze)'],
-  ['beaverdam', '[Lv.16-26] เขื่อนบีเวอร์ (beaverdam)'],
-  ['eelhut', '[Lv.17-27] กระท่อมปลาไหล (eelhut)'],
-  ['graveyard', '[Lv.18-30] เนินสุสานโบสถ์ร้าง (graveyard)'],
-  ['meadow2', '[Lv.18-28] ทุ่งหญ้าแสงจันทร์ชั้นใน (meadow2)'],
-  ['battlefield', '[Lv.18-28] สมรภูมิหุ่นฟาง (battlefield)'],
-  ['tallgrass', '[Lv.20-30] ทุ่งหญ้าสูง (tallgrass)'],
-  ['thornrose', '[Lv.20-30] สวนกุหลาบหนาม (thornrose)'],
-  ['antmine1', '[Lv.20-30] เหมืองมด ชั้น 1 (antmine1)'],
-  ['diggervillage', '[Lv.22-32] หมู่บ้านนักขุดสุสาน (diggervillage)'],
-  ['wreathfield', '[Lv.22-32] ทุ่งหรีด (wreathfield)'],
-  ['giantbones', '[Lv.24-34] ลานกระดูกยักษ์ (giantbones)'],
-  ['marsh2', '[Lv.25-35] บึงหมอกพิษชั้นกลาง (marsh2)'],
-  ['woods', '[Lv.26-38] ป่าลึกเงามืด (woods)'],
-  ['antmine2', '[Lv.28-38] เหมืองมด ชั้น 2 (antmine2)'],
-  ['graveyard2', '[Lv.30-42] สุสานโบสถ์ร้างชั้นใน (graveyard2)'],
-  ['coffinhollow', '[Lv.32-44] หุบเขาโลงศพ (coffinhollow)'],
-  ['weepgarden', '[Lv.32-44] สวนหินร่ำไห้ (weepgarden)'],
-  ['burnt', '[Lv.35-48] ป่าไฟไหม้ (burnt)'],
-  ['ashvale', '[Lv.36-48] หุบเขาเถ้าถ่าน (ashvale)'],
-  ['stillburning', '[Lv.38-50] ป่าคุกรุ่น (stillburning)'],
-  ['woods2', '[Lv.38-50] ป่าลึกชั้นใน (woods2)'],
-  ['crypt1', '[Lv.40-52] สุสานใต้ดิน ชั้น 1 (crypt1)'],
-  ['sporevale', '[Lv.42-54] หุบเขาสปอร์ (sporevale)'],
-  ['salt', '[Lv.44-56] ทุ่งเกลือ (salt)'],
-  ['wind', '[Lv.45-58] ที่ราบสูงสายลม (wind)'],
-  ['peak', '[Lv.46-60] ยอดเขาหิมะ (peak)'],
-  ['crypt2', '[Lv.48-60] สุสานใต้ดิน ชั้น 2 (crypt2)'],
-  ['avalanche', '[Lv.50-65] หุบเขาหิมะถล่ม (avalanche)'],
-  ['snowpines', '[Lv.52-66] ป่าสนหิมะ (snowpines)'],
-  ['swamp', '[Lv.55-70] บึงมรณะ (swamp)'],
-  ['canyon', '[Lv.60-75] หุบผาหินแดง (canyon)'],
-  ['volcano', '[Lv.70-85] ปากปล่องภูเขาไฟ (volcano)']
+  ["farm", "[Lv 1–10] ไร่ฟักทอง (farm)"],
+  ["curinghouse", "[Lv 3–10] โรงบ่มฟักทองร้าง (curinghouse)"],
+  ["melonfield", "[Lv 3–10] ไร่แตงโมใต้จันทร์ (melonfield)"],
+  ["windpump", "[Lv 3–10] ลานกังหันสูบน้ำ (windpump)"],
+  ["quarry1", "[Lv 5–12] เหมืองหินริมทุ่ง ชั้น 1 (quarry1)"],
+  ["batcave", "[Lv 8–16] ถ้ำค้างคาวริมทุ่ง (batcave)"],
+  ["dandelion", "[Lv 8–18] ทุ่งดอกแดนดิไลออนยักษ์ (dandelion)"],
+  ["meadow", "[Lv 8–18] ทุ่งหญ้าแสงจันทร์ (meadow)"],
+  ["appleslope", "[Lv 8–18] เนินแอปเปิลป่า (appleslope)"],
+  ["apiary", "[Lv 8–18] สวนรังผึ้งร้าง (apiary)"],
+  ["cornmaze", "[Lv 10–18] เขาวงกตข้าวโพด (cornmaze)"],
+  ["pens", "[Lv 10–18] คอกสัตว์ร้าง (pens)"],
+  ["farm2", "[Lv 10–18] ไร่ร้างหลังเขา (farm2)"],
+  ["threshing", "[Lv 10–18] ลานนวดข้าวร้าง (threshing)"],
+  ["quarry2", "[Lv 12–18] เหมืองหินริมทุ่ง ชั้น 2 (quarry2)"],
+  ["eelhut", "[Lv 12–24] กระท่อมรมควันปลาไหล (eelhut)"],
+  ["beaverdam", "[Lv 12–24] เขื่อนบีเวอร์ร้าง (beaverdam)"],
+  ["reedmaze", "[Lv 12–24] ดงกกท่วมหัว (reedmaze)"],
+  ["marsh", "[Lv 12–24] บึงกบลำธารใส (marsh)"],
+  ["tallgrass", "[Lv 14–22] ทุ่งหญ้าสูงท่วมหัว (tallgrass)"],
+  ["thornrose", "[Lv 14–22] เนินกุหลาบหนาม (thornrose)"],
+  ["meadow2", "[Lv 14–22] เนินดอกไม้กลางคืน (meadow2)"],
+  ["battlefield", "[Lv 14–22] สนามรบเก่ากลางทุ่ง (battlefield)"],
+  ["antmine1", "[Lv 15–25] เหมืองมด ชั้น B1 (antmine1)"],
+  ["quarry3", "[Lv 18–25] เหมืองหินริมทุ่ง ชั้น 3 (quarry3)"],
+  ["graveyard", "[Lv 18–30] เนินสุสานโบสถ์ร้าง (graveyard)"],
+  ["wreathfield", "[Lv 18–32] ทุ่งพวงหรีดแห้ง (wreathfield)"],
+  ["diggervillage", "[Lv 18–32] หมู่บ้านคนขุดหลุม (diggervillage)"],
+  ["giantbones", "[Lv 18–32] หุบซี่โครงยักษ์ (giantbones)"],
+  ["marsh2", "[Lv 20–28] ต้นลำธาร (marsh2)"],
+  ["springcave", "[Lv 20–28] ถ้ำตาน้ำ (springcave)"],
+  ["logdrive", "[Lv 20–28] ลำธารซุงติด (logdrive)"],
+  ["stiltvillage", "[Lv 20–28] หมู่บ้านเรือนเสาร้าง (stiltvillage)"],
+  ["hunterlodge", "[Lv 24–40] กระท่อมพรานร้าง (hunterlodge)"],
+  ["moonwell", "[Lv 24–40] บ่อน้ำจันทร์กลางป่า (moonwell)"],
+  ["acorngrove", "[Lv 24–40] ป่าโอ๊กยักษ์ (acorngrove)"],
+  ["antmine2", "[Lv 25–38] เหมืองมด ชั้น B2 (antmine2)"],
+  ["woods", "[Lv 25–40] ป่าเห็ดเรืองแสง (woods)"],
+  ["behindfalls", "[Lv 26–34] ถ้ำหลังม่านน้ำ (behindfalls)"],
+  ["cascades", "[Lv 26–34] น้ำตกขั้นบันได (cascades)"],
+  ["marsh3", "[Lv 26–34] น้ำตกหิ่งห้อย (marsh3)"],
+  ["fallstop", "[Lv 26–34] ยอดน้ำตกหมอกลอย (fallstop)"],
+  ["keeperhouse", "[Lv 28–38] บ้านผู้เฝ้าสุสาน (keeperhouse)"],
+  ["weepgarden", "[Lv 28–38] สวนรูปปั้นร้องไห้ (weepgarden)"],
+  ["graveyard2", "[Lv 28–38] สุสานเก่าหลังเนิน (graveyard2)"],
+  ["coffinhollow", "[Lv 28–38] หุบหมอกโลงศพ (coffinhollow)"],
+  ["stumpfield", "[Lv 30–45] ทุ่งตอไม้ควันขาว (stumpfield)"],
+  ["stillburning", "[Lv 30–45] ป่าที่ยังไหม้ (stillburning)"],
+  ["ashvale", "[Lv 30–45] หุบเถ้าลอย (ashvale)"],
+  ["refugeecamp", "[Lv 32–42] ค่ายผู้อพยพร้าง (refugeecamp)"],
+  ["road", "[Lv 32–42] ถนนผู้อพยพ (road)"],
+  ["wagonvale", "[Lv 32–42] ทางเกวียนในหุบ (wagonvale)"],
+  ["woodbridge", "[Lv 32–42] สะพานไม้ข้ามแม่น้ำ (woodbridge)"],
+  ["crypt1", "[Lv 34–44] สุสานใต้ดิน ชั้น 1 (crypt1)"],
+  ["burnt", "[Lv 35–45] ป่าไหม้ถ่านคุ (burnt)"],
+  ["fallencap", "[Lv 36–46] ต้นเห็ดยักษ์ล้ม (fallencap)"],
+  ["woods2", "[Lv 36–46] ป่าเห็ดชั้นใน (woods2)"],
+  ["glowpool", "[Lv 36–46] สระรากเห็ดเรืองแสง (glowpool)"],
+  ["sporevale", "[Lv 36–46] หุบสปอร์ม่วง (sporevale)"],
+  ["salt", "[Lv 36–48] ด่านสะพานเกลือ (salt)"],
+  ["saltdock", "[Lv 36–48] ท่าเรือเกลือร้าง (saltdock)"],
+  ["saltflats", "[Lv 36–48] นาเกลือขาว (saltflats)"],
+  ["watchtower", "[Lv 36–48] หอสังเกตการณ์ริมด่าน (watchtower)"],
+  ["cliffmill", "[Lv 36–50] กังหันลมร้างริมผา (cliffmill)"],
+  ["howlpass", "[Lv 36–50] ช่องเขาเสาหินหวีด (howlpass)"],
+  ["heathmoor", "[Lv 36–50] ทุ่งเฮเทอร์ม่วง (heathmoor)"],
+  ["antmine3", "[Lv 38–50] เหมืองมด ชั้น B3 · รังนางพญา (antmine3)"],
+  ["wind", "[Lv 42–52] ทุ่งลมหวีดหน้าผา (wind)"],
+  ["crypt2", "[Lv 44–52] สุสานใต้ดิน ชั้น 2 · ห้องราชา (crypt2)"],
+  ["chainisles", "[Lv 44–54] เกาะลอยล่ามโซ่ (chainisles)"],
+  ["wind2", "[Lv 44–54] เกาะหินลอยลม (wind2)"],
+  ["eyrie", "[Lv 44–54] ยอดรังอินทรี (eyrie)"],
+  ["ropebridge", "[Lv 44–54] สะพานเชือกข้ามผา (ropebridge)"],
+  ["icefall", "[Lv 46–58] ธารน้ำแข็งแตก (icefall)"],
+  ["snowpines", "[Lv 46–58] ป่าสนหิมะ (snowpines)"],
+  ["peak", "[Lv 46–58] ยอดเขาหมอกเหนือ (peak)"],
+  ["avalanche", "[Lv 46–58] สันเขาหิมะถล่ม (avalanche)"],
+  ["cagetrees", "[Lv 48–62] ดงต้นไม้แขวนกรง (cagetrees)"],
+  ["bubblepits", "[Lv 48–62] บ่อโคลนพิษเดือด (bubblepits)"],
+  ["mangrove", "[Lv 48–62] ป่าชายเลนน้ำขึ้น (mangrove)"],
+  ["owl1", "[Lv 50–54] หอดูดาวนกฮูก ชั้น 1 (owl1)"],
+  ["silver1", "[Lv 50–56] ปล่องเงินลึก ชั้น B4 (silver1)"],
+  ["swamp", "[Lv 50–62] หนองพิษป่าชายเลน (swamp)"],
+  ["owl2", "[Lv 53–56] หอดูดาวนกฮูก ชั้น 2 (owl2)"],
+  ["owl3", "[Lv 55–58] หอดูดาวนกฮูก ชั้น 3 · โดมดาว (owl3)"],
+  ["minecart", "[Lv 55–78] ทางรางเหมืองแขวน (minecart)"],
+  ["goldsluice", "[Lv 55–78] รางร่อนทองร้าง (goldsluice)"],
+  ["dustgulch", "[Lv 55–78] หุบเสาหินทราย (dustgulch)"],
+  ["silver2", "[Lv 56–62] ปล่องเงินลึก ชั้น B5 (silver2)"],
+  ["pitcherfield", "[Lv 56–66] ทุ่งพืชกินแมลงยักษ์ (pitcherfield)"],
+  ["cocoonwood", "[Lv 56–66] ป่ารังไหมพิษ (cocoonwood)"],
+  ["swamp2", "[Lv 56–66] รากต้นแม่พิษ (swamp2)"],
+  ["poisonvillage", "[Lv 56–66] หมู่บ้านคนเก็บพิษ (poisonvillage)"],
+  ["meteor1", "[Lv 60–66] ปล่องดาวตก ชั้น 1 (meteor1)"],
+  ["canyon", "[Lv 60–72] ผาหินแดง (canyon)"],
+  ["roadinn", "[Lv 60–72] โรงเตี๊ยมกลางทาง (roadinn)"],
+  ["silentfarm", "[Lv 60–72] ไร่เงียบงัน (silentfarm)"],
+  ["travelgrave", "[Lv 60–72] สุสานคนเดินทาง (travelgrave)"],
+  ["nroad", "[Lv 60–72] เส้นทางขึ้นเหนือ (nroad)"],
+  ["roots1", "[Lv 62–68] ถ้ำรากแม่พิษ B1 (roots1)"],
+  ["minerscamp", "[Lv 62–72] ค่ายคนงานใต้ดิน (minerscamp)"],
+  ["geodehall", "[Lv 62–72] โถงหินจีโอด (geodehall)"],
+  ["floodedmine", "[Lv 62–72] ห้องสูบน้ำเหมืองท่วม (floodedmine)"],
+  ["canyon2", "[Lv 62–72] เหมืองลึกผลึกส้ม (canyon2)"],
+  ["meteor2", "[Lv 66–72] ปล่องดาวตก ชั้น 2 (meteor2)"],
+  ["lavalake", "[Lv 66–84] ทะเลสาบลาวาเย็น (lavalake)"],
+  ["smokevent", "[Lv 66–84] ปากปล่องควันดำ (smokevent)"],
+  ["obsidian", "[Lv 66–84] ลานหินออบซิเดียน (obsidian)"],
+  ["roots2", "[Lv 68–74] ถ้ำรากแม่พิษ B2 · หัวใจ (roots2)"],
+  ["moat", "[Lv 68–82] คูเมืองน้ำนิ่ง (moat)"],
+  ["nightmarket", "[Lv 68–82] ตลาดเช้าที่ไม่มีเช้า (nightmarket)"],
+  ["outer", "[Lv 68–82] ย่านนอกกำแพง (outer)"],
+  ["tannery", "[Lv 68–82] ย่านโรงฟอกหนัง (tannery)"],
+  ["canyon3", "[Lv 70–80] ใจกลางหุบผา (canyon3)"],
+  ["antlionpits", "[Lv 70–80] ทุ่งหลุมแมลงช้าง (antlionpits)"],
+  ["raiderfort", "[Lv 70–80] ป้อมโจรทะเลทรายร้าง (raiderfort)"],
+  ["dryoasis", "[Lv 70–80] โอเอซิสแห้งขอด (dryoasis)"],
+  ["volcano", "[Lv 70–82] ภูเขาไฟหลับ (volcano)"],
+  ["shipwreck", "[Lv 70–88] ซากเรือในหมอก (shipwreck)"],
+  ["willows", "[Lv 70–88] ป่าต้นหลิวจมน้ำ (willows)"],
+  ["floatvillage", "[Lv 70–88] หมู่บ้านลอยน้ำร้าง (floatvillage)"],
+  ["meteor3", "[Lv 72–78] ปล่องดาวตก ชั้น 3 (meteor3)"],
+  ["hotsprings", "[Lv 72–92] บ่อน้ำร้อนดึกดำบรรพ์ (hotsprings)"],
+  ["tarpit", "[Lv 72–92] หนองน้ำมันดิน (tarpit)"],
+  ["fernvale", "[Lv 72–92] หุบเฟิร์นยักษ์ (fernvale)"],
+  ["sluicegate", "[Lv 74–86] ประตูน้ำเก่า (sluicegate)"],
+  ["warehouses", "[Lv 74–86] ย่านโกดังริมน้ำ (warehouses)"],
+  ["canal", "[Lv 74–86] ย่านริมคลอง (canal)"],
+  ["shipyard", "[Lv 74–86] อู่ต่อเรือร้าง (shipyard)"],
+  ["ledger1", "[Lv 78–83] หอบัญชีใต้วิหาร ชั้น 1 (ledger1)"],
+  ["meteor4", "[Lv 78–84] ปล่องดาวตก ชั้น 4 (meteor4)"],
+  ["lake", "[Lv 78–90] ทะเลสาบหมอกเงา (lake)"],
+  ["lavavent1", "[Lv 80–90] ปล่องภูเขาไฟ ชั้น 1 (lavavent1)"],
+  ["ledger2", "[Lv 82–88] หอบัญชีใต้วิหาร ชั้น 2 · ห้องบัญชี (ledger2)"],
+  ["meteor5", "[Lv 84–90] ปล่องดาวตก ชั้น 5 (meteor5)"],
+  ["isle", "[Lv 84–92] เกาะกลางทะเลสาบ (isle)"],
+  ["lighthouse", "[Lv 84–92] เกาะประภาคารดับ (lighthouse)"],
+  ["shipgrave", "[Lv 84–92] เกาะสุสานเรือ (shipgrave)"],
+  ["reefs", "[Lv 84–92] แนวหินโสโครก (reefs)"],
+  ["treeedge", "[Lv 86–96] ขอบป่าต้นไม้มืด (treeedge)"],
+  ["shadowpath", "[Lv 86–96] ทางเดินเงาไร้เสียง (shadowpath)"],
+  ["dark", "[Lv 86–96] ป่าใต้ที่มืดสนิท (dark)"],
+  ["blackroots", "[Lv 86–96] ป่ารากดำ (blackroots)"],
+  ["puppet1", "[Lv 88–91] โรงหุ่นใต้วิหาร ชั้น 1 · ห้องขัง (puppet1)"],
+  ["prime2", "[Lv 88–98] ทะเลสาบไข่มังกร (prime2)"],
+  ["amberwood", "[Lv 88–98] ป่ายางอำพัน (amberwood)"],
+  ["pteronest", "[Lv 88–98] ผารังเทอโรซอร์ (pteronest)"],
+  ["ammonbeach", "[Lv 88–98] หาดซากแอมโมไนต์ (ammonbeach)"],
+  ["prime", "[Lv 88–99] ป่าดึกดำบรรพ์ (prime)"],
+  ["puppet2", "[Lv 90–94] โรงหุ่นใต้วิหาร ชั้น 2 · โต๊ะช่าง (puppet2)"],
+  ["meteor6", "[Lv 90–95] ปล่องดาวตก ชั้น 6 (meteor6)"],
+  ["flesh", "[Lv 90–98] โพรงเนื้อหนาม (flesh)"],
+  ["lavavent2", "[Lv 90–99] ปล่องภูเขาไฟ ชั้น 2 · ถ้ำมังกร (lavavent2)"],
+  ["cathedral", "[Lv 92–99] ย่านวิหาร (cathedral)"],
+  ["clocksquare", "[Lv 92–99] ลานหอนาฬิกา (clocksquare)"],
+  ["whitestatues", "[Lv 92–99] สวนรูปปั้นขาว (whitestatues)"],
+  ["rooftops", "[Lv 92–99] หลังคาเมือง (rooftops)"],
+  ["bell1", "[Lv 94–96] หอระฆัง ชั้น 1 (bell1)"],
+  ["bell2", "[Lv 95–97] หอระฆัง ชั้น 2 (bell2)"],
+  ["meteor7", "[Lv 95–99] ปล่องดาวตก ชั้น 7 (meteor7)"],
+  ["bell3", "[Lv 96–98] หอระฆัง ชั้น 3 (bell3)"],
+  ["grave1", "[Lv 97–99] หลุมดาว ชั้น 1 · พื้นแก้ว (grave1)"],
+  ["bell4", "[Lv 97–99] หอระฆัง ชั้น 4 (bell4)"],
+  ["bell5", "[Lv 98–99] หอระฆัง ชั้น 5 (bell5)"],
+  ["bell6", "[Lv 99–99] หอระฆัง ชั้น 6 (bell6)"],
+  ["bell7", "[Lv 99–99] หอระฆัง ชั้น 7 · ยอดหอ (bell7)"],
+  ["grave2", "[Lv 99] หลุมดาว ชั้น 2 · ใจกลางดาว (grave2)"]
 ];
 
 function renderNightcampFarmMapOptionsHtml(selectedMap, filterText = '') {
@@ -8852,21 +8974,21 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
             ['scythe', '🌙 เคียวใหญ่ 2 มือ (Reaper)'],
             ['sickle', '🌙 เคียวคู่ (Reaper)'],
             ['puppet', '🎎 ไม้เชิดหุ่น (+โล่ · Puppeteer)'],
-            ['wire', '🎎 ลวดเชิด 2 มือ (Puppeteer)'],
-            ['bow', '🏹 ธนู (Archer/Hunter/Sniper)'],
-            ['xbow', '🏹 หน้าไม้ (Hunter/Sniper)'],
-            ['instrument', '🎸 เครื่องดนตรี (Minstrel)'],
-            ['whip', '〰️ แส้ (Minstrel)'],
-            ['pistol', '🔫 ปืนพกคู่ (Outlaw)'],
-            ['shotgun', '🔫 ปืนลูกซอง (Outlaw)'],
-            ['staff', '🪄 คทา 2 มือ (Mage/Wizard)'],
-            ['orb', '🔮 ลูกแก้วเวท (+โล่ · Mage/Wizard)'],
-            ['lantern', '🏮 ตะเกียงวิญญาณ (+โล่ · Necro)'],
-            ['book', '📖 คัมภีร์ (+โล่ · Sage/Priest)'],
-            ['knuckle', '🥊 สนับมือ (+โล่ · Monk)'],
-            ['qstaff', '🦯 พลอง 2 มือ (Monk)'],
-            ['torch', '🔥 คบเพลิงศักดิ์สิทธิ์ (+โล่)'],
-            ['bell', '🔔 กระดิ่ง/ไม้วิเศษ (+โล่)']
+            ['wire', '🧵 ด้ายเหล็ก 2 มือ (Puppeteer)'],
+            ['bow', '🏹 ธนู (Archer/Hunter/Ranger)'],
+            ['xbow', '🏹 หน้าไม้ (Ranger/Sniper)'],
+            ['instrument', '🎸 เครื่องดนตรี 2 มือ (Bard)'],
+            ['whip', '〰️ แส้ 1 มือ · ไม่ถือโล่ (Bard)'],
+            ['pistol', '🔫 ปืนพกคู่ 2 มือ (Gunslinger)'],
+            ['shotgun', '💥 ลูกซอง 2 มือ (Gunslinger)'],
+            ['staff', '🪄 คทา 2 มือ (Mage/Archmage/Priest)'],
+            ['orb', '🔮 ออร์บเวท (+โล่ · Mage/Archmage)'],
+            ['lantern', '🏮 ตะเกียง 2 มือ (Warlock)'],
+            ['book', '📖 คัมภีร์ (+โล่ · Bishop)'],
+            ['knuckle', '🥊 สนับมือ 2 มือ (Monk)'],
+            ['qstaff', '🦯 ไม้พลอง 2 มือ (Monk)'],
+            ['torch', '🔥 คบเพลิง (+โล่ · Lightkeeper)'],
+            ['bell', '🔔 กระดิ่งวิญญาณ (+โล่ · Wisp)']
           ].map(([val, label]) => `<option value="${val}" ${(state?.smartGearWeaponType || 'auto') === val ? 'selected' : ''}>${label}</option>`).join('')}
         </select>
       </div>
@@ -10439,95 +10561,771 @@ let activeEditingPlan = null;
 // Real Nightcamp maps (value = mapId in NC.MAPS, label = Thai name + level range)
 const PLAN_MAP_OPTIONS = [
   {
-    group: "🏕️ เขตค่าย & พื้นที่ปลอดภัย (Safe Zone)",
-    maps: [
-      { value: "camp", label: "ค่ายกลางป่า (Camp · ปลอดภัย)" },
-      { value: "homefarm", label: "ฟาร์มหิ่งห้อย (Homefarm · ปลูกผัก/คราฟต์)" }
+    "group": "🏕️ เขตค่าย & พื้นที่ปลอดภัย (Safe Zone)",
+    "maps": [
+      {
+        "value": "camp",
+        "label": "ค่ายกลางป่า (Camp · ปลอดภัย)"
+      },
+      {
+        "value": "homefarm",
+        "label": "ฟาร์มหิ่งห้อย (Homefarm · ปลูกผัก/คราฟต์)"
+      }
     ]
   },
   {
-    group: "🌱 แมพระดับเริ่มต้น (Lv. 1–20)",
-    maps: [
-      { value: "farm", label: "ไร่ฟักทอง (Lv. 1–10) [farm]" },
-      { value: "melonfield", label: "ไร่แตงโมใต้จันทร์ (Lv. 3–10) [melonfield]" },
-      { value: "windpump", label: "ลานกังหันสูบน้ำ (Lv. 3–10) [windpump]" },
-      { value: "quarry1", label: "เหมืองหินริมทุ่ง ชั้น 1 (Lv. 5–12) [quarry1]" },
-      { value: "meadow", label: "ทุ่งหญ้าแสงจันทร์ (Lv. 8–18) [meadow]" },
-      { value: "batcave", label: "ถ้ำค้างคาวริมทุ่ง (Lv. 8–16) [batcave]" },
-      { value: "farm2", label: "ไร่ร้างหลังเขา (Lv. 10–18) [farm2]" },
-      { value: "cornmaze", label: "เขาวงกตข้าวโพด (Lv. 10–18) [cornmaze]" },
-      { value: "quarry2", label: "เหมืองหินริมทุ่ง ชั้น 2 (Lv. 12–18) [quarry2]" },
-      { value: "marsh", label: "บึงกบลำธารใส (Lv. 12–24) [marsh]" },
-      { value: "meadow2", label: "เนินดอกไม้กลางคืน (Lv. 14–22) [meadow2]" },
-      { value: "antmine1", label: "เหมืองมด ชั้น B1 (Lv. 15–25) [antmine1]" },
-      { value: "batnest", label: "รังราชาค้างคาว (Lv. 16–22) [batnest]" }
+    "group": "🌱 แมพระดับเริ่มต้น (Lv. 1–18)",
+    "maps": [
+      {
+        "value": "farm",
+        "label": "[Lv 1–10] ไร่ฟักทอง (farm)"
+      },
+      {
+        "value": "curinghouse",
+        "label": "[Lv 3–10] โรงบ่มฟักทองร้าง (curinghouse)"
+      },
+      {
+        "value": "melonfield",
+        "label": "[Lv 3–10] ไร่แตงโมใต้จันทร์ (melonfield)"
+      },
+      {
+        "value": "windpump",
+        "label": "[Lv 3–10] ลานกังหันสูบน้ำ (windpump)"
+      },
+      {
+        "value": "quarry1",
+        "label": "[Lv 5–12] เหมืองหินริมทุ่ง ชั้น 1 (quarry1)"
+      },
+      {
+        "value": "batcave",
+        "label": "[Lv 8–16] ถ้ำค้างคาวริมทุ่ง (batcave)"
+      },
+      {
+        "value": "dandelion",
+        "label": "[Lv 8–18] ทุ่งดอกแดนดิไลออนยักษ์ (dandelion)"
+      },
+      {
+        "value": "meadow",
+        "label": "[Lv 8–18] ทุ่งหญ้าแสงจันทร์ (meadow)"
+      },
+      {
+        "value": "appleslope",
+        "label": "[Lv 8–18] เนินแอปเปิลป่า (appleslope)"
+      },
+      {
+        "value": "apiary",
+        "label": "[Lv 8–18] สวนรังผึ้งร้าง (apiary)"
+      },
+      {
+        "value": "cornmaze",
+        "label": "[Lv 10–18] เขาวงกตข้าวโพด (cornmaze)"
+      },
+      {
+        "value": "pens",
+        "label": "[Lv 10–18] คอกสัตว์ร้าง (pens)"
+      },
+      {
+        "value": "farm2",
+        "label": "[Lv 10–18] ไร่ร้างหลังเขา (farm2)"
+      },
+      {
+        "value": "threshing",
+        "label": "[Lv 10–18] ลานนวดข้าวร้าง (threshing)"
+      },
+      {
+        "value": "quarry2",
+        "label": "[Lv 12–18] เหมืองหินริมทุ่ง ชั้น 2 (quarry2)"
+      },
+      {
+        "value": "eelhut",
+        "label": "[Lv 12–24] กระท่อมรมควันปลาไหล (eelhut)"
+      },
+      {
+        "value": "beaverdam",
+        "label": "[Lv 12–24] เขื่อนบีเวอร์ร้าง (beaverdam)"
+      },
+      {
+        "value": "reedmaze",
+        "label": "[Lv 12–24] ดงกกท่วมหัว (reedmaze)"
+      },
+      {
+        "value": "marsh",
+        "label": "[Lv 12–24] บึงกบลำธารใส (marsh)"
+      },
+      {
+        "value": "tallgrass",
+        "label": "[Lv 14–22] ทุ่งหญ้าสูงท่วมหัว (tallgrass)"
+      },
+      {
+        "value": "thornrose",
+        "label": "[Lv 14–22] เนินกุหลาบหนาม (thornrose)"
+      },
+      {
+        "value": "meadow2",
+        "label": "[Lv 14–22] เนินดอกไม้กลางคืน (meadow2)"
+      },
+      {
+        "value": "battlefield",
+        "label": "[Lv 14–22] สนามรบเก่ากลางทุ่ง (battlefield)"
+      },
+      {
+        "value": "antmine1",
+        "label": "[Lv 15–25] เหมืองมด ชั้น B1 (antmine1)"
+      },
+      {
+        "value": "batnest",
+        "label": "[Lv 16–22] รังราชาค้างคาว (batnest)"
+      }
     ]
   },
   {
-    group: "🌲 แมพช่วงต้น-กลาง (Lv. 18–45)",
-    maps: [
-      { value: "graveyard", label: "เนินสุสานโบสถ์ร้าง (Lv. 18–30) [graveyard]" },
-      { value: "quarry3", label: "เหมืองหินริมทุ่ง ชั้น 3 (Lv. 18–25) [quarry3]" },
-      { value: "marsh2", label: "ต้นลำธาร (Lv. 20–28) [marsh2]" },
-      { value: "woods", label: "ป่าเห็ดเรืองแสง (Lv. 25–40) [woods]" },
-      { value: "antmine2", label: "เหมืองมด ชั้น B2 (Lv. 25–38) [antmine2]" },
-      { value: "marsh3", label: "น้ำตกหิ่งห้อย (Lv. 26–34) [marsh3]" },
-      { value: "graveyard2", label: "สุสานเก่าหลังเนิน (Lv. 28–38) [graveyard2]" },
-      { value: "road", label: "ถนนผู้อพยพ (Lv. 32–42) [road]" },
-      { value: "crypt1", label: "สุสานใต้ดิน ชั้น 1 (Lv. 34–44) [crypt1]" },
-      { value: "burnt", label: "ป่าไหม้ถ่านคุ (Lv. 35–45) [burnt]" },
-      { value: "salt", label: "ด่านสะพานเกลือ (Lv. 36–48) [salt]" },
-      { value: "woods2", label: "ป่าเห็ดชั้นใน (Lv. 36–46) [woods2]" },
-      { value: "antmine3", label: "เหมืองมด ชั้น B3 (Lv. 38–50) [antmine3]" }
+    "group": "🌲 แมพช่วงต้น-กลาง (Lv. 18–39)",
+    "maps": [
+      {
+        "value": "quarry3",
+        "label": "[Lv 18–25] เหมืองหินริมทุ่ง ชั้น 3 (quarry3)"
+      },
+      {
+        "value": "graveyard",
+        "label": "[Lv 18–30] เนินสุสานโบสถ์ร้าง (graveyard)"
+      },
+      {
+        "value": "wreathfield",
+        "label": "[Lv 18–32] ทุ่งพวงหรีดแห้ง (wreathfield)"
+      },
+      {
+        "value": "diggervillage",
+        "label": "[Lv 18–32] หมู่บ้านคนขุดหลุม (diggervillage)"
+      },
+      {
+        "value": "giantbones",
+        "label": "[Lv 18–32] หุบซี่โครงยักษ์ (giantbones)"
+      },
+      {
+        "value": "marsh2",
+        "label": "[Lv 20–28] ต้นลำธาร (marsh2)"
+      },
+      {
+        "value": "springcave",
+        "label": "[Lv 20–28] ถ้ำตาน้ำ (springcave)"
+      },
+      {
+        "value": "logdrive",
+        "label": "[Lv 20–28] ลำธารซุงติด (logdrive)"
+      },
+      {
+        "value": "stiltvillage",
+        "label": "[Lv 20–28] หมู่บ้านเรือนเสาร้าง (stiltvillage)"
+      },
+      {
+        "value": "hunterlodge",
+        "label": "[Lv 24–40] กระท่อมพรานร้าง (hunterlodge)"
+      },
+      {
+        "value": "moonwell",
+        "label": "[Lv 24–40] บ่อน้ำจันทร์กลางป่า (moonwell)"
+      },
+      {
+        "value": "acorngrove",
+        "label": "[Lv 24–40] ป่าโอ๊กยักษ์ (acorngrove)"
+      },
+      {
+        "value": "antmine2",
+        "label": "[Lv 25–38] เหมืองมด ชั้น B2 (antmine2)"
+      },
+      {
+        "value": "woods",
+        "label": "[Lv 25–40] ป่าเห็ดเรืองแสง (woods)"
+      },
+      {
+        "value": "behindfalls",
+        "label": "[Lv 26–34] ถ้ำหลังม่านน้ำ (behindfalls)"
+      },
+      {
+        "value": "cascades",
+        "label": "[Lv 26–34] น้ำตกขั้นบันได (cascades)"
+      },
+      {
+        "value": "marsh3",
+        "label": "[Lv 26–34] น้ำตกหิ่งห้อย (marsh3)"
+      },
+      {
+        "value": "fallstop",
+        "label": "[Lv 26–34] ยอดน้ำตกหมอกลอย (fallstop)"
+      },
+      {
+        "value": "keeperhouse",
+        "label": "[Lv 28–38] บ้านผู้เฝ้าสุสาน (keeperhouse)"
+      },
+      {
+        "value": "weepgarden",
+        "label": "[Lv 28–38] สวนรูปปั้นร้องไห้ (weepgarden)"
+      },
+      {
+        "value": "graveyard2",
+        "label": "[Lv 28–38] สุสานเก่าหลังเนิน (graveyard2)"
+      },
+      {
+        "value": "coffinhollow",
+        "label": "[Lv 28–38] หุบหมอกโลงศพ (coffinhollow)"
+      },
+      {
+        "value": "stumpfield",
+        "label": "[Lv 30–45] ทุ่งตอไม้ควันขาว (stumpfield)"
+      },
+      {
+        "value": "stillburning",
+        "label": "[Lv 30–45] ป่าที่ยังไหม้ (stillburning)"
+      },
+      {
+        "value": "ashvale",
+        "label": "[Lv 30–45] หุบเถ้าลอย (ashvale)"
+      },
+      {
+        "value": "refugeecamp",
+        "label": "[Lv 32–42] ค่ายผู้อพยพร้าง (refugeecamp)"
+      },
+      {
+        "value": "road",
+        "label": "[Lv 32–42] ถนนผู้อพยพ (road)"
+      },
+      {
+        "value": "wagonvale",
+        "label": "[Lv 32–42] ทางเกวียนในหุบ (wagonvale)"
+      },
+      {
+        "value": "woodbridge",
+        "label": "[Lv 32–42] สะพานไม้ข้ามแม่น้ำ (woodbridge)"
+      },
+      {
+        "value": "crypt1",
+        "label": "[Lv 34–44] สุสานใต้ดิน ชั้น 1 (crypt1)"
+      },
+      {
+        "value": "burnt",
+        "label": "[Lv 35–45] ป่าไหม้ถ่านคุ (burnt)"
+      },
+      {
+        "value": "fallencap",
+        "label": "[Lv 36–46] ต้นเห็ดยักษ์ล้ม (fallencap)"
+      },
+      {
+        "value": "woods2",
+        "label": "[Lv 36–46] ป่าเห็ดชั้นใน (woods2)"
+      },
+      {
+        "value": "glowpool",
+        "label": "[Lv 36–46] สระรากเห็ดเรืองแสง (glowpool)"
+      },
+      {
+        "value": "sporevale",
+        "label": "[Lv 36–46] หุบสปอร์ม่วง (sporevale)"
+      },
+      {
+        "value": "salt",
+        "label": "[Lv 36–48] ด่านสะพานเกลือ (salt)"
+      },
+      {
+        "value": "saltdock",
+        "label": "[Lv 36–48] ท่าเรือเกลือร้าง (saltdock)"
+      },
+      {
+        "value": "saltflats",
+        "label": "[Lv 36–48] นาเกลือขาว (saltflats)"
+      },
+      {
+        "value": "watchtower",
+        "label": "[Lv 36–48] หอสังเกตการณ์ริมด่าน (watchtower)"
+      },
+      {
+        "value": "cliffmill",
+        "label": "[Lv 36–50] กังหันลมร้างริมผา (cliffmill)"
+      },
+      {
+        "value": "howlpass",
+        "label": "[Lv 36–50] ช่องเขาเสาหินหวีด (howlpass)"
+      },
+      {
+        "value": "heathmoor",
+        "label": "[Lv 36–50] ทุ่งเฮเทอร์ม่วง (heathmoor)"
+      },
+      {
+        "value": "antmine3",
+        "label": "[Lv 38–50] เหมืองมด ชั้น B3 · รังนางพญา (antmine3)"
+      }
     ]
   },
   {
-    group: "⛰️ แมพช่วงกลาง-สูง (Lv. 42–70)",
-    maps: [
-      { value: "wind", label: "ทุ่งลมหวีดหน้าผา (Lv. 42–52) [wind]" },
-      { value: "crypt2", label: "สุสานใต้ดิน ชั้น 2 (Lv. 44–52) [crypt2]" },
-      { value: "wind2", label: "เกาะหินลอยลม (Lv. 44–54) [wind2]" },
-      { value: "peak", label: "ยอดเขาหมอกเหนือ (Lv. 46–58) [peak]" },
-      { value: "swamp", label: "หนองพิษป่าชายเลน (Lv. 50–62) [swamp]" },
-      { value: "owl1", label: "หอดูดาวนกฮูก ชั้น 1 (Lv. 50–54) [owl1]" },
-      { value: "owl2", label: "หอดูดาวนกฮูก ชั้น 2 (Lv. 53–56) [owl2]" },
-      { value: "owl3", label: "หอดูดาวนกฮูก ชั้น 3 (Lv. 55–58) [owl3]" },
-      { value: "silver1", label: "ปล่องเงินลึก ชั้น B4 (Lv. 50–56) [silver1]" },
-      { value: "silver2", label: "ปล่องเงินลึก ชั้น B5 (Lv. 56–62) [silver2]" },
-      { value: "swamp2", label: "รากต้นแม่พิษ (Lv. 56–66) [swamp2]" },
-      { value: "canyon", label: "ผาหินแดง (Lv. 60–72) [canyon]" },
-      { value: "nroad", label: "เส้นทางขึ้นเหนือ (Lv. 60–72) [nroad]" },
-      { value: "meteor1", label: "ปล่องดาวตก ชั้น 1 (Lv. 60–66) [meteor1]" },
-      { value: "canyon2", label: "เหมืองลึกผลึกส้ม (Lv. 62–72) [canyon2]" },
-      { value: "roots1", label: "ถ้ำรากแม่พิษ B1 (Lv. 62–68) [roots1]" }
+    "group": "⛰️ แมพช่วงกลาง-สูง (Lv. 40–65)",
+    "maps": [
+      {
+        "value": "wind",
+        "label": "[Lv 42–52] ทุ่งลมหวีดหน้าผา (wind)"
+      },
+      {
+        "value": "crypt2",
+        "label": "[Lv 44–52] สุสานใต้ดิน ชั้น 2 · ห้องราชา (crypt2)"
+      },
+      {
+        "value": "chainisles",
+        "label": "[Lv 44–54] เกาะลอยล่ามโซ่ (chainisles)"
+      },
+      {
+        "value": "wind2",
+        "label": "[Lv 44–54] เกาะหินลอยลม (wind2)"
+      },
+      {
+        "value": "eyrie",
+        "label": "[Lv 44–54] ยอดรังอินทรี (eyrie)"
+      },
+      {
+        "value": "ropebridge",
+        "label": "[Lv 44–54] สะพานเชือกข้ามผา (ropebridge)"
+      },
+      {
+        "value": "icefall",
+        "label": "[Lv 46–58] ธารน้ำแข็งแตก (icefall)"
+      },
+      {
+        "value": "snowpines",
+        "label": "[Lv 46–58] ป่าสนหิมะ (snowpines)"
+      },
+      {
+        "value": "peak",
+        "label": "[Lv 46–58] ยอดเขาหมอกเหนือ (peak)"
+      },
+      {
+        "value": "avalanche",
+        "label": "[Lv 46–58] สันเขาหิมะถล่ม (avalanche)"
+      },
+      {
+        "value": "cagetrees",
+        "label": "[Lv 48–62] ดงต้นไม้แขวนกรง (cagetrees)"
+      },
+      {
+        "value": "bubblepits",
+        "label": "[Lv 48–62] บ่อโคลนพิษเดือด (bubblepits)"
+      },
+      {
+        "value": "mangrove",
+        "label": "[Lv 48–62] ป่าชายเลนน้ำขึ้น (mangrove)"
+      },
+      {
+        "value": "owl1",
+        "label": "[Lv 50–54] หอดูดาวนกฮูก ชั้น 1 (owl1)"
+      },
+      {
+        "value": "silver1",
+        "label": "[Lv 50–56] ปล่องเงินลึก ชั้น B4 (silver1)"
+      },
+      {
+        "value": "swamp",
+        "label": "[Lv 50–62] หนองพิษป่าชายเลน (swamp)"
+      },
+      {
+        "value": "owl2",
+        "label": "[Lv 53–56] หอดูดาวนกฮูก ชั้น 2 (owl2)"
+      },
+      {
+        "value": "owl3",
+        "label": "[Lv 55–58] หอดูดาวนกฮูก ชั้น 3 · โดมดาว (owl3)"
+      },
+      {
+        "value": "minecart",
+        "label": "[Lv 55–78] ทางรางเหมืองแขวน (minecart)"
+      },
+      {
+        "value": "goldsluice",
+        "label": "[Lv 55–78] รางร่อนทองร้าง (goldsluice)"
+      },
+      {
+        "value": "dustgulch",
+        "label": "[Lv 55–78] หุบเสาหินทราย (dustgulch)"
+      },
+      {
+        "value": "silver2",
+        "label": "[Lv 56–62] ปล่องเงินลึก ชั้น B5 (silver2)"
+      },
+      {
+        "value": "pitcherfield",
+        "label": "[Lv 56–66] ทุ่งพืชกินแมลงยักษ์ (pitcherfield)"
+      },
+      {
+        "value": "cocoonwood",
+        "label": "[Lv 56–66] ป่ารังไหมพิษ (cocoonwood)"
+      },
+      {
+        "value": "swamp2",
+        "label": "[Lv 56–66] รากต้นแม่พิษ (swamp2)"
+      },
+      {
+        "value": "poisonvillage",
+        "label": "[Lv 56–66] หมู่บ้านคนเก็บพิษ (poisonvillage)"
+      },
+      {
+        "value": "meteor1",
+        "label": "[Lv 60–66] ปล่องดาวตก ชั้น 1 (meteor1)"
+      },
+      {
+        "value": "canyon",
+        "label": "[Lv 60–72] ผาหินแดง (canyon)"
+      },
+      {
+        "value": "roadinn",
+        "label": "[Lv 60–72] โรงเตี๊ยมกลางทาง (roadinn)"
+      },
+      {
+        "value": "silentfarm",
+        "label": "[Lv 60–72] ไร่เงียบงัน (silentfarm)"
+      },
+      {
+        "value": "travelgrave",
+        "label": "[Lv 60–72] สุสานคนเดินทาง (travelgrave)"
+      },
+      {
+        "value": "nroad",
+        "label": "[Lv 60–72] เส้นทางขึ้นเหนือ (nroad)"
+      },
+      {
+        "value": "roots1",
+        "label": "[Lv 62–68] ถ้ำรากแม่พิษ B1 (roots1)"
+      },
+      {
+        "value": "minerscamp",
+        "label": "[Lv 62–72] ค่ายคนงานใต้ดิน (minerscamp)"
+      },
+      {
+        "value": "geodehall",
+        "label": "[Lv 62–72] โถงหินจีโอด (geodehall)"
+      },
+      {
+        "value": "floodedmine",
+        "label": "[Lv 62–72] ห้องสูบน้ำเหมืองท่วม (floodedmine)"
+      },
+      {
+        "value": "canyon2",
+        "label": "[Lv 62–72] เหมืองลึกผลึกส้ม (canyon2)"
+      }
     ]
   },
   {
-    group: "🌋 แมพระดับสูง (Lv. 66–99)",
-    maps: [
-      { value: "meteor2", label: "ปล่องดาวตก ชั้น 2 (Lv. 66–72) [meteor2]" },
-      { value: "outer", label: "ย่านนอกกำแพง (Lv. 68–82) [outer]" },
-      { value: "volcano", label: "ภูเขาไฟหลับ (Lv. 70–82) [volcano]" },
-      { value: "canyon3", label: "ใจกลางหุบผา (Lv. 70–80) [canyon3]" },
-      { value: "raiderfort", label: "ป้อมโจรทะเลทรายร้าง (Lv. 70–80) [raiderfort]" },
-      { value: "meteor3", label: "ปล่องดาวตก ชั้น 3 (Lv. 72–78) [meteor3]" },
-      { value: "canal", label: "ย่านริมคลอง (Lv. 74–86) [canal]" },
-      { value: "lake", label: "ทะเลสาบหมอกเงา (Lv. 78–90) [lake]" },
-      { value: "ledger1", label: "หอบัญชีใต้วิหาร ชั้น 1 (Lv. 78–83) [ledger1]" },
-      { value: "meteor4", label: "ปล่องดาวตก ชั้น 4 (Lv. 78–84) [meteor4]" },
-      { value: "lavavent1", label: "ปล่องภูเขาไฟ ชั้น 1 (Lv. 80–90) [lavavent1]" },
-      { value: "ledger2", label: "หอบัญชีใต้วิหาร ชั้น 2 (Lv. 82–88) [ledger2]" },
-      { value: "meteor5", label: "ปล่องดาวตก ชั้น 5 (Lv. 84–90) [meteor5]" },
-      { value: "isle", label: "เกาะกลางทะเลสาบ (Lv. 84–92) [isle]" },
-      { value: "dark", label: "ป่าใต้ที่มืดสนิท (Lv. 86–96) [dark]" },
-      { value: "prime", label: "ป่าดึกดำบรรพ์ (Lv. 88–99) [prime]" },
-      { value: "lavavent2", label: "ปล่องภูเขาไฟ ชั้น 2 (Lv. 90–99) [lavavent2]" },
-      { value: "meteor6", label: "ปล่องดาวตก ชั้น 6 (Lv. 90–95) [meteor6]" },
-      { value: "cathedral", label: "ย่านวิหาร (Lv. 92–99) [cathedral]" },
-      { value: "meteor7", label: "ปล่องดาวตก ชั้น 7 (Lv. 95–99) [meteor7]" }
+    "group": "🌋 แมพระดับสูง (Lv. 66–99)",
+    "maps": [
+      {
+        "value": "meteor2",
+        "label": "[Lv 66–72] ปล่องดาวตก ชั้น 2 (meteor2)"
+      },
+      {
+        "value": "lavalake",
+        "label": "[Lv 66–84] ทะเลสาบลาวาเย็น (lavalake)"
+      },
+      {
+        "value": "smokevent",
+        "label": "[Lv 66–84] ปากปล่องควันดำ (smokevent)"
+      },
+      {
+        "value": "obsidian",
+        "label": "[Lv 66–84] ลานหินออบซิเดียน (obsidian)"
+      },
+      {
+        "value": "roots2",
+        "label": "[Lv 68–74] ถ้ำรากแม่พิษ B2 · หัวใจ (roots2)"
+      },
+      {
+        "value": "moat",
+        "label": "[Lv 68–82] คูเมืองน้ำนิ่ง (moat)"
+      },
+      {
+        "value": "nightmarket",
+        "label": "[Lv 68–82] ตลาดเช้าที่ไม่มีเช้า (nightmarket)"
+      },
+      {
+        "value": "outer",
+        "label": "[Lv 68–82] ย่านนอกกำแพง (outer)"
+      },
+      {
+        "value": "tannery",
+        "label": "[Lv 68–82] ย่านโรงฟอกหนัง (tannery)"
+      },
+      {
+        "value": "canyon3",
+        "label": "[Lv 70–80] ใจกลางหุบผา (canyon3)"
+      },
+      {
+        "value": "antlionpits",
+        "label": "[Lv 70–80] ทุ่งหลุมแมลงช้าง (antlionpits)"
+      },
+      {
+        "value": "raiderfort",
+        "label": "[Lv 70–80] ป้อมโจรทะเลทรายร้าง (raiderfort)"
+      },
+      {
+        "value": "dryoasis",
+        "label": "[Lv 70–80] โอเอซิสแห้งขอด (dryoasis)"
+      },
+      {
+        "value": "volcano",
+        "label": "[Lv 70–82] ภูเขาไฟหลับ (volcano)"
+      },
+      {
+        "value": "shipwreck",
+        "label": "[Lv 70–88] ซากเรือในหมอก (shipwreck)"
+      },
+      {
+        "value": "willows",
+        "label": "[Lv 70–88] ป่าต้นหลิวจมน้ำ (willows)"
+      },
+      {
+        "value": "floatvillage",
+        "label": "[Lv 70–88] หมู่บ้านลอยน้ำร้าง (floatvillage)"
+      },
+      {
+        "value": "meteor3",
+        "label": "[Lv 72–78] ปล่องดาวตก ชั้น 3 (meteor3)"
+      },
+      {
+        "value": "hotsprings",
+        "label": "[Lv 72–92] บ่อน้ำร้อนดึกดำบรรพ์ (hotsprings)"
+      },
+      {
+        "value": "tarpit",
+        "label": "[Lv 72–92] หนองน้ำมันดิน (tarpit)"
+      },
+      {
+        "value": "fernvale",
+        "label": "[Lv 72–92] หุบเฟิร์นยักษ์ (fernvale)"
+      },
+      {
+        "value": "sluicegate",
+        "label": "[Lv 74–86] ประตูน้ำเก่า (sluicegate)"
+      },
+      {
+        "value": "warehouses",
+        "label": "[Lv 74–86] ย่านโกดังริมน้ำ (warehouses)"
+      },
+      {
+        "value": "canal",
+        "label": "[Lv 74–86] ย่านริมคลอง (canal)"
+      },
+      {
+        "value": "shipyard",
+        "label": "[Lv 74–86] อู่ต่อเรือร้าง (shipyard)"
+      },
+      {
+        "value": "ledger1",
+        "label": "[Lv 78–83] หอบัญชีใต้วิหาร ชั้น 1 (ledger1)"
+      },
+      {
+        "value": "meteor4",
+        "label": "[Lv 78–84] ปล่องดาวตก ชั้น 4 (meteor4)"
+      },
+      {
+        "value": "lake",
+        "label": "[Lv 78–90] ทะเลสาบหมอกเงา (lake)"
+      },
+      {
+        "value": "lavavent1",
+        "label": "[Lv 80–90] ปล่องภูเขาไฟ ชั้น 1 (lavavent1)"
+      },
+      {
+        "value": "ledger2",
+        "label": "[Lv 82–88] หอบัญชีใต้วิหาร ชั้น 2 · ห้องบัญชี (ledger2)"
+      },
+      {
+        "value": "meteor5",
+        "label": "[Lv 84–90] ปล่องดาวตก ชั้น 5 (meteor5)"
+      },
+      {
+        "value": "isle",
+        "label": "[Lv 84–92] เกาะกลางทะเลสาบ (isle)"
+      },
+      {
+        "value": "lighthouse",
+        "label": "[Lv 84–92] เกาะประภาคารดับ (lighthouse)"
+      },
+      {
+        "value": "shipgrave",
+        "label": "[Lv 84–92] เกาะสุสานเรือ (shipgrave)"
+      },
+      {
+        "value": "reefs",
+        "label": "[Lv 84–92] แนวหินโสโครก (reefs)"
+      },
+      {
+        "value": "treeedge",
+        "label": "[Lv 86–96] ขอบป่าต้นไม้มืด (treeedge)"
+      },
+      {
+        "value": "shadowpath",
+        "label": "[Lv 86–96] ทางเดินเงาไร้เสียง (shadowpath)"
+      },
+      {
+        "value": "dark",
+        "label": "[Lv 86–96] ป่าใต้ที่มืดสนิท (dark)"
+      },
+      {
+        "value": "blackroots",
+        "label": "[Lv 86–96] ป่ารากดำ (blackroots)"
+      },
+      {
+        "value": "puppet1",
+        "label": "[Lv 88–91] โรงหุ่นใต้วิหาร ชั้น 1 · ห้องขัง (puppet1)"
+      },
+      {
+        "value": "prime2",
+        "label": "[Lv 88–98] ทะเลสาบไข่มังกร (prime2)"
+      },
+      {
+        "value": "amberwood",
+        "label": "[Lv 88–98] ป่ายางอำพัน (amberwood)"
+      },
+      {
+        "value": "pteronest",
+        "label": "[Lv 88–98] ผารังเทอโรซอร์ (pteronest)"
+      },
+      {
+        "value": "ammonbeach",
+        "label": "[Lv 88–98] หาดซากแอมโมไนต์ (ammonbeach)"
+      },
+      {
+        "value": "prime",
+        "label": "[Lv 88–99] ป่าดึกดำบรรพ์ (prime)"
+      },
+      {
+        "value": "puppet2",
+        "label": "[Lv 90–94] โรงหุ่นใต้วิหาร ชั้น 2 · โต๊ะช่าง (puppet2)"
+      },
+      {
+        "value": "meteor6",
+        "label": "[Lv 90–95] ปล่องดาวตก ชั้น 6 (meteor6)"
+      },
+      {
+        "value": "flesh",
+        "label": "[Lv 90–98] โพรงเนื้อหนาม (flesh)"
+      },
+      {
+        "value": "lavavent2",
+        "label": "[Lv 90–99] ปล่องภูเขาไฟ ชั้น 2 · ถ้ำมังกร (lavavent2)"
+      },
+      {
+        "value": "cathedral",
+        "label": "[Lv 92–99] ย่านวิหาร (cathedral)"
+      },
+      {
+        "value": "clocksquare",
+        "label": "[Lv 92–99] ลานหอนาฬิกา (clocksquare)"
+      },
+      {
+        "value": "whitestatues",
+        "label": "[Lv 92–99] สวนรูปปั้นขาว (whitestatues)"
+      },
+      {
+        "value": "rooftops",
+        "label": "[Lv 92–99] หลังคาเมือง (rooftops)"
+      },
+      {
+        "value": "bell1",
+        "label": "[Lv 94–96] หอระฆัง ชั้น 1 (bell1)"
+      },
+      {
+        "value": "bell2",
+        "label": "[Lv 95–97] หอระฆัง ชั้น 2 (bell2)"
+      },
+      {
+        "value": "meteor7",
+        "label": "[Lv 95–99] ปล่องดาวตก ชั้น 7 (meteor7)"
+      },
+      {
+        "value": "bell3",
+        "label": "[Lv 96–98] หอระฆัง ชั้น 3 (bell3)"
+      },
+      {
+        "value": "grave1",
+        "label": "[Lv 97–99] หลุมดาว ชั้น 1 · พื้นแก้ว (grave1)"
+      },
+      {
+        "value": "bell4",
+        "label": "[Lv 97–99] หอระฆัง ชั้น 4 (bell4)"
+      },
+      {
+        "value": "bell5",
+        "label": "[Lv 98–99] หอระฆัง ชั้น 5 (bell5)"
+      },
+      {
+        "value": "bell6",
+        "label": "[Lv 99–99] หอระฆัง ชั้น 6 (bell6)"
+      },
+      {
+        "value": "bell7",
+        "label": "[Lv 99–99] หอระฆัง ชั้น 7 · ยอดหอ (bell7)"
+      },
+      {
+        "value": "grave2",
+        "label": "[Lv 99] หลุมดาว ชั้น 2 · ใจกลางดาว (grave2)"
+      }
     ]
   }
 ];
+
+const NIGHTCAMP_WEAPON_TYPE_CATALOG = [
+  { id: 'auto', icon: '✨', name: 'อัตโนมัติตามอาชีพ/สกิล', hand: 'Auto', group: 'auto', jobs: 'ทุกอาชีพ (คำนวณจากสกิลที่อัป + คิวสกิลในแผน)', jobIds: [], skills: 'Smart Gear คำนวณจาก NC.WEAPON_RULES ให้อัตโนมัติ' },
+  // Knight Line
+  { id: 'sword', icon: '🗡️', name: 'ดาบมือเดียว', hand: '1 มือ +โล่', group: 'knight', jobs: 'อัศวิน · พาลาดิน · นักดาบ · โจร', jobIds: ['knight', 'paladin', 'dawnwarden', 'swordmaster', 'starblade', 'rogue'], skills: 'คลื่นดาบเวท · ชักดาบผ่ารอย · ดาบแสงสถิต · ถือโล่ได้' },
+  { id: 'gsword', icon: '⚔️', name: 'ดาบใหญ่ 2 มือ', hand: '2 มือ', group: 'knight', jobs: 'อัศวิน · เบอร์เซิร์กเกอร์ · นักดาบ', jobIds: ['knight', 'berserker', 'bloodmoon', 'swordmaster', 'starblade'], skills: 'ฟันกากบาท · ดาบพายุหมุน · ฟันประหาร · ฟันกวาด' },
+  { id: 'dsword', icon: '⚔️', name: 'ดาบคู่', hand: 'ถือคู่ (2 มือ)', group: 'knight', jobs: 'นักดาบ (Swordmaster / Starblade)', jobIds: ['swordmaster', 'starblade'], skills: 'ดาบคู่ประสาน · สายฝนดาบ · จันทร์พันดาบ' },
+  { id: 'spear', icon: '🔱', name: 'หอกมือเดียว', hand: '1 มือ +โล่', group: 'knight', jobs: 'อัศวิน · พาลาดิน · อัศวินมังกร', jobIds: ['knight', 'paladin', 'dawnwarden', 'dragonknight', 'dragonbound'], skills: 'แทงสามจังหวะ · แทงเพลิงมังกร · ลมหายใจมังกร (+โล่)' },
+  { id: 'lance', icon: '🔱', name: 'หอกยาว 2 มือ', hand: '2 มือ', group: 'knight', jobs: 'อัศวินมังกร (Dragonknight / Dragonbound)', jobIds: ['dragonknight', 'dragonbound'], skills: 'เร่งหอก · หอกเกลียวสว่าน (โบนัส) · แทงเพลิงมังกร' },
+  { id: 'axe', icon: '🪓', name: 'ขวานมือเดียว', hand: '1 มือ +โล่', group: 'knight', jobs: 'อัศวิน · พาลาดิน · เบอร์เซิร์กเกอร์', jobIds: ['knight', 'paladin', 'dawnwarden', 'berserker', 'bloodmoon'], skills: 'ทุบสะสมพลัง · กระโดดทุบธรณี · ถือโล่ได้' },
+  { id: 'gaxe', icon: '🪓', name: 'ขวานยักษ์ 2 มือ', hand: '2 มือ', group: 'knight', jobs: 'เบอร์เซิร์กเกอร์ (Berserker / Bloodmoon)', jobIds: ['berserker', 'bloodmoon'], skills: 'ทุบสะสมพลัง · กระโดดทุบธรณี · เร่งเพลงดาบ' },
+  { id: 'hammer', icon: '🔨', name: 'ค้อนยักษ์ 2 มือ', hand: '2 มือ', group: 'knight', jobs: 'เบอร์เซิร์กเกอร์ (Berserker / Bloodmoon)', jobIds: ['berserker', 'bloodmoon'], skills: 'ทุบสะสมพลัง · กระโดดทุบธรณี · ขว้างอาวุธ' },
+  // Rogue Line
+  { id: 'dagger', icon: '🗡️', name: 'มีดคู่', hand: 'ถือคู่ (2 มือ)', group: 'rogue', jobs: 'โจร · นักฆ่า (Rogue / Assassin)', jobIds: ['rogue', 'assassin', 'eclipse'], skills: 'โจมตีสองครั้ง · ชำนาญมีด · จุดตาย · แทงข้างหลัง' },
+  { id: 'katar', icon: '🐾', name: 'คาทาร์', hand: 'ถือคู่ (2 มือ)', group: 'rogue', jobs: 'นักฆ่า (Assassin / Eclipse)', jobIds: ['assassin', 'eclipse'], skills: 'เขี้ยวคู่ · ชำนาญมีดคู่ · เร่งนักฆ่า' },
+  { id: 'huuma', icon: '✴️', name: 'ดาวยักษ์', hand: '2 มือ', group: 'rogue', jobs: 'นินจา (Shinobi / Shadowlord)', jobIds: ['shinobi', 'shadowlord'], skills: 'พายุชูริเคน · ขว้างดาวยักษ์วกกลับ · พัดดาวกระจาย' },
+  { id: 'scythe', icon: '🌙', name: 'เคียวใหญ่ 2 มือ', hand: '2 มือ · ไม่ถือโล่', group: 'rogue', jobs: 'ยมทูต (Reaper / Harvester)', jobIds: ['reaper', 'harvester'], skills: 'ชำนาญเคียวใหญ่ · ฟันเก็บเกี่ยว · ประหารใต้จันทร์' },
+  { id: 'sickle', icon: '🌙', name: 'เคียวคู่', hand: 'ถือคู่ (2 มือ)', group: 'rogue', jobs: 'ยมทูต (Reaper / Harvester)', jobIds: ['reaper', 'harvester'], skills: 'เคียวคู่ประสาน · ขว้างเคียววกกลับ · เกี่ยววิญญาณ' },
+  { id: 'puppet', icon: '🎎', name: 'ไม้เชิดหุ่น', hand: '1 มือ +โล่', group: 'rogue', jobs: 'นักเชิดหุ่น (Puppeteer / Showmaster)', jobIds: ['puppeteer', 'showmaster'], skills: 'ชักใยหุ่น · สลับร่างหุ่น · ระบำหุ่น · ถือโล่ได้' },
+  { id: 'wire', icon: '🧵', name: 'ด้ายเหล็ก', hand: 'ถือคู่ (2 มือ)', group: 'rogue', jobs: 'นักเชิดหุ่น (Puppeteer / Showmaster)', jobIds: ['puppeteer', 'showmaster'], skills: 'ด้ายคม · ขึงด้ายเหล็ก · รัดด้าย' },
+  // Archer Line
+  { id: 'bow', icon: '🏹', name: 'ธนู', hand: '2 มือ · ไม่ถือโล่', group: 'archer', jobs: 'นักธนู · เรนเจอร์ · นักล่าหมาป่า', jobIds: ['archer', 'ranger', 'moonsniper', 'wolfhunter', 'packalpha'], skills: 'ยิงคู่ · พายุศร · ยิงสามดอก · ธนูเขี้ยวหมาป่า' },
+  { id: 'xbow', icon: '🏹', name: 'หน้าไม้', hand: '2 มือ · ไม่ถือโล่', group: 'archer', jobs: 'เรนเจอร์ (Ranger / Moonsniper)', jobIds: ['ranger', 'moonsniper'], skills: 'ยิงสไนป์ (โบนัส) · เล็งจุดตาย · ปลดขีดจำกัด' },
+  { id: 'instrument', icon: '🎸', name: 'เครื่องดนตรี', hand: '2 มือ · ไม่ถือโล่', group: 'archer', jobs: 'นักกวี (Bard / Maestro)', jobIds: ['bard', 'maestro'], skills: 'เพลงเร่งจังหวะ · เพลงอุ่นไอไฟ · วงดนตรี · ฝนโน้ต' },
+  { id: 'whip', icon: '〰️', name: 'แส้', hand: '1 มือ · ไม่ถือโล่', group: 'archer', jobs: 'นักกวี (Bard / Maestro)', jobIds: ['bard', 'maestro'], skills: 'ระบำควงไฟ · ระบำหิ่งห้อย · ฟาดแส้ดึง' },
+  { id: 'pistol', icon: '🔫', name: 'ปืนพกคู่', hand: 'ถือคู่ (2 มือ)', group: 'archer', jobs: 'มือปืน (Gunslinger / Outlaw)', jobIds: ['gunslinger', 'outlaw'], skills: 'ชำนาญปืนพก · ลั่นไกรัว · รัวค้อนปืน · กระสุนสะท้อน' },
+  { id: 'shotgun', icon: '💥', name: 'ลูกซอง', hand: '2 มือ · ไม่ถือโล่', group: 'archer', jobs: 'มือปืน (Gunslinger / Outlaw)', jobIds: ['gunslinger', 'outlaw'], skills: 'ลูกปรายกระจาย · ถีบถอย · ยิงดาวตก' },
+  // Mage Line
+  { id: 'staff', icon: '🪄', name: 'คทา 2 มือ', hand: '2 มือ', group: 'mage', jobs: 'จอมเวททุกสาย · พระทุกสาย', jobIds: ['mage', 'archmage', 'astral', 'firemage', 'starcore', 'icemage', 'winterlord', 'warlock', 'hexlord', 'priest', 'bishop', 'starsaint', 'lightkeeper', 'beacon', 'wisp', 'starshepherd'], skills: 'โบนัสเวทใหญ่ (ลูกไฟ · พายุหิมะ · แสงศักดิ์สิทธิ์ · โคมแก้ว)' },
+  { id: 'orb', icon: '🔮', name: 'ออร์บเวท', hand: '1 มือ +โล่', group: 'mage', jobs: 'จอมเวททุกสาย (Archmage / Fire / Ice / Warlock)', jobIds: ['mage', 'archmage', 'astral', 'firemage', 'starcore', 'icemage', 'winterlord', 'warlock', 'hexlord'], skills: 'ร่ายอัตโนมัติ · ลูกไฟตีปกติ · ไฟลาม · ใจเหมันต์ · ถือโล่ได้' },
+  { id: 'lantern', icon: '🏮', name: 'ตะเกียง', hand: '2 มือ', group: 'mage', jobs: 'วอร์ล็อกตะเกียง (Warlock / Hexlord)', jobIds: ['warlock', 'hexlord'], skills: 'ตะเกียงแกว่ง · ดูดวิญญาณ · ตะเกียงเดือด · เรียกวิญญาณ' },
+  // Priest Line
+  { id: 'mace', icon: '🔨', name: 'กระบองมือเดียว', hand: '1 มือ +โล่', group: 'priest', jobs: 'พระทุกสาย · พาลาดิน · นักพรต', jobIds: ['priest', 'bishop', 'starsaint', 'monk', 'meteorfist', 'lightkeeper', 'beacon', 'wisp', 'starshepherd', 'paladin', 'dawnwarden'], skills: 'ชำนาญกระบอง · เพลงสวดศึก · มือเมตตา · ดาบแสงสถิต' },
+  { id: 'book', icon: '📖', name: 'คัมภีร์', hand: '1 มือ +โล่', group: 'priest', jobs: 'บิชอป (Bishop / Starsaint)', jobIds: ['bishop', 'starsaint'], skills: 'ขับไล่อมตะ (โบนัส) · เพลงสวดศึก · มือเมตตา · ถือโล่ได้' },
+  { id: 'knuckle', icon: '🥊', name: 'สนับมือ', hand: 'ถือคู่ (2 มือ)', group: 'priest', jobs: 'นักพรต (Monk / Meteorfist)', jobIds: ['monk', 'meteorfist'], skills: 'ชุดหมัดพายุ · ฝ่ามือร้อยทิศ · ชุดหมัดดาวตก' },
+  { id: 'qstaff', icon: '🦯', name: 'ไม้พลอง', hand: '2 มือ', group: 'priest', jobs: 'นักพรต (Monk / Meteorfist)', jobIds: ['monk', 'meteorfist'], skills: 'ปล่อยพลังปราณ (โบนัส) · ตีระยะยาว' },
+  { id: 'torch', icon: '🔥', name: 'คบเพลิง', hand: '1 มือ +โล่', group: 'priest', jobs: 'ผู้จุดตะเกียง (Lightkeeper / Beacon)', jobIds: ['lightkeeper', 'beacon'], skills: 'ชำนาญคบเพลิง · ฟาดเปลวไฟ · ปักคบเพลิง · ไฟศรัทธา' },
+  { id: 'bell', icon: '🔔', name: 'กระดิ่งวิญญาณ', hand: '1 มือ +โล่', group: 'priest', jobs: 'ผู้เลี้ยงดวงไฟ (Wisp / Starshepherd)', jobIds: ['wisp', 'starshepherd'], skills: 'เสียงเรียกดวงไฟ · ฝูงดวงไฟพุ่ง · ดวงไฟติดศัตรู' }
+];
+
+function planWeaponTypeMeta(wtype) {
+  const id = String(wtype || 'auto').trim().toLowerCase() || 'auto';
+  return NIGHTCAMP_WEAPON_TYPE_CATALOG.find(w => w.id === id) || {
+    id, icon: '🎯', name: id, hand: '', group: 'other', jobs: '', jobIds: [], skills: ''
+  };
+}
+
+function getRecommendedWeaponTypesForPlan(plan, trig) {
+  const targetJobs = new Set();
+  if (trig && trig.type === 'job_level' && trig.classId) {
+    targetJobs.add(String(trig.classId).toLowerCase());
+  }
+  if (targetJobs.size === 0 && plan) {
+    if (plan.class3Target) targetJobs.add(String(plan.class3Target).toLowerCase());
+    if (plan.class2Target) targetJobs.add(String(plan.class2Target).toLowerCase());
+    if (plan.class1Target) targetJobs.add(String(plan.class1Target).toLowerCase());
+  }
+  if (targetJobs.size === 0) return [];
+  return NIGHTCAMP_WEAPON_TYPE_CATALOG.filter(w => w.id !== 'auto' && w.jobIds.some(j => targetJobs.has(j)));
+}
 
 const PLAN_CLASS_OPTIONS = [
   { value: "traveler", label: "🎒 นักเดินทาง (Traveler · เริ่มต้น)" },
@@ -11323,6 +12121,11 @@ function planActionSummary(act) {
     const modeLbl = act.resetMode === 'free_only' ? ' · เฉพาะฟรี (<Lv.40)' : '';
     return `📊 รีเซ็ตสเตตัส${roundNo > 0 ? ` (รีสเตตัส #${roundNo})` : ''}${modeLbl}`;
   }
+  if (act.type === 'set_weapon_type') {
+    const meta = planWeaponTypeMeta(act.weaponType || 'auto');
+    if (meta.id === 'auto') return '🎯 ประเภทอาวุธ: ✨ อัตโนมัติตามอาชีพ/สกิล';
+    return `🎯 ล็อกอาวุธ: ${meta.icon} ${meta.name} (${meta.hand})`;
+  }
   return act.type;
 }
 
@@ -11371,7 +12174,7 @@ function planTriggerLabel(t) {
 }
 function jobClassChoices(trig) {
   const p = activeEditingPlan || {};
-  const ids = ['traveler', p.class1Target, p.class2Target, trig.classId].filter(Boolean).map(x => String(x).toLowerCase());
+  const ids = ['traveler', p.class1Target, p.class2Target, p.class3Target, trig.classId].filter(Boolean).map(x => String(x).toLowerCase());
   return [...new Set(ids)];
 }
 function sortPlanTriggers() {
@@ -11452,6 +12255,7 @@ const PLAN_ACTION_TILES = [
   { type: 'auto_quest', icon: '🧭', title: 'ทำเควสอัตโนมัติ', desc: 'Smart Auto-Quest (เควสหลัก MQ + บทเรียน)' },
   { type: 'change_map', icon: '🗺️', title: 'ย้ายแมพฟาร์ม', desc: 'เดินไปแมพที่เลือก & เปิด Auto-Farm' },
   { type: 'change_class', icon: '⚔️', title: 'เปลี่ยนอาชีพ', desc: 'เปลี่ยนเป็น Class 1 / Class 2 / Class 3' },
+  { type: 'set_weapon_type', icon: '🎯', title: 'ล็อกประเภทอาวุธ', desc: 'บังคับ Smart Gear ใส่อาวุธชนิดที่เลือก (เปิดหน้าต่างเลือกครบ 30 ชนิด)' },
   { type: 'reset_skills', icon: '🔄', title: 'รีเซ็ตสกิล (ลุงโกโก้)', desc: 'กลับค่ายรีสกิล & อัปสกิลตามแท็บ รีสกิล #1, #2...' },
   { type: 'reset_stats', icon: '📊', title: 'รีเซ็ตสเตตัส (Reset Stats)', desc: 'รีแต้มสเตตัสฟรี (<Lv.40) หรือใช้ตั๋ว & อัปตามแท็บ รีสเตตัส #1, #2...' },
   { type: 'party_setup', icon: '🤝', title: 'เซ็ตปาร์ตี้ (Auto-Party)', desc: 'ตั้งตี้ / เข้าตี้ตามแท็ก / โหมดพระซัพเดินตาม' },
@@ -11478,7 +12282,16 @@ function openTriggerDialog(trigIdx) {
     dlg.className = 'modal-overlay pe-dlg';
     document.body.appendChild(dlg);
     dlg.addEventListener('mousedown', e => { if (e.target === dlg) closeTriggerDialog(); });
-    document.addEventListener('keydown', e => { if (e.key === 'Escape' && dlg.classList.contains('active')) closeTriggerDialog(); });
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') {
+        const wtDlg = document.getElementById('pe-wtype-dialog');
+        if (wtDlg && wtDlg.classList.contains('active')) {
+          closeWeaponTypePickerDialog();
+          return;
+        }
+        if (dlg.classList.contains('active')) closeTriggerDialog();
+      }
+    });
   }
   renderTriggerDialog();
   dlg.classList.add('active');
@@ -11655,8 +12468,9 @@ function renderActionNodeHtml(trigIdx, actIdx, act) {
         <div class="pe-act-main">
           <div class="pe-act-title"><b>ย้ายแมพฟาร์ม (Auto-Farm)</b>${del}</div>
           <div class="pe-fields">
-            <label>เลือกแมพ Nightcamp ที่จะไปฟาร์ม
-              <select class="form-select" onchange="updateActionField(${trigIdx}, ${actIdx}, 'targetMap', this.value)">
+            <label>เลือกแมพ Nightcamp ที่จะไปฟาร์ม (ค้นหาได้ครบทุกแมพ)
+              <input type="text" class="form-input pe-map-search" placeholder="🔍 ค้นหาชื่อแมพ / เลเวล / รหัส เช่น กระท่อมพรานร้าง, hunterlodge..." oninput="filterPlanActionMapSelect(this)" style="margin-bottom:4px; font-size:11.5px; padding:4px 8px;">
+              <select class="form-select pe-map-select" onchange="updateActionField(${trigIdx}, ${actIdx}, 'targetMap', this.value)">
                 ${PLAN_MAP_OPTIONS.map(grp => `
                   <optgroup label="${escapeHTML(grp.group)}">
                     ${grp.maps.map(m => `<option value="${escapeHTML(m.value)}" ${act.targetMap === m.value ? 'selected' : ''}>${escapeHTML(m.label)}</option>`).join('')}
@@ -11838,6 +12652,31 @@ function renderActionNodeHtml(trigIdx, actIdx, act) {
       </div>`;
   }
 
+  if (act.type === 'set_weapon_type') {
+    const wtMeta = planWeaponTypeMeta(act.weaponType || 'auto');
+    return `
+      <div class="pe-action set_weapon_type">
+        <div class="pe-act-icon">🎯</div>
+        <div class="pe-act-main">
+          <div class="pe-act-title"><b>ล็อกประเภทอาวุธ (Smart Gear Weapon Type)</b>${del}</div>
+          <div class="pe-wt-selected-box" onclick="openWeaponTypePickerDialog(${trigIdx}, ${actIdx})" title="คลิกเพื่อเปิดหน้าต่างเลือกประเภทอาวุธทั้งหมด">
+            <div class="pe-wt-selected-icon">${wtMeta.icon}</div>
+            <div class="pe-wt-selected-info">
+              <div class="pe-wt-selected-name">
+                <b>${escapeHTML(wtMeta.name)}</b>
+                <span class="pe-wt-hand-pill">${escapeHTML(wtMeta.hand || 'Auto')}</span>
+                <span class="pe-wt-id-pill">${escapeHTML(wtMeta.id)}</span>
+              </div>
+              <div class="pe-wt-selected-jobs">${escapeHTML(wtMeta.jobs || 'ทุกอาชีพ')}</div>
+              ${wtMeta.skills ? `<div class="pe-wt-selected-skills">✨ ${escapeHTML(wtMeta.skills)}</div>` : ''}
+            </div>
+            <button type="button" class="btn btn-sm btn-primary pe-wt-pick-btn" onclick="event.stopPropagation(); openWeaponTypePickerDialog(${trigIdx}, ${actIdx})">🎯 เลือกประเภทอาวุธ</button>
+          </div>
+          <small class="pe-hint">💡 เมื่อถึงเงื่อนไขนี้ บอทจะล็อกให้ Smart Gear สวมใส่และอัปเกรดเฉพาะอาวุธชนิดนี้ตลอดไป จนกว่าจะเจอคำสั่งเปลี่ยนประเภทอาวุธถัดไป หรือคุณไปปรับเองที่หน้าแรกใต้ Smart Gear</small>
+        </div>
+      </div>`;
+  }
+
   return '';
 }
 
@@ -11891,6 +12730,9 @@ function addActionToTrigger(trigIdx, actionType) {
     Object.assign(newAction, { resetMode: 'auto' });
   } else if (actionType === 'reset_stats') {
     Object.assign(newAction, { resetMode: 'auto' });
+  } else if (actionType === 'set_weapon_type') {
+    const recs = getRecommendedWeaponTypesForPlan(activeEditingPlan, trig);
+    Object.assign(newAction, { weaponType: recs.length > 0 ? recs[0].id : 'auto' });
   } else if (actionType === 'life_gather') {
     Object.assign(newAction, { lifeJob: 'wood', itemId: 'lf_birch', qty: 10 });
   } else if (actionType === 'sell_trip') {
@@ -11909,13 +12751,187 @@ function addActionToTrigger(trigIdx, actionType) {
     });
   }
   trig.actions.push(newAction);
+  const newActIdx = trig.actions.length - 1;
   if (trigIdx !== -1) markPlanDirty();
   planRerender(trigIdx);
-  if (trigIdx === -1) {
+  if (actionType === 'set_weapon_type') {
+    setTimeout(() => openWeaponTypePickerDialog(trigIdx, newActIdx), 40);
+  } else if (trigIdx === -1) {
     setTimeout(() => {
       const acts = document.querySelectorAll('#pe-trigger-dialog .pe-dlg-act');
       if (acts.length) acts[acts.length - 1].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }, 30);
+  }
+}
+
+function filterPlanActionMapSelect(inp) {
+  if (!inp || !inp.parentElement) return;
+  const sel = inp.parentElement.querySelector('select.pe-map-select');
+  if (!sel) return;
+  const q = String(inp.value || '').trim().toLowerCase();
+  const curVal = sel.value;
+  sel.innerHTML = PLAN_MAP_OPTIONS.map(grp => {
+    const filtered = grp.maps.filter(m => !q || m.value === curVal || m.label.toLowerCase().includes(q) || m.value.toLowerCase().includes(q));
+    if (filtered.length === 0) return '';
+    return `<optgroup label="${escapeHTML(grp.group)}">${filtered.map(m => `<option value="${escapeHTML(m.value)}" ${m.value === curVal ? 'selected' : ''}>${escapeHTML(m.label)}</option>`).join('')}</optgroup>`;
+  }).join('');
+  if (curVal) sel.value = curVal;
+}
+
+// ---------- Square Visual Weapon Type Picker Dialog ----------
+let wtPickerCtx = { trigIdx: -1, actIdx: -1, filterGroup: 'all', query: '' };
+
+function openWeaponTypePickerDialog(trigIdx, actIdx) {
+  const trig = planTrigger(trigIdx);
+  if (!trig || !trig.actions || !trig.actions[actIdx]) return;
+  wtPickerCtx = { trigIdx, actIdx, filterGroup: 'all', query: '' };
+  let dlg = document.getElementById('pe-wtype-dialog');
+  if (!dlg) {
+    dlg = document.createElement('div');
+    dlg.id = 'pe-wtype-dialog';
+    dlg.className = 'modal-overlay pe-wt-dlg';
+    document.body.appendChild(dlg);
+    dlg.addEventListener('mousedown', e => { if (e.target === dlg) closeWeaponTypePickerDialog(); });
+  }
+  renderWeaponTypePickerDialog();
+  dlg.classList.add('active');
+  setTimeout(() => {
+    const s = dlg.querySelector('#pe-wt-search');
+    if (s) s.focus();
+  }, 50);
+}
+
+function closeWeaponTypePickerDialog() {
+  const dlg = document.getElementById('pe-wtype-dialog');
+  if (dlg) dlg.classList.remove('active');
+}
+
+function setWeaponTypePickerFilter(group, query) {
+  if (group !== null && group !== undefined) wtPickerCtx.filterGroup = group;
+  if (query !== null && query !== undefined) wtPickerCtx.query = String(query);
+  renderWeaponTypePickerDialog();
+}
+
+function selectWeaponTypeFromPicker(wtypeId) {
+  const { trigIdx, actIdx } = wtPickerCtx;
+  const trig = planTrigger(trigIdx);
+  if (trig && trig.actions && trig.actions[actIdx]) {
+    trig.actions[actIdx].weaponType = wtypeId || 'auto';
+    if (trigIdx !== -1) markPlanDirty();
+    planRerender(trigIdx);
+  }
+  closeWeaponTypePickerDialog();
+}
+
+function renderWeaponTypePickerDialog() {
+  const dlg = document.getElementById('pe-wtype-dialog');
+  if (!dlg) return;
+  const trig = planTrigger(wtPickerCtx.trigIdx);
+  const act = trig && trig.actions ? trig.actions[wtPickerCtx.actIdx] : null;
+  const curId = String(act?.weaponType || 'auto').toLowerCase();
+  const recItems = getRecommendedWeaponTypesForPlan(activeEditingPlan, trig);
+  const recSet = new Set(recItems.map(r => r.id));
+  const grp = wtPickerCtx.filterGroup || 'all';
+  const q = String(wtPickerCtx.query || '').trim().toLowerCase();
+
+  const matchesQuery = (w) => {
+    if (!q) return true;
+    return (
+      w.id.toLowerCase().includes(q) ||
+      w.name.toLowerCase().includes(q) ||
+      (w.hand || '').toLowerCase().includes(q) ||
+      (w.jobs || '').toLowerCase().includes(q) ||
+      (w.skills || '').toLowerCase().includes(q) ||
+      (w.jobIds || []).some(j => j.includes(q))
+    );
+  };
+
+  const renderCard = (w, isRecBadge) => {
+    const isSel = w.id === curId;
+    const isAuto = w.id === 'auto';
+    const handCls = w.hand.includes('+โล่') ? 'oneh' : (isAuto ? 'auto' : 'twoh');
+    return `
+      <button type="button" class="wt-picker-card ${isSel ? 'active' : ''} ${isRecBadge ? 'recommended' : ''} ${isAuto ? 'auto-card' : ''}" onclick="selectWeaponTypeFromPicker('${escapeHTML(w.id)}')">
+        <div class="wt-card-top">
+          <span class="wt-card-icon">${w.icon}</span>
+          <span class="wt-card-hand ${handCls}">${escapeHTML(w.hand)}</span>
+        </div>
+        <div class="wt-card-name">${escapeHTML(w.name)}</div>
+        <div class="wt-card-id">${escapeHTML(w.id)}${isRecBadge ? ' · ⭐ แนะนำ' : ''}</div>
+        <div class="wt-card-jobs">${escapeHTML(w.jobs)}</div>
+        <div class="wt-card-skills">${escapeHTML(w.skills)}</div>
+      </button>`;
+  };
+
+  const tabs = [
+    { id: 'all', label: 'ทั้งหมด (30)' },
+    ...(recItems.length > 0 ? [{ id: 'recommended', label: `⭐ ตรงสายแผน (${recItems.length})` }] : []),
+    { id: 'knight', label: '⚔️ อัศวิน (8)' },
+    { id: 'rogue', label: '🗡️ โจร (7)' },
+    { id: 'archer', label: '🏹 นักธนู (6)' },
+    { id: 'mage', label: '🪄 จอมเวท (3)' },
+    { id: 'priest', label: '✨ พระ (6)' }
+  ];
+
+  const filteredList = NIGHTCAMP_WEAPON_TYPE_CATALOG.filter(w => {
+    if (!matchesQuery(w)) return false;
+    if (grp === 'all') return true;
+    if (grp === 'recommended') return w.id === 'auto' || recSet.has(w.id);
+    if (w.id === 'auto') return false;
+    if (grp === 'mage') return w.group === 'mage' || w.id === 'staff';
+    if (grp === 'priest') return w.group === 'priest' || w.id === 'staff';
+    return w.group === grp;
+  });
+
+  const showRecBanner = grp === 'all' && !q && recItems.length > 0;
+  const activeSearchVal = wtPickerCtx.query || '';
+  const prevInput = dlg.querySelector('#pe-wt-search');
+  const hadFocus = prevInput && document.activeElement === prevInput;
+  const selStart = hadFocus ? prevInput.selectionStart : null;
+
+  dlg.innerHTML = `
+    <div class="modal-card pe-wt-card">
+      <div class="pe-wt-head">
+        <div>
+          <h3>🎯 เลือกประเภทอาวุธ (Nightcamp Weapon Type · ครบ 30 ชนิด)</h3>
+          <p>คลิกเลือกชนิดอาวุธที่ต้องการบังคับให้ Smart Gear สวมใส่และอัปเกรด (สามารถเปลี่ยนเองทีหลังได้ที่หน้าแรกใต้ Smart Gear)</p>
+        </div>
+        <button type="button" class="pp-x" onclick="closeWeaponTypePickerDialog()" title="ปิด (Esc)">✕</button>
+      </div>
+      <div class="pe-wt-toolbar">
+        <input type="text" id="pe-wt-search" class="form-input" placeholder="🔍 ค้นหาชื่ออาวุธ / อาชีพ / สกิล เช่น ไม้เชิดหุ่น, คบเพลิง, คัมภีร์, puppet, wire, พระ..." value="${escapeHTML(activeSearchVal)}" oninput="setWeaponTypePickerFilter(null, this.value)">
+        <div class="pe-wt-tabs">
+          ${tabs.map(tb => `<button type="button" class="pe-wt-tab ${grp === tb.id ? 'on' : ''}" onclick="setWeaponTypePickerFilter('${tb.id}', null)">${tb.label}</button>`).join('')}
+        </div>
+      </div>
+      <div class="pe-wt-body">
+        ${showRecBanner ? `
+          <div class="pe-wt-section-label">⭐ อาวุธที่ตรงกับอาชีพในแผน / เงื่อนไขนี้</div>
+          <div class="wt-picker-grid">
+            ${recItems.map(w => renderCard(w, true)).join('')}
+          </div>
+          <div class="pe-wt-section-label" style="margin-top:14px;">📦 ประเภทอาวุธทั้งหมดในเกม Nightcamp</div>
+        ` : ''}
+        <div class="wt-picker-grid">
+          ${filteredList.length > 0
+            ? filteredList.map(w => renderCard(w, recSet.has(w.id))).join('')
+            : '<div class="pe-wt-empty">ไม่พบประเภทอาวุธที่ตรงกับคำค้นหา</div>'}
+        </div>
+      </div>
+      <div class="pe-wt-foot">
+        <span class="pe-wt-foot-hint">💡 โหมด <b>✨ อัตโนมัติตามอาชีพ/สกิล</b> จะคำนวณจากสกิลที่อัปจริง + คิวสกิลในแผน แต่ถ้าต้องการล็อกตายตัวตั้งแต่ Job 1 ให้เลือกอาวุธที่ต้องการได้เลย</span>
+        <button type="button" class="btn btn-secondary" onclick="closeWeaponTypePickerDialog()">ปิด</button>
+      </div>
+    </div>`;
+
+  if (hadFocus) {
+    const nextInput = dlg.querySelector('#pe-wt-search');
+    if (nextInput) {
+      nextInput.focus();
+      if (selStart !== null) {
+        try { nextInput.setSelectionRange(selStart, selStart); } catch (_) {}
+      }
+    }
   }
 }
 
