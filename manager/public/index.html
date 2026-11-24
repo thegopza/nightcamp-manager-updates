@@ -1755,8 +1755,8 @@
             ⚡
           </div>
           <div>
-            <h3 style="margin: 0; font-size: 15px; font-weight: 700; color: #f8fafc;">ระบบวางแผนอัปสกิล &amp; ปลุกพลังสกิล (Skill Queue &amp; Awakening)</h3>
-            <span style="font-size: 11px; color: #94a3b8;">คลิก + เพื่อจัดลำดับการอัปแต้มสกิล และเลือกสาย ✨ ปลุกพลังสกิล (Awakening) ให้บอทเปิดใช้อัตโนมัติเมื่อถึงเลเวลที่กำหนด</span>
+            <h3 style="margin: 0; font-size: 15px; font-weight: 700; color: #f8fafc;">ระบบวางแผนอัปสกิล Nightcamp (แต้มสกิลสะสมรวม 156 แต้ม · ข้ามโนวิซ/ดองแต้มข้ามคลาสได้)</h3>
+            <span style="font-size: 11px; color: #94a3b8;">💡 Nightcamp ไม่บังคับอัปโนวิซหรือใช้แต้ม Class 1 ให้หมดก่อนเปลี่ยนอาชีพ — แต้มที่ไม่อัปจะสะสมข้ามไปอัป Class 2 / Class 3 ได้ทั้งหมด</span>
           </div>
         </div>
         <button class="modal-close" id="skill-builder-close-btn">&times;</button>
@@ -1764,22 +1764,26 @@
 
       <!-- Budget Status Bar -->
       <div style="background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 10px 14px; margin: 10px 0 6px 0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
-        <div style="display: flex; gap: 14px; align-items: center; font-size: 12px; flex-wrap: wrap;">
-          <div style="display: flex; align-items: center; gap: 6px;">
-            <span style="color: #cbd5e1;">🐣 โนวิซ:</span>
-            <span id="skill-budget-novice" class="badge" style="background: rgba(56, 189, 248, 0.2); color: #38bdf8; font-weight: bold;">0 / 9 แต้ม</span>
+        <div style="display: flex; gap: 12px; align-items: center; font-size: 12px; flex-wrap: wrap;">
+          <div style="display: flex; align-items: center; gap: 6px; padding-right: 8px; border-right: 1px solid rgba(148, 163, 184, 0.2);">
+            <span style="color: #e2e8f0; font-weight: 700;">🎯 แต้มรวม:</span>
+            <span id="skill-budget-total" class="badge" style="background: rgba(16, 185, 129, 0.22); color: #34d399; border: 1px solid rgba(52, 211, 153, 0.4); font-weight: 800;">0 / 156 แต้ม (เหลือ 156)</span>
           </div>
-          <div style="display: flex; align-items: center; gap: 6px;">
+          <div style="display: flex; align-items: center; gap: 5px;" title="นักเดินทาง Job Lv.1-10 ได้ +9 แต้ม (ไม่อัปเลยก็ได้ แต้มจะติดตัวไป Class 1/2/3)">
+            <span style="color: #cbd5e1;">🐣 ทั่วไป:</span>
+            <span id="skill-budget-novice" class="badge" style="background: rgba(56, 189, 248, 0.2); color: #38bdf8; font-weight: bold;">0 แต้ม</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 5px;" title="Class 1 Job Lv.1-50 ได้ +49 แต้ม (สะสมรวม 58 แต้ม · ดองแต้มข้ามไป Class 2 ได้)">
             <span style="color: #cbd5e1;">⚔️ Class 1:</span>
-            <span id="skill-budget-class1" class="badge" style="background: rgba(168, 85, 247, 0.2); color: #c084fc; font-weight: bold;">0 / 49 แต้ม</span>
+            <span id="skill-budget-class1" class="badge" style="background: rgba(168, 85, 247, 0.2); color: #c084fc; font-weight: bold;">0 แต้ม</span>
           </div>
-          <div style="display: flex; align-items: center; gap: 6px;">
+          <div style="display: flex; align-items: center; gap: 5px;" title="Class 2 Job Lv.1-50 ได้ +49 แต้ม (สะสมรวม 107 แต้ม · นำแต้มที่ดองจากโนวิซ/Class 1 มาอัปเกิน 49 แต้มได้)">
             <span style="color: #cbd5e1;">👑 Class 2:</span>
-            <span id="skill-budget-class2" class="badge" style="background: rgba(234, 179, 8, 0.2); color: #facc15; font-weight: bold;">0 / 49 แต้ม</span>
+            <span id="skill-budget-class2" class="badge" style="background: rgba(234, 179, 8, 0.2); color: #facc15; font-weight: bold;">0 แต้ม</span>
           </div>
-          <div style="display: flex; align-items: center; gap: 6px;">
+          <div style="display: flex; align-items: center; gap: 5px;" title="Class 3 (Base 80 / Job 1-50) ได้ +49 แต้ม (สะสมรวม 156 แต้ม)">
             <span style="color: #cbd5e1;">🌟 Class 3:</span>
-            <span id="skill-budget-class3" class="badge" style="background: rgba(244, 63, 94, 0.2); color: #fb7185; font-weight: bold;">0 / 49 แต้ม</span>
+            <span id="skill-budget-class3" class="badge" style="background: rgba(244, 63, 94, 0.2); color: #fb7185; font-weight: bold;">0 แต้ม</span>
           </div>
         </div>
         <div style="display: flex; gap: 6px;">
@@ -1794,17 +1798,17 @@
 
       <!-- Tier Tabs -->
       <div style="display: flex; gap: 6px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); padding-bottom: 8px; margin-bottom: 10px; flex-wrap: wrap;">
-        <button type="button" class="btn btn-primary btn-sm skill-tab-btn" data-tab="novice" id="skill-tab-novice">
-          🐣 Novice (โนวิซ - 9 แต้ม)
+        <button type="button" class="btn btn-secondary btn-sm skill-tab-btn" data-tab="novice" id="skill-tab-novice">
+          🐣 ทั่วไป / นักเดินทาง (+9 แต้ม · ข้ามได้)
         </button>
-        <button type="button" class="btn btn-secondary btn-sm skill-tab-btn" data-tab="class1" id="skill-tab-class1">
-          ⚔️ Class 1 (<span id="skill-tab-class1-name">Archer</span> - 49 แต้ม)
+        <button type="button" class="btn btn-primary btn-sm skill-tab-btn" data-tab="class1" id="skill-tab-class1">
+          ⚔️ Class 1 (<span id="skill-tab-class1-name">Archer</span> · +49 แต้ม)
         </button>
         <button type="button" class="btn btn-secondary btn-sm skill-tab-btn" data-tab="class2" id="skill-tab-class2">
-          👑 Class 2 (<span id="skill-tab-class2-name">Hunter</span> - 49 แต้ม)
+          👑 Class 2 (<span id="skill-tab-class2-name">Hunter</span> · +49 แต้ม)
         </button>
         <button type="button" class="btn btn-secondary btn-sm skill-tab-btn" data-tab="class3" id="skill-tab-class3">
-          🌟 Class 3 (<span id="skill-tab-class3-name">Moonsniper</span> - 49 แต้ม)
+          🌟 Class 3 (<span id="skill-tab-class3-name">Moonsniper</span> · +49 แต้ม)
         </button>
       </div>
 
@@ -1945,8 +1949,8 @@
   </div>
 
   <script src="image_board_solver.js?v=nc1.9.4"></script>
-  <script src="app.js?v=nc1.9.4"></script>
-  <script src="builder_module.js?v=nc1.9.4"></script>
+  <script src="app.js?v=nc1.9.5"></script>
+  <script src="builder_module.js?v=nc1.9.5"></script>
   <script src="patcher_module.js?v=nc1.9.4"></script>
   <script src="bot_update.js?v=nc1.9.4"></script>
   <script src="config_copy.js?v=nc1.9.4"></script>

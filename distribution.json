@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "sourceCommit": "d7ff5f26aab1c1852546fe410a23c96b23fd2113",
+  "sourceCommit": "6f1b0760be738cfdaa8f4c00b00d27a515b0d929",
   "files": [
     {
       "path": "manager/asset_cache.js",
@@ -152,7 +152,7 @@
     },
     {
       "path": "manager/public/builder_module.js",
-      "sha256": "4d50eb9b104a56b5f2c82ebaf50e445b2e0798cbb6c8e06be17d18cd64aee485"
+      "sha256": "f23504846adf6542561aebaa846d1e83bdbe760a3663a3bd19308f5e0484fb1c"
     },
     {
       "path": "manager/public/card_manager.css",
@@ -208,7 +208,7 @@
     },
     {
       "path": "manager/public/index.html",
-      "sha256": "376f98e41ee9ea0187e5ca1ca7f296daec3d91d103e489e529b05dff5c8f9f28"
+      "sha256": "0c2047345fa8308990d7b4d27428227834d23fe24f4466a607dbdd275f4780f0"
     },
     {
       "path": "manager/public/inventory_market.css",

@@ -55,29 +55,29 @@ const SKILLS_DATABASE = {
     {
       "id": "q",
       "name": "ฟาดเต็มแรง",
-      "thai": "สกิลกดใช้",
+      "thai": "สกิลนักเดินทาง (เปลี่ยนอาชีพแล้วหายไป)",
       "icon": "ic_q",
       "iconUrl": "https://play.nightcamp.app/cas/f9667b4b1340.webp",
       "maxLevel": 10,
-      "freeLevel": 0,
+      "freeLevel": 1,
       "kind": "active",
-      "desc": "ฟาดอาวุธเต็มแรงใส่มอนตัวเดียวข้างหน้า 100% ของ ATK ผลักกระเด็น"
+      "desc": "ฟาดอาวุธเต็มแรงใส่มอนตัวเดียวข้างหน้า 100% ของ ATK ผลักกระเด็น (มีฟรี Lv.1 ตอนเป็นนักเดินทาง)"
     },
     {
       "id": "e",
       "name": "พุ่งใบไม้",
-      "thai": "สกิลกดใช้",
+      "thai": "สกิลนักเดินทาง (เปลี่ยนอาชีพแล้วหายไป)",
       "icon": "ic_e",
       "iconUrl": "https://play.nightcamp.app/cas/69629f74feda.webp",
       "maxLevel": 10,
-      "freeLevel": 0,
+      "freeLevel": 1,
       "kind": "active",
-      "desc": "พุ่งเป็นสายลมใบไม้ อมตะชั่วครู่ ชนมอนตัวแรกที่ขวาง 100% ของ ATK"
+      "desc": "พุ่งเป็นสายลมใบไม้ อมตะชั่วครู่ ชนมอนตัวแรกที่ขวาง 100% ของ ATK (มีฟรี Lv.1 ตอนเป็นนักเดินทาง)"
     },
     {
       "id": "mastery",
       "name": "ชำนาญอาวุธ",
-      "thai": "สกิลติดตัว",
+      "thai": "สกิลติดตัวทั่วไป (อยู่ติดตัวทุกคลาส)",
       "icon": "ic_mastery",
       "iconUrl": "https://play.nightcamp.app/cas/363c32fc05af.webp",
       "maxLevel": 10,
@@ -88,7 +88,7 @@ const SKILLS_DATABASE = {
     {
       "id": "body",
       "name": "ร่างกายแข็งแกร่ง",
-      "thai": "สกิลติดตัว",
+      "thai": "สกิลติดตัวทั่วไป (อยู่ติดตัวทุกคลาส)",
       "icon": "ic_body",
       "iconUrl": "https://play.nightcamp.app/cas/62e539312f6b.webp",
       "maxLevel": 10,
@@ -99,7 +99,7 @@ const SKILLS_DATABASE = {
     {
       "id": "mind",
       "name": "สมาธิแน่วแน่",
-      "thai": "สกิลติดตัว",
+      "thai": "สกิลติดตัวทั่วไป (อยู่ติดตัวทุกคลาส)",
       "icon": "ic_mind",
       "iconUrl": "https://play.nightcamp.app/cas/8249d5bd4ad7.webp",
       "maxLevel": 10,
@@ -7690,12 +7690,15 @@ function openSkillBuilderModal() {
   if (!notes.length && fixed.queue.join() !== before.join() && !fixed.dropped.length) notes.push('จัดลำดับใหม่ให้สกิลเงื่อนไขมาก่อน');
   skillBuilderNotice = notes.length ? `🔧 ปรับคิวเดิมให้ตรงเงื่อนไขของเกมแล้ว — ${notes.join(' · ')} (กด "ยกเลิก" เพื่อไม่ใช้การปรับนี้)` : '';
 
-  currentSkillBuilderTab = 'novice';
+  currentSkillBuilderTab = 'class1';
   renderSkillBuilderUI();
 
   const modal = document.getElementById("skill-builder-modal");
   if (modal) modal.style.display = 'flex';
 }
+
+const TOTAL_SKILL_POINTS_MAX = 156; // 9 (Traveler Job 10) + 49 (Class 1 Job 50) + 49 (Class 2 Job 50) + 49 (Class 3 Job 50)
+const TRAVELER_ONLY_SKILLS = new Set(['q', 'e']);
 
 // 4. Render Skill Builder UI
 function renderSkillBuilderUI() {
@@ -7707,7 +7710,7 @@ function renderSkillBuilderUI() {
   const c2 = activeEditingPlan.class2Target || 'ranger';
   const c3 = getPlanClass3Id(activeEditingPlan);
 
-  // Calculate points spent per tier
+  // Calculate points spent per tier (shared pool of 156 points across all tiers)
   const noviceSkills = SKILLS_DATABASE.novice || [];
   const class1Skills = SKILLS_DATABASE[c1] || [];
   const class2Skills = SKILLS_DATABASE[c2] || [];
@@ -7717,28 +7720,35 @@ function renderSkillBuilderUI() {
   const class1Spent = queue.filter(id => class1Skills.some(s => s.id === id)).length;
   const class2Spent = queue.filter(id => class2Skills.some(s => s.id === id)).length;
   const class3Spent = queue.filter(id => class3Skills.some(s => s.id === id)).length;
+  const totalSpent = queue.length;
+  const leftPts = Math.max(0, TOTAL_SKILL_POINTS_MAX - totalSpent);
 
   // Update budget badges
+  const bTot = document.getElementById("skill-budget-total");
   const bNov = document.getElementById("skill-budget-novice");
   const bC1 = document.getElementById("skill-budget-class1");
   const bC2 = document.getElementById("skill-budget-class2");
   const bC3 = document.getElementById("skill-budget-class3");
 
+  if (bTot) {
+    bTot.innerText = `${totalSpent} / ${TOTAL_SKILL_POINTS_MAX} แต้ม (เหลือ ${leftPts})`;
+    bTot.style.color = totalSpent >= TOTAL_SKILL_POINTS_MAX ? '#fbbf24' : '#34d399';
+  }
   if (bNov) {
-    bNov.innerText = `${noviceSpent} / 9 แต้ม`;
-    bNov.style.color = noviceSpent >= 9 ? '#4ade80' : '#38bdf8';
+    bNov.innerText = `${noviceSpent} แต้ม`;
+    bNov.style.color = noviceSpent > 0 ? '#4ade80' : '#38bdf8';
   }
   if (bC1) {
-    bC1.innerText = `${class1Spent} / 49 แต้ม`;
-    bC1.style.color = class1Spent >= 49 ? '#4ade80' : '#c084fc';
+    bC1.innerText = `${class1Spent} แต้ม`;
+    bC1.style.color = class1Spent > 0 ? '#c084fc' : '#94a3b8';
   }
   if (bC2) {
-    bC2.innerText = `${class2Spent} / 49 แต้ม`;
-    bC2.style.color = class2Spent >= 49 ? '#4ade80' : '#facc15';
+    bC2.innerText = `${class2Spent} แต้ม`;
+    bC2.style.color = class2Spent > 0 ? '#facc15' : '#94a3b8';
   }
   if (bC3) {
-    bC3.innerText = `${class3Spent} / 49 แต้ม`;
-    bC3.style.color = class3Spent >= 49 ? '#4ade80' : '#fb7185';
+    bC3.innerText = `${class3Spent} แต้ม`;
+    bC3.style.color = class3Spent > 0 ? '#fb7185' : '#94a3b8';
   }
 
   // Update Tabs Active State
@@ -7753,24 +7763,14 @@ function renderSkillBuilderUI() {
 
   // Get active skills list
   let activeList = [];
-  let tierMaxBudget = 49;
-  let tierSpent = 0;
   if (currentSkillBuilderTab === 'novice') {
     activeList = noviceSkills;
-    tierMaxBudget = 9;
-    tierSpent = noviceSpent;
   } else if (currentSkillBuilderTab === 'class1') {
     activeList = class1Skills;
-    tierMaxBudget = 49;
-    tierSpent = class1Spent;
   } else if (currentSkillBuilderTab === 'class2') {
     activeList = class2Skills;
-    tierMaxBudget = 49;
-    tierSpent = class2Spent;
   } else {
     activeList = class3Skills;
-    tierMaxBudget = 49;
-    tierSpent = class3Spent;
   }
 
   const effLvOf = (id) => {
@@ -7801,7 +7801,7 @@ function renderSkillBuilderUI() {
       const canMinus = spentPts > 0;
       const plusTitle = canAdd
         ? (preview.added.length ? `+1 แต้ม — จะอัป ${summarizeSkillIds(preview.added)} ให้ก่อนอัตโนมัติ (ใช้ทั้งหมด ${preview.cost} แต้ม)` : '+1 แต้ม')
-        : (preview.why === 'max' ? 'สกิลเต็มแล้ว' : preview.why === 'budget' ? 'แต้มของสายนี้ไม่พอ (รวมสกิลเงื่อนไข)' : 'อัปไม่ได้');
+        : (preview.why === 'max' ? 'สกิลเต็มแล้ว' : preview.why === 'budget' ? 'แต้มสกิลรวมเต็ม 156 แต้มแล้ว (รวมสกิลเงื่อนไข)' : 'อัปไม่ได้');
 
       let reqHtml = '';
       if (Array.isArray(skill.prereq) && skill.prereq.length > 0) {
@@ -7949,8 +7949,10 @@ function renderSkillBuilderUI() {
   }
 }
 
-// 5. Skill rules: every change goes through repairSkillQueue so the queue always matches the game
-//    (prerequisites before the skill, max level, 9 / 49 / 49 / 49 points per tier, only the plan's classes)
+// 5. Skill rules: every change goes through repairSkillQueue so the queue always matches Nightcamp Online (skilltree.js):
+//    - Shared cumulative pool of 156 points (Traveler 9 + Class 1 49 + Class 2 49 + Class 3 49)
+//    - Unspent points from Traveler / Class 1 / Class 2 carry over freely to higher classes (no per-tier 9/49 cap!)
+//    - Prerequisites automatically inserted before the skill that needs them
 let skillMetaCache = null;
 function getSkillMeta(skillId) {
   if (!skillMetaCache) {
@@ -7969,7 +7971,7 @@ function planSkillTiers() {
   const c1 = activeEditingPlan?.class1Target || 'archer';
   const c2 = activeEditingPlan?.class2Target || 'ranger';
   const c3 = getPlanClass3Id(activeEditingPlan);
-  return { novice: 9, [c1]: 49, [c2]: 49, [c3]: 49 };
+  return { novice: TOTAL_SKILL_POINTS_MAX, [c1]: TOTAL_SKILL_POINTS_MAX, [c2]: TOTAL_SKILL_POINTS_MAX, [c3]: TOTAL_SKILL_POINTS_MAX };
 }
 
 function checkSpecialSkillPrereq(skillId, effLvFn) {
@@ -7987,7 +7989,7 @@ function checkSpecialSkillPrereq(skillId, effLvFn) {
 // Rebuild a queue that the game would accept.
 //  - a point whose prerequisites come later in the queue is moved to right after them
 //  - insertMissing: prerequisites that never appear are inserted just before the point that needs them
-//  - anything still impossible (max level, tier full, prerequisite missing, other class) is dropped
+//  - anything still impossible (max level, 156 total pool full, prerequisite missing, other class) is dropped
 function repairSkillQueue(queue, insertMissing) {
   const budgets = planSkillTiers();
   const lv = {}, spent = {};
@@ -8009,7 +8011,8 @@ function repairSkillQueue(queue, insertMissing) {
     const m = getSkillMeta(id);
     if (!m || budgets[m.tier] === undefined) return 'class';
     if ((lv[id] || 0) >= maxSpendOf(m)) return 'max';
-    if ((spent[m.tier] || 0) >= budgets[m.tier]) return 'budget';
+    if (out.length >= TOTAL_SKILL_POINTS_MAX) return 'budget';
+    if (TRAVELER_ONLY_SKILLS.has(id) && ((lv.q || 0) + (lv.e || 0)) >= 9) return 'budget';
     return prereqMet(m) ? 'ok' : 'prereq';
   };
   const place = id => {
@@ -8160,7 +8163,7 @@ function addSkillPoint(skillId, silent = false) {
       const why = (res.dropped[res.dropped.length - 1] || {}).why;
       alert(why === 'max' ? 'สกิลนี้เต็มแล้ว'
         : why === 'class' ? 'สกิลนี้ไม่ได้อยู่ในอาชีพของแผนนี้'
-        : 'แต้มสกิลของสายนี้ไม่พอ (รวมสกิลเงื่อนไขที่ต้องอัปก่อน)');
+        : 'แต้มสกิลรวมเต็ม 156 แต้มแล้ว (รวมสกิลเงื่อนไขที่ต้องอัปก่อน)');
     }
     return;
   }
@@ -8244,11 +8247,7 @@ function applySkillPreset() {
     for (let i = 0; i < count; i++) addSkillPoint(id, true);
   };
 
-  // 1. Traveler (Novice) 9 points
-  pushMany('mastery', 5);
-  pushMany('body', 4);
-
-  // 2. Class 1, Class 2 & Class 3 auto-fill
+  // Nightcamp Standard Build: Skip Novice (0 pts) so all 9 Traveler points carry over into Class 1 / Class 2 / Class 3!
   const fillTier = (tierKey, maxPts) => {
     const list = SKILLS_DATABASE[tierKey] || [];
     let before = activeEditingPlan.skillBuild.skillPointQueue.length;
@@ -8260,9 +8259,9 @@ function applySkillPreset() {
       pushMany(sk.id, want);
     }
   };
-  fillTier(c1, 49);
-  fillTier(c2, 49);
-  fillTier(c3, 49);
+  fillTier(c1, 32);
+  fillTier(c2, 70);
+  fillTier(c3, 54);
 
   renderSkillBuilderUI();
 }
