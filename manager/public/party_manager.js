@@ -448,13 +448,20 @@
     const fillCb = cardEl.querySelector('input[data-set="autoFill"]');
     if (fillCb && fillCb.checked !== Boolean(p.autoFill)) fillCb.checked = Boolean(p.autoFill);
 
-    // Notes
+    // Notes & Outsider kick alert
     const notesBox = cardEl.querySelector('.pt-notes');
     if (notesBox) {
       const notesList = (p.notes || []).slice();
-      if (notesList.length) {
+      const outsiders = Array.isArray(p.outsiders) ? p.outsiders : [];
+      if (notesList.length || outsiders.length) {
         notesBox.hidden = false;
-        const notesHtml = notesList.map(n => `<div class="pt-note">${esc(n)}</div>`).join('');
+        let notesHtml = notesList.map(n => `<div class="pt-note">${esc(n)}</div>`).join('');
+        if (outsiders.length) {
+          notesHtml += `<div class="pt-note" style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:4px;padding:5px 8px;background:rgba(239,68,68,0.14);border:1px solid rgba(248,113,113,0.45);border-radius:6px;">` +
+            `<span style="color:#fca5a5;font-weight:700;">👤 คนนอกในตี้: ${esc(outsiders.join(', '))}</span>` +
+            `<button type="button" data-act="kick-outsiders" data-pid="${esc(p.id)}" style="padding:3px 9px;border:1px solid #f87171;border-radius:5px;background:#dc2626;color:#fff;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">👢 เตะคนนอก</button>` +
+            `</div>`;
+        }
         setHtml(notesBox, notesHtml);
       } else {
         notesBox.hidden = true;
@@ -737,6 +744,10 @@
     } else if (b.dataset.act === 'remove') {
       const r = await api('/' + pid + '/remove-member', { profileId: b.dataset.id });
       toast(r.success === false ? (r.error || 'เอาออกไม่สำเร็จ') : 'เอาออกจากตี้แล้ว (กด + เลือกคนเข้าตี้ เพื่อดึงกลับได้ตลอด)', r.success === false ? 'error' : 'success');
+    } else if (b.dataset.act === 'kick-outsiders') {
+      const r = await api('/' + pid + '/kick-outsiders', {});
+      const kickedTxt = Array.isArray(r.kicked) && r.kicked.length ? ('เตะคนนอกออกแล้ว: ' + r.kicked.join(', ')) : 'ตรวจสอบและเคลียร์ช่องปาร์ตี้แล้ว';
+      toast(r.success === false ? (r.error || 'เตะคนนอกไม่สำเร็จ') : kickedTxt, r.success === false ? 'error' : 'success');
     } else if (b.dataset.act === 'summon') {
       const r = await api('/' + pid + '/summon', {});
       toast(r.success === false ? (r.error || 'รวมทีมไม่สำเร็จ') : 'สั่งรวมกลุ่มด้ายแดง & ซิงค์แมพเควสตี้แล้ว', r.success === false ? 'error' : 'success');

@@ -973,13 +973,16 @@ function createPartyService(opts) {
     }
     if (changed) save();
 
+    const assignedAfter = new Set(party.memberIds.map(id => (states.get(id) && states.get(id).name) || (profiles.get(id) && profiles.get(id).lastCharName)).filter(Boolean));
+    const outsidersInGame = [];
     if (L.party && L.party.leader === L.name && Array.isArray(L.party.members)) {
-      const assignedAfter = new Set(party.memberIds.map(id => (states.get(id) && states.get(id).name) || (profiles.get(id) && profiles.get(id).lastCharName)).filter(Boolean));
       for (const m of L.party.members.slice()) {
         if (!m || !m.name || m.name === L.name) continue;
         if (!assignedAfter.has(m.name) && (m.online === false || managed.has(m.name))) {
           await act(leaderP, ACTIONS.kick(m.name), 'kick-unassigned');
           L.party.members = L.party.members.filter(x => x.name !== m.name);
+        } else if (!assignedAfter.has(m.name)) {
+          outsidersInGame.push(m.name);
         }
       }
     }
@@ -987,6 +990,15 @@ function createPartyService(opts) {
     const inGame = new Set(inGameMemberNames(L));
     const isLeader = !L.party || L.party.leader === L.name;
     const partyFull = L.party && L.party.members.length >= (L.party.maxMembers || MAX_MEMBERS);
+    const missingAssignedNames = party.memberIds
+      .map(id => states.get(id))
+      .filter(S => S && S.ok && S.name && !inGame.has(S.name))
+      .map(S => S.name);
+    if (partyFull && outsidersInGame.length > 0 && missingAssignedNames.length > 0) {
+      notes.push(`⚠️ ตี้ในเกมเต็ม ${L.party.members.length}/${L.party.maxMembers || MAX_MEMBERS} เพราะมีคนนอก (${outsidersInGame.join(', ')}) แทรกอยู่ — ${missingAssignedNames.join(', ')} เข้าไม่ได้ (กดปุ่ม "เตะคนนอก" ด้านล่าง)`);
+    } else if (outsidersInGame.length > 0) {
+      notes.push(`👤 พบผู้เล่นนอกทีมในตี้: ${outsidersInGame.join(', ')}`);
+    }
 
     // Invites
     for (const id of party.memberIds) {
@@ -1180,7 +1192,9 @@ function createPartyService(opts) {
 
       for (const id of party.memberIds) {
         const P = profiles.get(id), S = states.get(id), m = mrt(party.id, id);
-        if (!S || !S.ok || !S.name || !inGame.has(S.name)) continue;
+        if (!S || !S.ok || !S.name) continue;
+        const canPreJoinMoveCh = Boolean(!inGame.has(S.name) && !partyFull && !(S.party && S.party.leader !== L.name));
+        if (!inGame.has(S.name) && !canPreJoinMoveCh) continue;
         if (planBlocked(S)) continue; // the plan still levels this character on its own maps
         const nonNavBusy = Array.isArray(S.busy)
           ? S.busy.filter(f => f !== '__isNavigating' && f !== '__isWalkingToMap')
@@ -1580,6 +1594,9 @@ function createPartyService(opts) {
         }
         if (!same && planBlocked(S)) { status = 'plan'; text = 'แผนยังเก็บเลเวล (' + S.plan.levelPending[0] + ')'; }
       } else if (S.party && leaderSnap && S.party.leader !== leaderSnap.name) { status = 'other'; text = 'อยู่ตี้อื่น'; }
+      else if (leaderSnap && leaderSnap.party && Array.isArray(leaderSnap.party.members) && leaderSnap.party.members.length >= (leaderSnap.party.maxMembers || MAX_MEMBERS)) {
+        status = 'apart'; text = 'ตี้เต็ม (มีคนนอก)';
+      }
       else { status = 'inviting'; text = 'กำลังชวน'; }
     } else if (S && S.reason === 'not-in-game') { status = 'offline'; text = 'ยังไม่เข้าเกม'; }
     const noLoot = Boolean(Array.isArray(party.noLootIds) && party.noLootIds.includes(String(id)));
@@ -1598,6 +1615,10 @@ function createPartyService(opts) {
     const list = parties.map((p, i) => {
       const L = states.get(p.leaderId);
       const rt = prt(p.id);
+      const assignedNames = new Set(p.memberIds.map(id => (states.get(id) && states.get(id).name) || (profiles.get(id) && profiles.get(id).lastCharName)).filter(Boolean));
+      const outsiders = (L && L.party && L.party.leader === L.name && Array.isArray(L.party.members))
+        ? L.party.members.filter(m => m && m.name && m.name !== L.name && !assignedNames.has(m.name)).map(m => m.name)
+        : [];
       return {
         id: p.id, index: i + 1, expMode: p.expMode, lootMode: p.lootMode, groupMode: p.groupMode || 'g', syncMap: p.syncMap, autoFill: p.autoFill,
         priestFlow: Boolean(p.priestFlow === true),
@@ -1605,6 +1626,7 @@ function createPartyService(opts) {
         noLootIds: Array.isArray(p.noLootIds) ? p.noLootIds : [],
         leader: Object.assign(memberView(p, p.leaderId, profiles, L), L && L.ok ? { status: 'leader', statusText: L.party && L.party.leader === L.name ? 'หัวตี้' : 'หัวตี้ (ยังไม่มีสมาชิก)' } : {}),
         members: p.memberIds.map(id => memberView(p, id, profiles, L)),
+        outsiders,
         count: 1 + p.memberIds.length, max: MAX_MEMBERS,
         inGame: L && L.party ? { expMode: L.party.expMode, lootMode: L.party.lootMode, groupMode: L.party.groupMode || 'g', evenShareAllowed: L.party.evenShareAllowed, levelRange: L.party.levelRange, size: L.party.members.length } : null,
         notes: rt.notes || [], lastTickAt: rt.lastTickAt
@@ -1819,6 +1841,25 @@ function createPartyService(opts) {
         await act(profiles.get(party.leaderId), ACTIONS.kick(S.name), 'kick');
       }
       sendJSON(view());
+      return true;
+    }
+    if (m[2] === 'kick-outsiders') {
+      const profiles = profileMap();
+      const L = states.get(party.leaderId);
+      const leaderP = profiles.get(party.leaderId);
+      if (!leaderP || !L || !L.ok || !L.party || L.party.leader !== L.name) {
+        sendJSON(Object.assign(view(), { success: false, error: 'หัวตี้ไม่ออนไลน์หรือไม่ใช่หัวหน้าปาร์ตี้ในเกม' }));
+        return true;
+      }
+      const assignedNames = new Set(party.memberIds.map(id => (states.get(id) && states.get(id).name) || (profiles.get(id) && profiles.get(id).lastCharName)).filter(Boolean));
+      const outsiders = (L.party.members || []).filter(gm => gm && gm.name && gm.name !== L.name && !assignedNames.has(gm.name));
+      const kicked = [];
+      for (const gm of outsiders) {
+        const r = await act(leaderP, ACTIONS.kick(gm.name), 'kick-outsider');
+        if (r.ok) kicked.push(gm.name);
+      }
+      setTimeout(() => tick().catch(() => {}), 400);
+      sendJSON(Object.assign(view(), { success: true, kicked }));
       return true;
     }
     if (m[2] === 'summon') {

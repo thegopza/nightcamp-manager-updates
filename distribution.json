@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "sourceCommit": "02495433d6ad32a7612a9c4c2fdf3e67872fd995",
+  "sourceCommit": "d2e7c9d650d18b8c098bbab857c9ce35ca589a61",
   "files": [
     {
       "path": "manager/asset_cache.js",
@@ -112,7 +112,7 @@
     },
     {
       "path": "manager/party_api.js",
-      "sha256": "6ff07a922611e4c629b4059812bd8ab2ee156734ee93b8045c9ea83241634176"
+      "sha256": "f337966d3221ce591d6c32c549b241a0452a82304ab82b2d840d93718bb9d09b"
     },
     {
       "path": "manager/plan_sync.js",
@@ -224,7 +224,7 @@
     },
     {
       "path": "manager/public/index.html",
-      "sha256": "c49dd5bfeae8974998dce556c50cb1ee6f30709a4a9f94a30c61966f6f42b1fe"
+      "sha256": "86605c9bb565e4f13e976802b9c25f3ab0ec59356299d4f9aa4d59eab1f412db"
     },
     {
       "path": "manager/public/inventory_market.css",
@@ -260,7 +260,7 @@
     },
     {
       "path": "manager/public/party_manager.js",
-      "sha256": "275c23fa0c812c14ad3e0b401c8f4f5ff0965833e1209ad5425ae48794183217"
+      "sha256": "965cf00d31b207cd26d7863c05a343b9ab99b5894bd77e327e58024f9af9e976"
     },
     {
       "path": "manager/public/patcher_module.js",
@@ -304,7 +304,7 @@
     },
     {
       "path": "manager/public/update_log.js",
-      "sha256": "407dd6dc51d23533dbe8ee5a4906d4901cc7c168981e4b2bfaf43f72366a3d5b"
+      "sha256": "fac47201a457f26f37a706794b5b15bb78b476428d1d7efc4ef3a1cb3bdaae93"
     },
     {
       "path": "manager/public/wiki/calc.js",
