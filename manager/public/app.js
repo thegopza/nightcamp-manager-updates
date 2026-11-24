@@ -17064,9 +17064,11 @@ function renderNightcampMatCardHtml(m) {
         ${m.canUse ? `
           <button type="button" onclick="runNightcampCharacterAction({ action: 'use_item', itemId: '${escapeHTML(m.id)}', useKind: '${escapeHTML(m.useKind)}' })" style="background:linear-gradient(135deg,#059669,#10b981);border:1px solid #34d399;color:#fff;border-radius:5px;padding:3px 9px;font-size:10.5px;font-weight:700;cursor:pointer;">${escapeHTML(m.useLabel || '✨ ใช้งาน')}</button>
         ` : ''}
-        <button type="button" onclick="quickAddNightcampCMarketRule('${escapeHTML(m.id)}', '${escapeHTML(m.name)}', '${m.useKind === 'builtin_potion' ? 'pot' : (m.category === 'rune' ? 'rune' : 'mat')}', ${m.category === 'card' || m.category === 'box' || m.category === 'rune' ? 1 : 10})" title="เพิ่มเข้า Auto-Sell ตลาดกลาง (และป้องกันการขายให้ร้านลุงโกโก้)" style="background:rgba(99,102,241,0.22);border:1px solid rgba(129,140,248,0.5);color:#c7d2fe;border-radius:5px;padding:3px 8px;font-size:10px;font-weight:700;cursor:pointer;">🏪 +ตลาดกลาง</button>
-        ${m.useKind !== 'builtin_potion' ? `
+        <button type="button" onclick="quickAddNightcampCMarketRule('${escapeHTML(m.marketItemId || m.id)}', '${escapeHTML(m.marketItemName || m.name)}', '${m.useKind === 'builtin_potion' ? 'pot' : (m.category === 'rune' ? 'rune' : 'mat')}', ${m.category === 'card' || m.category === 'box' || m.category === 'rune' ? 1 : 10})" title="เพิ่มเข้า Auto-Sell ตลาดกลาง (และป้องกันการขายให้ร้านลุงโกโก้)" style="background:rgba(99,102,241,0.22);border:1px solid rgba(129,140,248,0.5);color:#c7d2fe;border-radius:5px;padding:3px 8px;font-size:10px;font-weight:700;cursor:pointer;">🏪 +ตลาดกลาง</button>
+        ${m.useKind !== 'builtin_potion' && !m.noStore && m.useKind !== 'rune_pouch' ? `
           <button type="button" onclick="runNightcampCharacterAction({ action: 'store_mat', itemId: '${escapeHTML(m.id)}', qty: ${m.qty} })" style="background:rgba(14,165,233,0.16);border:1px solid rgba(56,189,248,0.4);color:#7dd3fc;border-radius:5px;padding:3px 8px;font-size:10px;font-weight:600;cursor:pointer;">📦 ฝากคลัง</button>
+        ` : ''}
+        ${m.useKind !== 'builtin_potion' && !m.locked ? `
           <button type="button" onclick="runNightcampCharacterAction({ action: 'sell_mat', itemId: '${escapeHTML(m.id)}' })" style="background:rgba(245,158,11,0.16);border:1px solid rgba(251,191,36,0.4);color:#fde68a;border-radius:5px;padding:3px 8px;font-size:10px;font-weight:600;cursor:pointer;">💰 ขาย</button>
         ` : ''}
       </div>
