@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="style.css?v=nc1.1.1">
   <link rel="stylesheet" href="inventory_market.css?v=nc1.1.1">
   <link rel="stylesheet" href="bot_update.css?v=nc1.1.1">
-  <link rel="stylesheet" href="plan_editor.css?v=nc1.2.2">
+  <link rel="stylesheet" href="plan_editor.css?v=nc1.2.3">
   <link rel="stylesheet" href="party_manager.css?v=nc1.1.1">
   <link rel="stylesheet" href="premium_manager.css?v=nc1.1.1">
   <link rel="stylesheet" href="card_manager.css?v=nc1.1.1">
@@ -1762,6 +1762,9 @@
         <button class="modal-close" id="skill-builder-close-btn">&times;</button>
       </div>
 
+      <!-- Skill Reset Rounds Bar (รอบเริ่มต้น / รีสกิล #1 / รีสกิล #2 ตามเงื่อนไขรีสกิลในแผน) -->
+      <div id="skill-round-tabs-bar" class="skill-round-bar"></div>
+
       <!-- Budget Status Bar -->
       <div style="background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 10px 14px; margin: 10px 0 6px 0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
         <div style="display: flex; gap: 12px; align-items: center; font-size: 12px; flex-wrap: wrap;">
@@ -1949,8 +1952,8 @@
   </div>
 
   <script src="image_board_solver.js?v=nc1.9.4"></script>
-  <script src="app.js?v=nc1.9.5"></script>
-  <script src="builder_module.js?v=nc1.9.5"></script>
+  <script src="app.js?v=nc1.9.6"></script>
+  <script src="builder_module.js?v=nc1.9.6"></script>
   <script src="patcher_module.js?v=nc1.9.4"></script>
   <script src="bot_update.js?v=nc1.9.4"></script>
   <script src="config_copy.js?v=nc1.9.4"></script>

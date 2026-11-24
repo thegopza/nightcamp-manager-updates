@@ -296,9 +296,85 @@
 .pe-node.zeny .pe-seg button.on { background: #34d399; color: #052e1f; }
 .pe-stepper.pe-zeny input { width: 104px; }
 
-/* Plan action: sell trip */
+/* Plan action: sell trip & reset skills */
 .pe-chip.sell_trip { color: #fde68a; background: rgba(234, 179, 8, 0.12); border-color: rgba(234, 179, 8, 0.4); }
 .pe-action.sell_trip .pe-act-icon { background: rgba(234, 179, 8, 0.15); }
+.pe-chip.reset_skills { color: #f0abfc; background: rgba(217, 70, 239, 0.14); border-color: rgba(217, 70, 239, 0.45); }
+.pe-action.reset_skills .pe-act-icon { background: rgba(217, 70, 239, 0.18); }
+
+/* Skill Builder: Multi-Round Reset Tabs (รอบเริ่มต้น / รีสกิล #1 / รีสกิล #2) */
+.skill-round-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.9), rgba(30, 27, 75, 0.65));
+  border: 1px solid rgba(168, 85, 247, 0.32);
+  flex-shrink: 0;
+}
+.skill-round-tabs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.skill-round-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgba(15, 23, 42, 0.75);
+  color: #cbd5e1;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.skill-round-btn:hover {
+  border-color: rgba(192, 132, 252, 0.55);
+  color: #fff;
+  background: rgba(88, 28, 135, 0.3);
+}
+.skill-round-btn.active {
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.35), rgba(217, 70, 239, 0.28));
+  border-color: #e879f9;
+  color: #fdf4ff;
+  box-shadow: 0 0 12px rgba(217, 70, 239, 0.28);
+}
+.skill-round-btn.round-init.active {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.32), rgba(14, 165, 233, 0.28));
+  border-color: #34d399;
+  color: #ecfdf5;
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.25);
+}
+.skill-round-when {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #cbd5e1;
+  opacity: 0.9;
+}
+.skill-round-pts {
+  font-size: 10.5px;
+  font-weight: 800;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(2, 6, 23, 0.55);
+  color: #fde68a;
+  border: 1px solid rgba(251, 191, 36, 0.35);
+}
+.skill-round-hint {
+  font-size: 11px;
+  color: #a5b4fc;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
 
 /* ---------- Summary cards (plan page) ---------- */
 .pe-card.pe-sum { display: flex; align-items: center; gap: 12px; padding: 10px 12px; cursor: pointer; transition: border-color 0.15s, background 0.15s; }

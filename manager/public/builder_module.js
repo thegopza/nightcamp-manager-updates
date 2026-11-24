@@ -7495,16 +7495,134 @@ function countPlannedFacets(plan) {
   return total;
 }
 
+let currentSkillResetRound = 0; // 0 = รอบเริ่มต้น (ก่อนรีสกิล), 1 = หลังรีสกิล #1, 2 = หลังรีสกิล #2, ...
+
+function listPlanSkillResetSteps(plan) {
+  const p = plan || activeEditingPlan;
+  if (!p || !Array.isArray(p.triggers)) return [];
+  const steps = [];
+  let roundNo = 0;
+  for (const trig of p.triggers) {
+    if (!trig || !Array.isArray(trig.actions)) continue;
+    const whenText = typeof window.planWhenText === 'function'
+      ? window.planWhenText(trig)
+      : (trig.type === 'job_level' ? `Job Lv.${trig.targetLevel || 1}` : trig.type === 'zeny' ? `เงิน ≥ ${(Number(trig.targetZeny) || 0).toLocaleString()}g` : `Base Lv.${trig.targetLevel || 1}`);
+    for (const act of trig.actions) {
+      if (act && act.type === 'reset_skills') {
+        roundNo++;
+        steps.push({
+          roundNo,
+          actionId: act.id || `reset_${roundNo}`,
+          triggerId: trig.id || '',
+          whenText,
+          resetMode: act.resetMode || 'auto'
+        });
+      }
+    }
+  }
+  return steps;
+}
+
+function getResetSkillActionRoundNo(actionId) {
+  if (!actionId) return 0;
+  const steps = listPlanSkillResetSteps(activeEditingPlan);
+  const found = steps.find(s => s.actionId === actionId);
+  return found ? found.roundNo : 0;
+}
+window.listPlanSkillResetSteps = listPlanSkillResetSteps;
+window.getResetSkillActionRoundNo = getResetSkillActionRoundNo;
+
+function syncPlanSkillResetRounds(plan) {
+  if (!plan || !plan.skillBuild) return [];
+  const sb = plan.skillBuild;
+  const steps = listPlanSkillResetSteps(plan);
+  const oldRounds = Array.isArray(sb.resetRounds) ? sb.resetRounds : [];
+  const usedOldIdx = new Set();
+
+  const newRounds = steps.map((step, idx) => {
+    let matchIdx = oldRounds.findIndex((r, i) => !usedOldIdx.has(i) && r && r.roundId && r.roundId === step.actionId);
+    if (matchIdx === -1 && idx < oldRounds.length && !usedOldIdx.has(idx) && oldRounds[idx]) {
+      matchIdx = idx;
+    }
+    if (matchIdx >= 0) usedOldIdx.add(matchIdx);
+    const prev = matchIdx >= 0 ? oldRounds[matchIdx] : null;
+    const rawQ = Array.isArray(prev?.skillPointQueue) ? prev.skillPointQueue : [];
+    const autoOff = Array.isArray(prev?.autoOff) ? prev.autoOff : [];
+    const facets = (prev?.facets && typeof prev.facets === 'object') ? prev.facets : {};
+    const levels = {};
+    rawQ.forEach(id => { levels[id] = (levels[id] || 0) + 1; });
+    return {
+      roundNo: step.roundNo,
+      roundId: step.actionId,
+      triggerId: step.triggerId,
+      label: step.whenText,
+      skillPointQueue: rawQ,
+      plannedLevels: levels,
+      autoOff,
+      facets
+    };
+  });
+  sb.resetRounds = newRounds;
+  return newRounds;
+}
+
+function getActiveRoundSkillBuild(plan, roundIdx = currentSkillResetRound) {
+  const p = plan || activeEditingPlan;
+  if (!p) return null;
+  normalizePlanSkillBuild(p);
+  const rounds = syncPlanSkillResetRounds(p);
+  if (roundIdx >= 1 && rounds[roundIdx - 1]) {
+    return rounds[roundIdx - 1];
+  }
+  return p.skillBuild;
+}
+
+function switchSkillResetRound(roundNo) {
+  if (!activeEditingPlan) return;
+  const rounds = syncPlanSkillResetRounds(activeEditingPlan);
+  const nextRound = (roundNo >= 1 && roundNo <= rounds.length) ? roundNo : 0;
+  currentSkillResetRound = nextRound;
+  const targetSb = getActiveRoundSkillBuild(activeEditingPlan, currentSkillResetRound);
+  if (targetSb) {
+    const fixed = repairSkillQueue(targetSb.skillPointQueue || [], true);
+    targetSb.skillPointQueue = fixed.queue;
+    targetSb.plannedLevels = fixed.levels;
+  }
+  skillBuilderNotice = '';
+  renderSkillBuilderUI();
+}
+window.switchSkillResetRound = switchSkillResetRound;
+
+function copySkillRoundFromPrevious() {
+  if (!activeEditingPlan || currentSkillResetRound < 1) return;
+  const prevSb = getActiveRoundSkillBuild(activeEditingPlan, currentSkillResetRound - 1);
+  const curSb = getActiveRoundSkillBuild(activeEditingPlan, currentSkillResetRound);
+  if (!prevSb || !curSb) return;
+  if ((curSb.skillPointQueue || []).length > 0) {
+    const prevName = currentSkillResetRound === 1 ? 'รอบเริ่มต้น (ก่อนรีสกิล)' : `รีสกิล #${currentSkillResetRound - 1}`;
+    if (!confirm(`แทนที่คิวสกิลของ "รีสกิล #${currentSkillResetRound}" ด้วยคิวจาก "${prevName}" หรือไม่?`)) return;
+  }
+  curSb.skillPointQueue = [...(prevSb.skillPointQueue || [])];
+  const levels = {};
+  curSb.skillPointQueue.forEach(id => { levels[id] = (levels[id] || 0) + 1; });
+  curSb.plannedLevels = levels;
+  curSb.autoOff = [...(prevSb.autoOff || [])];
+  skillBuilderNotice = `📋 คัดลอกลำดับสกิลมาจาก ${currentSkillResetRound === 1 ? 'รอบเริ่มต้น' : 'รีสกิล #' + (currentSkillResetRound - 1)} แล้ว (${curSb.skillPointQueue.length} แต้ม) สามารถปรับแก้ต่อได้เลย`;
+  renderSkillBuilderUI();
+}
+window.copySkillRoundFromPrevious = copySkillRoundFromPrevious;
+
 function normalizePlanSkillBuild(plan) {
   if (!plan) return;
   if (!plan.skillBuild || typeof plan.skillBuild !== 'object') {
-    plan.skillBuild = { skillPointQueue: [], plannedLevels: {}, facets: {} };
+    plan.skillBuild = { skillPointQueue: [], plannedLevels: {}, facets: {}, resetRounds: [] };
     return;
   }
   const sb = plan.skillBuild;
   if (!Array.isArray(sb.skillPointQueue)) sb.skillPointQueue = [];
   if (!sb.plannedLevels || typeof sb.plannedLevels !== 'object') sb.plannedLevels = {};
   if (!sb.facets || typeof sb.facets !== 'object') sb.facets = {};
+  if (!Array.isArray(sb.resetRounds)) sb.resetRounds = [];
   if (sb.skillPointQueue.length === 0) {
     const c1 = plan.class1Target || 'archer';
     const c2 = plan.class2Target || 'ranger';
@@ -7629,9 +7747,16 @@ function updatePlanEditorBadges() {
 
   if (skillBadge) {
     const queue = activeEditingPlan.skillBuild?.skillPointQueue || [];
-    const facetCount = countPlannedFacets(activeEditingPlan);
-    skillBadge.innerText = facetCount > 0 ? `${queue.length} แต้ม · ✨${facetCount}` : `${queue.length} แต้ม`;
-    skillBadge.style.background = (queue.length > 0 || facetCount > 0) ? 'rgba(168, 85, 247, 0.4)' : 'rgba(168, 85, 247, 0.2)';
+    const rounds = syncPlanSkillResetRounds(activeEditingPlan);
+    if (rounds.length > 0) {
+      const roundParts = [`เริ่ม ${queue.length}`].concat(rounds.map((r, idx) => `รี#${idx + 1} ${(r.skillPointQueue || []).length}`));
+      skillBadge.innerText = `${roundParts.join(' · ')} แต้ม`;
+      skillBadge.style.background = 'rgba(168, 85, 247, 0.45)';
+    } else {
+      const facetCount = countPlannedFacets(activeEditingPlan);
+      skillBadge.innerText = facetCount > 0 ? `${queue.length} แต้ม · ✨${facetCount}` : `${queue.length} แต้ม`;
+      skillBadge.style.background = (queue.length > 0 || facetCount > 0) ? 'rgba(168, 85, 247, 0.4)' : 'rgba(168, 85, 247, 0.2)';
+    }
   }
 
   if (statBadge) {
@@ -7680,9 +7805,20 @@ function openSkillBuilderModal() {
   if (c3NameEl) c3NameEl.innerText = (sc?.class3Name || c3).replace(/\s*\([^)]*\)\s*$/, '').trim();
 
   skillBuilderSnapshot = JSON.stringify(activeEditingPlan.skillBuild);
+  const resetRounds = syncPlanSkillResetRounds(activeEditingPlan);
+  if (currentSkillResetRound > resetRounds.length) currentSkillResetRound = 0;
+
+  // Repair Round 0 and all Reset Rounds so prerequisites & 156 pool are always valid
   const before = activeEditingPlan.skillBuild.skillPointQueue;
   const fixed = repairSkillQueue(before, true);
-  applySkillQueue(fixed.queue);
+  activeEditingPlan.skillBuild.skillPointQueue = fixed.queue;
+  activeEditingPlan.skillBuild.plannedLevels = fixed.levels;
+  resetRounds.forEach(r => {
+    const fx = repairSkillQueue(r.skillPointQueue || [], true);
+    r.skillPointQueue = fx.queue;
+    r.plannedLevels = fx.levels;
+  });
+
   const realDropped = fixed.dropped.filter(d => d.why !== 'max');
   const notes = [];
   if (fixed.added.length) notes.push(`เติมสกิลเงื่อนไขที่ขาดให้: ${summarizeSkillIds(fixed.added)}`);
@@ -7704,8 +7840,55 @@ const TRAVELER_ONLY_SKILLS = new Set(['q', 'e']);
 function renderSkillBuilderUI() {
   if (!activeEditingPlan || !activeEditingPlan.skillBuild) return;
 
-  const queue = activeEditingPlan.skillBuild.skillPointQueue || [];
-  const planned = activeEditingPlan.skillBuild.plannedLevels || {};
+  const resetRounds = syncPlanSkillResetRounds(activeEditingPlan);
+  if (currentSkillResetRound > resetRounds.length) currentSkillResetRound = 0;
+  const activeRoundSb = getActiveRoundSkillBuild(activeEditingPlan, currentSkillResetRound) || activeEditingPlan.skillBuild;
+
+  // Render Multi-Round Reset Tabs Bar (#skill-round-tabs-bar)
+  const roundBar = document.getElementById('skill-round-tabs-bar');
+  if (roundBar) {
+    const initCount = (activeEditingPlan.skillBuild.skillPointQueue || []).length;
+    const initBtn = `
+      <button type="button" class="skill-round-btn round-init ${currentSkillResetRound === 0 ? 'active' : ''}" onclick="switchSkillResetRound(0)" title="ลำดับสกิลที่จะอัปตั้งแต่เริ่มเกม (ก่อนถึงเงื่อนไขรีสกิล)">
+        <span>🟢 รอบเริ่มต้น (ก่อนรีสกิล)</span>
+        <span class="skill-round-pts">${initCount} แต้ม</span>
+      </button>
+    `;
+    const resetBtns = resetRounds.map((r, idx) => {
+      const rNo = idx + 1;
+      const rCount = (r.skillPointQueue || []).length;
+      const isOn = currentSkillResetRound === rNo;
+      return `
+        <button type="button" class="skill-round-btn ${isOn ? 'active' : ''}" onclick="switchSkillResetRound(${rNo})" title="ลำดับสกิลชุดใหม่ที่จะอัปหลังจากบอทกลับไปรีสกิลที่ลุงโกโก้ ครั้งที่ ${rNo} (${escapeHTML(r.label || '')})">
+          <span>🔄 รีสกิล #${rNo}</span>
+          <span class="skill-round-when">(${escapeHTML(r.label || '')})</span>
+          <span class="skill-round-pts">${rCount} แต้ม</span>
+        </button>
+      `;
+    }).join('');
+
+    const rightControls = currentSkillResetRound >= 1
+      ? `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+           <span class="skill-round-hint">🎯 กำลังจัดสกิลของ <b>รีสกิล #${currentSkillResetRound} (${escapeHTML(resetRounds[currentSkillResetRound - 1]?.label || '')})</b></span>
+           <button type="button" class="btn btn-secondary btn-sm" onclick="copySkillRoundFromPrevious()" style="font-size:11px;padding:3px 10px;border-color:rgba(217,70,239,0.45);color:#f0abfc;background:rgba(217,70,239,0.12);">
+             📋 คัดลอกจาก${currentSkillResetRound === 1 ? 'รอบเริ่มต้น' : 'รีสกิล #' + (currentSkillResetRound - 1)}
+           </button>
+         </div>`
+      : (resetRounds.length > 0
+          ? `<span class="skill-round-hint">💡 คลิกเลือกแท็บ <b>🔄 รีสกิล #1${resetRounds.length > 1 ? ` .. #${resetRounds.length}` : ''}</b> เพื่อตั้งลำดับการอัปสกิลชุดใหม่หลังรีสกิลที่ลุงโกโก้แยกแต่ละครั้งได้เลย</span>`
+          : `<span class="skill-round-hint">💡 หากตั้งเงื่อนไข <b>"🔄 รีเซ็ตสกิล (ลุงโกโก้)"</b> ในแผน แถบ <b>"🔄 รีสกิล #1, #2..."</b> จะแสดงขึ้นมาให้จัดสกิลแยกตามรอบอัตโนมัติ</span>`);
+
+    roundBar.innerHTML = `
+      <div class="skill-round-tabs">
+        ${initBtn}
+        ${resetBtns}
+      </div>
+      ${rightControls}
+    `;
+  }
+
+  const queue = activeRoundSb.skillPointQueue || [];
+  const planned = activeRoundSb.plannedLevels || {};
   const c1 = activeEditingPlan.class1Target || 'archer';
   const c2 = activeEditingPlan.class2Target || 'ranger';
   const c3 = getPlanClass3Id(activeEditingPlan);
@@ -8098,44 +8281,49 @@ function repairSkillQueue(queue, insertMissing) {
 }
 
 // "ใช้ใน AUTO" switch on a skill card: switched-off skills are not ticked for the game's AUTO
-// (stored as skillBuild.autoOff; everything else stays on, like before)
+// (stored as skillBuild.autoOff per round; everything else stays on, like before)
 function isSkillAutoOn(id) {
-  const off = activeEditingPlan && activeEditingPlan.skillBuild && activeEditingPlan.skillBuild.autoOff;
+  const sb = getActiveRoundSkillBuild(activeEditingPlan, currentSkillResetRound);
+  const off = sb && sb.autoOff;
   return !(Array.isArray(off) && off.includes(id));
 }
 function toggleSkillAuto(id) {
-  if (!activeEditingPlan || !activeEditingPlan.skillBuild) return;
-  const off = new Set(Array.isArray(activeEditingPlan.skillBuild.autoOff) ? activeEditingPlan.skillBuild.autoOff : []);
+  const sb = getActiveRoundSkillBuild(activeEditingPlan, currentSkillResetRound);
+  if (!sb) return;
+  const off = new Set(Array.isArray(sb.autoOff) ? sb.autoOff : []);
   if (off.has(id)) off.delete(id); else off.add(id);
-  activeEditingPlan.skillBuild.autoOff = Array.from(off);
+  sb.autoOff = Array.from(off);
   renderSkillBuilderUI();
 }
 window.toggleSkillAuto = toggleSkillAuto;
 
 function toggleSkillFacet(skillId, tierIdx, optIdx) {
-  if (!activeEditingPlan || !activeEditingPlan.skillBuild) return;
-  if (!activeEditingPlan.skillBuild.facets || typeof activeEditingPlan.skillBuild.facets !== 'object') {
-    activeEditingPlan.skillBuild.facets = {};
+  const sb = getActiveRoundSkillBuild(activeEditingPlan, currentSkillResetRound);
+  if (!sb) return;
+  if (!sb.facets || typeof sb.facets !== 'object') {
+    sb.facets = {};
   }
-  const cur = Array.isArray(activeEditingPlan.skillBuild.facets[skillId])
-    ? [...activeEditingPlan.skillBuild.facets[skillId]]
+  const cur = Array.isArray(sb.facets[skillId])
+    ? [...sb.facets[skillId]]
     : [-1, -1, -1];
   while (cur.length < 3) cur.push(-1);
   cur[tierIdx] = (cur[tierIdx] === optIdx) ? -1 : optIdx;
   if (cur.every(v => !(typeof v === 'number' && v >= 0))) {
-    delete activeEditingPlan.skillBuild.facets[skillId];
+    delete sb.facets[skillId];
   } else {
-    activeEditingPlan.skillBuild.facets[skillId] = cur;
+    sb.facets[skillId] = cur;
   }
   renderSkillBuilderUI();
 }
 window.toggleSkillFacet = toggleSkillFacet;
 
 function applySkillQueue(newQueue) {
-  activeEditingPlan.skillBuild.skillPointQueue = newQueue;
+  const sb = getActiveRoundSkillBuild(activeEditingPlan, currentSkillResetRound);
+  if (!sb) return;
+  sb.skillPointQueue = newQueue;
   const levels = {};
   newQueue.forEach(id => { levels[id] = (levels[id] || 0) + 1; });
-  activeEditingPlan.skillBuild.plannedLevels = levels;
+  sb.plannedLevels = levels;
 }
 
 function summarizeSkillIds(list) {
@@ -8146,7 +8334,8 @@ function summarizeSkillIds(list) {
 
 // Cost of one more point of this skill right now (the point + prerequisites it pulls in), or why it can't be added
 function skillAddPreview(skillId) {
-  const queue = activeEditingPlan.skillBuild.skillPointQueue;
+  const sb = getActiveRoundSkillBuild(activeEditingPlan, currentSkillResetRound);
+  const queue = (sb && sb.skillPointQueue) || [];
   const res = repairSkillQueue(queue.concat(skillId), true);
   const ok = res.queue.length > queue.length && !res.dropped.length;
   if (ok) return { ok: true, cost: res.queue.length - queue.length, added: res.added };
@@ -8155,8 +8344,9 @@ function skillAddPreview(skillId) {
 }
 
 function addSkillPoint(skillId, silent = false) {
-  if (!activeEditingPlan || !activeEditingPlan.skillBuild) return;
-  const queue = activeEditingPlan.skillBuild.skillPointQueue;
+  const sb = getActiveRoundSkillBuild(activeEditingPlan, currentSkillResetRound);
+  if (!sb) return;
+  const queue = sb.skillPointQueue || [];
   const res = repairSkillQueue(queue.concat(skillId), true);
   if (res.dropped.length || res.queue.length <= queue.length) {
     if (!silent) {
@@ -8183,16 +8373,18 @@ function removeSkillPointsAndRepair(newQueue) {
 }
 
 function removeSkillPoint(skillId) {
-  if (!activeEditingPlan || !activeEditingPlan.skillBuild) return;
-  const queue = activeEditingPlan.skillBuild.skillPointQueue;
+  const sb = getActiveRoundSkillBuild(activeEditingPlan, currentSkillResetRound);
+  if (!sb) return;
+  const queue = sb.skillPointQueue || [];
   const lastIdx = queue.lastIndexOf(skillId);
   if (lastIdx === -1) return;
   removeSkillPointsAndRepair(queue.filter((_, i) => i !== lastIdx));
 }
 
 function removeSkillPointAtIndex(idx) {
-  if (!activeEditingPlan || !activeEditingPlan.skillBuild) return;
-  const queue = activeEditingPlan.skillBuild.skillPointQueue;
+  const sb = getActiveRoundSkillBuild(activeEditingPlan, currentSkillResetRound);
+  if (!sb) return;
+  const queue = sb.skillPointQueue || [];
   if (idx < 0 || idx >= queue.length) return;
   removeSkillPointsAndRepair(queue.filter((_, i) => i !== idx));
 }
@@ -8221,26 +8413,28 @@ function findQueuePrereqProblems(queue) {
 }
 
 function resetSkillQueue() {
-  if (!activeEditingPlan || !activeEditingPlan.skillBuild) return;
-  const hasFacets = countPlannedFacets(activeEditingPlan) > 0;
-  if (activeEditingPlan.skillBuild.skillPointQueue.length === 0 && !hasFacets) return;
-  if (!confirm('คุณแน่ใจหรือไม่ว่าต้องการล้างลำดับแต้มสกิลและการตั้งค่าปลุกพลังสกิลทั้งหมด?')) return;
+  const sb = getActiveRoundSkillBuild(activeEditingPlan, currentSkillResetRound);
+  if (!sb) return;
+  if ((sb.skillPointQueue || []).length === 0) return;
+  const roundLabel = currentSkillResetRound === 0 ? 'รอบเริ่มต้น (ก่อนรีสกิล)' : `รอบรีสกิล #${currentSkillResetRound}`;
+  if (!confirm(`คุณแน่ใจหรือไม่ว่าต้องการล้างลำดับแต้มสกิลทั้งหมดของ "${roundLabel}"?`)) return;
 
-  activeEditingPlan.skillBuild.skillPointQueue = [];
-  activeEditingPlan.skillBuild.plannedLevels = {};
-  activeEditingPlan.skillBuild.facets = {};
+  sb.skillPointQueue = [];
+  sb.plannedLevels = {};
+  sb.facets = {};
   renderSkillBuilderUI();
 }
 
 function applySkillPreset() {
-  if (!activeEditingPlan || !activeEditingPlan.skillBuild) return;
+  const sb = getActiveRoundSkillBuild(activeEditingPlan, currentSkillResetRound);
+  if (!activeEditingPlan || !sb) return;
   const c1 = activeEditingPlan.class1Target || 'archer';
   const c2 = activeEditingPlan.class2Target || 'ranger';
   const c3 = getPlanClass3Id(activeEditingPlan);
 
-  activeEditingPlan.skillBuild.skillPointQueue = [];
-  activeEditingPlan.skillBuild.plannedLevels = {};
-  activeEditingPlan.skillBuild.facets = {};
+  sb.skillPointQueue = [];
+  sb.plannedLevels = {};
+  sb.facets = {};
   skillMetaCache = null;
 
   const pushMany = (id, count) => {
@@ -8250,9 +8444,9 @@ function applySkillPreset() {
   // Nightcamp Standard Build: Skip Novice (0 pts) so all 9 Traveler points carry over into Class 1 / Class 2 / Class 3!
   const fillTier = (tierKey, maxPts) => {
     const list = SKILLS_DATABASE[tierKey] || [];
-    let before = activeEditingPlan.skillBuild.skillPointQueue.length;
+    let before = (sb.skillPointQueue || []).length;
     for (const sk of list) {
-      const spent = activeEditingPlan.skillBuild.skillPointQueue.length - before;
+      const spent = (sb.skillPointQueue || []).length - before;
       if (spent >= maxPts) break;
       const maxSpend = Math.max(0, (sk.maxLevel || 5) - (sk.freeLevel || 0));
       const want = Math.min(maxSpend, maxPts - spent);

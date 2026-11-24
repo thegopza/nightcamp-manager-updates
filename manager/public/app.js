@@ -11082,6 +11082,11 @@ function planActionSummary(act) {
     const roleTh = act.role === 'support' ? 'พระซัพพอร์ต' : act.role === 'member' ? 'สมาชิกตี้' : 'หัวตี้';
     return `🤝 เซ็ตตี้: ${roleTh}${act.partyTag ? ' (' + act.partyTag + ')' : ''}`;
   }
+  if (act.type === 'reset_skills') {
+    const roundNo = typeof window.getResetSkillActionRoundNo === 'function' ? window.getResetSkillActionRoundNo(act.id) : 0;
+    const modeLbl = act.resetMode === 'gold' ? ' · Reskill Gold' : '';
+    return `🔄 รีเซ็ตสกิลที่ลุงโกโก้${roundNo > 0 ? ` (รีสกิล #${roundNo})` : ''}${modeLbl}`;
+  }
   return act.type;
 }
 
@@ -11211,6 +11216,7 @@ const PLAN_ACTION_TILES = [
   { type: 'auto_quest', icon: '🧭', title: 'ทำเควสอัตโนมัติ', desc: 'Smart Auto-Quest (เควสหลัก MQ + บทเรียน)' },
   { type: 'change_map', icon: '🗺️', title: 'ย้ายแมพฟาร์ม', desc: 'เดินไปแมพที่เลือก & เปิด Auto-Farm' },
   { type: 'change_class', icon: '⚔️', title: 'เปลี่ยนอาชีพ', desc: 'เปลี่ยนเป็น Class 1 / Class 2 / Class 3' },
+  { type: 'reset_skills', icon: '🔄', title: 'รีเซ็ตสกิล (ลุงโกโก้)', desc: 'กลับค่ายรีสกิล & อัปสกิลตามแท็บ รีสกิล #1, #2...' },
   { type: 'party_setup', icon: '🤝', title: 'เซ็ตปาร์ตี้ (Auto-Party)', desc: 'ตั้งตี้ / เข้าตี้ตามแท็ก / โหมดพระซัพเดินตาม' },
   { type: 'life_gather', icon: '🪓', title: 'อาชีพเสริม (Life)', desc: 'ตัดไม้ / ขุดแร่ / ปลูกผักตามจำนวน' },
   { type: 'sell_trip', icon: '🛒', title: 'กลับค่ายขายของ/ซื้อยา', desc: 'ขายขยะ & ซื้อยาแดง/ยาฟ้าที่ลุงโกโก้' },
@@ -11358,6 +11364,7 @@ function submitTriggerDialog() {
   else activeEditingPlan.triggers.push(t);
   sortPlanTriggers();
   markPlanDirty();
+  if (typeof updatePlanEditorBadges === 'function') updatePlanEditorBadges();
   closeTriggerDialog();
   renderPlanWorkflowCanvas();
   setTimeout(() => focusPlanTrigger(id), 60);
@@ -11552,6 +11559,27 @@ function renderActionNodeHtml(trigIdx, actIdx, act) {
       </div>`;
   }
 
+  if (act.type === 'reset_skills') {
+    const rMode = act.resetMode || 'auto';
+    const roundNo = typeof window.getResetSkillActionRoundNo === 'function' ? window.getResetSkillActionRoundNo(act.id) : 0;
+    return `
+      <div class="pe-action reset_skills">
+        <div class="pe-act-icon">🔄</div>
+        <div class="pe-act-main">
+          <div class="pe-act-title"><b>รีเซ็ตสกิลที่ลุงโกโก้ ${roundNo > 0 ? `(รอบรีสกิล #${roundNo})` : ''}</b>${del}</div>
+          <div class="pe-fields">
+            <label>วิธีรีเซ็ตสกิลที่ร้านลุงโกโก้
+              <select class="form-select" onchange="updateActionField(${trigIdx}, ${actIdx}, 'resetMode', this.value)">
+                <option value="auto" ${rMode !== 'gold' ? 'selected' : ''}>🎫 ฟรี (ต่ำกว่า Lv.40 / สิทธิ์ฟรี 1 ครั้ง / หลังเปลี่ยนคลาส) หรือใช้ตั๋วรีสกิล</option>
+                <option value="gold" ${rMode === 'gold' ? 'selected' : ''}>💰 ใช้เงิน Gold ช่วงโปร (Reskill Gold 77,777g) หากไม่มีสิทธิ์ฟรี</option>
+              </select>
+            </label>
+          </div>
+          <small class="pe-hint">💡 เมื่อบันทึกเงื่อนไขนี้แล้ว ในปุ่ม <b>"⚡ จัดการสกิล (Skill Build)"</b> ด้านบนจะมีแท็บ <b>"🔄 รีสกิล #1, #2..."</b> เพิ่มขึ้นมาอัตโนมัติ เพื่อให้ตั้งลำดับการอัปสกิลชุดใหม่หลังจากรีสกิลรอบนี้ได้แยกอิสระ</small>
+        </div>
+      </div>`;
+  }
+
   return '';
 }
 
@@ -11566,6 +11594,7 @@ function removeTrigger(trigIdx) {
   if (t && (t.actions || []).length && !confirm(`ลบเงื่อนไข "${planWhenText(t)}" และ Action ทั้ง ${(t.actions || []).length} รายการ?`)) return;
   activeEditingPlan.triggers.splice(trigIdx, 1);
   markPlanDirty();
+  if (typeof updatePlanEditorBadges === 'function') updatePlanEditorBadges();
   renderPlanWorkflowCanvas();
 }
 
@@ -11581,6 +11610,7 @@ function duplicateTrigger(trigIdx) {
   activeEditingPlan.triggers.push(copy);
   sortPlanTriggers();
   markPlanDirty();
+  if (typeof updatePlanEditorBadges === 'function') updatePlanEditorBadges();
   renderPlanWorkflowCanvas();
   setTimeout(() => focusPlanTrigger(copy.id), 60);
 }
@@ -11599,6 +11629,8 @@ function addActionToTrigger(trigIdx, actionType) {
     newAction.targetClass = (trig.type === 'job_level' && (trig.classId === 'traveler' || trig.classId === 'novice'))
       ? (activeEditingPlan.class1Target || 'archer')
       : (activeEditingPlan.class2Target || 'ranger');
+  } else if (actionType === 'reset_skills') {
+    Object.assign(newAction, { resetMode: 'auto' });
   } else if (actionType === 'life_gather') {
     Object.assign(newAction, { lifeJob: 'wood', itemId: 'lf_birch', qty: 10 });
   } else if (actionType === 'sell_trip') {
