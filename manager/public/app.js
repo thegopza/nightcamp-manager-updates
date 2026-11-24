@@ -9291,7 +9291,8 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
       </div>
 
       <div id="p-nc-cm-add-box" style="display:none; flex-direction:column; gap:5px; background:rgba(2,6,23,0.78); border:1px solid rgba(52,211,153,0.45); border-radius:6px; padding:6px;">
-        <input type="text" id="p-nc-cm-add-input" placeholder="พิมพ์ชื่อไอเทม เช่น หินออปชัน, ด้ายเหล็ก, การ์ด..." autocomplete="off" style="width:100%; box-sizing:border-box; background:#090d16; border:1px solid rgba(56,189,248,0.45); color:#fff; border-radius:4px; font-size:10.5px; padding:4px 6px;">
+        <input type="text" id="p-nc-cm-add-input" placeholder="🔍 พิมพ์ค้นหาไอเทม เช่น การ์ดซอม, รูนแยก, หินออปชัน..." autocomplete="off" style="width:100%; box-sizing:border-box; background:#090d16; border:1px solid rgba(56,189,248,0.45); color:#fff; border-radius:4px; font-size:10.5px; padding:4px 6px;">
+        <div id="p-nc-cm-add-suggest" style="display:flex; flex-direction:column; gap:3px; max-height:140px; overflow-y:auto;"></div>
         <div style="display:flex; align-items:center; gap:4px;">
           <span style="font-size:9.5px; color:#cbd5e1; white-space:nowrap;">ครบ ≥</span>
           <input type="number" id="p-nc-cm-add-min" value="10" min="1" max="9999" style="width:52px; background:#090d16; border:1px solid rgba(129,140,248,0.5); color:#fde047; font-weight:700; border-radius:4px; font-size:10.5px; padding:2px 4px; text-align:center;">
@@ -10135,14 +10136,92 @@ async function openWebBotHUD(profileId) {
   const cmAddToggleBtn = hudEl.querySelector('#p-btn-nc-cm-add-toggle');
   const cmAddBox = hudEl.querySelector('#p-nc-cm-add-box');
   const cmAddInput = hudEl.querySelector('#p-nc-cm-add-input');
+  const cmAddSuggest = hudEl.querySelector('#p-nc-cm-add-suggest');
   const cmAddMin = hudEl.querySelector('#p-nc-cm-add-min');
   const cmAddMode = hudEl.querySelector('#p-nc-cm-add-mode');
   const cmAddSaveBtn = hudEl.querySelector('#p-btn-nc-cm-add-save');
+  let hudPickedItem = null;
+  let hudSuggestItems = [];
+  let hudSuggestSeq = 0;
+
+  const refreshWebHudMarketSuggest = async (qStr) => {
+    if (!cmAddSuggest) return;
+    const seq = ++hudSuggestSeq;
+    const targetPid = profileId === 'central'
+      ? ((currentProfiles || []).find(p => p && p.isRunning && p.debugPort)?.id || null)
+      : profileId;
+    if (!targetPid) {
+      cmAddSuggest.innerHTML = '';
+      return;
+    }
+    try {
+      const resp = await fetch(`/api/profiles/${encodeURIComponent(targetPid)}/eval`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: `(typeof window.__getCMarketCatalogSuggestions === 'function' ? window.__getCMarketCatalogSuggestions(${JSON.stringify(String(qStr || ''))}, 14) : [])`
+        })
+      });
+      const j = await resp.json();
+      if (seq !== hudSuggestSeq) return;
+      const items = Array.isArray(j?.result) ? j.result : [];
+      hudSuggestItems = items;
+      if (!items.length) {
+        cmAddSuggest.innerHTML = `<div style="font-size:9.5px; color:#94a3b8; padding:3px 4px;">ไม่พบไอเทมที่ตรงกับ "${escapeHTML(qStr || '')}"</div>`;
+        return;
+      }
+      cmAddSuggest.innerHTML = items.map((it, idx) => {
+        const st = getNightcampRarityStyle(it.rarity, false);
+        const tag = it.kind === 'rune' ? '💠 รูน' : (it.isSingle ? '⚔️ ทีละชิ้น' : (it.kindTh === 'การ์ดวิชา' ? '🃏 การ์ด' : '📦 กอง'));
+        return `<button type="button" data-hcm-idx="${idx}" style="display:flex; align-items:center; gap:5px; text-align:left; background:rgba(15,23,42,0.9); border:1px solid rgba(148,163,184,0.22); color:${st.color}; border-radius:4px; padding:3px 6px; font-size:10px; cursor:pointer;">` +
+          (it.icon ? `<img src="${escapeHTML(it.icon)}" alt="" style="width:16px;height:16px;object-fit:contain;flex-shrink:0;">` : `<span>🏪</span>`) +
+          `<span style="flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:700;">${escapeHTML(it.name)}</span>` +
+          (it.bagQty > 0 ? `<span style="font-size:8.5px; color:#4ade80; font-weight:700;">×${it.bagQty}</span>` : '') +
+          `<span style="font-size:8.5px; color:#94a3b8; white-space:nowrap;">${tag}</span>` +
+          `</button>`;
+      }).join('');
+    } catch (_) {}
+  };
+
+  if (cmAddSuggest) {
+    cmAddSuggest.onmouseover = (ev) => {
+      const btn = ev.target?.closest?.('[data-hcm-idx]');
+      if (!btn) { hideNightcampCatalogHoverCard(); return; }
+      const item = hudSuggestItems[Number(btn.getAttribute('data-hcm-idx'))];
+      if (item) showNightcampCatalogHoverCard(item, btn);
+    };
+    cmAddSuggest.onmouseleave = () => hideNightcampCatalogHoverCard();
+    cmAddSuggest.onclick = (ev) => {
+      const btn = ev.target?.closest?.('[data-hcm-idx]');
+      if (!btn) return;
+      const item = hudSuggestItems[Number(btn.getAttribute('data-hcm-idx'))];
+      if (!item) return;
+      hideNightcampCatalogHoverCard();
+      hudPickedItem = item;
+      if (cmAddInput) cmAddInput.value = item.name;
+      if (cmAddMin) cmAddMin.value = (item.isSingle || item.kindTh === 'การ์ดวิชา' || /^bl_card_/.test(item.id)) ? '1' : '10';
+      if (cmAddMode) cmAddMode.value = item.isSingle ? 'single' : 'all';
+      cmAddSuggest.innerHTML = '';
+    };
+  }
+  if (cmAddInput) {
+    let hudFilterTimer = null;
+    cmAddInput.oninput = () => {
+      hudPickedItem = null;
+      if (hudFilterTimer) clearTimeout(hudFilterTimer);
+      hudFilterTimer = setTimeout(() => refreshWebHudMarketSuggest(cmAddInput.value), 120);
+    };
+    cmAddInput.onfocus = () => refreshWebHudMarketSuggest(cmAddInput.value);
+  }
   if (cmAddToggleBtn && cmAddBox) {
     cmAddToggleBtn.onclick = () => {
       const open = cmAddBox.style.display === 'none';
       cmAddBox.style.display = open ? 'flex' : 'none';
-      if (open) setTimeout(() => cmAddInput?.focus?.(), 20);
+      if (!open) hideNightcampCatalogHoverCard();
+      if (open) {
+        refreshWebHudMarketSuggest(cmAddInput?.value || '');
+        setTimeout(() => cmAddInput?.focus?.(), 20);
+      }
     };
   }
   if (cmAddSaveBtn) {
@@ -10152,10 +10231,11 @@ async function openWebBotHUD(profileId) {
         if (typeof showToast === 'function') showToast('⚠️ กรุณาพิมพ์ชื่อไอเทมก่อนกดเพิ่ม', 'warning');
         return;
       }
+      const picked = hudPickedItem && String(hudPickedItem.name || '').toLowerCase() === rawName.toLowerCase() ? hudPickedItem : null;
       const rulePayload = {
-        itemId: rawName,
-        itemName: rawName,
-        kind: 'auto',
+        itemId: picked ? picked.id : rawName,
+        itemName: picked ? picked.name : rawName,
+        kind: picked ? picked.kind : 'auto',
         minQty: Math.max(1, Math.min(9999, Math.floor(Number(cmAddMin?.value) || 1))),
         sellMode: ['all', 'min', 'single'].includes(cmAddMode?.value) ? cmAddMode.value : 'all',
         reserveQty: 0,
@@ -10167,9 +10247,12 @@ async function openWebBotHUD(profileId) {
           type: 'eval',
           code: `(typeof window.__addOrUpdateCMarketRule === 'function' ? window.__addOrUpdateCMarketRule(${JSON.stringify(rulePayload)}, { enableMaster: true }) : null)`
         });
+        hudPickedItem = null;
+        hideNightcampCatalogHoverCard();
         if (cmAddInput) cmAddInput.value = '';
+        if (cmAddSuggest) cmAddSuggest.innerHTML = '';
         if (cmAddBox) cmAddBox.style.display = 'none';
-        if (typeof showToast === 'function') showToast(`🏪 เพิ่ม "${rawName}" ลง WL ตลาดแล้ว!`, 'success');
+        if (typeof showToast === 'function') showToast(`🏪 เพิ่ม "${rulePayload.itemName}" ลง WL ตลาดแล้ว!`, 'success');
       } catch (_) {}
     };
   }
@@ -16764,6 +16847,219 @@ async function quickAddNightcampCMarketRule(itemId, itemName, kind = 'mat', defa
 }
 window.quickAddNightcampCMarketRule = quickAddNightcampCMarketRule;
 
+// === Floating Item Info Hover Card & Searchable Catalog Picker for Central Market Auto-Sell ===
+function hideNightcampCatalogHoverCard() {
+  const el = document.getElementById('nc-cm-catalog-hover-card');
+  if (el) el.remove();
+}
+window.hideNightcampCatalogHoverCard = hideNightcampCatalogHoverCard;
+
+function showNightcampCatalogHoverCard(item, anchorEl) {
+  hideNightcampCatalogHoverCard();
+  if (!item || !anchorEl) return;
+  const st = getNightcampRarityStyle(item.rarity, false);
+  const card = document.createElement('div');
+  card.id = 'nc-cm-catalog-hover-card';
+  Object.assign(card.style, {
+    position: 'fixed',
+    zIndex: '1000000',
+    width: '295px',
+    pointerEvents: 'none',
+    background: 'linear-gradient(160deg, rgba(11,17,32,0.99), rgba(15,23,42,0.98))',
+    border: `1.5px solid ${st.border}`,
+    borderRadius: '11px',
+    padding: '10px 12px',
+    color: '#e2e8f0',
+    boxShadow: '0 14px 36px rgba(0,0,0,0.78)',
+    fontFamily: 'Kanit, Prompt, sans-serif',
+    lineHeight: '1.45'
+  });
+
+  const isSingle = Boolean(item.isSingle || item.kind === 'item' || item.kind === 'rune');
+  const kindLabel = item.kindTh || (item.kind === 'rune' ? 'รูนสกิล' : (item.kind === 'item' ? 'อุปกรณ์' : (item.kind === 'pot' ? 'ยาฟื้นฟู' : 'วัสดุ')));
+  const bagQty = Number(item.bagQty || 0);
+  const med = Number(item.medianPrice || 0);
+  const price = Number(item.price || 0);
+
+  card.innerHTML = `
+    <div style="display:flex; align-items:flex-start; gap:10px; margin-bottom:7px;">
+      <div style="width:44px; height:44px; border-radius:9px; background:#020617; border:1px solid ${st.border}; display:flex; align-items:center; justify-content:center; flex-shrink:0; overflow:hidden;">
+        ${item.icon ? `<img src="${escapeHTML(item.icon)}" alt="" style="width:36px; height:36px; object-fit:contain;">` : `<span style="font-size:20px;">🏪</span>`}
+      </div>
+      <div style="flex:1; min-width:0;">
+        <div style="font-size:13px; font-weight:800; color:${st.color}; word-break:break-word;">${escapeHTML(item.name || item.id)}</div>
+        <div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:3px; font-size:10px;">
+          <span style="background:${st.bg}; border:1px solid ${st.border}; color:${st.color}; padding:0 6px; border-radius:999px; font-weight:700;">${escapeHTML(kindLabel)}</span>
+          ${item.lvReq ? `<span style="background:rgba(56,189,248,0.14); border:1px solid rgba(56,189,248,0.4); color:#7dd3fc; padding:0 6px; border-radius:999px; font-weight:700;">Lv.${item.lvReq}</span>` : ''}
+          <span style="background:rgba(148,163,184,0.14); border:1px solid rgba(148,163,184,0.3); color:#cbd5e1; padding:0 6px; border-radius:999px;">${isSingle ? 'ขายทีละ 1 ชิ้น' : 'ขายเป็นกอง Stack'}</span>
+        </div>
+      </div>
+    </div>
+    ${item.stats ? `<div style="font-size:11px; font-weight:700; color:#7dd3fc; background:rgba(14,165,233,0.1); border:1px solid rgba(56,189,248,0.25); border-radius:6px; padding:4px 8px; margin-bottom:5px;">⚔️ ${escapeHTML(item.stats)}</div>` : ''}
+    ${item.abil ? `<div style="font-size:11px; color:#6ee7b7; margin-bottom:3px;">✨ <b>ความสามารถ:</b> ${escapeHTML(item.abil)}</div>` : ''}
+    ${item.wsk ? `<div style="font-size:11px; color:#fde68a; margin-bottom:3px;">🎯 <b>เสริมสกิล:</b> ${escapeHTML(item.wsk)}</div>` : ''}
+    ${item.desc ? `<div style="font-size:10.5px; color:#cbd5e1; margin-top:4px; padding-top:5px; border-top:1px solid rgba(255,255,255,0.08);">${escapeHTML(item.desc)}</div>` : ''}
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px; margin-top:7px; padding-top:6px; border-top:1px solid rgba(255,255,255,0.08); font-size:10.5px;">
+      <div>
+        ${med > 0
+          ? `<span style="color:#fde047; font-weight:800;">📊 ราคากลาง 7 วัน: ${med.toLocaleString()}g</span>`
+          : (price > 0 ? `<span style="color:#94a3b8;">💰 ราคาอ้างอิงร้าน: ${price.toLocaleString()}g</span>` : `<span style="color:#64748b;">รหัส: <code>${escapeHTML(item.id)}</code></span>`)}
+      </div>
+      ${bagQty > 0 ? `<span style="color:#4ade80; font-weight:800;">🎒 ในตัว ×${bagQty.toLocaleString()}</span>` : `<code style="font-size:9.5px; color:#64748b;">${escapeHTML(item.id)}</code>`}
+    </div>
+  `;
+  document.body.appendChild(card);
+
+  const rc = anchorEl.getBoundingClientRect();
+  const cw = card.offsetWidth || 295;
+  const ch = card.offsetHeight || 160;
+  let left = rc.right + 10;
+  if (left + cw > window.innerWidth - 10) {
+    left = Math.max(10, rc.left - cw - 10);
+  }
+  const top = Math.max(10, Math.min(window.innerHeight - ch - 10, rc.top - 12));
+  card.style.left = left + 'px';
+  card.style.top = top + 'px';
+}
+window.showNightcampCatalogHoverCard = showNightcampCatalogHoverCard;
+
+function getNightcampFilteredCatalogList(queryStr, catFilter) {
+  const cm = ncCharModalState.data?.cmarket || {};
+  const rawCat = Array.isArray(cm.catalogItems) ? cm.catalogItems : [];
+  const holdings = Array.isArray(cm.tradableHoldings) ? cm.tradableHoldings : [];
+  const bagQtyById = {};
+  for (const h of holdings) {
+    if (h && h.id && h.freeQty > 0) bagQtyById[h.id] = (bagQtyById[h.id] || 0) + Number(h.freeQty || 0);
+  }
+  const q = String(queryStr || '').trim().toLowerCase();
+  const cf = String(catFilter || 'all');
+
+  const matchCat = (c) => {
+    if (cf === 'all') return true;
+    if (cf === 'card') return /^bl_card_/.test(c.id) || c.kindTh === 'การ์ดวิชา';
+    if (cf === 'rune') return c.kind === 'rune' || /^bl_rune_/.test(c.id);
+    if (cf === 'item') return c.kind === 'item';
+    if (cf === 'pot') return c.kind === 'pot';
+    if (cf === 'mat') return c.kind === 'mat' && !/^bl_card_/.test(c.id) && c.kindTh !== 'การ์ดวิชา';
+    return true;
+  };
+
+  const scored = [];
+  for (const c of rawCat) {
+    if (!c || !c.name || !matchCat(c)) continue;
+    const nm = String(c.name || '').toLowerCase();
+    const idLow = String(c.id || '').toLowerCase();
+    const kt = String(c.kindTh || '').toLowerCase();
+    const ds = String(c.desc || '').toLowerCase();
+    if (q && !nm.includes(q) && !idLow.includes(q) && !kt.includes(q) && !ds.includes(q)) continue;
+    const bagQty = bagQtyById[c.id] || 0;
+    let score = 0;
+    if (q) {
+      if (nm === q) score += 1000;
+      else if (nm.startsWith(q)) score += 500;
+      else if (nm.includes(q)) score += 250;
+      else if (idLow.includes(q)) score += 120;
+      else score += 50;
+    }
+    if (bagQty > 0) score += 150;
+    if (c.kind === 'rune' || /^bl_card_/.test(c.id)) score += 20;
+    scored.push({ item: bagQty > 0 ? Object.assign({}, c, { bagQty }) : c, score });
+  }
+  scored.sort((a, b) => b.score - a.score || String(a.item.name).localeCompare(String(b.item.name), 'th'));
+  return scored.slice(0, 60).map(x => x.item);
+}
+
+function renderNightcampCMarketPickerDropdown() {
+  const box = document.getElementById('nc-cm-catalog-dropdown');
+  const inp = document.getElementById('nc-cm-add-name');
+  if (!box || !inp) return;
+  const q = inp.value || '';
+  const cf = ncCharModalState.cmPickerCat || 'all';
+  const items = getNightcampFilteredCatalogList(q, cf);
+  ncCharModalState.cmPickerItems = items;
+  const rules = ncCharModalState.data?.cmarket?.ruleStates || [];
+  const inWlIds = new Set(rules.map(r => String(r.itemId || '').toLowerCase()));
+
+  const catTabs = [
+    ['all', 'ทั้งหมด'],
+    ['card', '🃏 การ์ด'],
+    ['rune', '💠 รูน'],
+    ['item', '⚔️ อุปกรณ์'],
+    ['mat', '📦 วัสดุ'],
+    ['pot', '🧪 ยา']
+  ];
+
+  box.innerHTML = `
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:4px; padding:6px 7px; border-bottom:1px solid rgba(56,189,248,0.22); background:rgba(9,13,22,0.95); position:sticky; top:0; z-index:2; flex-wrap:wrap;">
+      <div style="display:flex; gap:3px; flex-wrap:wrap;">
+        ${catTabs.map(([k, lbl]) => `
+          <button type="button" onmousedown="event.preventDefault(); setNightcampCMarketPickerCat('${k}')"
+                  style="padding:2px 7px; border-radius:999px; font-size:9.5px; font-weight:700; cursor:pointer; border:1px solid ${cf === k ? '#38bdf8' : 'rgba(148,163,184,0.25)'}; background:${cf === k ? 'rgba(14,165,233,0.3)' : 'rgba(15,23,42,0.75)'}; color:${cf === k ? '#e0f2fe' : '#94a3b8'};">${lbl}</button>
+        `).join('')}
+      </div>
+      <span style="font-size:9.5px; color:#64748b;">พบ ${items.length} รายการ · ชี้เพื่อดูข้อมูล</span>
+    </div>
+    <div style="max-height:240px; overflow-y:auto; padding:4px; display:flex; flex-direction:column; gap:2px;" onmouseleave="hideNightcampCatalogHoverCard()">
+      ${items.length > 0 ? items.map((it, idx) => {
+        const st = getNightcampRarityStyle(it.rarity, false);
+        const already = inWlIds.has(String(it.id || '').toLowerCase());
+        const kindTag = it.kindTh || (it.kind === 'rune' ? 'รูนสกิล' : (it.kind === 'item' ? 'อุปกรณ์' : 'วัสดุ'));
+        return `
+          <div onmouseenter="showNightcampCatalogHoverCard(ncCharModalState.cmPickerItems[${idx}], this)"
+               onmousedown="event.preventDefault(); pickNightcampCMarketCatalogItem(${idx})"
+               style="display:flex; align-items:center; gap:7px; padding:5px 7px; border-radius:6px; cursor:pointer; background:rgba(15,23,42,0.72); border:1px solid ${already ? 'rgba(52,211,153,0.35)' : 'rgba(148,163,184,0.14)'}; transition:background 0.12s;"
+               onmouseover="this.style.background='rgba(30,58,138,0.45)'" onmouseout="this.style.background='rgba(15,23,42,0.72)'">
+            <div style="width:24px; height:24px; border-radius:5px; background:#020617; border:1px solid ${st.border}; display:flex; align-items:center; justify-content:center; flex-shrink:0; overflow:hidden;">
+              ${it.icon ? `<img src="${escapeHTML(it.icon)}" alt="" style="width:20px;height:20px;object-fit:contain;">` : `<span>🏪</span>`}
+            </div>
+            <div style="flex:1; min-width:0;">
+              <div style="font-size:11.5px; font-weight:700; color:${st.color}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHTML(it.name)}</div>
+              <div style="font-size:9.5px; color:#94a3b8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHTML(kindTag)}${it.stats ? ` · ${escapeHTML(it.stats)}` : (it.desc ? ` · ${escapeHTML(it.desc.slice(0, 48))}` : '')}</div>
+            </div>
+            <div style="display:flex; align-items:center; gap:4px; flex-shrink:0;">
+              ${it.bagQty > 0 ? `<span style="font-size:9.5px; font-weight:800; color:#4ade80; background:rgba(16,185,129,0.16); border:1px solid rgba(52,211,153,0.4); padding:0 5px; border-radius:999px;">×${it.bagQty}</span>` : ''}
+              ${it.medianPrice > 0 ? `<span style="font-size:9.5px; font-weight:700; color:#fde047;">${it.medianPrice.toLocaleString()}g</span>` : ''}
+              ${already ? `<span style="font-size:9px; color:#6ee7b7; font-weight:800;">✅ WL</span>` : ''}
+            </div>
+          </div>
+        `;
+      }).join('') : `<div style="text-align:center; padding:18px 8px; font-size:11px; color:#64748b;">🔍 ไม่พบไอเทมที่ตรงกับคำค้นหา "${escapeHTML(q)}"</div>`}
+    </div>
+  `;
+  box.style.display = 'block';
+}
+window.openNightcampCMarketPickerDropdown = () => renderNightcampCMarketPickerDropdown();
+window.filterNightcampCMarketPicker = () => {
+  ncCharModalState.pickedCatalogItem = null;
+  renderNightcampCMarketPickerDropdown();
+};
+window.setNightcampCMarketPickerCat = (catKey) => {
+  ncCharModalState.cmPickerCat = catKey || 'all';
+  renderNightcampCMarketPickerDropdown();
+};
+window.closeNightcampCMarketPickerDropdown = () => {
+  setTimeout(() => {
+    const box = document.getElementById('nc-cm-catalog-dropdown');
+    if (box) box.style.display = 'none';
+    hideNightcampCatalogHoverCard();
+  }, 140);
+};
+window.pickNightcampCMarketCatalogItem = (idx) => {
+  const it = (ncCharModalState.cmPickerItems || [])[idx];
+  if (!it) return;
+  ncCharModalState.pickedCatalogItem = it;
+  const inp = document.getElementById('nc-cm-add-name');
+  const minEl = document.getElementById('nc-cm-add-minqty');
+  const modeEl = document.getElementById('nc-cm-add-mode');
+  if (inp) inp.value = it.name;
+  const isCardOrSingle = Boolean(it.isSingle || it.kind === 'item' || it.kind === 'rune' || /^bl_card_/.test(it.id) || it.kindTh === 'การ์ดวิชา');
+  if (minEl) minEl.value = isCardOrSingle ? '1' : '10';
+  if (modeEl) modeEl.value = (it.isSingle || it.kind === 'item' || it.kind === 'rune') ? 'single' : 'all';
+  const box = document.getElementById('nc-cm-catalog-dropdown');
+  if (box) box.style.display = 'none';
+  hideNightcampCatalogHoverCard();
+};
+
 async function addNightcampCMarketAutoSellRuleFromForm() {
   const pid = ncCharModalState.profileId;
   if (!pid) return;
@@ -16778,25 +17074,33 @@ async function addNightcampCMarketAutoSellRuleFromForm() {
     return;
   }
 
-  // Parse "ชื่อไอเทม (item_id)" if selected from datalist
   let itemId = rawInput;
   let itemName = rawInput;
   let kind = 'auto';
-  const parenMatch = /^(.*?)\s*\(([a-z0-9_]+)\)$/i.exec(rawInput);
-  if (parenMatch) {
-    itemName = parenMatch[1].trim() || parenMatch[2];
-    itemId = parenMatch[2].trim();
+  const picked = ncCharModalState.pickedCatalogItem;
+  if (picked && (String(picked.name || '').toLowerCase() === rawInput.toLowerCase() || String(picked.id || '').toLowerCase() === rawInput.toLowerCase())) {
+    itemId = picked.id;
+    itemName = picked.name;
+    kind = picked.kind || 'mat';
+  } else {
+    const parenMatch = /^(.*?)\s*\(([a-z0-9_]+)\)$/i.exec(rawInput);
+    if (parenMatch) {
+      itemName = parenMatch[1].trim() || parenMatch[2];
+      itemId = parenMatch[2].trim();
+    }
+    const catList = ncCharModalState.data?.cmarket?.catalogItems || [];
+    const catHit = catList.find(c =>
+      String(c.id).toLowerCase() === itemId.toLowerCase() ||
+      String(c.name).toLowerCase() === itemName.toLowerCase()
+    );
+    if (catHit) {
+      itemId = catHit.id;
+      itemName = catHit.name;
+      kind = catHit.kind || 'mat';
+    }
   }
-  const catList = ncCharModalState.data?.cmarket?.catalogItems || [];
-  const catHit = catList.find(c =>
-    String(c.id).toLowerCase() === itemId.toLowerCase() ||
-    String(c.name).toLowerCase() === itemName.toLowerCase()
-  );
-  if (catHit) {
-    itemId = catHit.id;
-    itemName = catHit.name;
-    kind = catHit.kind || 'mat';
-  }
+  ncCharModalState.pickedCatalogItem = null;
+  hideNightcampCatalogHoverCard();
 
   const cur = JSON.parse(JSON.stringify(ncCharModalState.data?.cmarket?.autoSellConfig || loadLocalNightcampCMarketCfg(pid)));
   if (!Array.isArray(cur.rules)) cur.rules = [];
@@ -17446,13 +17750,9 @@ function renderNightcampCMarketTabHtml(d) {
     });
 
     const otherProfiles = (currentProfiles || []).filter(p => String(p.id) !== String(pid));
-    const catalogOpts = (cm.catalogItems || []).slice(0, 400).map(c =>
-      `<option value="${escapeHTML(c.name)} (${escapeHTML(c.id)})"></option>`
-    ).join('');
 
     return `
       ${subTabsHtml}
-      <datalist id="nc-cm-catalog-datalist">${catalogOpts}</datalist>
 
       <!-- Master Auto-Sell Banner Card -->
       <div style="background:linear-gradient(135deg, rgba(49,46,129,0.42), rgba(15,23,42,0.92)); border:1px solid rgba(129,140,248,0.48); border-radius:11px; padding:11px 13px; margin-bottom:10px; display:flex; flex-direction:column; gap:8px;">
@@ -17463,7 +17763,7 @@ function renderNightcampCMarketTabHtml(d) {
               <span>🤖 เปิดระบบ Auto-Sell ตลาดกลางอัตโนมัติ</span>
             </label>
             <span style="font-size:10px; font-weight:700; color:#86efac; background:rgba(16,185,129,0.16); border:1px solid rgba(52,211,153,0.4); padding:2px 8px; border-radius:999px;">
-              🛡️ ป้องกันขายร้านลุงโกโก้ &amp; ป้องกันฝากคลังทับอัตโนมัติ
+              🛡️ ขายเฉพาะตอนกลับค่ายตามปกติ · ข้ามราคาล่ออัตโนมัติ · ไม่ขายร้าน NPC
             </span>
           </div>
           <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
@@ -17549,10 +17849,14 @@ function renderNightcampCMarketTabHtml(d) {
       <div style="background:rgba(15,23,42,0.78); border:1px solid rgba(56,189,248,0.32); border-radius:10px; padding:10px 12px; margin-bottom:10px; display:flex; flex-direction:column; gap:8px;">
         <div style="font-size:11.5px; font-weight:800; color:#7dd3fc;">➕ เพิ่มรายการไอเทมเข้า Auto-Sell ตลาดกลาง</div>
         <div style="display:grid; grid-template-columns:2fr 0.8fr 1.1fr 0.9fr 0.8fr auto; gap:6px; align-items:end;">
-          <div style="display:flex; flex-direction:column; gap:2px;">
-            <span style="font-size:9.5px; color:#94a3b8;">ชื่อไอเทม หรือ รหัสไอเทม:</span>
-            <input type="text" id="nc-cm-add-name" list="nc-cm-catalog-datalist" placeholder="พิมพ์ชื่อไอเทม เช่น หินออปชัน, ท่อนไม้โอ๊ก, การ์ด..." autocomplete="off"
-                   style="width:100%; box-sizing:border-box; background:#090d16; border:1px solid rgba(56,189,248,0.45); color:#f8fafc; border-radius:6px; padding:5px 8px; font-size:11px;">
+          <div style="display:flex; flex-direction:column; gap:2px; position:relative;">
+            <span style="font-size:9.5px; color:#94a3b8;">🔍 ค้นหาชื่อไอเทม / การ์ด / รูน (ชี้ที่รายการเพื่อดูข้อมูล):</span>
+            <input type="text" id="nc-cm-add-name" placeholder="พิมพ์ค้นหา เช่น การ์ดซอม, รูนแยก, หินขัดเกรด, ดาบ..." autocomplete="off"
+                   onfocus="openNightcampCMarketPickerDropdown()"
+                   oninput="filterNightcampCMarketPicker()"
+                   onblur="closeNightcampCMarketPickerDropdown()"
+                   style="width:100%; box-sizing:border-box; background:#090d16; border:1px solid rgba(56,189,248,0.5); color:#f8fafc; border-radius:6px; padding:5px 8px; font-size:11px;">
+            <div id="nc-cm-catalog-dropdown" style="display:none; position:absolute; left:0; right:0; top:100%; margin-top:4px; z-index:9500; background:rgba(9,13,22,0.98); border:1.5px solid rgba(56,189,248,0.55); border-radius:9px; box-shadow:0 12px 32px rgba(0,0,0,0.75); overflow:hidden; min-width:340px;"></div>
           </div>
           <div style="display:flex; flex-direction:column; gap:2px;">
             <span style="font-size:9.5px; color:#94a3b8;">ครบขั้นต่ำ (ชิ้น):</span>
@@ -17646,8 +17950,9 @@ function renderNightcampCMarketTabHtml(d) {
             ? `กรอบราคา FairTrade: ${Number(r.band[0]).toLocaleString()}–${Number(r.band[1]).toLocaleString()}g`
             : '';
           const medTxt = r.medianPrice > 0
-            ? ` · ราคากลาง 7 วัน: ${Number(r.medianPrice).toLocaleString()}g`
-            : (r.refPrice > 0 ? ` · ราคาอ้างอิง: ${Number(r.refPrice).toLocaleString()}g` : '');
+            ? ` · 📊 ราคากลาง 7 วัน: ${Number(r.medianPrice).toLocaleString()}g`
+            : (r.refPrice > 0 ? ` · ราคาอ้างอิงร้าน: ${Number(r.refPrice).toLocaleString()}g` : '');
+          const cheapTxt = r.cheapKnown > 0 ? ` · 🏷️ ต่ำสุดตลาด: ${Number(r.cheapKnown).toLocaleString()}g` : '';
 
           return `
             <div style="background:rgba(15,23,42,0.82); border:1px solid ${r.ready ? 'rgba(52,211,153,0.55)' : 'rgba(129,140,248,0.32)'}; border-radius:10px; padding:9px 11px; display:flex; flex-direction:column; gap:7px; opacity:${r.enabled ? '1' : '0.6'};">
@@ -17672,7 +17977,7 @@ function renderNightcampCMarketTabHtml(d) {
                       ` : ''}
                     </div>
                     <div style="font-size:10px; color:#94a3b8; margin-top:2px;">
-                      ${escapeHTML(bandTxt)}${escapeHTML(medTxt)} · ในกระเป๋าทั้งหมด <b>${r.bagQty}</b> ชิ้น (แลกเปลี่ยนได้ <b>${r.freeQty}</b> ชิ้น)
+                      ${escapeHTML(bandTxt)}${escapeHTML(medTxt)}${escapeHTML(cheapTxt)} · ในกระเป๋าทั้งหมด <b>${r.bagQty}</b> ชิ้น (แลกเปลี่ยนได้ <b>${r.freeQty}</b> ชิ้น)
                     </div>
                   </div>
                 </div>
