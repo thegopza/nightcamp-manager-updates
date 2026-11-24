@@ -10627,6 +10627,8 @@ function switchPlanModalView(view) {
   } else if (view === 'editor') {
     if (viewList) viewList.style.display = 'none';
     if (viewEditor) viewEditor.style.display = 'flex';
+    const scrollBody = document.getElementById("plan-editor-scroll-body");
+    if (scrollBody) scrollBody.scrollTop = 0;
   }
 }
 

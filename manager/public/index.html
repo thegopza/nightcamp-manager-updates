@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="style.css?v=nc1.1.1">
   <link rel="stylesheet" href="inventory_market.css?v=nc1.1.1">
   <link rel="stylesheet" href="bot_update.css?v=nc1.1.1">
-  <link rel="stylesheet" href="plan_editor.css?v=nc1.2.1">
+  <link rel="stylesheet" href="plan_editor.css?v=nc1.2.2">
   <link rel="stylesheet" href="party_manager.css?v=nc1.1.1">
   <link rel="stylesheet" href="premium_manager.css?v=nc1.1.1">
   <link rel="stylesheet" href="card_manager.css?v=nc1.1.1">
@@ -1157,10 +1157,10 @@
 
   <!-- MODAL: SCRIPT PLAN WORKFLOW BUILDER -->
   <div class="modal-overlay" id="plan-modal">
-    <div class="modal-card" style="max-width: 860px; width: 95%; max-height: 90vh; display: flex; flex-direction: column;">
+    <div class="modal-card" style="max-width: 880px; width: 95%; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column;">
       
       <!-- VIEW 1: PLAN PROFILES LIST (หน้ารายการแผน) -->
-      <div id="plan-view-list" style="display: flex; flex-direction: column; height: 100%;">
+      <div id="plan-view-list" style="display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; overflow: hidden;">
         <div class="modal-header">
           <div style="display: flex; align-items: center; gap: 10px;">
             <div style="width: 36px; height: 36px; border-radius: 8px; background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.35); display: flex; align-items: center; justify-content: center; font-size: 18px;">
@@ -1211,19 +1211,19 @@
         </div>
 
         <!-- Profiles List Container -->
-        <div id="plan-profiles-list-container" style="flex: 1; overflow-y: auto; max-height: 420px; display: flex; flex-direction: column; gap: 8px; padding-right: 4px;">
+        <div id="plan-profiles-list-container" style="flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-right: 4px;">
           <!-- Dynamically populated plan cards -->
         </div>
 
-        <div class="modal-footer" style="margin-top: 14px; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 12px; display: flex; justify-content: flex-end;">
+        <div class="modal-footer" style="margin-top: 14px; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 12px; display: flex; justify-content: flex-end; flex-shrink: 0;">
           <button type="button" class="btn btn-secondary" id="plan-modal-list-close">ปิดหน้าต่าง</button>
         </div>
       </div>
 
       <!-- VIEW 2: VISUAL WORKFLOW EDITOR (หน้าออกแบบแผนสไตล์ n8n) -->
-      <div id="plan-view-editor" style="display: none; flex-direction: column; height: 100%;">
+      <div id="plan-view-editor" style="display: none; flex-direction: column; flex: 1 1 auto; min-height: 0; overflow: hidden;">
         <!-- Editor Header -->
-        <div class="modal-header" style="padding-bottom: 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.08);">
+        <div class="modal-header" style="margin-bottom: 0; padding-bottom: 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); flex-shrink: 0; flex-wrap: wrap; gap: 8px;">
           <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
             <button type="button" class="btn btn-secondary btn-sm" id="btn-back-to-plan-list" title="กลับไปหน้ารายชื่อแผน">
               <span>⬅️</span> รายชื่อแผน
@@ -1245,8 +1245,10 @@
           </div>
         </div>
 
+        <!-- Unified Scrollable Plan Editor Body (Config Bar + Party Panel + Sticky Trigger Bar + Timeline) -->
+        <div id="plan-editor-scroll-body" class="pe-editor-scroll-body">
         <!-- Class Progression & Build Config Bar (ระบบเลือกสายอาชีพและ Build สกิล/สเตตัส Nightcamp) -->
-        <div style="background: rgba(15, 23, 42, 0.78); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 10px; padding: 10px 14px; margin-top: 10px; display: flex; flex-direction: column; gap: 8px;">
+        <div style="background: rgba(15, 23, 42, 0.78); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 10px; padding: 10px 14px; margin-top: 10px; display: flex; flex-direction: column; gap: 8px; flex-shrink: 0;">
           <!-- Row 1: Smart Switches + Skill/Stat Builder Buttons -->
           <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.07);">
             <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
@@ -1383,7 +1385,7 @@
         </div>
 
         <!-- Canvas Controls & Info -->
-        <div style="background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.25); border-radius: 8px; padding: 8px 12px; margin: 10px 0; font-size: 11.5px; color: #c7d2fe; display: flex; justify-content: space-between; align-items: center;">
+        <div class="pe-trigger-toolbar">
           <span>💡 <b>เงื่อนไข:</b> แต่ละเงื่อนไขทำครั้งเดียวเมื่อถึงเลเวล/เงินที่ตั้ง (ถ้าเลยไปตอนปิดบอทก็ยังทำให้) — คลิกการ์ดเพื่อแก้ไข · ทำงานตอนกด START BOT</span>
           <button type="button" class="btn btn-primary btn-sm" id="btn-add-level-trigger" style="padding: 4px 12px; font-size: 11.5px; font-weight: 600; white-space: nowrap;">
             <span>➕</span> เพิ่มเงื่อนไข
@@ -1391,8 +1393,9 @@
         </div>
 
         <!-- Canvas Area (Node sequence) -->
-        <div id="plan-workflow-canvas" style="flex: 1; overflow-y: auto; max-height: max(240px, calc(100vh - 440px)); padding: 6px 4px 14px 4px; display: flex; flex-direction: column; gap: 14px;">
+        <div id="plan-workflow-canvas" style="padding: 6px 4px 18px 4px; display: flex; flex-direction: column; gap: 14px;">
           <!-- Dynamically rendered Trigger Nodes & Action Flows -->
+        </div>
         </div>
       </div>
 
@@ -1745,7 +1748,7 @@
 
   <!-- MODAL: SKILL BUILDER (ระบบวางแผนอัปสกิลตามลำดับแต้ม) -->
   <div class="modal-overlay" id="skill-builder-modal">
-    <div class="modal-card" style="max-width: 980px; width: 95%; max-height: 92vh; display: flex; flex-direction: column;">
+    <div class="modal-card" style="max-width: 980px; width: 95%; max-height: 92vh; overflow: hidden; display: flex; flex-direction: column;">
       <div class="modal-header">
         <div style="display: flex; align-items: center; gap: 10px;">
           <div style="width: 36px; height: 36px; border-radius: 8px; background: rgba(168, 85, 247, 0.15); border: 1px solid rgba(168, 85, 247, 0.35); display: flex; align-items: center; justify-content: center; font-size: 18px;">
@@ -1806,7 +1809,7 @@
       </div>
 
       <!-- Skills Grid Container -->
-      <div id="skill-cards-grid" style="flex: 1; overflow-y: auto; max-height: 480px; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); align-items: start; gap: 10px; padding: 4px 2px;">
+      <div id="skill-cards-grid" style="flex: 1 1 auto; min-height: 0; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); align-items: start; gap: 10px; padding: 4px 2px;">
         <!-- Populated dynamically -->
       </div>
 
@@ -1830,7 +1833,7 @@
 
   <!-- MODAL: STAT BUILDER (ระบบวางแผนอัปสเตตัสอัตโนมัติ) -->
   <div class="modal-overlay" id="stat-builder-modal">
-    <div class="modal-card" style="max-width: 640px; width: 95%; display: flex; flex-direction: column;">
+    <div class="modal-card" style="max-width: 640px; width: 95%; max-height: 92vh; overflow-y: auto; display: flex; flex-direction: column;">
       <div class="modal-header">
         <div style="display: flex; align-items: center; gap: 10px;">
           <div style="width: 36px; height: 36px; border-radius: 8px; background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.35); display: flex; align-items: center; justify-content: center; font-size: 18px;">

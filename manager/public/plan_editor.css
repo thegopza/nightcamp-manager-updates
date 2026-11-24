@@ -53,9 +53,58 @@
 .pe-empty b { color: #e2e8f0; }
 .pe-empty-icon { font-size: 30px; opacity: 0.7; }
 
+/* ---------- Plan Modal & Editor Scroll Layout ---------- */
+#plan-modal .modal-card {
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+#plan-view-list,
+#plan-view-editor {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.pe-editor-scroll-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  padding-right: 4px;
+  padding-bottom: 16px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(56, 189, 248, 0.35) rgba(15, 23, 42, 0.4);
+}
+.pe-trigger-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  background: rgba(17, 26, 48, 0.96);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(99, 102, 241, 0.32);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin: 10px 0;
+  font-size: 11.5px;
+  color: #c7d2fe;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  box-shadow: 0 4px 14px rgba(2, 6, 23, 0.45);
+}
+
 /* ---------- Trigger timeline ---------- */
-.pe-timeline { display: flex; flex-direction: column; }
-.pe-node { display: grid; grid-template-columns: 34px 1fr; gap: 8px; }
+.pe-timeline { display: flex; flex-direction: column; min-width: 0; }
+.pe-node { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 8px; min-width: 0; }
 .pe-rail { position: relative; display: flex; justify-content: center; }
 .pe-rail::before { content: ''; position: absolute; top: 0; bottom: 0; width: 2px; background: rgba(148, 163, 184, 0.18); }
 .pe-node:first-child .pe-rail::before { top: 20px; }
