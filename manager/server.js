@@ -3232,6 +3232,20 @@ const LIVE_STATE_EVAL = `(() => {
         return origRoomSend.apply(this, arguments);
       };
     }
+    try {
+      const ncp = window.NC && window.NC.game && window.NC.game.player;
+      if (ncp && typeof ncp.coins === 'number') {
+        s.zeny = ncp.coins;
+        s.coins = ncp.coins;
+      }
+      const vCoins = (window.NC && window.NC.PremiumOnline && typeof window.NC.PremiumOnline.state === 'function')
+        ? (window.NC.PremiumOnline.state()?.vault?.coins)
+        : window.__lastKnownVaultCoins;
+      if (typeof vCoins === 'number') {
+        window.__lastKnownVaultCoins = vCoins;
+        s.vaultCoins = vCoins;
+      }
+    } catch (_) {}
     if (window.__isShopping && typeof window.__pmForceSyncCharZeny === 'function') {
       window.__pmForceSyncCharZeny();
       if (typeof window.__currentZeny === 'number') s.zeny = window.__currentZeny;
@@ -10676,7 +10690,9 @@ const server = http.createServer(async (req, res) => {
       const portrait = hasChar && s.portrait && portraitPathFromSrc(s.portrait);
       const premChanged = (Number(s.premiumUntil) > 0 && Number(s.premiumUntil) !== Number(p.lastPremiumUntil || 0)) ||
                           (inGamePhase && hasChar && s.hasPremium === false && Number(p.lastPremiumUntil || 0) > Date.now());
-      return (portrait && portrait !== p.lastPortrait) || (hasChar && s.charName !== p.lastCharName) || (hasChar && s.charClass && s.charClass !== p.lastCharClass) || premChanged;
+      const zenyChanged = inGamePhase && typeof s.zeny === 'number' && s.zeny !== p.lastZeny;
+      const vaultChanged = inGamePhase && typeof s.vaultCoins === 'number' && s.vaultCoins !== p.lastVaultCoins;
+      return (portrait && portrait !== p.lastPortrait) || (hasChar && s.charName !== p.lastCharName) || (hasChar && s.charClass && s.charClass !== p.lastCharClass) || premChanged || zenyChanged || vaultChanged;
     });
     if (changed.length > 0) {
       const fresh = loadProfiles();
@@ -10702,6 +10718,12 @@ const server = http.createServer(async (req, res) => {
             if (portrait) target.lastPortrait = p.lastPortrait = portrait;
             if (hasChar) target.lastCharName = p.lastCharName = p.liveState.charName;
             if (hasChar && p.liveState.charClass) target.lastCharClass = p.lastCharClass = p.liveState.charClass;
+            if (inGamePhase && typeof p.liveState.zeny === 'number') {
+              target.lastZeny = p.lastZeny = p.liveState.zeny;
+            }
+            if (inGamePhase && typeof p.liveState.vaultCoins === 'number') {
+              target.lastVaultCoins = p.lastVaultCoins = p.liveState.vaultCoins;
+            }
             if (Number(p.liveState.premiumUntil) > 0) {
               target.lastPremiumUntil = p.lastPremiumUntil = Number(p.liveState.premiumUntil);
             } else if (inGamePhase && hasChar && p.liveState.hasPremium === false && Number(target.lastPremiumUntil || 0) > Date.now()) {

@@ -1334,7 +1334,10 @@ function updateMetrics() {
   }
 
   const totalZeny = currentProfiles.reduce((sum, p) => {
-    const z = p.liveState && typeof p.liveState.zeny === 'number' ? p.liveState.zeny : 0;
+    const liveZ = (p.liveState && typeof p.liveState.zeny === 'number')
+      ? p.liveState.zeny
+      : ((p.liveState && typeof p.liveState.coins === 'number') ? p.liveState.coins : null);
+    const z = liveZ !== null ? liveZ : (typeof p.lastZeny === 'number' ? p.lastZeny : 0);
     return sum + z;
   }, 0);
   if (zenyEl) {
@@ -1688,6 +1691,15 @@ function buildProfileCard(p) {
 
   const rawTargetMap = (p.targetMap === 'ถนนต้นหลิว' || p.targetMap === 'เมืองหลวงโซลเฮเวน') ? '' : (p.targetMap || '');
   const curMap = (state && state.map && state.map !== 'ไม่ทราบแมพ') ? state.map : (rawTargetMap || (isOnline ? 'Nightcamp World' : 'ออฟไลน์'));
+  const rawZenyNum = (state && typeof state.zeny === 'number')
+    ? state.zeny
+    : ((state && typeof state.coins === 'number') ? state.coins : (typeof p.lastZeny === 'number' ? p.lastZeny : null));
+  const curZeny = typeof rawZenyNum === 'number' ? `${rawZenyNum.toLocaleString()} z` : '--';
+  const rawVaultNum = (state && typeof state.vaultCoins === 'number')
+    ? state.vaultCoins
+    : (typeof p.lastVaultCoins === 'number' ? p.lastVaultCoins : null);
+  const curVault = typeof rawVaultNum === 'number' ? `${rawVaultNum.toLocaleString()} z` : null;
+  const zenyRate = getProfileZenyRate(p);
   const weightPct = state?.weight ? parseFloat(String(state.weight).replace(/[^\d.]/g, '')) : NaN;
   const weightTone = weightPct >= 80 ? 'bad' : weightPct >= 60 ? 'warn' : 'ok';
   const bw = getProfileBandwidth(p);
@@ -1974,21 +1986,36 @@ function buildProfileCard(p) {
         ${isOnline ? `
         <div class="stat-item">
           <span class="stat-lbl">เลเวล</span>
-          <span class="stat-val mono text-cyan">${baseLv !== null ? `Lv ${baseLv}${jobLv !== null ? ` · Job ${jobLv}` : ''}` : '--'}</span>
+          <span class="stat-val mono text-cyan">${baseLv !== null ? `Lv ${baseLv}${jobLv !== null ? ` · J.${jobLv}` : ''}` : '--'}</span>
         </div>
         <div class="stat-item">
-          <span class="stat-lbl">HP</span>
-          <span class="stat-val mono">${escapeHTML(hpStr)}</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-lbl">SP</span>
-          <span class="stat-val mono text-cyan">${escapeHTML(spStr)}</span>
+          <span class="stat-lbl">${state?.durabilitySummary?.minPct != null ? 'ความทน' : 'HP'}</span>
+          <span class="stat-val mono" style="${state?.durabilitySummary?.minPct != null && state.durabilitySummary.minPct <= 25 ? 'color:#fca5a5;' : ''}" title="${escapeHTML(state?.durabilitySummary?.summaryText || `HP ${hpStr}`)}">${state?.durabilitySummary?.minPct != null ? `${state.durabilitySummary.minPct}%` : escapeHTML(hpStr)}</span>
         </div>
         <div class="stat-item">
           <span class="stat-lbl">น้ำหนัก</span>
           <span class="stat-val mono">${escapeHTML(state?.weight || '--')}</span>
           ${!isNaN(weightPct) ? `<div class="mini-track"><div class="mini-fill ${weightTone}" style="width: ${Math.min(100, weightPct)}%;"></div></div>` : ''}
-        </div>` : ''}
+        </div>
+        <div class="stat-item">
+          <span class="stat-lbl">💰 เงิน${curVault ? ` (คลัง ${curVault})` : ''}</span>
+          <span class="stat-val mono text-gold" title="เงินติดตัว: ${curZeny}${curVault ? ` · คลังร่วม: ${curVault}` : ''}">${curZeny}</span>
+        </div>` : (typeof rawZenyNum === 'number' ? `
+        <div class="stat-item stat-wide" style="display:flex;flex-direction:row;justify-content:space-between;align-items:center;">
+          <span class="stat-lbl">💰 เงินล่าสุด</span>
+          <span class="stat-val mono text-gold">${curZeny}${curVault ? ` <small style="color:#94a3b8;">(คลัง ${curVault})</small>` : ''}</span>
+        </div>` : '')}
+        <div class="gp-rate-row" onclick="resetZenyRate('${p.id}', event)" title="รายได้เฉลี่ยต่อนาที (GP/M) และต่อชั่วโมง (GP/H)${zenyRate.totalGained > 0 ? ` · สะสมรอบนี้ +${zenyRate.totalGained.toLocaleString()} z` : ''} — คลิกเพื่อรีเซ็ตการนับใหม่">
+          <div class="gp-rate-cell">
+            <span class="gp-rate-lbl">⚡ GP/M</span>
+            <span class="gp-rate-val gp-m">${isOnline ? `${zenyRate.gpm.toLocaleString()} <small>z/m</small>` : '--'}</span>
+          </div>
+          <div class="gp-rate-sep"></div>
+          <div class="gp-rate-cell">
+            <span class="gp-rate-lbl">📈 GP/H</span>
+            <span class="gp-rate-val gp-h">${isOnline ? `${zenyRate.gph.toLocaleString()} <small>z/h</small>` : '--'}</span>
+          </div>
+        </div>
         <div class="bw-rate-row" onclick="resetProfileBandwidth('${p.id}', event)" title="ปริมาณการใช้เน็ตของจอนี้วันนี้ (↓${formatBytes(bw.todayRxBytes)} / ↑${formatBytes(bw.todayTxBytes)}) · ความเร็ว ${formatBytes(bw.bps, 1)}/s (~${formatBytes(bw.bytesPerHour)}/ชม.) · รวมทุกจอวันนี้ ${formatBytes(allBw.todayBytes)} (คาดการณ์รวม ~${formatBytes(allBw.totalEstDayBytes)}/วัน) — คลิกเพื่อรีเซ็ตสถิติของจอนี้">
           <div class="bw-rate-cell">
             <div class="bw-cell-top">
@@ -8814,6 +8841,27 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
       <div id="p-nc-smartgear-note" style="font-size:9.5px; color:#d8b4fe; padding-left:18px; line-height:1.3;">${escapeHTML(state?.smartGearNote || '✨ พร้อมเทียบค่าพลังอุปกรณ์ในกระเป๋าตามสายอาชีพให้อัตโนมัติ')}</div>
 
       <div style="display:flex; flex-direction:column; gap:4px; border-top:1px solid rgba(255,255,255,0.08); padding-top:5px;">
+        <label style="display:flex; align-items:center; gap:5px; font-size:10.5px; font-weight:700; color:#fde68a; cursor:pointer;" title="ซ่อมอุปกรณ์ที่สวมใส่ที่ป๋าหมูหริ่งอัตโนมัติ และหากเงินติดตัวไม่พอจะเปิดคลังร่วมไอดีเพื่อเบิกเงินมาซ่อมให้อัตโนมัติ">
+          <input type="checkbox" id="p-nc-auto-repair" ${sc.autoRepair !== false && state?.autoRepairEnabled !== false ? 'checked' : ''} style="accent-color:#f59e0b;">
+          <span>🔨 เปิดซ่อมของอัตโนมัติ (ถ้าเงินไม่พอเบิกจากคลังร่วม)</span>
+        </label>
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:5px; padding-left:18px;">
+          <span style="font-size:9.5px; color:#fef08a; white-space:nowrap;">🔧 ซ่อมเมื่อทน ≤</span>
+          <select id="p-nc-repair-pct" style="flex:1; min-width:0; background:#090d16; border:1px solid rgba(251,191,36,0.5); color:#fef3c7; border-radius:4px; font-size:10px; padding:3px 5px; cursor:pointer;">
+            ${[
+              [15, '15% (ใกล้พัง)'],
+              [25, '25% (แนะนำ)'],
+              [35, '35%'],
+              [50, '50% (ครึ่งหลอด)'],
+              [0, 'เฉพาะตอนแวะค่าย']
+            ].map(([val, lbl]) => `<option value="${val}" ${Number(sc.repairThresholdPct ?? state?.repairThresholdPct ?? 25) === val ? 'selected' : ''}>${lbl}</option>`).join('')}
+          </select>
+          <button type="button" id="p-btn-nc-repair-now" title="สั่งกลับค่ายไปซ่อมอุปกรณ์ที่ป๋าหมูหริ่งทันที (หากเงินไม่พอจะเบิกจากคลังร่วมให้อัตโนมัติ)" style="padding:3px 8px; border:1px solid #fbbf24; border-radius:4px; background:linear-gradient(135deg,#d97706,#b45309); color:#fff; font-size:9.5px; font-weight:700; cursor:pointer; white-space:nowrap;">🔨 ซ่อมทันที</button>
+        </div>
+        <div id="p-nc-durability-status" style="font-size:9.5px; color:#a7f3d0; padding-left:18px; line-height:1.3;">${escapeHTML(state?.durabilitySummary?.summaryText || '🛡️ ความทนอุปกรณ์: พร้อมตรวจสอบ (เบิกคลังร่วมอัตโนมัติ)')}</div>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:4px; border-top:1px solid rgba(255,255,255,0.08); padding-top:5px;">
         <span style="font-size:10px; font-weight:700; color:#e2e8f0;">🗺️ แมพฟาร์มประจำ (เมื่อปิด Auto-Quest):</span>
         <input type="text" id="p-nc-target-farm-map-search" placeholder="🔍 พิมพ์ค้นหาชื่อแมพ หรือ เลเวล (คลิกเพื่อเลือกแมพ)..." autocomplete="off" style="width:100%; background:#090d16; border:1px solid rgba(148,163,184,0.35); color:#e2e8f0; border-radius:4px; font-size:10px; padding:4px 6px; box-sizing:border-box;">
         <div id="p-nc-target-farm-map-results" style="display:none; flex-direction:column; gap:3px; max-height:145px; overflow-y:auto; background:#050811; border:1px solid rgba(56,189,248,0.55); border-radius:5px; padding:4px;"></div>
@@ -9545,6 +9593,38 @@ async function openWebBotHUD(profileId) {
           type: 'eval',
           code: `(typeof window.__setSmartGearWeaponType === 'function' ? window.__setSmartGearWeaponType(${wv}) : (window.__smartGearWeaponType = ${wv}))`
         });
+      } catch (_) {}
+    };
+  }
+
+  const autoRepairCb = hudEl.querySelector('#p-nc-auto-repair');
+  const repairPctSel = hudEl.querySelector('#p-nc-repair-pct');
+  const sellAutoRepairCb = hudEl.querySelector('#p-nc-sell-auto-repair');
+  const pushRepairCfg = async () => {
+    const en = Boolean(autoRepairCb ? autoRepairCb.checked : true);
+    const pct = Number(repairPctSel ? repairPctSel.value : 25);
+    if (sellAutoRepairCb) sellAutoRepairCb.checked = en;
+    try {
+      await sendWebHudAction(profileId, {
+        type: 'eval',
+        code: `(typeof window.__setAutoRepairConfig === 'function' ? window.__setAutoRepairConfig(${en}, ${pct}) : (typeof window.__setSellConfig === 'function' ? window.__setSellConfig({ autoRepair: ${en}, repairThresholdPct: ${pct} }) : null))`
+      });
+    } catch (_) {}
+  };
+  if (autoRepairCb) autoRepairCb.onchange = pushRepairCfg;
+  if (repairPctSel) repairPctSel.onchange = pushRepairCfg;
+  const repairNowBtn = hudEl.querySelector('#p-btn-nc-repair-now');
+  if (repairNowBtn) {
+    repairNowBtn.onclick = async () => {
+      await pushRepairCfg();
+      try {
+        await sendWebHudAction(profileId, {
+          type: 'eval',
+          code: `(typeof window.__triggerAutoRepairTripNow === 'function' ? window.__triggerAutoRepairTripNow() : null)`
+        });
+        if (typeof showToast === 'function') {
+          showToast('🔨 สั่งบอทกลับค่ายไปซ่อมอุปกรณ์ที่ป๋าหมูหริ่ง (เบิกคลังร่วมอัตโนมัติ) แล้ว!', 'success');
+        }
       } catch (_) {}
     };
   }
