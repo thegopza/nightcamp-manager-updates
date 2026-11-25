@@ -9492,7 +9492,7 @@ const server = http.createServer(async (req, res) => {
     return res.end(JSON.stringify({ success: false, error: "Forbidden request origin or host" }));
   }
   res.setHeader("X-Content-Type-Options", "nosniff");
-  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("X-Frame-Options", "SAMEORIGIN");
   res.setHeader("Cache-Control", "no-store");
   if (req.method === "OPTIONS") {
     res.writeHead(204);
