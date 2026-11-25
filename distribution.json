@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "sourceCommit": "9de727d8d24ebb6ad55c27507901bc0072d3147f",
+  "sourceCommit": "b7910bf3fa8565ef418d0d7cf71b7fb94a15eeb0",
   "files": [
     {
       "path": "manager/asset_cache.js",
@@ -28,7 +28,7 @@
     },
     {
       "path": "manager/config_copy_api.js",
-      "sha256": "c51eecc82c8e53d3c210f4f9fe5f767f91c4ec4ffff213f671a2e92fb1974320"
+      "sha256": "75d2d1e50e4f810196f4ed04f5d5ea989291a37a5710be4f3922cfe9ca5608d4"
     },
     {
       "path": "manager/coordinated_coordinator.js",
@@ -144,7 +144,7 @@
     },
     {
       "path": "manager/public/app.js",
-      "sha256": "bc9f820ab96271393dcf7a59b59209d254643f61ed38b25607b75f62adb98368"
+      "sha256": "4918d5327f3b77b9444cc1d3533c0e16683a093c9196dedc0ea78d64cfa29ff6"
     },
     {
       "path": "manager/public/assets/updates/ui_v212_bag_rightclick.jpg",
@@ -184,7 +184,7 @@
     },
     {
       "path": "manager/public/config_copy.js",
-      "sha256": "6c9c27c6bd2f4dc1f6c5ed5f55174bc449e9790bf1513764ffe044abe9f9014c"
+      "sha256": "dff6d4f4ffda95cbd1f48d8122d917a752859e2b523602a6be7ebc52ca66c8b1"
     },
     {
       "path": "manager/public/device_manager.css",
@@ -228,7 +228,7 @@
     },
     {
       "path": "manager/public/index.html",
-      "sha256": "5172470ae289ffbe5c136fbb0457e7297ac88179aaf5dd4df6799ca705c04e3b"
+      "sha256": "5089372f96b5a63037d515e32ab94b74d1685e31333e6153feee04f51ce7fa71"
     },
     {
       "path": "manager/public/inventory_market.css",
@@ -308,7 +308,7 @@
     },
     {
       "path": "manager/public/update_log.js",
-      "sha256": "bfe048dec0e2f735a4f258247eb7660054f21fb4d4b3604cb6d675f07db59c40"
+      "sha256": "e8bf4cc1e8074f6160d96164628d65df349da786930dbc8219bf00d346d82f65"
     },
     {
       "path": "manager/public/wiki/calc.js",
@@ -352,7 +352,7 @@
     },
     {
       "path": "manager/server.js",
-      "sha256": "95eae057e528db0a74fc3c22feb6731bdeed7a2955794a835c56cfe68355d354"
+      "sha256": "c8da6cb279169ad94c2d8b7157bc6961448dba2b8fa462d37da59b506d2155f5"
     },
     {
       "path": "manager/test_isolation.js",

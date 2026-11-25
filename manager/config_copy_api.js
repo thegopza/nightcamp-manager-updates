@@ -9,27 +9,32 @@
 // Persist with the keys bot.js actually loads from — older bot builds saved two of them under the
 // wrong names, which made copied market settings disappear after the next page reload.
 const IMPORT_JS = config => `(() => {
-  if (typeof window.importAllBotSettings !== 'function') return { success: false, error: 'บอทในจอนี้ยังไม่พร้อม (importAllBotSettings ไม่มี)' };
-  const before = window.__authConfig ? { username: window.__authConfig.username, password: window.__authConfig.password, charName: window.__authConfig.charName, serverName: window.__authConfig.serverName } : null;
+  if (typeof window.importAllBotSettings !== 'function') return { success: false, error: 'บอทในจอนี้ยังไม่พร้อม (กรุณาอัปเดตสคริปต์บอทเป็นเวอร์ชันล่าสุดก่อน)' };
+  const before = window.__authConfig ? {
+    username: window.__authConfig.username,
+    password: window.__authConfig.password,
+    charName: window.__authConfig.charName,
+    serverName: window.__authConfig.serverName,
+    generatedUser: window.__authConfig.generatedUser,
+    register: window.__authConfig.register,
+    registerDone: window.__authConfig.registerDone,
+    userEditedAt: window.__authConfig.userEditedAt,
+    serverEditedAt: window.__authConfig.serverEditedAt
+  } : null;
   const r = window.importAllBotSettings(${JSON.stringify(config)});
   if (before && window.__authConfig) {
-    window.__authConfig.username = before.username;
-    window.__authConfig.password = before.password;
-    window.__authConfig.charName = before.charName;
-    if (before.serverName !== undefined) window.__authConfig.serverName = before.serverName;
+    for (const [k, v] of Object.entries(before)) {
+      if (v !== undefined) window.__authConfig[k] = v;
+    }
     try { localStorage.setItem('pelican_auth_cfg', JSON.stringify(window.__authConfig)); } catch (e) {}
   }
   try {
+    if (window.__sellConfig) localStorage.setItem('pelican_nc_sell_cfg', JSON.stringify(window.__sellConfig));
+    if (window.__cmarketAutoSellConfig) localStorage.setItem('pelican_nc_cmarket_autosell', JSON.stringify(window.__cmarketAutoSellConfig));
+    if (window.__potionConfig) localStorage.setItem('pelican_potion_cfg', JSON.stringify(window.__potionConfig));
+    if (window.__ncPerfConfig) localStorage.setItem('pelican_nc_perf_cfg', JSON.stringify(window.__ncPerfConfig));
     if (window.__autoMarketSellConfig) localStorage.setItem('pelican_auto_market_sell_cfg', JSON.stringify(window.__autoMarketSellConfig));
     if (window.__marketFilterConfig) localStorage.setItem('pelican_market_filter_cfg', JSON.stringify(window.__marketFilterConfig));
-    if (window.__planScriptEnabled && window.__currentScriptPlan && typeof window.planMapForNow === 'function') {
-      localStorage.removeItem('pelican_plan_manual_map');
-      const planMap = window.planMapForNow();
-      if (planMap && !/เมืองหลวง|โซลเฮเวน|ตลาดคาราวาน/.test(window.__targetFarmMap || '')) {
-        if (typeof window.setTargetFarmMap === 'function') window.setTargetFarmMap(planMap, Boolean(window.__isBotRunning));
-        else window.__targetFarmMap = planMap;
-      }
-    }
   } catch (e) {}
   return Object.assign({}, r || { success: true }, { effectiveTargetMap: window.__targetFarmMap || null });
 })()`;
@@ -71,6 +76,13 @@ async function handleConfigCopyRoute(req, res, pathname, ctx) {
     delete config.authConfig.password;
     delete config.authConfig.charName;
     delete config.authConfig.serverName;
+    delete config.authConfig.generatedUser;
+    delete config.authConfig.register;
+    delete config.authConfig.registerDone;
+    delete config.authConfig.registerError;
+    delete config.authConfig.userEditedAt;
+    delete config.authConfig.serverEditedAt;
+    delete config.authConfig.verifiedLoginAt;
   }
 
   const results = [];
@@ -82,13 +94,18 @@ async function handleConfigCopyRoute(req, res, pathname, ctx) {
     const ok = Boolean(r && r.success && r.result && r.result.success !== false);
     results.push({ id, name: target.name, success: ok, error: ok ? null : (r && r.result && r.result.error) || (r && r.error) || 'จอนี้ออฟไลน์หรือไม่ตอบสนอง' });
     if (ok) {
-      // Keep the Manager's own record in step (card map label, whitelist fallback)
+      // Keep the Manager's own record in step (card map label, whitelist, forceSellList, cmarket rules)
       const effMap = r && r.result && r.result.effectiveTargetMap;
-      if (effMap && !/เมืองหลวง|โซลเฮเวน|ตลาดคาราวาน/.test(effMap)) target.targetMap = effMap;
-      else if (config.targetMap) target.targetMap = config.targetMap;
-      if (config.sellConfig && typeof config.sellConfig.whitelist === 'string') {
-        target.whitelist = config.sellConfig.whitelist;
-        target.sellConfig = Object.assign({}, target.sellConfig || {}, { whitelist: config.sellConfig.whitelist });
+      if (effMap && effMap !== 'auto') target.targetMap = effMap;
+      else if (config.targetFarmMap && config.targetFarmMap !== 'auto') target.targetMap = config.targetFarmMap;
+      else if (config.targetMap && config.targetMap !== 'auto') target.targetMap = config.targetMap;
+      if (config.sellConfig && typeof config.sellConfig === 'object') {
+        target.sellConfig = Object.assign({}, target.sellConfig || {}, config.sellConfig);
+        if (typeof config.sellConfig.whitelist === 'string') target.whitelist = config.sellConfig.whitelist;
+        if (typeof config.sellConfig.forceSellList === 'string') target.forceSellList = config.sellConfig.forceSellList;
+      }
+      if (config.cmarketAutoSellConfig && typeof config.cmarketAutoSellConfig === 'object') {
+        target.cmarketAutoSellConfig = JSON.parse(JSON.stringify(config.cmarketAutoSellConfig));
       }
     }
   }

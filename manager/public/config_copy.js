@@ -55,26 +55,33 @@
     const others = profiles.filter(p => p.id !== sourceId);
     const sourceName = source ? (source.liveState?.charName ? `${source.name} (${source.liveState.charName})` : source.name) : sourceId;
 
+    const sourceSrv = typeof resolveProfileServerInfo === 'function' ? resolveProfileServerInfo(source) : null;
+    const sourceOnline = Boolean(source && source.isRunning);
     const el = document.createElement('div');
     el.id = 'cc-overlay';
     el.className = 'cc-overlay';
     el.innerHTML = `
       <div class="cc-card" role="dialog" aria-modal="true">
         <div class="cc-head"><b>📋 คัดลอกการตั้งค่าบอทไปจออื่น</b><button type="button" class="cc-x" data-cc="close">✕</button></div>
-        <div class="cc-src">จาก: <b>${esc(sourceName)}</b></div>
+        <div class="cc-src">จาก: <b>${esc(sourceName)}</b>${sourceSrv && sourceSrv.key !== 'auto' ? ` <span style="font-size:10.5px; color:#fde68a;">(${esc(sourceSrv.icon)} ${esc(sourceSrv.label)})</span>` : ''}${!sourceOnline ? ` <span style="font-size:10.5px; color:#fca5a5;">(⚪ ออฟไลน์ — เปิดจอต้นทางก่อนคัดลอก)</span>` : ''}</div>
         <div class="cc-info">
-          คัดลอกทุกอย่าง: แมพฟาร์ม, ลูป 24 ชม., ธนู/ลูกธนู/B.Wing, ยาบัพ, ขายของ NPC + รายการบังคับขาย NPC + Whitelist + ตัวกรองออฟ, Auto Sell ตลาด, Sniper, Auto-Shop, Auto-Login (เปิด/ปิด, เริ่มบอทต่อ)<br>
-          <span class="no">ไม่คัดลอก: ID, รหัสผ่าน และชื่อตัวละคร (จอปลายทางใช้ของเดิม)</span>
+          คัดลอกทุกอย่าง: Smart Auto-Quest, Upgrade BOT AI (ใช้ตั๋ว Premium / รับ Event), Auto-Respawn, Smart Gear, ซ่อมของ, แมพฟาร์ม, Plan Script, ตั้งค่ายา, ขายของ NPC + <b>Whitelist (ห้ามขาย)</b> + <b>บังคับขาย NPC</b> + ฝากคลัง, <b>รายการขายตลาดกลาง (List ตลาดกลาง)</b>, กราฟิก/ประหยัดไฟ, Auto-Login (เปิด/ปิด, เริ่มบอทต่อ)<br>
+          <span class="no">🔒 ไม่คัดลอก: User ID, รหัสผ่าน, ชื่อตัวละคร และเซิร์ฟเวอร์ (จอปลายทางคงของเดิม 100%)</span>
         </div>
         <div class="cc-tools">
           <span>เลือกจอปลายทาง</span>
-          <span><button type="button" data-cc="all">เลือกทุกจอที่ออนไลน์</button><button type="button" data-cc="none">ล้าง</button></span>
+          <span>
+            <button type="button" data-cc="all">ทุกจอออนไลน์</button>
+            ${sourceSrv && sourceSrv.key !== 'auto' ? `<button type="button" data-cc="same-server">เฉพาะเซิร์ฟเดียวกัน</button>` : ''}
+            <button type="button" data-cc="none">ล้าง</button>
+          </span>
         </div>
         <div class="cc-list">
           ${others.length ? others.map(p => {
             const on = Boolean(p.isRunning);
-            const sub = [p.liveState?.charName, p.account].filter(Boolean).join(' · ');
-            return `<label class="cc-item ${on ? '' : 'off'}" data-id="${esc(p.id)}">
+            const srv = typeof resolveProfileServerInfo === 'function' ? resolveProfileServerInfo(p) : null;
+            const sub = [p.liveState?.charName || p.lastCharName, srv && srv.key !== 'auto' ? `${srv.icon} ${srv.label}` : '', p.account].filter(Boolean).join(' · ');
+            return `<label class="cc-item ${on ? '' : 'off'}" data-id="${esc(p.id)}" data-server-key="${esc(srv ? srv.key : 'auto')}">
               <input type="checkbox" value="${esc(p.id)}" ${on ? '' : 'disabled'}>
               <span class="nm">${esc(p.name)}${sub ? `<small>${esc(sub)}</small>` : ''}</span>
               <span class="st ${on ? 'on' : ''}">${on ? 'ออนไลน์' : 'ออฟไลน์'}</span>
@@ -104,6 +111,14 @@
       const act = b.dataset.cc;
       if (act === 'close') return close();
       if (act === 'all') { boxes().forEach(x => { x.checked = true; }); return refresh(); }
+      if (act === 'same-server') {
+        const wantKey = sourceSrv ? sourceSrv.key : '';
+        boxes().forEach(x => {
+          const itemEl = x.closest('.cc-item');
+          x.checked = Boolean(wantKey && itemEl && itemEl.dataset.serverKey === wantKey);
+        });
+        return refresh();
+      }
       if (act === 'none') { boxes().forEach(x => { x.checked = false; }); return refresh(); }
       if (act === 'go') {
         const targets = boxes().filter(x => x.checked).map(x => x.value);
@@ -134,6 +149,7 @@
         });
         goBtn.textContent = `เสร็จ ${r.copied}/${r.total} จอ`;
         el.querySelector('.cc-foot .ghost').textContent = 'ปิด';
+        if (typeof fetchProfiles === 'function') fetchProfiles();
       }
     });
   };

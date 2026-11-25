@@ -160,84 +160,33 @@ function loadPresets() {
   if (fs.existsSync(PRESETS_FILE)) {
     try {
       const parsed = JSON.parse(fs.readFileSync(PRESETS_FILE, "utf8"));
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        lastValidPresetsCache = parsed;
-        if (!fs.existsSync(PRESETS_BACKUP_FILE)) {
-          try { writeJsonAtomic(PRESETS_BACKUP_FILE, parsed); } catch (_) {}
+      if (Array.isArray(parsed)) {
+        // Filter out legacy Aetheria starter mock preset if untouched
+        const cleaned = parsed.filter(p => !(p && p.id === "preset_archer_ruins" && p.config && p.config.archerConfig && p.config.archerConfig.arrowType === 90030));
+        if (cleaned.length !== parsed.length) {
+          try { writeJsonAtomic(PRESETS_FILE, cleaned); } catch (_) {}
         }
-        return parsed;
+        lastValidPresetsCache = cleaned;
+        if (!fs.existsSync(PRESETS_BACKUP_FILE) && cleaned.length > 0) {
+          try { writeJsonAtomic(PRESETS_BACKUP_FILE, cleaned); } catch (_) {}
+        }
+        return cleaned;
       }
     } catch (e) {}
   }
   if (fs.existsSync(PRESETS_BACKUP_FILE)) {
     try {
       const backup = JSON.parse(fs.readFileSync(PRESETS_BACKUP_FILE, "utf8"));
-      if (Array.isArray(backup) && backup.length > 0) {
-        lastValidPresetsCache = backup;
-        try { writeJsonAtomic(PRESETS_FILE, backup); } catch (_) {}
-        return backup;
+      if (Array.isArray(backup)) {
+        const cleaned = backup.filter(p => !(p && p.id === "preset_archer_ruins" && p.config && p.config.archerConfig && p.config.archerConfig.arrowType === 90030));
+        lastValidPresetsCache = cleaned;
+        try { writeJsonAtomic(PRESETS_FILE, cleaned); } catch (_) {}
+        return cleaned;
       }
     } catch (_) {}
   }
-  if (lastValidPresetsCache && lastValidPresetsCache.length > 0) {
+  if (Array.isArray(lastValidPresetsCache)) {
     return lastValidPresetsCache;
-  }
-  if (!fs.existsSync(PRESETS_FILE)) {
-    const defaultPresets = [
-      {
-        id: "preset_archer_ruins",
-        name: "Archer ฟาร์มซากโบราณสถาน (ลูป 24 ชม.)",
-        description: "ลูกธนู 200 ดอก, ขยะขายหมด, ล็อคของตีบวกและออฟชั่น, ลูป 24 ชม.",
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-        config: {
-          targetMap: "ซากโบราณสถาน Lv.45–55",
-          autoLoop: true,
-          sellConfig: {
-            enabled: true,
-            weightCheckEnabled: true,
-            weightThreshold: 80,
-            sellMaterials: true,
-            weaponRarity: "normal",
-            armorRarity: "normal",
-            accRarity: "none",
-            sellWeapons: true,
-            sellArmors: true,
-            keepRefined: true,
-            keepSpecial: true,
-            keepSockets: true,
-            whitelist: "Phracon, Rough Elunium, Enchant Rune, Composite Bow, Crossbow, Gakkung, Hunter Bow"
-          },
-          archerConfig: {
-            requireArrow: false,
-            smartArrow: false,
-            arrowType: 90030,
-            arrowBuyQty: 200,
-            useBwing: true,
-            bwingBuyQty: 5,
-            bwingItemId: 90311,
-            ammoThreshold: 50,
-            autoEquipArrow: false,
-            arrowHotbarSlot: -1
-          },
-          shopConfig: {
-            enabled: true,
-            npcKey: "n2"
-          },
-          autoMarketSellConfig: {
-            enabled: false,
-            rules: []
-          },
-          authConfig: {
-            enabled: true,
-            autoResumeBot: true,
-            charName: ""
-          }
-        }
-      }
-    ];
-    writeJsonAtomic(PRESETS_FILE, defaultPresets);
-    return defaultPresets;
   }
   return [];
 }
@@ -245,9 +194,30 @@ function savePresets(presets) {
   if (!Array.isArray(presets)) return;
   lastValidPresetsCache = presets;
   writeJsonAtomic(PRESETS_FILE, presets);
-  if (presets.length > 0) {
-    try { writeJsonAtomic(PRESETS_BACKUP_FILE, presets); } catch (_) {}
+  try { writeJsonAtomic(PRESETS_BACKUP_FILE, presets); } catch (_) {}
+}
+
+function sanitizePresetBotConfig(rawCfg) {
+  let safeCfg = {};
+  try {
+    safeCfg = JSON.parse(JSON.stringify(rawCfg && typeof rawCfg === "object" ? rawCfg : {}));
+  } catch (_) {
+    safeCfg = Object.assign({}, rawCfg && typeof rawCfg === "object" ? rawCfg : {});
   }
+  // Strictly strip all account/character/server identity so a Preset NEVER overwrites another profile's login, character, or server!
+  if (safeCfg.authConfig && typeof safeCfg.authConfig === "object") {
+    safeCfg.authConfig = {
+      enabled: safeCfg.authConfig.enabled !== false,
+      autoResumeBot: safeCfg.authConfig.autoResumeBot !== false
+    };
+  }
+  delete safeCfg.username;
+  delete safeCfg.password;
+  delete safeCfg.account;
+  delete safeCfg.loginPassword;
+  delete safeCfg.charName;
+  delete safeCfg.serverName;
+  return safeCfg;
 }
 
 
@@ -11835,23 +11805,43 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-    // GET /api/profiles/:id/whitelist (Fetch live from game client or fallback to saved profile)
+  // GET /api/profiles/:id/whitelist (Fetch live Whitelist, Force-Sell NPC & Central Market Auto-Sell list from game client or saved profile)
   if (req.method === "GET" && pathname.match(/^\/api\/profiles\/[^/]+\/whitelist$/)) {
     const id = pathname.split("/")[3];
     const profiles = loadProfiles();
     const profile = profiles.find(p => p.id === id);
     if (!profile) return sendJSON({ success: false, error: "Profile not found" }, 404);
 
-    const defaultWL = "Phracon, Rough Elunium, Enchant Rune, Composite Bow, Crossbow, Gakkung, Hunter Bow";
-    const profileWL = profile.whitelist || (profile.sellConfig && profile.sellConfig.whitelist) || defaultWL;
-    const profileFS = (profile.sellConfig && typeof profile.sellConfig.forceSellList === "string") ? profile.sellConfig.forceSellList : (profile.forceSellList || "");
+    const profileWL = (profile.sellConfig && typeof profile.sellConfig.whitelist === "string")
+      ? profile.sellConfig.whitelist
+      : (typeof profile.whitelist === "string" ? profile.whitelist : "");
+    const profileFS = (profile.sellConfig && typeof profile.sellConfig.forceSellList === "string")
+      ? profile.sellConfig.forceSellList
+      : (typeof profile.forceSellList === "string" ? profile.forceSellList : "");
+    const profileCMRules = Array.isArray(profile.cmarketAutoSellConfig?.rules)
+      ? profile.cmarketAutoSellConfig.rules
+      : [];
+
+    const replyPayload = (wl, fsList, cmRules, online) => sendJSON({
+      success: true,
+      profileId: id,
+      profileName: profile.name,
+      whitelist: wl,
+      items: wl.split(",").map(s => s.trim()).filter(Boolean),
+      forceSellList: fsList,
+      forceSellItems: fsList.split(",").map(s => s.trim()).filter(Boolean),
+      cmarketRules: Array.isArray(cmRules) ? cmRules : [],
+      isOnline: online
+    });
 
     if (profile.debugPort) {
       const evalCode = `(() => {
         const sc = window.__sellConfig || {};
+        const cm = window.__cmarketAutoSellConfig || {};
         return {
           whitelist: sc.whitelist !== undefined ? sc.whitelist : null,
-          forceSellList: sc.forceSellList !== undefined ? sc.forceSellList : null
+          forceSellList: sc.forceSellList !== undefined ? sc.forceSellList : null,
+          cmarketRules: Array.isArray(cm.rules) ? cm.rules : null
         };
       })()`;
       const evalUrl = `http://127.0.0.1:${profile.debugPort}/api/eval?code=` + encodeURIComponent(evalCode);
@@ -11859,17 +11849,8 @@ const server = http.createServer(async (req, res) => {
       const reqTimer = setTimeout(() => {
         if (responded) return;
         responded = true;
-        sendJSON({
-          success: true,
-          profileId: id,
-          profileName: profile.name,
-          whitelist: profileWL,
-          items: profileWL.split(",").map(s => s.trim()).filter(Boolean),
-          forceSellList: profileFS,
-          forceSellItems: profileFS.split(",").map(s => s.trim()).filter(Boolean),
-          isOnline: false
-        });
-      }, 700);
+        replyPayload(profileWL, profileFS, profileCMRules, false);
+      }, 1200);
 
       http.get(evalUrl, (cRes) => {
         let d = "";
@@ -11888,157 +11869,134 @@ const server = http.createServer(async (req, res) => {
             const liveFS = resObj && resObj.forceSellList !== null && resObj.forceSellList !== undefined
               ? String(resObj.forceSellList)
               : profileFS;
+            const liveCM = resObj && Array.isArray(resObj.cmarketRules)
+              ? resObj.cmarketRules
+              : profileCMRules;
             profile.whitelist = liveWL;
+            profile.forceSellList = liveFS;
             if (!profile.sellConfig) profile.sellConfig = {};
             profile.sellConfig.whitelist = liveWL;
             profile.sellConfig.forceSellList = liveFS;
+            profile.cmarketAutoSellConfig = Object.assign({}, profile.cmarketAutoSellConfig || {}, { rules: liveCM });
             saveProfiles(profiles);
-            sendJSON({
-              success: true,
-              profileId: id,
-              profileName: profile.name,
-              whitelist: liveWL,
-              items: liveWL.split(",").map(s => s.trim()).filter(Boolean),
-              forceSellList: liveFS,
-              forceSellItems: liveFS.split(",").map(s => s.trim()).filter(Boolean),
-              isOnline: true
-            });
+            replyPayload(liveWL, liveFS, liveCM, true);
           } catch(e) {
-            sendJSON({
-              success: true,
-              profileId: id,
-              profileName: profile.name,
-              whitelist: profileWL,
-              items: profileWL.split(",").map(s => s.trim()).filter(Boolean),
-              forceSellList: profileFS,
-              forceSellItems: profileFS.split(",").map(s => s.trim()).filter(Boolean),
-              isOnline: false
-            });
+            replyPayload(profileWL, profileFS, profileCMRules, false);
           }
         });
       }).on("error", () => {
         if (responded) return;
         responded = true;
         clearTimeout(reqTimer);
-        sendJSON({
-          success: true,
-          profileId: id,
-          profileName: profile.name,
-          whitelist: profileWL,
-          items: profileWL.split(",").map(s => s.trim()).filter(Boolean),
-          forceSellList: profileFS,
-          forceSellItems: profileFS.split(",").map(s => s.trim()).filter(Boolean),
-          isOnline: false
-        });
+        replyPayload(profileWL, profileFS, profileCMRules, false);
       });
       return;
     }
 
-    return sendJSON({
-      success: true,
-      profileId: id,
-      profileName: profile.name,
-      whitelist: profileWL,
-      items: profileWL.split(",").map(s => s.trim()).filter(Boolean),
-      forceSellList: profileFS,
-      forceSellItems: profileFS.split(",").map(s => s.trim()).filter(Boolean),
-      isOnline: false
-    });
+    return replyPayload(profileWL, profileFS, profileCMRules, false);
   }
 
-  // PUT /api/profiles/:id/whitelist (Update whitelist / forceSellList & sync live to clients)
+  // PUT /api/profiles/:id/whitelist (Update whitelist / forceSellList / cmarketRules & sync live to clients)
   if (req.method === "PUT" && pathname.match(/^\/api\/profiles\/[^/]+\/whitelist$/)) {
     const id = pathname.split("/")[3];
     let body = "";
     req.on("data", chunk => body += chunk);
-    req.on("end", () => {
+    req.on("end", async () => {
       try {
         const payload = JSON.parse(body);
         const profiles = loadProfiles();
         const profile = profiles.find(p => p.id === id);
         if (!profile) return sendJSON({ success: false, error: "Profile not found" }, 404);
 
-        const updateWL = payload.whitelist !== undefined && (payload.mode !== "forceSell");
-        const updateFS = payload.forceSellList !== undefined && (payload.mode !== "whitelist");
+        const mode = String(payload.mode || "both");
+        const updateWL = payload.whitelist !== undefined && (mode === "both" || mode === "all" || mode === "whitelist");
+        const updateFS = payload.forceSellList !== undefined && (mode === "both" || mode === "all" || mode === "forceSell");
+        const updateCM = Array.isArray(payload.cmarketRules) && (mode === "all" || mode === "cmarket");
 
         const newWhitelist = updateWL ? String(payload.whitelist || "") : (profile.whitelist || (profile.sellConfig && profile.sellConfig.whitelist) || "");
         const newForceSellList = updateFS ? String(payload.forceSellList || "") : ((profile.sellConfig && profile.sellConfig.forceSellList) || profile.forceSellList || "");
+        const newCMRules = updateCM ? payload.cmarketRules : (Array.isArray(profile.cmarketAutoSellConfig?.rules) ? profile.cmarketAutoSellConfig.rules : []);
 
-        if (!profile.sellConfig) profile.sellConfig = {};
-        if (updateWL) {
-          profile.whitelist = newWhitelist;
-          profile.sellConfig.whitelist = newWhitelist;
-        }
-        if (updateFS) {
-          profile.forceSellList = newForceSellList;
-          profile.sellConfig.forceSellList = newForceSellList;
-        }
-
-        const syncToLiveClient = (p, syncWL, syncFS) => {
-          if (!p.debugPort) return;
-          const code = `(() => {
-            if (!window.__sellConfig || typeof window.__sellConfig.weaponRarity !== 'string') {
-              try {
-                const s = JSON.parse(localStorage.getItem("pelican_sell_cfg") || localStorage.getItem("pelican_sell_cfg_backup") || "{}") || {};
-                window.__sellConfig = Object.assign({}, s, window.__sellConfig || {});
-              } catch (_) {
-                if (!window.__sellConfig) window.__sellConfig = {};
-              }
-            }
-            if (${Boolean(syncWL)}) {
-              window.__sellConfig.whitelist = ${JSON.stringify(newWhitelist)};
-              const wlEl = document.getElementById("p-sell-whitelist");
-              if (wlEl) wlEl.value = ${JSON.stringify(newWhitelist)};
-            }
-            if (${Boolean(syncFS)}) {
-              window.__sellConfig.forceSellList = ${JSON.stringify(newForceSellList)};
-              const fsEl = document.getElementById("p-sell-force-list");
-              if (fsEl) fsEl.value = ${JSON.stringify(newForceSellList)};
-            }
-            window.__sellConfig.__userSavedAt = Date.now();
-            try {
-              const raw = JSON.stringify(window.__sellConfig);
-              localStorage.setItem("pelican_sell_cfg", raw);
-              if (typeof window.__sellConfig.weaponRarity === "string") {
-                localStorage.setItem("pelican_sell_cfg_backup", raw);
-              }
-            } catch(e){}
-            return { success: true };
-          })()`;
-          evalProfilePort(p.debugPort, code, 5000);
+        const applyRecordToProfile = (p) => {
+          if (!p.sellConfig) p.sellConfig = {};
+          if (updateWL) {
+            p.whitelist = newWhitelist;
+            p.sellConfig.whitelist = newWhitelist;
+          }
+          if (updateFS) {
+            p.forceSellList = newForceSellList;
+            p.sellConfig.forceSellList = newForceSellList;
+          }
+          if (updateCM) {
+            p.cmarketAutoSellConfig = Object.assign({}, p.cmarketAutoSellConfig || {}, { rules: JSON.parse(JSON.stringify(newCMRules)) });
+          }
         };
 
-        // Sync live to current profile's game client
-        syncToLiveClient(profile, updateWL, updateFS);
+        applyRecordToProfile(profile);
+
+        const syncToLiveClient = async (p, syncWL, syncFS, syncCM) => {
+          if (!p.debugPort) return;
+          const sellPatch = {};
+          if (syncWL) sellPatch.whitelist = newWhitelist;
+          if (syncFS) sellPatch.forceSellList = newForceSellList;
+          const code = `(() => {
+            try {
+              if (${Boolean(syncWL || syncFS)}) {
+                const sp = ${JSON.stringify(sellPatch)};
+                if (typeof window.__setSellConfig === 'function') {
+                  window.__setSellConfig(sp);
+                } else {
+                  if (!window.__sellConfig) window.__sellConfig = {};
+                  Object.assign(window.__sellConfig, sp);
+                  try { localStorage.setItem('pelican_nc_sell_cfg', JSON.stringify(window.__sellConfig)); } catch (_) {}
+                }
+                const wlEl = document.getElementById('p-sell-whitelist');
+                if (wlEl && sp.whitelist !== undefined) wlEl.value = sp.whitelist;
+                const fsEl = document.getElementById('p-sell-forcesell') || document.getElementById('p-sell-force-list');
+                if (fsEl && sp.forceSellList !== undefined) fsEl.value = sp.forceSellList;
+              }
+              if (${Boolean(syncCM)}) {
+                const rules = ${JSON.stringify(newCMRules)};
+                if (typeof window.__setCMarketAutoSellConfig === 'function') {
+                  window.__setCMarketAutoSellConfig({ rules }, false);
+                } else {
+                  if (!window.__cmarketAutoSellConfig) window.__cmarketAutoSellConfig = { enabled: false, rules: [] };
+                  window.__cmarketAutoSellConfig.rules = rules;
+                  try { localStorage.setItem('pelican_nc_cmarket_autosell', JSON.stringify(window.__cmarketAutoSellConfig)); } catch (_) {}
+                }
+              }
+              if (typeof window.syncAllHudInputsFromConfig === 'function') window.syncAllHudInputsFromConfig();
+            } catch (_) {}
+            return { success: true };
+          })()`;
+          await evalProfilePort(p.debugPort, code, 5000).catch(() => {});
+        };
+
+        await syncToLiveClient(profile, updateWL, updateFS, updateCM);
 
         let copiedTargetsCount = 0;
         if (Array.isArray(payload.targets) && payload.targets.length > 0) {
-          payload.targets.forEach(targetId => {
+          for (const targetId of payload.targets) {
             const targetProfile = profiles.find(p => p.id === targetId);
             if (targetProfile) {
-              if (!targetProfile.sellConfig) targetProfile.sellConfig = {};
-              if (updateWL) {
-                targetProfile.whitelist = newWhitelist;
-                targetProfile.sellConfig.whitelist = newWhitelist;
-              }
-              if (updateFS) {
-                targetProfile.forceSellList = newForceSellList;
-                targetProfile.sellConfig.forceSellList = newForceSellList;
-              }
-              syncToLiveClient(targetProfile, updateWL, updateFS);
+              applyRecordToProfile(targetProfile);
+              await syncToLiveClient(targetProfile, updateWL, updateFS, updateCM);
               if (targetProfile.id !== profile.id) copiedTargetsCount++;
             }
-          });
+          }
         }
 
         saveProfiles(profiles);
-        const listLabel = (updateFS && !updateWL) ? "รายการบังคับขาย NPC" : (updateWL && !updateFS ? "Whitelist" : "Whitelist + รายการขาย NPC");
+        const listLabel = mode === "cmarket"
+          ? "List ตลาดกลาง (Auto-Sell)"
+          : (updateFS && !updateWL ? "รายการบังคับขาย NPC" : (updateWL && !updateFS ? "Whitelist (ห้ามขาย)" : "Whitelist + บังคับขาย NPC + List ตลาดกลาง"));
         sendJSON({
           success: true,
           whitelist: newWhitelist,
           items: newWhitelist.split(",").map(s => s.trim()).filter(Boolean),
           forceSellList: newForceSellList,
           forceSellItems: newForceSellList.split(",").map(s => s.trim()).filter(Boolean),
+          cmarketRules: newCMRules,
           copiedTargetsCount,
           message: copiedTargetsCount > 0
             ? `คัดลอก ${listLabel} ไปยัง ${copiedTargetsCount} จอเรียบร้อยแล้ว!`
@@ -14240,7 +14198,7 @@ public class PmFocus {
     const presets = loadPresets();
     res.writeHead(200, {
       "Content-Type": "application/json; charset=utf-8",
-      "Content-Disposition": 'attachment; filename="aetheria_profiles_presets.json"'
+      "Content-Disposition": 'attachment; filename="nightcamp_profiles_presets.json"'
     });
     return res.end(JSON.stringify(presets, null, 2));
   }
@@ -14256,15 +14214,7 @@ public class PmFocus {
         const id = data.id || ("preset_" + Date.now());
         const existingIdx = presets.findIndex(p => p.id === id);
 
-        // Sanitize auth config (strictly exclude username & password)
-        const safeCfg = Object.assign({}, data.config || {});
-        if (safeCfg.authConfig) {
-          safeCfg.authConfig = {
-            enabled: !!safeCfg.authConfig.enabled,
-            autoResumeBot: safeCfg.authConfig.autoResumeBot !== false,
-            charName: safeCfg.authConfig.charName || ''
-          };
-        }
+        const safeCfg = sanitizePresetBotConfig(data.config || {});
 
         const presetItem = {
           id: id,
@@ -14304,7 +14254,7 @@ public class PmFocus {
           itemsToImport = payload.presets;
         } else if (payload.config) {
           itemsToImport = [payload];
-        } else if (payload.sellConfig || payload.archerConfig) {
+        } else if (payload.format === "nightcamp-bot-config-v1" || payload.sellConfig || payload.cmarketAutoSellConfig || payload.potionConfig || payload.archerConfig) {
           // Direct exported config object
           itemsToImport = [{
             name: payload.name || "โปรไฟล์นำเข้าส่วนกลาง",
@@ -14322,15 +14272,7 @@ public class PmFocus {
 
         itemsToImport.forEach(item => {
           const cfg = item.config || item;
-          // Sanitize
-          const safeCfg = Object.assign({}, cfg);
-          if (safeCfg.authConfig) {
-            safeCfg.authConfig = {
-              enabled: !!safeCfg.authConfig.enabled,
-              autoResumeBot: safeCfg.authConfig.autoResumeBot !== false,
-              charName: safeCfg.authConfig.charName || ''
-            };
-          }
+          const safeCfg = sanitizePresetBotConfig(cfg);
 
           const newPreset = {
             id: "preset_" + Date.now() + "_" + Math.floor(Math.random() * 1000),
@@ -14362,7 +14304,7 @@ public class PmFocus {
     return sendJSON({ success: true });
   }
 
-  // POST /api/presets/:id/apply (Copy to specified profiles)
+  // POST /api/presets/:id/apply (Copy to specified profiles — strictly preserving ID/Password/CharName/ServerName!)
   if (req.method === "POST" && pathname.match(/^\/api\/presets\/[^/]+\/apply$/)) {
     const id = pathname.split("/")[3];
     let body = "";
@@ -14378,56 +14320,63 @@ public class PmFocus {
         const profiles = loadProfiles();
         const appliedProfiles = [];
         const failedProfiles = [];
-        const presetConfig = JSON.parse(JSON.stringify(preset.config || {}));
-        if (presetConfig.authConfig) {
-          delete presetConfig.authConfig.username;
-          delete presetConfig.authConfig.password;
-          delete presetConfig.authConfig.charName;
-        }
+        const presetConfig = sanitizePresetBotConfig(preset.config || {});
 
         for (const pId of targetIds) {
           const profile = profiles.find(p => p.id === pId);
           if (!profile) continue;
 
-          // 1. Update targetMap in profile
-          if (preset.config?.targetMap) {
-            profile.targetMap = preset.config.targetMap;
+          // Update offline-persisted targetMap/whitelist/forceSell/cmarket records in Manager profile (NEVER touch account/password/charName/serverName!)
+          const nextMap = presetConfig.targetFarmMap || presetConfig.targetMap;
+          if (nextMap && nextMap !== "auto") {
+            profile.targetMap = nextMap;
           }
-          // 2. Send importAllBotSettings to the running game (POST: the config is too long for a URL)
+          if (presetConfig.sellConfig && typeof presetConfig.sellConfig === "object") {
+            profile.sellConfig = Object.assign({}, profile.sellConfig || {}, presetConfig.sellConfig);
+            if (typeof presetConfig.sellConfig.whitelist === "string") profile.whitelist = presetConfig.sellConfig.whitelist;
+            if (typeof presetConfig.sellConfig.forceSellList === "string") profile.forceSellList = presetConfig.sellConfig.forceSellList;
+          }
+          if (presetConfig.cmarketAutoSellConfig && typeof presetConfig.cmarketAutoSellConfig === "object") {
+            profile.cmarketAutoSellConfig = JSON.parse(JSON.stringify(presetConfig.cmarketAutoSellConfig));
+          }
+
+          // Send importAllBotSettings to the running game (POST: the config is too long for a URL)
           if (profile.debugPort) {
             const codeToRun = `(() => {
               if (typeof window.importAllBotSettings === 'function') {
-                try {
-                  if (typeof window.freeBotLocalStorageSpace === 'function') window.freeBotLocalStorageSpace(true);
-                  const s = Object.getPrototypeOf(window.localStorage);
-                  const len = window.localStorage.length;
-                  const drop = [];
-                  for (let i = 0; i < len; i++) {
-                    const k = s.key.call(window.localStorage, i);
-                    if (k && (k.startsWith('webgame.chat.') || k === 'pelican_item_catalog' || k === 'pelican_latest_inventory' || k === 'pelican_icon_manifest' || /__(?:icon_manifest|item_catalog|latest_inventory|packet_logs|last_weight)$/.test(k))) drop.push(k);
-                  }
-                  drop.forEach(k => s.removeItem.call(window.localStorage, k));
-                } catch (e) {}
+                const beforeAuth = window.__authConfig ? {
+                  username: window.__authConfig.username,
+                  password: window.__authConfig.password,
+                  charName: window.__authConfig.charName,
+                  serverName: window.__authConfig.serverName,
+                  generatedUser: window.__authConfig.generatedUser,
+                  register: window.__authConfig.register,
+                  registerDone: window.__authConfig.registerDone,
+                  userEditedAt: window.__authConfig.userEditedAt,
+                  serverEditedAt: window.__authConfig.serverEditedAt
+                } : null;
                 const res = window.importAllBotSettings(${JSON.stringify(presetConfig)});
-                try {
-                  if (window.__planScriptEnabled && window.__currentScriptPlan && typeof window.planMapForNow === 'function') {
-                    localStorage.removeItem('pelican_plan_manual_map');
-                    const planMap = window.planMapForNow();
-                    if (planMap && !/เมืองหลวง|โซลเฮเวน|ตลาดคาราวาน/.test(window.__targetFarmMap || '')) {
-                      if (typeof window.setTargetFarmMap === 'function') window.setTargetFarmMap(planMap, Boolean(window.__isBotRunning));
-                      else window.__targetFarmMap = planMap;
-                    }
+                if (beforeAuth && window.__authConfig) {
+                  for (const [k, v] of Object.entries(beforeAuth)) {
+                    if (v !== undefined) window.__authConfig[k] = v;
                   }
+                  try { localStorage.setItem('pelican_auth_cfg', JSON.stringify(window.__authConfig)); } catch (e) {}
+                }
+                try {
+                  if (window.__sellConfig) localStorage.setItem('pelican_nc_sell_cfg', JSON.stringify(window.__sellConfig));
+                  if (window.__cmarketAutoSellConfig) localStorage.setItem('pelican_nc_cmarket_autosell', JSON.stringify(window.__cmarketAutoSellConfig));
+                  if (window.__potionConfig) localStorage.setItem('pelican_potion_cfg', JSON.stringify(window.__potionConfig));
+                  if (window.__ncPerfConfig) localStorage.setItem('pelican_nc_perf_cfg', JSON.stringify(window.__ncPerfConfig));
                 } catch (e) {}
                 return Object.assign({}, res, { effectiveTargetMap: window.__targetFarmMap || null });
               } else {
-                return { success: false, error: 'importAllBotSettings not ready' };
+                return { success: false, error: 'กรุณาอัปเดตสคริปต์บอทเป็นเวอร์ชันล่าสุดก่อน (importAllBotSettings not ready)' };
               }
             })()`;
 
             const r = await evalProfilePort(profile.debugPort, codeToRun, 8000);
             if (r && r.success && r.result && r.result.success) {
-              if (r.result.effectiveTargetMap && !/เมืองหลวง|โซลเฮเวน|ตลาดคาราวาน/.test(r.result.effectiveTargetMap)) {
+              if (r.result.effectiveTargetMap && r.result.effectiveTargetMap !== "auto") {
                 profile.targetMap = r.result.effectiveTargetMap;
               }
               appliedProfiles.push(profile.name || profile.id);
@@ -14444,7 +14393,7 @@ public class PmFocus {
           appliedCount: appliedProfiles.length,
           appliedProfiles: appliedProfiles,
           failedProfiles,
-          message: `คัดลอกการตั้งค่า "${preset.name}" ไปยัง ${appliedProfiles.length} จอเรียบร้อยแล้ว`
+          message: `คัดลอกการตั้งค่า "${preset.name}" ไปยัง ${appliedProfiles.length} จอเรียบร้อยแล้ว (คง ID/รหัส/ชื่อตัว/เซิร์ฟเดิมของทุกจอ)`
             + (failedProfiles.length ? `\n\n⚠️ ส่งไม่สำเร็จ ${failedProfiles.length} จอ (ต้องเปิดจอเกมไว้ก่อน):\n• ${failedProfiles.join('\n• ')}` : ''),
           error: appliedProfiles.length ? undefined : `ส่งการตั้งค่าไม่สำเร็จ — ต้องเปิดจอเกมไว้ก่อน:\n• ${failedProfiles.join('\n• ')}`
         });
@@ -14455,7 +14404,7 @@ public class PmFocus {
     return;
   }
 
-  // POST /api/profiles/:id/save-as-preset (Save current profile config as a preset)
+  // POST /api/profiles/:id/save-as-preset (Save current profile config as a preset — strictly excluding ID/Password/CharName/ServerName!)
   if (req.method === "POST" && pathname.match(/^\/api\/profiles\/[^/]+\/save-as-preset$/)) {
     const id = pathname.split("/")[3];
     let body = "";
@@ -14467,14 +14416,13 @@ public class PmFocus {
         const profile = profiles.find(p => p.id === id);
         if (!profile) return sendJSON({ success: false, error: "Profile not found" }, 404);
 
-        // Read the client's real settings (POST eval, generous timeout). Never save made-up defaults:
-        // a preset with only a map and basic sell settings looked fine but copied nothing useful.
         if (!profile.debugPort) return sendJSON({ success: false, error: `จอ "${profile.name}" ออฟไลน์ — เปิดจอเกมนี้ก่อนแล้วค่อยบันทึก` }, 400);
         const r = await evalProfilePort(profile.debugPort, "typeof window.exportAllBotSettings === 'function' ? window.exportAllBotSettings() : null", 10000);
-        const finalConfig = r && r.success && r.result && r.result.data;
-        if (!finalConfig || typeof finalConfig !== 'object' || !finalConfig.sellConfig) {
-          return sendJSON({ success: false, error: `อ่านการตั้งค่าจากจอ "${profile.name}" ไม่สำเร็จ (${(r && r.error) || 'บอทยังโหลดไม่เสร็จ'}) — รอให้จอโหลดเสร็จแล้วลองใหม่` }, 502);
+        const rawConfig = r && r.success && r.result && r.result.data;
+        if (!rawConfig || typeof rawConfig !== 'object' || !rawConfig.sellConfig) {
+          return sendJSON({ success: false, error: `อ่านการตั้งค่าจากจอ "${profile.name}" ไม่สำเร็จ (${(r && r.error) || 'บอทยังโหลดไม่เสร็จหรือยังเป็นเวอร์ชันเก่า'}) — อัปเดตสคริปต์บอทแล้วลองใหม่` }, 502);
         }
+        const finalConfig = sanitizePresetBotConfig(rawConfig);
 
         const presets = loadPresets();
         const newPreset = {

@@ -1945,6 +1945,27 @@ function buildProfileCard(p) {
                   <span class="cm-icon">📜</span>
                   <span>ตั้งค่า Plan Script & Auto-Quest</span>
                 </button>
+                ${isOnline ? `
+                <button type="button" class="card-menu-item" onclick="closeCardMenu(); openConfigCopyDialog('${p.id}')">
+                  <span class="cm-icon">📋</span>
+                  <span>คัดลอกการตั้งค่าไปจออื่น</span>
+                </button>` : ''}
+                <button type="button" class="card-menu-item" onclick="closeCardMenu(); openCardWhitelistModal('${p.id}', 'whitelist')">
+                  <span class="cm-icon">🛡️</span>
+                  <span>จัดการ Whitelist (ห้ามขาย)</span>
+                </button>
+                <button type="button" class="card-menu-item" onclick="closeCardMenu(); openCardWhitelistModal('${p.id}', 'forceSell')">
+                  <span class="cm-icon">💰</span>
+                  <span>จัดการรายการบังคับขาย NPC</span>
+                </button>
+                <button type="button" class="card-menu-item" onclick="closeCardMenu(); openCardWhitelistModal('${p.id}', 'cmarket')">
+                  <span class="cm-icon">🏪</span>
+                  <span>จัดการ List ตลาดกลาง (Auto-Sell)</span>
+                </button>
+                <button type="button" class="card-menu-item" onclick="closeCardMenu(); openSaveClientPresetModal('${p.id}')">
+                  <span class="cm-icon">💾</span>
+                  <span>บันทึกเข้า Save List (Preset)</span>
+                </button>
                 <button type="button" class="card-menu-item" onclick="closeCardMenu(); openEditModal('${p.id}')">
                   <span class="cm-icon">⚙️</span>
                   <span>แก้ไขการตั้งค่าโปรไฟล์</span>
@@ -9036,6 +9057,7 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
   <div class="p-header-badges" style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
     <span id="p-nc-online-pill" style="font-size: 10px; background: ${isOnline ? 'rgba(16, 185, 129, 0.22)' : 'rgba(148, 163, 184, 0.16)'}; border: 1px solid ${isOnline ? 'rgba(52, 211, 153, 0.5)' : 'rgba(148, 163, 184, 0.35)'}; color: ${isOnline ? '#6ee7b7' : '#cbd5e1'}; padding: 1px 8px; border-radius: 999px; font-weight: 700;">${isCentral ? `ออนไลน์ ${onlineCount}/${currentProfiles.length} จอ` : (isOnline ? '🟢 ออนไลน์' : '⚫ ออฟไลน์')}</span>
     <span id="p-nc-lv-pill" style="font-size: 10px; background: rgba(56, 189, 248, 0.16); border: 1px solid rgba(56, 189, 248, 0.4); color: #7dd3fc; padding: 1px 8px; border-radius: 999px; font-weight: 700;">${escapeHTML(lvLine)}</span>
+    ${!isCentral ? `<button type="button" onclick="openConfigCopyDialog('${profileId}')" title="คัดลอกการตั้งค่าบอททั้งหมดของจอนี้ไปจออื่น (ไม่รวม ID/รหัส/ชื่อตัว/เซิร์ฟ)" style="margin-left:auto; font-size:10px; font-weight:700; padding:2px 8px; border-radius:999px; border:1px solid rgba(52,211,153,0.55); background:rgba(16,185,129,0.2); color:#a7f3d0; cursor:pointer; white-space:nowrap;">📋 คัดลอกไปจออื่น</button>` : ''}
   </div>
 </div>
 
@@ -9420,6 +9442,10 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
           <input type="text" id="p-nc-sell-forcesell" value="${escapeHTML(sc.forceSellList || '')}" placeholder="เช่น มีดสนิม, ขนหนู" autocomplete="off" style="background:#090d16; border:1px solid rgba(248,113,113,0.4); color:#fff; border-radius:4px; font-size:9.5px; padding:3px 5px;">
         </div>
       </div>
+      ${!isCentral ? `
+      <button type="button" class="p-btn" onclick="openCardWhitelistModal('${profileId}', 'whitelist')" style="margin-top:2px; width:100%; background:rgba(3,105,161,0.28); border:1px solid rgba(56,189,248,0.45); color:#bae6fd; border-radius:6px; font-size:10px; font-weight:700; padding:5px; cursor:pointer;">
+        🛡️ จัดการ / คัดลอก Whitelist &amp; บังคับขายไปจออื่น
+      </button>` : ''}
       <button type="button" class="p-btn" id="p-btn-nc-sell-trip-now" style="margin-top:4px; width:100%; background:#d97706; border:1px solid #fbbf24; color:#fff; border-radius:6px; font-size:11px; font-weight:700; padding:7px; cursor:pointer;">
         ${isCentral ? '🛒 สั่งทุกจอกลับค่ายไปขายของ & ฝากคลังทันที' : '🛒 สั่งกลับค่ายไปขายของ & ฝากคลังทันที'}
       </button>
@@ -9503,6 +9529,10 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
       <button type="button" class="p-btn" id="p-btn-nc-open-cmarket-modal" style="margin:0; width:100%; background:rgba(79,70,229,0.26); border:1px solid rgba(129,140,248,0.5); color:#c7d2fe; border-radius:6px; font-size:10px; font-weight:700; padding:5px; cursor:pointer;">
         🏪 เปิดจัดการตลาดกลางเต็มจอ (ค้นหา / คัดลอกไปจออื่น)
       </button>
+      ${!isCentral ? `
+      <button type="button" class="p-btn" onclick="openCardWhitelistModal('${profileId}', 'cmarket')" style="margin:0; width:100%; background:rgba(13,148,136,0.26); border:1px solid rgba(45,212,191,0.48); color:#99f6e4; border-radius:6px; font-size:10px; font-weight:700; padding:5px; cursor:pointer;">
+        📋 จัดการ / นำเข้า-ส่งออก / คัดลอก List ตลาดกลางไปจออื่น
+      </button>` : ''}
     </div>
 
     <div id="p-nc-cm-rules-list" style="display:flex; flex-direction:column; gap:6px;"></div>
@@ -14432,22 +14462,30 @@ function renderPresetsList() {
 
   container.innerHTML = currentPresets.map(preset => {
     const cfg = preset.config || {};
-    const targetMap = cfg.targetMap || cfg.archerConfig?.targetMap || 'ตามเดิม';
-    const ammoMin = cfg.archerConfig?.minAmmoRestock || cfg.minAmmoRestock || null;
-    const sellCount = cfg.sellConfig?.items?.length || 0;
+    const targetMapRaw = cfg.targetFarmMap || cfg.targetMap || 'auto';
+    const targetMapLabel = targetMapRaw === 'auto' ? 'อัตโนมัติตามเลเวล' : targetMapRaw;
+    const wlCount = String(cfg.sellConfig?.whitelist || '').split(/[,\n]+/).map(s => s.trim()).filter(Boolean).length;
+    const fsCount = String(cfg.sellConfig?.forceSellList || '').split(/[,\n]+/).map(s => s.trim()).filter(Boolean).length;
+    const cmRules = Array.isArray(cfg.cmarketAutoSellConfig?.rules)
+      ? cfg.cmarketAutoSellConfig.rules
+      : (Array.isArray(cfg.autoMarketSellConfig?.rules) ? cfg.autoMarketSellConfig.rules : []);
+    const cmCount = cmRules.length;
+    const planName = (cfg.planScriptEnabled && cfg.scriptPlan && cfg.scriptPlan.name) ? String(cfg.scriptPlan.name).trim() : '';
     const updateTime = new Date(preset.updatedAt || preset.createdAt || Date.now()).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
 
     return `
       <div class="preset-card-item" id="preset-card-${preset.id}">
         <div style="flex: 1; min-width: 0;">
-          <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+          <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
             <span style="font-size: 13.5px; font-weight: 700; color: #f8fafc;">💾 ${escapeHTML(preset.name)}</span>
             <span class="badge" style="background: rgba(168, 85, 247, 0.2); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.4); font-size: 9.5px; padding: 1px 6px; border-radius: 4px;">
-              🗺️ ${escapeHTML(targetMap)}
+              🗺️ ${escapeHTML(targetMapLabel)}
             </span>
-            ${ammoMin ? `<span class="badge" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); font-size: 9.5px; padding: 1px 6px; border-radius: 4px;">🏹 ธนู: ${ammoMin} ดอก</span>` : ''}
-            ${sellCount > 0 ? `<span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); font-size: 9.5px; padding: 1px 6px; border-radius: 4px;">💰 ขายตลาด ${sellCount} ชิ้น</span>` : ''}
-            <span style="font-size: 10px; color: #34d399; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.25); padding: 1px 5px; border-radius: 3px;">🔒 ปลอดภัย (ไม่รวม ID/รหัส)</span>
+            ${wlCount > 0 ? `<span class="badge" style="background: rgba(56, 189, 248, 0.15); color: #7dd3fc; border: 1px solid rgba(56, 189, 248, 0.35); font-size: 9.5px; padding: 1px 6px; border-radius: 4px;">🛡️ ห้ามขาย ${wlCount}</span>` : ''}
+            ${fsCount > 0 ? `<span class="badge" style="background: rgba(249, 115, 22, 0.16); color: #fdba74; border: 1px solid rgba(249, 115, 22, 0.38); font-size: 9.5px; padding: 1px 6px; border-radius: 4px;">💰 บังคับขาย ${fsCount}</span>` : ''}
+            ${cmCount > 0 ? `<span class="badge" style="background: rgba(20, 184, 166, 0.16); color: #5eead4; border: 1px solid rgba(45, 212, 191, 0.38); font-size: 9.5px; padding: 1px 6px; border-radius: 4px;">🏪 ตลาดกลาง ${cmCount}</span>` : ''}
+            ${planName ? `<span class="badge" style="background: rgba(245, 158, 11, 0.16); color: #fde68a; border: 1px solid rgba(251, 191, 36, 0.38); font-size: 9.5px; padding: 1px 6px; border-radius: 4px;">📜 ${escapeHTML(planName)}</span>` : ''}
+            <span style="font-size: 10px; color: #34d399; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.25); padding: 1px 5px; border-radius: 3px;">🔒 ปลอดภัย (ไม่รวม ID/รหัส/ชื่อตัว/เซิร์ฟ)</span>
           </div>
           <div style="font-size: 11px; color: #94a3b8; margin-top: 5px; line-height: 1.4;">
             ${escapeHTML(preset.description || 'ไม่มีคำอธิบาย')}
@@ -14497,7 +14535,9 @@ function openCopyToModal(presetId) {
 
   const titleEl = document.getElementById('copy-to-preset-title');
   if (titleEl) {
-    titleEl.innerText = `Preset: "${preset.name}" (แมพ: ${preset.config?.targetMap || 'ตามเดิม'})`;
+    const presetMapRaw = preset.config?.targetFarmMap || preset.config?.targetMap || 'auto';
+    const presetMapLabel = presetMapRaw === 'auto' ? 'อัตโนมัติตามเลเวล' : presetMapRaw;
+    titleEl.innerText = `Preset: "${preset.name}" (แมพ: ${presetMapLabel}) — ไม่ทับ ID/รหัส/ชื่อตัว/เซิร์ฟ`;
   }
 
   const checklistContainer = document.getElementById('copy-to-profiles-checklist');
@@ -14505,20 +14545,27 @@ function openCopyToModal(presetId) {
     if (currentProfiles.length === 0) {
       checklistContainer.innerHTML = '<div style="text-align: center; color: #94a3b8; padding: 12px;">ไม่พบจอเกมในระบบ</div>';
     } else {
-      checklistContainer.innerHTML = currentProfiles.map(p => `
+      checklistContainer.innerHTML = currentProfiles.map(p => {
+        const srv = typeof resolveProfileServerInfo === 'function' ? resolveProfileServerInfo(p) : null;
+        const srvTag = srv && srv.key !== 'auto'
+          ? `<span style="font-size: 10px; padding: 1px 5px; border-radius: 4px; background: rgba(99,102,241,0.16); color: #c7d2fe; border: 1px solid rgba(129,140,248,0.3);">${escapeHTML(srv.icon)} ${escapeHTML(srv.shortLabel)}</span>`
+          : '';
+        return `
         <label class="copy-to-check-item">
-          <div style="display: flex; align-items: center; gap: 10px;">
+          <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
             <input type="checkbox" class="copy-to-profile-checkbox" value="${p.id}" data-online="${p.isRunning ? '1' : ''}" ${p.isRunning ? 'checked' : ''} style="width: 16px; height: 16px; cursor: pointer;">
             <span style="font-weight: 600; color: #f8fafc; font-size: 12px;">${escapeHTML(p.name)}</span>
             ${(p.liveState && p.liveState.charName) || p.lastCharName ? `<span style="font-size: 11.5px; font-weight: 700; color: #fcd34d;">👤 ${escapeHTML((p.liveState && p.liveState.charName) || p.lastCharName)}</span>` : ''}
-            <span style="font-size: 11px; color: #94a3b8;">(${escapeHTML((p.liveState && p.liveState.charClass) || p.charClass || 'Archer')})</span>
+            ${srvTag}
+            <span style="font-size: 11px; color: #94a3b8;">(${escapeHTML((p.liveState && p.liveState.charClass) || p.charClass || 'Traveler')})</span>
             <span style="font-size: 10px; color: #64748b;">Port: ${p.debugPort || '--'}</span>
           </div>
-          <span style="font-size: 10px; padding: 2px 7px; border-radius: 4px; font-weight: 600; ${p.isRunning ? 'background: rgba(34,197,94,0.18); color: #4ade80; border: 1px solid rgba(34,197,94,0.3);' : 'background: rgba(148,163,184,0.12); color: #94a3b8; border: 1px solid rgba(148,163,184,0.2);'}">
+          <span style="font-size: 10px; padding: 2px 7px; border-radius: 4px; font-weight: 600; white-space: nowrap; ${p.isRunning ? 'background: rgba(34,197,94,0.18); color: #4ade80; border: 1px solid rgba(34,197,94,0.3);' : 'background: rgba(148,163,184,0.12); color: #94a3b8; border: 1px solid rgba(148,163,184,0.2);'}">
             ${p.isRunning ? '🟢 ออนไลน์' : '⚪ ออฟไลน์'}
           </span>
         </label>
-      `).join('');
+      `;
+      }).join('');
       // Quick pickers: copying works only to clients that are open right now
       checklistContainer.insertAdjacentHTML('afterbegin', `
         <div class="copy-to-pickers">
@@ -14695,25 +14742,30 @@ function openSaveClientPresetModal(preferredProfileId = null) {
   const hiddenId = document.getElementById('save-client-profile-id');
 
   if (!select) return;
-  select.innerHTML = currentProfiles.map(p => `
+  select.innerHTML = currentProfiles.map(p => {
+    const srv = typeof resolveProfileServerInfo === 'function' ? resolveProfileServerInfo(p) : null;
+    const srvTxt = srv && srv.key !== 'auto' ? ` [${srv.shortLabel}]` : '';
+    const charTxt = (p.liveState && p.liveState.charName) || p.lastCharName ? ` · ${(p.liveState && p.liveState.charName) || p.lastCharName}` : '';
+    return `
     <option value="${p.id}" ${p.id === preferredProfileId ? 'selected' : ''}>
-      ${escapeHTML(p.name)} (${escapeHTML(p.charClass || 'Archer')}) - พอร์ต ${p.debugPort || '--'} ${p.isRunning ? '🟢 ออนไลน์' : '⚪ ออฟไลน์'}
+      ${escapeHTML(p.name)}${escapeHTML(charTxt)}${escapeHTML(srvTxt)} (${escapeHTML((p.liveState && p.liveState.charClass) || p.charClass || 'Traveler')}) - พอร์ต ${p.debugPort || '--'} ${p.isRunning ? '🟢 ออนไลน์' : '⚪ ออฟไลน์'}
     </option>
-  `).join('');
+  `;
+  }).join('');
 
   const targetProfile = currentProfiles.find(p => p.id === (preferredProfileId || (select.value || currentProfiles[0]?.id)));
   const baseName = targetProfile ? targetProfile.name : 'Client';
 
   if (hiddenId) hiddenId.value = targetProfile ? targetProfile.id : '';
   if (nameInput) nameInput.value = `${baseName} Setup`;
-  if (descInput) descInput.value = `ดึงการตั้งค่าจาก ${baseName} (พอร์ต ${targetProfile?.debugPort || '--'})`;
+  if (descInput) descInput.value = `ดึงการตั้งค่าจาก ${baseName} (พอร์ต ${targetProfile?.debugPort || '--'}) — ไม่รวม ID/รหัส/ชื่อตัว/เซิร์ฟ`;
 
   select.onchange = () => {
     const chosen = currentProfiles.find(p => p.id === select.value);
     if (chosen) {
       if (hiddenId) hiddenId.value = chosen.id;
       if (nameInput) nameInput.value = `${chosen.name} Setup`;
-      if (descInput) descInput.value = `ดึงการตั้งค่าจาก ${chosen.name} (พอร์ต ${chosen.debugPort || '--'})`;
+      if (descInput) descInput.value = `ดึงการตั้งค่าจาก ${chosen.name} (พอร์ต ${chosen.debugPort || '--'}) — ไม่รวม ID/รหัส/ชื่อตัว/เซิร์ฟ`;
     }
   };
 
@@ -14731,6 +14783,8 @@ async function handleSaveClientPresetSubmit(e) {
   const select = document.getElementById('save-client-select');
   const nameInput = document.getElementById('save-client-preset-name');
   const descInput = document.getElementById('save-client-preset-desc');
+  const submitBtn = e.target ? e.target.querySelector('button[type="submit"]') : null;
+  const origBtnHtml = submitBtn ? submitBtn.innerHTML : '';
 
   const profileId = select ? select.value : null;
   if (!profileId) {
@@ -14741,6 +14795,11 @@ async function handleSaveClientPresetSubmit(e) {
   const name = nameInput && nameInput.value.trim() ? nameInput.value.trim() : 'โปรไฟล์ส่วนกลาง';
   const description = descInput ? descInput.value.trim() : '';
 
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '⏳ กำลังดึงและบันทึก...';
+  }
+
   try {
     const res = await fetch(`${API_BASE}/api/profiles/${profileId}/save-as-preset`, {
       method: 'POST',
@@ -14749,7 +14808,7 @@ async function handleSaveClientPresetSubmit(e) {
     });
     const result = await res.json();
     if (result.success) {
-      alert(`บันทึก "${name}" เข้า Save List ส่วนกลางเรียบร้อย!`);
+      alert(`บันทึก "${name}" เข้า Save List ส่วนกลางเรียบร้อย! (ไม่รวม ID/รหัส/ชื่อตัว/เซิร์ฟ)`);
       closeSaveClientPresetModal();
       openPresetsModal();
       fetchPresets();
@@ -14758,6 +14817,11 @@ async function handleSaveClientPresetSubmit(e) {
     }
   } catch (err) {
     alert('เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์');
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = origBtnHtml;
+    }
   }
 }
 
@@ -15100,24 +15164,86 @@ fetchPresets();
 
 
 // ==========================================================================
-// CARD WHITELIST & FORCE-SELL NPC MODAL & CONTROLLER
+// CARD WHITELIST, FORCE-SELL NPC & CENTRAL MARKET LIST MODAL & CONTROLLER
 // ==========================================================================
 let activeWLProfileId = null;
 let activeWLItems = [];
 let activeFSItems = [];
-let activeWLTabMode = 'whitelist'; // 'whitelist' or 'forceSell'
+let activeCMRules = [];
+let activeWLTabMode = 'whitelist'; // 'whitelist' | 'forceSell' | 'cmarket'
 let activeWLViewMode = 'chips'; // 'chips' or 'text'
 
+function normalizeLocalCMRule(entry, idx = 0) {
+  if (!entry) return null;
+  if (typeof entry === 'string') {
+    const name = entry.trim();
+    if (!name) return null;
+    return {
+      id: 'cmrule_' + Date.now() + '_' + idx + '_' + Math.floor(Math.random() * 1000),
+      itemId: '',
+      itemName: name,
+      kind: 'auto',
+      minQty: 1,
+      sellMode: 'all',
+      customPrice: 0,
+      reserveQty: 0,
+      enabled: true
+    };
+  }
+  if (typeof entry !== 'object') return null;
+  const itemId = String(entry.itemId || entry.id_item || '').trim();
+  const itemName = String(entry.itemName || entry.name || itemId || '').trim();
+  if (!itemId && !itemName) return null;
+  const rawKind = String(entry.kind || 'auto').toLowerCase();
+  const kind = ['mat', 'pot', 'item', 'rune', 'auto'].includes(rawKind) ? rawKind : 'auto';
+  const rawMode = String(entry.sellMode || 'all').toLowerCase();
+  const sellMode = rawMode === 'min' || rawMode === 'pack' ? 'min' : (rawMode === 'single' ? 'single' : 'all');
+  return {
+    id: String(entry.id || ('cmrule_' + Date.now() + '_' + idx)),
+    itemId,
+    itemName: itemName || itemId,
+    kind,
+    minQty: Math.max(1, Math.min(9999, Math.floor(Number(entry.minQty) || 1))),
+    sellMode,
+    customPrice: Math.max(0, Math.floor(Number(entry.customPrice) || 0)),
+    reserveQty: Math.max(0, Math.min(9999, Math.floor(Number(entry.reserveQty) || 0))),
+    enabled: entry.enabled !== false
+  };
+}
+
+function getCMRuleDisplayName(rule) {
+  if (!rule) return '';
+  if (typeof rule === 'string') return rule.trim();
+  return String(rule.itemName || rule.itemId || '').trim();
+}
+
+function getCMRuleKey(rule) {
+  if (!rule) return '';
+  if (typeof rule === 'string') return rule.trim().toLowerCase();
+  return String(rule.itemId || rule.itemName || '').trim().toLowerCase();
+}
+
 function getActiveListArray() {
-  return activeWLTabMode === 'forceSell' ? activeFSItems : activeWLItems;
+  if (activeWLTabMode === 'forceSell') return activeFSItems;
+  if (activeWLTabMode === 'cmarket') return activeCMRules;
+  return activeWLItems;
 }
 
 function setActiveListArray(arr) {
   if (activeWLTabMode === 'forceSell') {
     activeFSItems = arr;
+  } else if (activeWLTabMode === 'cmarket') {
+    activeCMRules = arr;
   } else {
     activeWLItems = arr;
   }
+}
+
+function getActiveTabTextItems() {
+  if (activeWLTabMode === 'cmarket') {
+    return activeCMRules.map(getCMRuleDisplayName).filter(Boolean);
+  }
+  return getActiveListArray();
 }
 
 function syncTextareaToActiveList() {
@@ -15125,20 +15251,41 @@ function syncTextareaToActiveList() {
     const textarea = document.getElementById('card-wl-textarea');
     if (textarea) {
       const parts = textarea.value.split(/[,\n]+/).map(s => s.trim()).filter(Boolean);
-      const unique = [];
-      parts.forEach(p => {
-        if (!unique.some(u => u.toLowerCase() === p.toLowerCase())) {
-          unique.push(p);
-        }
-      });
-      setActiveListArray(unique);
+      if (activeWLTabMode === 'cmarket') {
+        const nextRules = [];
+        const seen = new Set();
+        parts.forEach((token, idx) => {
+          const low = token.toLowerCase();
+          if (seen.has(low)) return;
+          seen.add(low);
+          const existing = activeCMRules.find(r =>
+            String(r?.itemName || '').trim().toLowerCase() === low ||
+            String(r?.itemId || '').trim().toLowerCase() === low
+          );
+          if (existing) {
+            nextRules.push(existing);
+          } else {
+            const created = normalizeLocalCMRule(token, idx);
+            if (created) nextRules.push(created);
+          }
+        });
+        activeCMRules = nextRules;
+      } else {
+        const unique = [];
+        parts.forEach(p => {
+          if (!unique.some(u => u.toLowerCase() === p.toLowerCase())) {
+            unique.push(p);
+          }
+        });
+        setActiveListArray(unique);
+      }
     }
   }
 }
 
 function switchCardWhitelistTab(mode) {
   syncTextareaToActiveList();
-  activeWLTabMode = mode === 'forceSell' ? 'forceSell' : 'whitelist';
+  activeWLTabMode = mode === 'forceSell' ? 'forceSell' : (mode === 'cmarket' ? 'cmarket' : 'whitelist');
   updateWLTabModeUI();
   renderCardWhitelistChips();
 }
@@ -15146,25 +15293,33 @@ function switchCardWhitelistTab(mode) {
 function updateWLTabModeUI() {
   const tabWlBtn = document.getElementById('btn-card-wl-tab-whitelist');
   const tabFsBtn = document.getElementById('btn-card-wl-tab-forcesell');
+  const tabCmBtn = document.getElementById('btn-card-wl-tab-cmarket');
   const hintEl = document.getElementById('card-wl-mode-hint');
   const headerIconEl = document.getElementById('card-wl-header-icon');
   const copyLabelEl = document.getElementById('card-wl-copy-label');
   const wlCountEl = document.getElementById('card-wl-tab-count-wl');
   const fsCountEl = document.getElementById('card-wl-tab-count-fs');
+  const cmCountEl = document.getElementById('card-wl-tab-count-cm');
 
   if (wlCountEl) wlCountEl.innerText = String(activeWLItems.length);
   if (fsCountEl) fsCountEl.innerText = String(activeFSItems.length);
+  if (cmCountEl) cmCountEl.innerText = String(activeCMRules.length);
+
+  const resetTabStyle = (btn) => {
+    if (!btn) return;
+    btn.style.background = 'transparent';
+    btn.style.borderColor = 'transparent';
+    btn.style.color = '#94a3b8';
+  };
+  resetTabStyle(tabWlBtn);
+  resetTabStyle(tabFsBtn);
+  resetTabStyle(tabCmBtn);
 
   if (activeWLTabMode === 'forceSell') {
     if (tabFsBtn) {
       tabFsBtn.style.background = 'rgba(194, 65, 12, 0.4)';
       tabFsBtn.style.borderColor = 'rgba(249, 115, 22, 0.65)';
       tabFsBtn.style.color = '#ffedd5';
-    }
-    if (tabWlBtn) {
-      tabWlBtn.style.background = 'transparent';
-      tabWlBtn.style.borderColor = 'transparent';
-      tabWlBtn.style.color = '#94a3b8';
     }
     if (headerIconEl) {
       headerIconEl.innerText = '💰';
@@ -15173,21 +15328,34 @@ function updateWLTabModeUI() {
     }
     if (hintEl) {
       hintEl.style.borderLeftColor = '#f97316';
-      hintEl.innerHTML = '💰 <b>โหมดบังคับขาย NPC (ไม่สนหมวดหมู่):</b> เพียงใส่ชื่อไอเทมลงในรายการนี้ (เช่น <code>Orange Potion, Blue Potion, Carrot</code>) บอทจะขายไอเทมนั้นลงร้าน NPC ทันทีแม้หมวดนั้นตั้งเป็น "เก็บทั้งหมด"';
+      hintEl.innerHTML = '💰 <b>โหมดบังคับขาย NPC (Force Sell):</b> ไอเทมที่มีชื่อในรายการนี้จะถูกขายลงร้าน NPC ทันทีเมื่อกลับค่าย แม้หมวดนั้นตั้งให้เก็บไว้ก็ตาม';
     }
     if (copyLabelEl) {
       copyLabelEl.innerText = 'เลือกจอที่ต้องการคัดลอก "รายการบังคับขาย NPC" นี้ไปใช้:';
+    }
+  } else if (activeWLTabMode === 'cmarket') {
+    if (tabCmBtn) {
+      tabCmBtn.style.background = 'rgba(15, 118, 110, 0.42)';
+      tabCmBtn.style.borderColor = 'rgba(45, 212, 191, 0.65)';
+      tabCmBtn.style.color = '#ccfbf1';
+    }
+    if (headerIconEl) {
+      headerIconEl.innerText = '🏪';
+      headerIconEl.style.background = 'rgba(20, 184, 166, 0.2)';
+      headerIconEl.style.borderColor = 'rgba(45, 212, 191, 0.5)';
+    }
+    if (hintEl) {
+      hintEl.style.borderLeftColor = '#14b8a6';
+      hintEl.innerHTML = '🏪 <b>โหมด List ตลาดกลาง (Auto-Sell WL):</b> ไอเทมในรายการนี้จะถูกนำไปตั้งขายตลาดกลางอัตโนมัติ และ <b>ป้องกันไม่ให้ขายทิ้งร้าน NPC</b> — สามารถส่งออก (.json) นำเข้า หรือคัดลอกไปหลายจอได้ทันที';
+    }
+    if (copyLabelEl) {
+      copyLabelEl.innerText = 'เลือกจอที่ต้องการคัดลอก "List ตลาดกลาง (Auto-Sell)" นี้ไปใช้:';
     }
   } else {
     if (tabWlBtn) {
       tabWlBtn.style.background = 'rgba(3, 105, 161, 0.35)';
       tabWlBtn.style.borderColor = 'rgba(56, 189, 248, 0.5)';
       tabWlBtn.style.color = '#e0f2fe';
-    }
-    if (tabFsBtn) {
-      tabFsBtn.style.background = 'transparent';
-      tabFsBtn.style.borderColor = 'transparent';
-      tabFsBtn.style.color = '#94a3b8';
     }
     if (headerIconEl) {
       headerIconEl.innerText = '🛡️';
@@ -15206,7 +15374,7 @@ function updateWLTabModeUI() {
 
 async function openCardWhitelistModal(profileId, initialTab = 'whitelist', autoOpenCopyPanel = false) {
   activeWLProfileId = profileId;
-  activeWLTabMode = initialTab === 'forceSell' ? 'forceSell' : 'whitelist';
+  activeWLTabMode = initialTab === 'forceSell' ? 'forceSell' : (initialTab === 'cmarket' ? 'cmarket' : 'whitelist');
   const profile = currentProfiles.find(p => p.id === profileId);
   if (!profile) return;
 
@@ -15225,7 +15393,10 @@ async function openCardWhitelistModal(profileId, initialTab = 'whitelist', autoO
   updateWLTabModeUI();
 
   if (subtitleEl) {
-    subtitleEl.innerText = `จอ: ${profile.name} (${profile.account || 'No account'}) • Port: ${profile.debugPort || '--'}`;
+    const srv = typeof resolveProfileServerInfo === 'function' ? resolveProfileServerInfo(profile) : null;
+    const srvPart = srv && srv.key !== 'auto' ? ` • ${srv.icon} ${srv.shortLabel}` : '';
+    const charPart = (profile.liveState && profile.liveState.charName) || profile.lastCharName || profile.account || 'No char';
+    subtitleEl.innerText = `จอ: ${profile.name} (${charPart})${srvPart} • Port: ${profile.debugPort || '--'}`;
   }
 
   if (statusTextEl) {
@@ -15235,6 +15406,17 @@ async function openCardWhitelistModal(profileId, initialTab = 'whitelist', autoO
   // Open modal first with loading state
   if (modal) modal.classList.add('active');
 
+  const loadFallbackFromProfile = () => {
+    activeWLItems = String((profile.sellConfig && profile.sellConfig.whitelist) || profile.whitelist || '')
+      .split(',').map(s => s.trim()).filter(Boolean);
+    activeFSItems = String((profile.sellConfig && profile.sellConfig.forceSellList) || profile.forceSellList || '')
+      .split(',').map(s => s.trim()).filter(Boolean);
+    const savedCM = Array.isArray(profile.cmarketAutoSellConfig?.rules)
+      ? profile.cmarketAutoSellConfig.rules
+      : (Array.isArray(profile.liveState?.cmarketAutoSellConfig?.rules) ? profile.liveState.cmarketAutoSellConfig.rules : []);
+    activeCMRules = savedCM.map((r, i) => normalizeLocalCMRule(r, i)).filter(Boolean);
+  };
+
   try {
     const res = await fetch(`${API_BASE}/api/profiles/${profileId}/whitelist`);
     const data = await res.json();
@@ -15243,6 +15425,9 @@ async function openCardWhitelistModal(profileId, initialTab = 'whitelist', autoO
       activeFSItems = Array.isArray(data.forceSellItems)
         ? data.forceSellItems
         : String(data.forceSellList || '').split(',').map(s => s.trim()).filter(Boolean);
+      activeCMRules = Array.isArray(data.cmarketRules)
+        ? data.cmarketRules.map((r, i) => normalizeLocalCMRule(r, i)).filter(Boolean)
+        : [];
       if (statusTextEl) {
         if (data.isOnline) {
           statusTextEl.innerHTML = `🟢 <b>ออนไลน์</b> (Port ${profile.debugPort}) — ซิงค์ข้อมูล Real-time กับเกมสด`;
@@ -15257,14 +15442,12 @@ async function openCardWhitelistModal(profileId, initialTab = 'whitelist', autoO
         }
       }
     } else {
-      activeWLItems = (profile.whitelist || '').split(',').map(s => s.trim()).filter(Boolean);
-      activeFSItems = ((profile.sellConfig && profile.sellConfig.forceSellList) || profile.forceSellList || '').split(',').map(s => s.trim()).filter(Boolean);
+      loadFallbackFromProfile();
       if (statusTextEl) statusTextEl.innerText = '⚠️ ใช้ข้อมูลจากโปรไฟล์เครื่อง';
     }
-  } catch(e) {
+  } catch (e) {
     console.warn('Fetch whitelist error:', e);
-    activeWLItems = (profile.whitelist || '').split(',').map(s => s.trim()).filter(Boolean);
-    activeFSItems = ((profile.sellConfig && profile.sellConfig.forceSellList) || profile.forceSellList || '').split(',').map(s => s.trim()).filter(Boolean);
+    loadFallbackFromProfile();
     if (statusTextEl) statusTextEl.innerText = '⚠️ ใช้ข้อมูลแคชในตัว';
   }
 
@@ -15284,6 +15467,7 @@ function closeCardWhitelistModal() {
   activeWLProfileId = null;
   activeWLItems = [];
   activeFSItems = [];
+  activeCMRules = [];
 }
 
 function renderCardWhitelistChips() {
@@ -15292,36 +15476,73 @@ function renderCardWhitelistChips() {
   const countBadge = document.getElementById('card-wl-count-badge');
   const wlCountEl = document.getElementById('card-wl-tab-count-wl');
   const fsCountEl = document.getElementById('card-wl-tab-count-fs');
+  const cmCountEl = document.getElementById('card-wl-tab-count-cm');
   const items = getActiveListArray();
   const isFs = activeWLTabMode === 'forceSell';
+  const isCm = activeWLTabMode === 'cmarket';
 
   if (wlCountEl) wlCountEl.innerText = String(activeWLItems.length);
   if (fsCountEl) fsCountEl.innerText = String(activeFSItems.length);
+  if (cmCountEl) cmCountEl.innerText = String(activeCMRules.length);
 
   if (countBadge) {
     countBadge.innerText = `${items.length} รายการ`;
   }
 
   if (textarea) {
-    textarea.value = items.join(', ');
+    textarea.value = getActiveTabTextItems().join(', ');
   }
 
   if (!container) return;
 
   if (items.length === 0) {
-    container.innerHTML = isFs ? `
-      <div class="wl-empty-msg">
-        <span style="font-size: 24px; opacity: 0.6;">💰</span>
-        <span>ยังไม่มีรายการบังคับขาย NPC (ไม่สนหมวดหมู่)</span>
-        <span style="font-size: 11px; opacity: 0.7;">พิมพ์ชื่อไอเทม เช่น Orange Potion, Blue Potion, Carrot ด้านบนแล้วกด "➕ เพิ่ม" หรือกดปุ่ม "💰 ขาย NPC" จากหน้าต่างกระเป๋า</span>
-      </div>
-    ` : `
-      <div class="wl-empty-msg">
-        <span style="font-size: 24px; opacity: 0.6;">📦</span>
-        <span>ไม่มีไอเทมใน Whitelist (บอทจะขายทุกชิ้นตามเกณฑ์ความหายาก)</span>
-        <span style="font-size: 11px; opacity: 0.7;">พิมพ์ชื่อไอเทมด้านบนแล้วกด "➕ เพิ่ม" หรือกด "📥 นำเข้า"</span>
-      </div>
-    `;
+    if (isCm) {
+      container.innerHTML = `
+        <div class="wl-empty-msg">
+          <span style="font-size: 24px; opacity: 0.65;">🏪</span>
+          <span>ยังไม่มีรายการตั้งขายตลาดกลาง (Auto-Sell WL)</span>
+          <span style="font-size: 11px; opacity: 0.72;">พิมพ์ชื่อไอเทม เช่น การ์ดซอมบี้ชาวนา, หินออปชัน ด้านบนแล้วกด "➕ เพิ่ม" · หรือกด "📥 นำเข้า" (.json / .txt)</span>
+        </div>
+      `;
+    } else if (isFs) {
+      container.innerHTML = `
+        <div class="wl-empty-msg">
+          <span style="font-size: 24px; opacity: 0.6;">💰</span>
+          <span>ยังไม่มีรายการบังคับขาย NPC (ไม่สนหมวดหมู่)</span>
+          <span style="font-size: 11px; opacity: 0.7;">พิมพ์ชื่อไอเทม เช่น มีดสนิม, ขนหนู ด้านบนแล้วกด "➕ เพิ่ม" หรือกด "📥 นำเข้า"</span>
+        </div>
+      `;
+    } else {
+      container.innerHTML = `
+        <div class="wl-empty-msg">
+          <span style="font-size: 24px; opacity: 0.6;">📦</span>
+          <span>ไม่มีไอเทมใน Whitelist (บอทจะขายตามเกณฑ์ที่ตั้งในแท็บขาย)</span>
+          <span style="font-size: 11px; opacity: 0.7;">พิมพ์ชื่อไอเทมที่ห้ามขายด้านบนแล้วกด "➕ เพิ่ม" หรือกด "📥 นำเข้า"</span>
+        </div>
+      `;
+    }
+    return;
+  }
+
+  if (isCm) {
+    container.innerHTML = activeCMRules.map((rule, idx) => {
+      const name = getCMRuleDisplayName(rule);
+      const badges = [];
+      if (Number(rule.minQty) > 1) badges.push(`≥${Number(rule.minQty)}`);
+      if (Number(rule.customPrice) > 0) badges.push(`${Number(rule.customPrice).toLocaleString()}g`);
+      if (rule.sellMode === 'min') badges.push('Pack');
+      else if (rule.sellMode === 'single') badges.push('ทีละ1');
+      if (rule.enabled === false) badges.push('ปิด');
+      const metaText = badges.length > 0 ? ` <span style="font-size: 9.5px; color: #5eead4; opacity: 0.9;">(${escapeHTML(badges.join(' · '))})</span>` : '';
+      const tip = `${name}${rule.itemId ? ' [' + rule.itemId + ']' : ''} | ขั้นต่ำ: ${rule.minQty || 1} | โหมด: ${rule.sellMode || 'all'}${rule.customPrice ? ' | ราคา: ' + rule.customPrice + 'g' : ''}`;
+      return `
+        <div class="wl-chip" title="${escapeHTML(tip)}" style="border-color: rgba(45, 212, 191, 0.5); background: rgba(15, 118, 110, 0.22); ${rule.enabled === false ? 'opacity: 0.6;' : ''}">
+          <span class="wl-chip-icon">🏪</span>
+          <span class="wl-chip-text">${escapeHTML(name)}${metaText}</span>
+          <span class="wl-chip-del" onclick="removeCardWhitelistItem(${idx})" title="ลบออกจาก List ตลาดกลาง">&times;</span>
+        </div>
+      `;
+    }).join('');
     return;
   }
 
@@ -15335,9 +15556,29 @@ function renderCardWhitelistChips() {
 }
 
 function addCardWhitelistItems(inputStr) {
-  if (!inputStr || !inputStr.trim()) return;
+  if (!inputStr || !inputStr.trim()) return 0;
   const parts = inputStr.split(/[,\n]+/).map(s => s.trim()).filter(Boolean);
   let addedCount = 0;
+
+  if (activeWLTabMode === 'cmarket') {
+    parts.forEach((name, idx) => {
+      const lower = name.toLowerCase();
+      const exists = activeCMRules.some(r =>
+        String(r?.itemName || '').trim().toLowerCase() === lower ||
+        String(r?.itemId || '').trim().toLowerCase() === lower
+      );
+      if (!exists) {
+        const rule = normalizeLocalCMRule(name, idx);
+        if (rule) {
+          activeCMRules.push(rule);
+          addedCount++;
+        }
+      }
+    });
+    renderCardWhitelistChips();
+    return addedCount;
+  }
+
   const items = getActiveListArray();
   const otherItems = activeWLTabMode === 'forceSell' ? activeWLItems : activeFSItems;
 
@@ -15371,7 +15612,6 @@ function updateWLViewModeUI() {
   const textContainer = document.getElementById('card-wl-text-container');
   const viewLabel = document.getElementById('card-wl-view-label');
   const textarea = document.getElementById('card-wl-textarea');
-  const items = getActiveListArray();
 
   if (activeWLViewMode === 'chips') {
     if (chipsContainer) chipsContainer.style.display = 'flex';
@@ -15381,7 +15621,7 @@ function updateWLViewModeUI() {
     if (chipsContainer) chipsContainer.style.display = 'none';
     if (textContainer) textContainer.style.display = 'block';
     if (viewLabel) viewLabel.innerText = '🏷️ Tags Mode';
-    if (textarea) textarea.value = items.join(', ');
+    if (textarea) textarea.value = getActiveTabTextItems().join(', ');
   }
 }
 
@@ -15389,7 +15629,7 @@ function toggleCardWhitelistViewMode() {
   const textarea = document.getElementById('card-wl-textarea');
   if (activeWLViewMode === 'chips') {
     activeWLViewMode = 'text';
-    if (textarea) textarea.value = getActiveListArray().join(', ');
+    if (textarea) textarea.value = getActiveTabTextItems().join(', ');
   } else {
     syncTextareaToActiveList();
     activeWLViewMode = 'chips';
@@ -15410,11 +15650,39 @@ function handleCardWhitelistExport() {
   syncTextareaToActiveList();
   const items = getActiveListArray();
   const isFs = activeWLTabMode === 'forceSell';
+  const isCm = activeWLTabMode === 'cmarket';
+  const listTitle = isCm ? 'List ตลาดกลาง' : (isFs ? 'รายการบังคับขาย NPC' : 'Whitelist');
   if (items.length === 0) {
-    alert((isFs ? 'รายการบังคับขาย NPC' : 'Whitelist') + ' ว่างเปล่า ไม่มีรายการให้ส่งออก');
+    alert(listTitle + ' ว่างเปล่า ไม่มีรายการให้ส่งออก');
     return;
   }
   const profile = currentProfiles.find(p => p.id === activeWLProfileId);
+  const safeName = (profile?.name || 'profile').replace(/[^a-zA-Z0-9_\u0E00-\u0E7F]/g, '_');
+
+  if (isCm) {
+    const namesText = activeCMRules.map(getCMRuleDisplayName).filter(Boolean).join(', ');
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(namesText).catch(() => {});
+    }
+    const jsonPayload = JSON.stringify({
+      format: 'nightcamp-cmarket-list-v1',
+      profileName: profile?.name || '',
+      exportedAt: new Date().toISOString(),
+      cmarketRules: activeCMRules
+    }, null, 2);
+    const blob = new Blob([jsonPayload], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `cmarket_list_${safeName}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    alert(`📤 ส่งออก List ตลาดกลางเรียบร้อย!\n- คัดลอกรายชื่อ ${activeCMRules.length} รายการลงคลิปบอร์ดแล้ว\n- ดาวน์โหลดไฟล์ ${a.download} (พร้อมเงื่อนไขจำนวน/ราคาครบ) เรียบร้อยแล้ว`);
+    return;
+  }
+
   const text = items.join(', ');
 
   // 1. Copy to clipboard
@@ -15427,7 +15695,6 @@ function handleCardWhitelistExport() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  const safeName = (profile?.name || 'profile').replace(/[^a-zA-Z0-9_\u0E00-\u0E7F]/g, '_');
   a.download = `${isFs ? 'forcesell_npc' : 'whitelist'}_${safeName}.txt`;
   document.body.appendChild(a);
   a.click();
@@ -15459,19 +15726,26 @@ function populateWLCopyTargetList() {
     return;
   }
 
-  container.innerHTML = targets.map(p => `
+  container.innerHTML = targets.map(p => {
+    const srv = typeof resolveProfileServerInfo === 'function' ? resolveProfileServerInfo(p) : null;
+    const srvTag = srv && srv.key !== 'auto'
+      ? `<span style="font-size: 9.5px; padding: 1px 5px; border-radius: 4px; background: rgba(99,102,241,0.16); color: #c7d2fe; border: 1px solid rgba(129,140,248,0.3);">${escapeHTML(srv.icon)} ${escapeHTML(srv.shortLabel)}</span>`
+      : '';
+    return `
     <label class="wl-target-client-item">
-      <div style="display: flex; align-items: center; gap: 8px;">
+      <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
         <input type="checkbox" class="wl-target-checkbox" value="${p.id}" checked style="width: 14px; height: 14px; cursor: pointer;">
         <span style="font-size: 12px; font-weight: 600; color: #f8fafc;">${escapeHTML(p.name)}</span>
-        <span style="font-size: 11px; color: #94a3b8;">(${escapeHTML(p.charClass || 'Archer')})</span>
+        ${srvTag}
+        <span style="font-size: 11px; color: #94a3b8;">(${escapeHTML((p.liveState && p.liveState.charClass) || p.charClass || 'Traveler')})</span>
         <span style="font-size: 10px; color: #64748b;">Port: ${p.debugPort || '--'}</span>
       </div>
-      <span style="font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 600; ${p.isRunning ? 'background: rgba(34,197,94,0.18); color: #4ade80; border: 1px solid rgba(34,197,94,0.3);' : 'background: rgba(148,163,184,0.12); color: #94a3b8; border: 1px solid rgba(148,163,184,0.2);'}">
+      <span style="font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 600; white-space: nowrap; ${p.isRunning ? 'background: rgba(34,197,94,0.18); color: #4ade80; border: 1px solid rgba(34,197,94,0.3);' : 'background: rgba(148,163,184,0.12); color: #94a3b8; border: 1px solid rgba(148,163,184,0.2);'}">
         ${p.isRunning ? '🟢 ออนไลน์' : '⚪ ออฟไลน์'}
       </span>
     </label>
-  `).join('');
+  `;
+  }).join('');
 }
 
 async function executeCardWhitelistCopyToTargets() {
@@ -15494,9 +15768,12 @@ async function executeCardWhitelistCopyToTargets() {
   }
 
   const isFs = activeWLTabMode === 'forceSell';
-  const reqBody = isFs
-    ? { mode: 'forceSell', forceSellList: activeFSItems.join(', '), targets: targetIds }
-    : { mode: 'whitelist', whitelist: activeWLItems.join(', '), targets: targetIds };
+  const isCm = activeWLTabMode === 'cmarket';
+  const reqBody = isCm
+    ? { mode: 'cmarket', cmarketRules: activeCMRules, targets: targetIds }
+    : (isFs
+      ? { mode: 'forceSell', forceSellList: activeFSItems.join(', '), targets: targetIds }
+      : { mode: 'whitelist', whitelist: activeWLItems.join(', '), targets: targetIds });
 
   try {
     const res = await fetch(`${API_BASE}/api/profiles/${activeWLProfileId}/whitelist`, {
@@ -15506,11 +15783,13 @@ async function executeCardWhitelistCopyToTargets() {
     });
     const result = await res.json();
     if (result.success) {
-      syncOpenWebHudSellLists(activeWLProfileId, activeWLItems.join(', '), activeFSItems.join(', '));
-      targetIds.forEach(tid => {
-        if (isFs) syncOpenWebHudSellLists(tid, undefined, activeFSItems.join(', '));
-        else syncOpenWebHudSellLists(tid, activeWLItems.join(', '), undefined);
-      });
+      if (!isCm) {
+        syncOpenWebHudSellLists(activeWLProfileId, activeWLItems.join(', '), activeFSItems.join(', '));
+        targetIds.forEach(tid => {
+          if (isFs) syncOpenWebHudSellLists(tid, undefined, activeFSItems.join(', '));
+          else syncOpenWebHudSellLists(tid, activeWLItems.join(', '), undefined);
+        });
+      }
       alert(`🚀 ${result.message || 'คัดลอกรายการสำเร็จแล้ว!'}`);
       const panel = document.getElementById('card-wl-copy-panel');
       if (panel) panel.style.display = 'none';
@@ -15518,7 +15797,7 @@ async function executeCardWhitelistCopyToTargets() {
     } else {
       alert('เกิดข้อผิดพลาด: ' + (result.error || 'ไม่สามารถคัดลอกได้'));
     }
-  } catch(e) {
+  } catch (e) {
     alert('เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์');
   } finally {
     if (execBtn) {
@@ -15533,10 +15812,14 @@ function syncOpenWebHudSellLists(profileId, wlStr, fsStr) {
   const hudEl = hudObj && hudObj.el;
   if (!hudEl) return;
   if (wlStr !== undefined) {
+    const ncWlInp = hudEl.querySelector('#p-nc-sell-whitelist');
+    if (ncWlInp) ncWlInp.value = wlStr;
     const wlInp = hudEl.querySelector('#p-sell-whitelist');
     if (wlInp) wlInp.value = wlStr;
   }
   if (fsStr !== undefined) {
+    const ncFsInp = hudEl.querySelector('#p-nc-sell-forcesell');
+    if (ncFsInp) ncFsInp.value = fsStr;
     const fsInp = hudEl.querySelector('#p-sell-force-list');
     if (fsInp) fsInp.value = fsStr;
   }
@@ -15562,21 +15845,22 @@ async function saveCardWhitelist() {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        mode: 'both',
+        mode: 'all',
         whitelist: wlStr,
-        forceSellList: fsStr
+        forceSellList: fsStr,
+        cmarketRules: activeCMRules
       })
     });
     const result = await res.json();
     if (result.success) {
       syncOpenWebHudSellLists(activeWLProfileId, wlStr, fsStr);
-      alert('💾 บันทึก Whitelist & รายการบังคับขาย NPC สำเร็จ และอัปเดตเข้าจอเกมเรียบร้อยแล้ว!');
+      alert('💾 บันทึก Whitelist · บังคับขาย NPC · List ตลาดกลาง สำเร็จ และอัปเดตเข้าจอเกมเรียบร้อยแล้ว!');
       closeCardWhitelistModal();
       fetchProfiles();
     } else {
       alert('เกิดข้อผิดพลาด: ' + (result.error || 'ไม่สามารถบันทึกได้'));
     }
-  } catch(e) {
+  } catch (e) {
     alert('เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์');
   } finally {
     if (saveBtn) {
@@ -15598,6 +15882,9 @@ function setupCardWhitelistEventListeners() {
 
   const tabFsBtn = document.getElementById('btn-card-wl-tab-forcesell');
   if (tabFsBtn) tabFsBtn.onclick = () => switchCardWhitelistTab('forceSell');
+
+  const tabCmBtn = document.getElementById('btn-card-wl-tab-cmarket');
+  if (tabCmBtn) tabCmBtn.onclick = () => switchCardWhitelistTab('cmarket');
 
   const inputEl = document.getElementById('card-wl-input');
   const btnAdd = document.getElementById('btn-card-wl-add');
@@ -15631,20 +15918,64 @@ function setupCardWhitelistEventListeners() {
       if (!file) return;
       const reader = new FileReader();
       reader.onload = (event) => {
-        const content = event.target.result;
+        const content = String(event.target.result || '');
+
+        if (activeWLTabMode === 'cmarket') {
+          let importedRules = [];
+          try {
+            const parsed = JSON.parse(content);
+            if (Array.isArray(parsed)) {
+              importedRules = parsed.map((r, i) => normalizeLocalCMRule(r, i)).filter(Boolean);
+            } else if (Array.isArray(parsed.cmarketRules)) {
+              importedRules = parsed.cmarketRules.map((r, i) => normalizeLocalCMRule(r, i)).filter(Boolean);
+            } else if (Array.isArray(parsed.cmarketAutoSellConfig?.rules)) {
+              importedRules = parsed.cmarketAutoSellConfig.rules.map((r, i) => normalizeLocalCMRule(r, i)).filter(Boolean);
+            } else if (Array.isArray(parsed.config?.cmarketAutoSellConfig?.rules)) {
+              importedRules = parsed.config.cmarketAutoSellConfig.rules.map((r, i) => normalizeLocalCMRule(r, i)).filter(Boolean);
+            } else if (Array.isArray(parsed.rules)) {
+              importedRules = parsed.rules.map((r, i) => normalizeLocalCMRule(r, i)).filter(Boolean);
+            } else if (Array.isArray(parsed.items)) {
+              importedRules = parsed.items.map((r, i) => normalizeLocalCMRule(r, i)).filter(Boolean);
+            }
+          } catch (_) {
+            importedRules = content.split(/[,\n]+/).map(s => s.trim()).filter(Boolean)
+              .map((s, i) => normalizeLocalCMRule(s, i)).filter(Boolean);
+          }
+
+          if (importedRules.length === 0) {
+            alert('ไม่พบรายการตลาดกลางในไฟล์ที่เลือก');
+            return;
+          }
+
+          const isReplace = confirm(`พบรายการ List ตลาดกลางทั้งหมด ${importedRules.length} รายการ\n\nต้องการ "แทนที่ทั้งหมด (Replace)" หรือไม่?\n[OK] = แทนที่ทั้งหมด\n[Cancel] = เพิ่มต่อท้าย (Append)`);
+          if (isReplace) {
+            activeCMRules = [];
+          }
+          importedRules.forEach(r => {
+            const k = getCMRuleKey(r);
+            const nm = getCMRuleDisplayName(r).toLowerCase();
+            if (!activeCMRules.some(ex => getCMRuleKey(ex) === k || getCMRuleDisplayName(ex).toLowerCase() === nm)) {
+              activeCMRules.push(r);
+            }
+          });
+          renderCardWhitelistChips();
+          alert(`📥 นำเข้า List ตลาดกลางเรียบร้อย! ตอนนี้มีทั้งหมด ${activeCMRules.length} รายการ`);
+          return;
+        }
+
         let importedItems = [];
         try {
           const parsed = JSON.parse(content);
           if (Array.isArray(parsed)) {
             importedItems = parsed.map(String);
-          } else if (activeWLTabMode === 'forceSell' && parsed.forceSellList) {
-            importedItems = String(parsed.forceSellList).split(/[,\n]+/).map(s => s.trim()).filter(Boolean);
-          } else if (parsed.whitelist) {
-            importedItems = String(parsed.whitelist).split(/[,\n]+/).map(s => s.trim()).filter(Boolean);
+          } else if (activeWLTabMode === 'forceSell' && (parsed.forceSellList || parsed.sellConfig?.forceSellList || parsed.config?.sellConfig?.forceSellList)) {
+            importedItems = String(parsed.forceSellList || parsed.sellConfig?.forceSellList || parsed.config?.sellConfig?.forceSellList).split(/[,\n]+/).map(s => s.trim()).filter(Boolean);
+          } else if (parsed.whitelist || parsed.sellConfig?.whitelist || parsed.config?.sellConfig?.whitelist) {
+            importedItems = String(parsed.whitelist || parsed.sellConfig?.whitelist || parsed.config?.sellConfig?.whitelist).split(/[,\n]+/).map(s => s.trim()).filter(Boolean);
           } else if (parsed.items && Array.isArray(parsed.items)) {
             importedItems = parsed.items.map(String);
           }
-        } catch(err) {
+        } catch (err) {
           importedItems = content.split(/[,\n]+/).map(s => s.trim()).filter(Boolean);
         }
 
@@ -15703,7 +16034,9 @@ function setupCardWhitelistEventListeners() {
     btnClearAll.onclick = () => {
       const curList = getActiveListArray();
       if (curList.length === 0) return;
-      const label = activeWLTabMode === 'forceSell' ? 'รายการบังคับขาย NPC' : 'Whitelist';
+      const label = activeWLTabMode === 'cmarket'
+        ? 'List ตลาดกลาง (Auto-Sell)'
+        : (activeWLTabMode === 'forceSell' ? 'รายการบังคับขาย NPC' : 'Whitelist (ห้ามขาย)');
       if (confirm(`คุณแน่ใจหรือไม่ว่าต้องการล้าง ${label} ทั้งหมดสำหรับจอนี้?`)) {
         setActiveListArray([]);
         renderCardWhitelistChips();

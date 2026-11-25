@@ -627,7 +627,7 @@
             <button id="btn-global-plan-setup" class="btn btn-ghost btn-sm" title="ตั้งค่าแผนการเล่น & Smart Auto-Quest (Nightcamp Plan Script Builder)" style="border: 1px solid rgba(56, 189, 248, 0.45); background: linear-gradient(135deg, rgba(56, 189, 248, 0.16), rgba(168, 85, 247, 0.1)); color: #bae6fd; font-weight: 700;">
               <span class="icon">📜</span> Plan Script
             </button>
-            <button id="btn-open-presets-modal" class="btn btn-ghost btn-sm nc-aetheria-only" title="ระบบ Save List จัดการการตั้งค่าส่วนกลาง (Presets & Profile Library)">
+            <button id="btn-open-presets-modal" class="btn btn-ghost btn-sm" title="ระบบ Save List จัดการการตั้งค่าส่วนกลาง (บันทึก/คัดลอก Config, Whitelist, List ตลาดกลาง — ไม่รวม ID/รหัส/ชื่อตัวละคร/เซิร์ฟเวอร์)">
               <span class="icon">💾</span> Save List
             </button>
             <button id="btn-import-profile-global" class="btn btn-ghost btn-sm" title="นำเข้ารหัส ID / Password (.txt) หรือโปรไฟล์สำรอง (.json)">
@@ -1515,7 +1515,7 @@
       <div class="modal-header">
         <div>
           <h3 id="presets-modal-title">💾 ระบบ Save List โปรไฟล์ส่วนกลาง</h3>
-          <span style="font-size: 11px; color: #94a3b8;">จัดการการตั้งค่าบอทส่วนกลาง สามารถกด "Copy to..." เพื่อกระจายการตั้งค่าไปยังหลายๆ จอได้ในคลิกเดียว (ไม่รวม ID/Password)</span>
+          <span style="font-size: 11px; color: #94a3b8;">จัดการการตั้งค่าบอทส่วนกลาง สามารถกด "Copy to..." เพื่อกระจายการตั้งค่าไปยังหลายๆ จอได้ในคลิกเดียว (ไม่รวม ID/Password/ชื่อตัวละคร/เซิร์ฟเวอร์)</span>
         </div>
         <button class="modal-close" id="presets-modal-close-btn">&times;</button>
       </div>
@@ -1556,8 +1556,8 @@
         <button class="modal-close" id="copy-to-modal-close-btn">&times;</button>
       </div>
 
-      <div style="background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 8px; padding: 10px 12px; margin: 12px 0; font-size: 11.5px; color: #a7f3d0; line-height: 1.4;">
-        🔒 <b>ปลอดภัย 100%:</b> ระบบจะคัดลอกเฉพาะค่ากลยุทธ์ฟาร์ม (แมพ, ลูกธนู, ขยะ, กฎตลาด, ร้านค้า) โดย <b>คงชื่อผู้ใช้ (ID) และ รหัสผ่าน (Password) เดิมของแต่ละจอไว้เสมอ</b> ไม่เขียนทับเด็ดขาด
+      <div style="background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 8px; padding: 10px 12px; margin: 12px 0; font-size: 11.5px; color: #a7f3d0; line-height: 1.45;">
+        🔒 <b>ปลอดภัย 100%:</b> ระบบจะคัดลอกเฉพาะการตั้งค่าบอท (แมพฟาร์ม, Upgrade BOT AI, ตั้งค่ายา, ขายขยะ/Whitelist ห้ามขาย/บังคับขาย NPC, List ตลาดกลาง, Plan Script) โดย <b>คง User ID, รหัสผ่าน, ชื่อตัวละคร และเซิร์ฟเวอร์เดิมของแต่ละจอไว้เสมอ</b> ไม่เขียนทับเด็ดขาด
       </div>
 
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
@@ -1637,12 +1637,12 @@
 
         <div class="form-group">
           <label>ตั้งชื่อ Preset ใน Save List:</label>
-          <input type="text" id="save-client-preset-name" required placeholder="เช่น Hunter Main Setup" class="form-input">
+          <input type="text" id="save-client-preset-name" required placeholder="เช่น ฟาร์มการ์ด/รูน + ตลาดกลาง" class="form-input">
         </div>
 
         <div class="form-group">
           <label>คำอธิบายเพิ่มเติม (Description / Notes):</label>
-          <input type="text" id="save-client-preset-desc" placeholder="เช่น ลูกธนู 200, ขายขยะหมด, ลูป 24h" class="form-input">
+          <input type="text" id="save-client-preset-desc" placeholder="เช่น ขายขยะทั่วไป, ล็อก G3+, Whitelist + List ตลาดกลางครบ" class="form-input">
         </div>
 
         <div class="modal-footer">
@@ -1663,22 +1663,26 @@
             🛡️
           </div>
           <div>
-            <h3 id="card-wl-header-title" style="margin: 0; font-size: 15px; font-weight: 700; color: #f8fafc;">จัดการ Whitelist & รายการบังคับขาย NPC</h3>
+            <h3 id="card-wl-header-title" style="margin: 0; font-size: 15px; font-weight: 700; color: #f8fafc;">จัดการ Whitelist · บังคับขาย NPC · List ตลาดกลาง</h3>
             <span id="card-wl-subtitle" style="font-size: 11px; color: #94a3b8;">กำลังโหลดข้อมูล...</span>
           </div>
         </div>
         <button class="modal-close" id="card-wl-modal-close-btn">&times;</button>
       </div>
 
-      <!-- Mode Switcher Tabs: Whitelist vs Force-Sell NPC -->
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; background: rgba(15, 23, 42, 0.75); padding: 5px; border-radius: 9px; border: 1px solid rgba(255, 255, 255, 0.08);">
-        <button type="button" id="btn-card-wl-tab-whitelist" style="padding: 8px 10px; border-radius: 7px; font-size: 12px; font-weight: 700; cursor: pointer; border: 1px solid rgba(56, 189, 248, 0.5); background: rgba(3, 105, 161, 0.35); color: #e0f2fe; display: flex; align-items: center; justify-content: center; gap: 6px; transition: all 0.15s;">
+      <!-- Mode Switcher Tabs: Whitelist vs Force-Sell NPC vs Central Market Auto-Sell List -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin-top: 10px; background: rgba(15, 23, 42, 0.75); padding: 5px; border-radius: 9px; border: 1px solid rgba(255, 255, 255, 0.08);">
+        <button type="button" id="btn-card-wl-tab-whitelist" style="padding: 8px 6px; border-radius: 7px; font-size: 11.5px; font-weight: 700; cursor: pointer; border: 1px solid rgba(56, 189, 248, 0.5); background: rgba(3, 105, 161, 0.35); color: #e0f2fe; display: flex; align-items: center; justify-content: center; gap: 5px; transition: all 0.15s;">
           <span>🛡️ Whitelist (ห้ามขาย)</span>
-          <span id="card-wl-tab-count-wl" style="background: rgba(56, 189, 248, 0.25); color: #7dd3fc; padding: 1px 7px; border-radius: 10px; font-size: 10.5px;">0</span>
+          <span id="card-wl-tab-count-wl" style="background: rgba(56, 189, 248, 0.25); color: #7dd3fc; padding: 1px 6px; border-radius: 10px; font-size: 10px;">0</span>
         </button>
-        <button type="button" id="btn-card-wl-tab-forcesell" style="padding: 8px 10px; border-radius: 7px; font-size: 12px; font-weight: 700; cursor: pointer; border: 1px solid transparent; background: transparent; color: #94a3b8; display: flex; align-items: center; justify-content: center; gap: 6px; transition: all 0.15s;">
-          <span>💰 บังคับขาย NPC (ไม่สนหมวดหมู่)</span>
-          <span id="card-wl-tab-count-fs" style="background: rgba(249, 115, 22, 0.2); color: #fdba74; padding: 1px 7px; border-radius: 10px; font-size: 10.5px;">0</span>
+        <button type="button" id="btn-card-wl-tab-forcesell" style="padding: 8px 6px; border-radius: 7px; font-size: 11.5px; font-weight: 700; cursor: pointer; border: 1px solid transparent; background: transparent; color: #94a3b8; display: flex; align-items: center; justify-content: center; gap: 5px; transition: all 0.15s;">
+          <span>💰 บังคับขาย NPC</span>
+          <span id="card-wl-tab-count-fs" style="background: rgba(249, 115, 22, 0.2); color: #fdba74; padding: 1px 6px; border-radius: 10px; font-size: 10px;">0</span>
+        </button>
+        <button type="button" id="btn-card-wl-tab-cmarket" style="padding: 8px 6px; border-radius: 7px; font-size: 11.5px; font-weight: 700; cursor: pointer; border: 1px solid transparent; background: transparent; color: #94a3b8; display: flex; align-items: center; justify-content: center; gap: 5px; transition: all 0.15s;">
+          <span>🏪 List ตลาดกลาง</span>
+          <span id="card-wl-tab-count-cm" style="background: rgba(20, 184, 166, 0.22); color: #5eead4; padding: 1px 6px; border-radius: 10px; font-size: 10px;">0</span>
         </button>
       </div>
 
@@ -1696,7 +1700,7 @@
       <!-- Quick Add & Mode Switcher -->
       <div style="display: flex; gap: 8px; margin-bottom: 10px; align-items: stretch;">
         <div style="position: relative; flex: 1;">
-          <input type="text" id="card-wl-input" class="form-input" placeholder="พิมพ์ชื่อไอเทม เช่น Orange Potion, Blue Potion, Carrot (คั่นด้วย , ได้)" style="width: 100%; height: 100%; padding-left: 32px; font-size: 12.5px;">
+          <input type="text" id="card-wl-input" class="form-input" placeholder="พิมพ์ชื่อไอเทม เช่น การ์ดซอมบี้ชาวนา, รูนก้อง I, หินออปชัน (คั่นด้วย , ได้)" style="width: 100%; height: 100%; padding-left: 32px; font-size: 12.5px;">
           <span style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font-size: 14px; opacity: 0.6;">🔍</span>
         </div>
         <button type="button" class="btn btn-warning btn-sm" id="btn-card-wl-add" style="white-space: nowrap; padding: 0 14px; font-weight: 600;">
@@ -1983,12 +1987,12 @@
   </div>
 
   <script src="image_board_solver.js?v=nc1.9.4"></script>
-  <script src="app.js?v=nc2.3.6"></script>
+  <script src="app.js?v=nc2.3.7"></script>
   <script src="builder_module.js?v=nc1.9.6"></script>
   <script src="gear_builder.js?v=nc2.2.0"></script>
   <script src="patcher_module.js?v=nc1.9.4"></script>
   <script src="bot_update.js?v=nc1.9.4"></script>
-  <script src="config_copy.js?v=nc1.9.4"></script>
+  <script src="config_copy.js?v=nc2.3.7"></script>
   <script src="party_manager.js?v=nc2.1.7"></script>
   <script src="card_manager.js?v=nc2.3.2"></script>
   <script src="jail_manager.js?v=nc1.9.4"></script>
@@ -1996,7 +2000,7 @@
   <script src="fleet_dashboard.js?v=nc1.9.4"></script>
   <script src="support_chat.js?v=nc1.9.4"></script>
   <script src="announcements.js?v=nc1.9.4"></script>
-  <script src="update_log.js?v=nc2.3.6"></script>
+  <script src="update_log.js?v=nc2.3.7"></script>
   <!-- FLOATING IN-GAME BOT HUDS CONTAINER -->
   <div id="web-huds-container"></div>
 
