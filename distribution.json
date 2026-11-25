@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "sourceCommit": "061eda2488a3b83d46c4d2bbb58fa084bf8913b2",
+  "sourceCommit": "9de727d8d24ebb6ad55c27507901bc0072d3147f",
   "files": [
     {
       "path": "manager/asset_cache.js",
@@ -144,7 +144,7 @@
     },
     {
       "path": "manager/public/app.js",
-      "sha256": "70bae0e3e26d684e2d8185f85bca6818c1046e6a5de3e65ec1837d13c05e50c4"
+      "sha256": "bc9f820ab96271393dcf7a59b59209d254643f61ed38b25607b75f62adb98368"
     },
     {
       "path": "manager/public/assets/updates/ui_v212_bag_rightclick.jpg",
@@ -228,7 +228,7 @@
     },
     {
       "path": "manager/public/index.html",
-      "sha256": "4b6a6071a398d63bce1912b914b204742145afea32aeea9a080837b7ab33006a"
+      "sha256": "5172470ae289ffbe5c136fbb0457e7297ac88179aaf5dd4df6799ca705c04e3b"
     },
     {
       "path": "manager/public/inventory_market.css",
@@ -308,7 +308,7 @@
     },
     {
       "path": "manager/public/update_log.js",
-      "sha256": "526472ec06300d516ce97713c0111b1648422b3c26bea9222b9727968d1c22b6"
+      "sha256": "bfe048dec0e2f735a4f258247eb7660054f21fb4d4b3604cb6d675f07db59c40"
     },
     {
       "path": "manager/public/wiki/calc.js",

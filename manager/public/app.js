@@ -9107,6 +9107,10 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
         <input type="checkbox" id="p-nc-auto-use-premium-items" ${state?.autoUsePremiumItemsEnabled !== false ? 'checked' : ''} style="accent-color:#f59e0b;">
         <span>👑 ใช้ไอเทม Premium ในกระเป๋าทั้งหมดอัตโนมัติ</span>
       </label>
+      <label style="display:flex; align-items:center; gap:5px; font-size:9.8px; font-weight:600; color:#86efac; cursor:pointer; padding-left:18px;" title="เมื่อเปิด Upgrade BOT AI จะกดรับรางวัลในหน้ากิจกรรม (Event) ทั้งหมดอัตโนมัติ: ลอยกระทง · เช็คอิน · งานรายวัน · หีบสัปดาห์ · ใบสั่งงาน · พาสฤดูกาล · จดหมายรางวัล">
+        <input type="checkbox" id="p-nc-auto-claim-events" ${state?.autoClaimEventsEnabled !== false ? 'checked' : ''} style="accent-color:#22c55e;">
+        <span>🎁 รับรางวัล Event / กิจกรรมทั้งหมดอัตโนมัติ</span>
+      </label>
       <label style="display:flex; align-items:center; gap:5px; font-size:10.5px; font-weight:700; color:#fda4af; cursor:pointer;" title="ตายแล้วกดกลับค่ายเกิดใหม่ทันที ไม่ต้องรอ 30 วินาที แล้วกลับไปทำเควส/แมพฟาร์มต่อ">
         <input type="checkbox" id="p-nc-autorespawn-enabled" ${state?.autoRespawnEnabled !== false ? 'checked' : ''} style="accent-color:#f43f5e;">
         <span>⚰️ เปิด Auto-Respawn (ตายเกิดใหม่ทันที + ลุยต่อ)</span>
@@ -10027,6 +10031,18 @@ async function openWebBotHUD(profileId) {
     };
   }
 
+  const claimEvEnableCb = hudEl.querySelector('#p-nc-auto-claim-events');
+  if (claimEvEnableCb) {
+    claimEvEnableCb.onchange = async () => {
+      try {
+        await sendWebHudAction(profileId, {
+          type: 'eval',
+          code: `(typeof window.__setAutoClaimEventsEnabled === 'function' ? window.__setAutoClaimEventsEnabled(${Boolean(claimEvEnableCb.checked)}) : (window.__autoClaimEventsEnabled = ${Boolean(claimEvEnableCb.checked)}))`
+        });
+      } catch (_) {}
+    };
+  }
+
   const respEnableCb = hudEl.querySelector('#p-nc-autorespawn-enabled');
   if (respEnableCb) {
     respEnableCb.onchange = async () => {
@@ -10823,6 +10839,7 @@ function populateWebHudData(profileId, data) {
   }
   if (typeof st.upgradeBotAiEnabled === 'boolean') setField('#p-nc-upgrade-ai-enabled', st.upgradeBotAiEnabled, true);
   if (typeof st.autoUsePremiumItemsEnabled === 'boolean') setField('#p-nc-auto-use-premium-items', st.autoUsePremiumItemsEnabled, true);
+  if (typeof st.autoClaimEventsEnabled === 'boolean') setField('#p-nc-auto-claim-events', st.autoClaimEventsEnabled, true);
   if (typeof st.autoRespawnEnabled === 'boolean') setField('#p-nc-autorespawn-enabled', st.autoRespawnEnabled, true);
   if (typeof st.smartGearEnabled === 'boolean') setField('#p-nc-smartgear-enabled', st.smartGearEnabled, true);
   if (st.smartGearWeaponType) setField('#p-nc-smartgear-wtype', st.smartGearWeaponType, false);
