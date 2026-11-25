@@ -64,12 +64,16 @@ function computeProfilePremium(p) {
 
 function computeProfileZeny(p) {
   if (!p) return 0;
-  if (typeof p.zeny === "number" && Number.isFinite(p.zeny)) return Math.max(0, Math.floor(p.zeny));
-  if (p.liveState && typeof p.liveState.zeny === "number" && Number.isFinite(p.liveState.zeny)) {
-    return Math.max(0, Math.floor(p.liveState.zeny));
+  if (p.liveState && typeof p.liveState.totalCoins === "number" && Number.isFinite(p.liveState.totalCoins)) {
+    return Math.max(0, Math.floor(p.liveState.totalCoins));
   }
-  if (typeof p.lastZeny === "number" && Number.isFinite(p.lastZeny)) return Math.max(0, Math.floor(p.lastZeny));
-  return 0;
+  const hand = (p.liveState && typeof p.liveState.freeGold === "number")
+    ? p.liveState.freeGold
+    : ((p.liveState && typeof p.liveState.zeny === "number") ? p.liveState.zeny : (typeof p.zeny === "number" ? p.zeny : (typeof p.lastZeny === "number" ? p.lastZeny : 0)));
+  const vault = (p.liveState && typeof p.liveState.vaultCoins === "number")
+    ? p.liveState.vaultCoins
+    : (typeof p.lastVaultCoins === "number" ? p.lastVaultCoins : 0);
+  return Math.max(0, Math.floor((Number(hand) || 0) + (Number(vault) || 0)));
 }
 
 async function mapWithConcurrency(items, concurrency, fn) {

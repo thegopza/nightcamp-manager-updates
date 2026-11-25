@@ -89,6 +89,7 @@ const { createPartyService } = require("./party_api");
 const { createPremiumService } = require("./premium_api");
 const { createGuildService } = require("./guild_api");
 const { createCardMarketService } = require("./card_market_api");
+const { runNightcampConsolidationWorkflow } = require("./nc_consolidation_engine");
 const { createMarketSniperService } = require("./market_sniper_api");
 const { createTowerCarryService } = require("./tower_carry");
 const { createBotAutoUpdater } = require("./bot_auto_update");
@@ -3433,6 +3434,12 @@ const LIVE_STATE_EVAL = `(() => {
       if (ncp && typeof ncp.coins === 'number') {
         s.zeny = ncp.coins;
         s.coins = ncp.coins;
+        const freeG = (window.NC?.Bound && typeof window.NC.Bound.free === 'function')
+          ? Math.max(0, window.NC.Bound.free(ncp, 'gold') | 0)
+          : ncp.coins;
+        s.freeGold = freeG;
+        s.coinsOnHand = freeG;
+        s.boundCoins = Math.max(0, ncp.coins - freeG);
       }
       const vCoins = (window.NC && window.NC.PremiumOnline && typeof window.NC.PremiumOnline.state === 'function')
         ? (window.NC.PremiumOnline.state()?.vault?.coins)
@@ -3440,6 +3447,28 @@ const LIVE_STATE_EVAL = `(() => {
       if (typeof vCoins === 'number') {
         window.__lastKnownVaultCoins = vCoins;
         s.vaultCoins = vCoins;
+      }
+      const vNum = (typeof s.vaultCoins === 'number') ? Math.max(0, s.vaultCoins | 0) : 0;
+      const fgNum = (typeof s.freeGold === 'number') ? s.freeGold : (typeof s.zeny === 'number' ? s.zeny : 0);
+      s.totalCoins = fgNum + vNum;
+      if (window.NC && window.NC.FreeTrade) {
+        const prem = Boolean(window.NC.FreeTrade.premium && window.NC.FreeTrade.premium());
+        const premDays = Number(window.NC?.PremiumOnline?.days?.() || 0);
+        const tlv = Number(window.NC.FreeTrade.tradeLevel ? window.NC.FreeTrade.tradeLevel() : 20) || 20;
+        s.hasPremium = prem;
+        if (prem) {
+          s.premiumUntil = Date.now() + Math.max(1, premDays || 1) * 86400000;
+        }
+        s.tradeLevel = tlv;
+        s.canFreeTrade = Boolean(prem && (Number(ncp?.lv || s.baseLv || 1) >= tlv));
+      }
+      const ncCh = Number(window.NC?.OnlineChannels?.current?.() || window.NC?.Online?.snap?.channelId || 0);
+      if (Number.isFinite(ncCh) && ncCh > 0) {
+        s.channel = ncCh;
+        s.channelText = 'CH ' + ncCh;
+      }
+      if (window.NC?.game?.mapId) {
+        s.mapId = String(window.NC.game.mapId);
       }
     } catch (_) {}
     if (window.__isShopping && typeof window.__pmForceSyncCharZeny === 'function') {
@@ -4355,7 +4384,7 @@ const CONSOLIDATION_ITEMS_FILE = path.join(__dirname, "data", "consolidation_ite
 const DEFAULT_CONSOLIDATION_ITEMS_CFG = {
   storeOnlyEnabled: false,
   tradeOnConsolidate: false,
-  items: ["Enchant Rune"]
+  items: ["รูนทั้งหมด"]
 };
 
 function sanitizeConsolidationItemsList(items) {
@@ -4372,7 +4401,7 @@ function sanitizeConsolidationItemsList(items) {
     seen.add(key);
     out.push(s);
   }
-  return out.length > 0 ? out : ["Enchant Rune"];
+  return out.length > 0 ? out : ["รูนทั้งหมด"];
 }
 
 function loadConsolidationItemSettings() {
@@ -5622,6 +5651,42 @@ async function runConsolidationWorkflow(receiverProfileId, senderProfileIds, kee
   syncConsolidationGlobalState();
 
   try {
+    // Native Nightcamp Coin & Item Consolidation Engine (Vault + Mail + Camp + CH + xtrade)
+    const ncResult = await runNightcampConsolidationWorkflow({
+      taskId,
+      task,
+      receiverProfile,
+      senderProfiles,
+      receiverIpKey,
+      keepZeny,
+      roundHundredK,
+      tradeItemsEnabled,
+      tradeItemsList,
+      calcSenderTransferZeny,
+      evalProfilePort,
+      isTaskAborted,
+      setTaskStep,
+      markSenderCompleted,
+      logTask,
+      consolidationState,
+      activeConsolidationChannels,
+      ipGroupBadgeText
+    });
+    groupTransferredZeny = ncResult.groupTransferredZeny || 0;
+    groupTransferredItems = ncResult.groupTransferredItems || 0;
+    const ncSummaryIdx = consolidationState.ipGroupSummaries.findIndex(x => x.ip === receiverIpKey);
+    const ncSummaryEntry = {
+      ip: receiverIpKey,
+      receiverId: receiverProfile.id,
+      receiverName: ncResult.receiverName || receiverProfile.name,
+      transferredZeny: groupTransferredZeny,
+      transferredItems: groupTransferredItems,
+      ok: Boolean(ncResult.ok)
+    };
+    if (ncSummaryIdx >= 0) consolidationState.ipGroupSummaries[ncSummaryIdx] = ncSummaryEntry;
+    else consolidationState.ipGroupSummaries.push(ncSummaryEntry);
+    return ncResult;
+    // (legacy fallback below is unreachable on Nightcamp)
     // Ensure all involved clients have up-to-date stash/consolidation item & trade helpers
     await Promise.all([receiverProfile, ...senderProfiles].map(p =>
       ensureClientConsolidationItemHelpers(p.debugPort, {
@@ -13056,15 +13121,16 @@ public class PmFocus {
               if (typeof window.claimAllMarket === 'function') {
                 return await window.claimAllMarket();
               }
-              const r = (typeof window.getGameRoom === 'function') ? window.getGameRoom() : window.__gameRoom;
-              if (r && r.connection?.isOpen) {
-                r.send('market', { op: 'collect_all' });
-                r.send('market', { op: 'mine' });
-                return { success: true };
+              if (window.NC && window.NC.Online && typeof window.NC.Online.rpc === 'function') {
+                const before = Number(window.NC?.game?.player?.coins) || 0;
+                await window.NC.Online.rpc('nc_mail_claim_all', {});
+                await new Promise(r => setTimeout(r, 500));
+                const after = Number(window.NC?.game?.player?.coins) || 0;
+                return { success: true, coinsBefore: before, coinsAfter: after, deltaCoins: Math.max(0, after - before) };
               }
-              return { success: false, error: 'No room connection' };
+              return { success: false, error: 'Not in Nightcamp world' };
             })()`;
-            const r = await evalProfilePort(p.debugPort, evalCode, 3000);
+            const r = await evalProfilePort(p.debugPort, evalCode, 6000);
             results.push({ id: p.id, name: p.name, port: p.debugPort, result: r });
           } catch(e) {
             results.push({ id: p.id, name: p.name, port: p.debugPort, error: e.message });

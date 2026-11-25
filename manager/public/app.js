@@ -6604,6 +6604,17 @@ function parseZenyInputAmount(raw) {
   return Number.isFinite(digits) && digits > 0 ? digits : 0;
 }
 
+function getProfileConsolidatableCoins(p) {
+  if (!p) return 0;
+  const st = p.liveState || {};
+  if (typeof st.totalCoins === 'number' && Number.isFinite(st.totalCoins)) {
+    return Math.max(0, Math.floor(st.totalCoins));
+  }
+  const hand = (typeof st.freeGold === 'number') ? st.freeGold : (typeof st.zeny === 'number' ? st.zeny : 0);
+  const vault = (typeof st.vaultCoins === 'number') ? st.vaultCoins : (typeof p.lastVaultCoins === 'number' ? p.lastVaultCoins : 0);
+  return Math.max(0, Math.floor((Number(hand) || 0) + (Number(vault) || 0)));
+}
+
 function buildIpConsolidationGroups() {
   const keepZeny = getConsolidationKeepZeny();
   const round100k = isConsolidateRound100k();
@@ -6633,7 +6644,7 @@ function buildIpConsolidationGroups() {
     const savedRecId = ipGroupReceiverMap[g.ip];
     let receiver = g.onlinePremiumProfiles.find(p => p.id === savedRecId)
       || g.onlinePremiumProfiles.find(p => p.isMain)
-      || g.onlinePremiumProfiles.slice().sort((a, b) => ((b.liveState?.zeny || 0) - (a.liveState?.zeny || 0)))[0]
+      || g.onlinePremiumProfiles.slice().sort((a, b) => (getProfileConsolidatableCoins(b) - getProfileConsolidatableCoins(a)))[0]
       || g.premiumProfiles.find(p => p.id === savedRecId)
       || g.premiumProfiles.find(p => p.isMain)
       || g.premiumProfiles[0]
@@ -6644,9 +6655,9 @@ function buildIpConsolidationGroups() {
     const senders = receiver
       ? g.onlinePremiumProfiles.filter(p => p.id !== receiver.id && !unselectedSenderIds.has(p.id))
       : [];
-    const totalZeny = g.onlineProfiles.reduce((sum, p) => sum + (Number(p.liveState?.zeny) || 0), 0);
+    const totalZeny = g.onlineProfiles.reduce((sum, p) => sum + getProfileConsolidatableCoins(p), 0);
     const transferableZeny = senders.reduce((sum, p) => {
-      const z = Number(p.liveState?.zeny) || 0;
+      const z = getProfileConsolidatableCoins(p);
       return sum + computeSenderTransferZeny(z, keepZeny, round100k);
     }, 0);
     groups.push({
@@ -6830,14 +6841,11 @@ function updateZenyConsolidationView() {
   const sameIpCb = document.getElementById("cb-consolidate-same-ip-only");
   if (sameIpCb && sameIpCb.checked !== sameIpOnly) sameIpCb.checked = sameIpOnly;
   
-  // 1. Update Top Metrics in Zeny Pane
-  const totalOnlineZeny = onlineProfiles.reduce((sum, p) => {
-    const z = p.liveState && typeof p.liveState.zeny === 'number' ? p.liveState.zeny : 0;
-    return sum + z;
-  }, 0);
+  // 1. Update Top Metrics in Zeny Pane (Hand + Shared Vault)
+  const totalOnlineZeny = onlineProfiles.reduce((sum, p) => sum + getProfileConsolidatableCoins(p), 0);
 
   const zenyTotalEl = document.getElementById("zeny-total-online-val");
-  if (zenyTotalEl) zenyTotalEl.innerText = `${totalOnlineZeny.toLocaleString()} z`;
+  if (zenyTotalEl) zenyTotalEl.innerText = `${totalOnlineZeny.toLocaleString()} g`;
 
   const onlineCountEl = document.getElementById("zeny-online-count");
   if (onlineCountEl) onlineCountEl.innerText = `${onlineProfiles.length}`;
@@ -6900,7 +6908,8 @@ function updateZenyConsolidationView() {
         const hasPrem = isProfilePremium(p);
         const charName = p.liveState?.charName || p.lastCharName || p.name;
         const isOnline = p.isRunning ? "🟢 ออนไลน์" : "⚪ ออฟไลน์";
-        const zeny = p.liveState && typeof p.liveState.zeny === 'number' ? `${p.liveState.zeny.toLocaleString()} z` : '--';
+        const totalC = getProfileConsolidatableCoins(p);
+        const zeny = p.liveState ? `${totalC.toLocaleString()} g` : '--';
         const mainStar = p.isMain ? "⭐ " : "";
         const premPrefix = hasPrem ? "👑 " : "🔒 [ไม่มี Premium] ";
         const ipKey = getProfileIpGroupKey(p);
@@ -7020,8 +7029,11 @@ function updateZenyConsolidationView() {
       const charClass = state.charClass || p.lastCharClass || p.charClass || 'Novice';
       const mapName = state.map || p.targetMap || '--';
       const channel = state.channel ? `CH ${state.channel}` : (state.channelText || '--');
-      const zeny = typeof state.zeny === 'number' ? state.zeny : 0;
-      const zenyText = typeof state.zeny === 'number' ? `${zeny.toLocaleString()} z` : '--';
+      const handCoins = typeof state.freeGold === 'number' ? state.freeGold : (typeof state.zeny === 'number' ? state.zeny : 0);
+      const vaultCoins = typeof state.vaultCoins === 'number' ? state.vaultCoins : (typeof p.lastVaultCoins === 'number' ? p.lastVaultCoins : 0);
+      const zeny = getProfileConsolidatableCoins(p);
+      const zenyText = p.liveState ? `${zeny.toLocaleString()} g` : '--';
+      const breakdownText = p.liveState ? `<div style="font-size: 10px; font-weight: 500; color: #94a3b8;">ติดตัว ${handCoins.toLocaleString()}g · คลัง ${vaultCoins.toLocaleString()}g</div>` : '';
 
       let isChecked = false;
       if (!canSelectSender) {
@@ -7092,7 +7104,8 @@ function updateZenyConsolidationView() {
           </td>
           <td style="text-align: right; font-family: var(--font-mono); font-weight: 700; color: ${zeny > 0 ? '#facc15' : '#94a3b8'};">
             ${zenyText}
-            ${!isReceiver && isChecked && (getConsolidationKeepZeny() > 0 || isConsolidateRound100k()) ? `<div style="font-size: 10.5px; font-weight: 600; color: ${isConsolidateRound100k() ? '#fde047' : '#94a3b8'};">→ โอน ${computeSenderTransferZeny(zeny).toLocaleString()} z</div>` : ''}
+            ${breakdownText}
+            ${!isReceiver && isChecked && (getConsolidationKeepZeny() > 0 || isConsolidateRound100k()) ? `<div style="font-size: 10.5px; font-weight: 600; color: ${isConsolidateRound100k() ? '#fde047' : '#94a3b8'};">→ โอน ${computeSenderTransferZeny(zeny).toLocaleString()} g</div>` : ''}
           </td>
           <td style="text-align: center;">${statusBadge}</td>
         </tr>
@@ -7110,7 +7123,7 @@ function updateZenyConsolidationView() {
     }
 
     const pendingEl = document.getElementById("zeny-pending-transfer-val");
-    if (pendingEl) pendingEl.innerText = `${pendingTransferSum.toLocaleString()} z`;
+    if (pendingEl) pendingEl.innerText = `${pendingTransferSum.toLocaleString()} g`;
   }
 }
 
@@ -7847,7 +7860,7 @@ function initZenyConsolidationEvents() {
     currentProfiles.forEach(p => {
       if (p.id === selectedReceiverProfileId || !p.isRunning || !isProfilePremium(p)) return;
       const sameIpOk = !sameIpOnly || !recIp || getProfileIpGroupKey(p) === recIp;
-      const z = Number(p.liveState?.zeny) || 0;
+      const z = getProfileConsolidatableCoins(p);
       if (sameIpOk && z > minVal) {
         selectedSenderIds.add(p.id);
         matchedCount++;
@@ -8292,20 +8305,20 @@ function initZenyConsolidationEvents() {
 // STASH-ONLY & CONSOLIDATION ITEM TRADE UI
 // ==========================================
 const PRESET_CONSOLIDATION_ITEMS = [
-  { name: "Enchant Rune", icon: "✨" },
-  { name: "Accessory Enchant Rune", icon: "💍" },
-  { name: "Rough Elunium", icon: "🪨" },
-  { name: "Elunium", icon: "🛡️" },
-  { name: "Enriched Elunium", icon: "💎" },
-  { name: "Oridecon", icon: "⚔️" },
-  { name: "Phracon", icon: "🔩" },
-  { name: "Emveretarcon", icon: "🔶" }
+  { name: "รูนทั้งหมด", icon: "🔮" },
+  { name: "การ์ดทั้งหมด", icon: "🃏" },
+  { name: "รูนก้อง", icon: "💎" },
+  { name: "รูนขยาย", icon: "💥" },
+  { name: "รูนดูด", icon: "🌀" },
+  { name: "รูนสะท้อน", icon: "⚡" },
+  { name: "การ์ดซอมบี้ชาวนา", icon: "🧟" },
+  { name: "ขี้ผึ้งเทียนขาว", icon: "🕯️" }
 ];
 
 let consolidationItemSettings = {
   storeOnlyEnabled: false,
   tradeOnConsolidate: false,
-  items: ["Enchant Rune"]
+  items: ["รูนก้อง", "รูนขยาย"]
 };
 
 function renderConsolidationItemTradeUI() {

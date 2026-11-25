@@ -13,7 +13,7 @@
   <link rel="stylesheet" href="plan_editor.css?v=nc2.2.0">
   <link rel="stylesheet" href="party_manager.css?v=nc2.1.7">
   <link rel="stylesheet" href="premium_manager.css?v=nc1.1.1">
-  <link rel="stylesheet" href="card_manager.css?v=nc1.1.1">
+  <link rel="stylesheet" href="card_manager.css?v=nc2.3.0">
   <link rel="stylesheet" href="market_overview.css?v=nc1.1.1">
   <link rel="stylesheet" href="guild_manager.css?v=nc1.1.1">
   <link rel="stylesheet" href="jail_manager.css?v=nc1.1.1">
@@ -23,7 +23,6 @@
   <style id="nc-cleanup-overrides">
     #hw-tab, #hw-scrim, #hw-drawer,
     #pm-tab, #pm-scrim, #pm-drawer,
-    #cd-tab, #cd-scrim, #cd-drawer,
     #gd-tab, #gd-scrim, #gd-drawer,
     #tw-launcher, #tw-backdrop, #tw-drawer,
     #jl-tab, #jl-backdrop, #jl-drawer,
@@ -659,13 +658,13 @@
             <div class="zeny-card-header">
               <span class="zeny-badge-icon">💰</span>
               <div>
-                <div class="zeny-label">ยอดเงินรวมทุกจอที่ออนไลน์ (Total Online Zeny)</div>
-                <div class="zeny-total-value" id="zeny-total-online-val">0 z</div>
+                <div class="zeny-label">ยอดเงินรวมทุกจอที่ออนไลน์ (ติดตัว + คลังร่วมไอดี)</div>
+                <div class="zeny-total-value" id="zeny-total-online-val">0 g</div>
               </div>
             </div>
             <div class="zeny-summary-stats">
               <span class="zeny-stat-chip">🖥️ จอออนไลน์: <b id="zeny-online-count" style="color: #38bdf8;">0</b> จอ</span>
-              <span class="zeny-stat-chip">📦 รอโอนทั้งหมด: <b id="zeny-pending-transfer-val" style="color: #facc15;">0 z</b></span>
+              <span class="zeny-stat-chip">📦 รอโอนทั้งหมด: <b id="zeny-pending-transfer-val" style="color: #facc15;">0 g</b></span>
             </div>
           </div>
 
@@ -755,8 +754,8 @@
             <div class="zst-title-wrap">
               <span class="zst-badge-icon">💎</span>
               <div>
-                <div class="zst-title">ระบบเก็บหิน Enchant Rune เข้าคลังอย่างเดียว & เบิกมารวมตอนเทรด</div>
-                <div class="zst-subtitle">ป้องกันบอทนำหินรูนไปขายตลาดกลาง/NPC เด็ดขาด และสั่งให้ทุกตัวแวะขายขยะ + เบิกหินจากคลังมาเทรดรวมให้ตัวรับพร้อมเงินในรอบเดียว</div>
+                <div class="zst-title">ระบบเก็บรูน / การ์ด / ไอเทมเข้าคลังอย่างเดียว & เบิกมารวมตอนเทรด</div>
+                <div class="zst-subtitle">เบิกไอเทมที่เลือก (เช่น รูนก้อง / รูนขยาย / การ์ด) จากคลังร่วมไอดีมาเทรดรวมให้ตัวรับพร้อมเงินในรอบเดียว (เฉพาะชิ้นที่ไม่ผูกตัวละคร)</div>
               </div>
             </div>
             <span class="zst-sync-pill" id="zst-sync-status-pill">⚡ ซิงค์ทุกจออัตโนมัติ</span>
@@ -819,15 +818,15 @@
           <div class="zeny-pipeline">
             <div class="zeny-pipeline-step" data-step="1">
               <span class="step-num">1</span>
-              <span class="step-txt">⏹️ หยุดบอททุกจอ</span>
+              <span class="step-txt">⏹️ หยุดบอท & รับตลาด</span>
             </div>
             <div class="zeny-pipeline-step" data-step="2">
               <span class="step-num">2</span>
-              <span class="step-txt">🦋 Bwing กลับเมือง</span>
+              <span class="step-txt">🏕️ กลับค่าย & เบิกคลัง</span>
             </div>
             <div class="zeny-pipeline-step" data-step="3">
               <span class="step-num">3</span>
-              <span class="step-txt">👑 ตัวหลักย้าย CH</span>
+              <span class="step-txt">👑 ตัวหลักตั้ง CH</span>
             </div>
             <div class="zeny-pipeline-step" data-step="4">
               <span class="step-num">4</span>
@@ -835,7 +834,7 @@
             </div>
             <div class="zeny-pipeline-step" data-step="5">
               <span class="step-num">5</span>
-              <span class="step-txt">🤝 ทยอยโอนเงิน</span>
+              <span class="step-txt">🤝 ทยอยเทรดรวมเงิน</span>
             </div>
           </div>
 
@@ -888,7 +887,7 @@
                   <th style="width: 180px;">ชื่อจอ / โปรไฟล์</th>
                   <th>ตัวละคร</th>
                   <th>แมพ & แชนเนล</th>
-                  <th style="text-align: right; width: 150px;">เงินในตัว (Zeny)</th>
+                  <th style="text-align: right; width: 175px;">เงินรวม (ติดตัว + คลัง)</th>
                   <th style="width: 150px; text-align: center;">สถานะ</th>
                 </tr>
               </thead>
@@ -1984,19 +1983,20 @@
   </div>
 
   <script src="image_board_solver.js?v=nc1.9.4"></script>
-  <script src="app.js?v=nc2.2.0"></script>
+  <script src="app.js?v=nc2.3.0"></script>
   <script src="builder_module.js?v=nc1.9.6"></script>
   <script src="gear_builder.js?v=nc2.2.0"></script>
   <script src="patcher_module.js?v=nc1.9.4"></script>
   <script src="bot_update.js?v=nc1.9.4"></script>
   <script src="config_copy.js?v=nc1.9.4"></script>
   <script src="party_manager.js?v=nc2.1.7"></script>
+  <script src="card_manager.js?v=nc2.3.0"></script>
   <script src="jail_manager.js?v=nc1.9.4"></script>
   <script src="device_manager.js?v=nc1.9.4"></script>
   <script src="fleet_dashboard.js?v=nc1.9.4"></script>
   <script src="support_chat.js?v=nc1.9.4"></script>
   <script src="announcements.js?v=nc1.9.4"></script>
-  <script src="update_log.js?v=nc2.2.2"></script>
+  <script src="update_log.js?v=nc2.3.0"></script>
   <!-- FLOATING IN-GAME BOT HUDS CONTAINER -->
   <div id="web-huds-container"></div>
 
