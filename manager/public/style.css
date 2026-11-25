@@ -5111,6 +5111,134 @@ label {
   color: #fde68a;
 }
 
+/* Per-Card Server Badge & Per-Server Group Sections */
+.chip-server {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: filter 0.15s ease, transform 0.12s ease;
+}
+.chip-server:hover {
+  filter: brightness(1.15);
+  transform: translateY(-0.5px);
+}
+.chip-server.srv-moonlight {
+  background: rgba(129, 140, 248, 0.18);
+  border: 1px solid rgba(165, 180, 252, 0.45);
+  color: #c7d2fe;
+}
+.chip-server.srv-stardust {
+  background: rgba(56, 189, 248, 0.16);
+  border: 1px solid rgba(56, 189, 248, 0.45);
+  color: #7dd3fc;
+}
+.chip-server.srv-nightfall {
+  background: rgba(168, 85, 247, 0.2);
+  border: 1px solid rgba(192, 132, 252, 0.48);
+  color: #e9d5ff;
+}
+.chip-server.srv-sunflare {
+  background: rgba(245, 158, 11, 0.2);
+  border: 1px solid rgba(251, 191, 36, 0.52);
+  color: #fde68a;
+}
+.chip-server.srv-custom {
+  background: rgba(16, 185, 129, 0.16);
+  border: 1px solid rgba(52, 211, 153, 0.42);
+  color: #a7f3d0;
+}
+.chip-server.srv-auto {
+  background: rgba(148, 163, 184, 0.14);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  color: #cbd5e1;
+}
+.chip-server .srv-mismatch-tag {
+  font-size: 9.5px;
+  font-weight: 800;
+  color: #fca5a5;
+  margin-left: 2px;
+}
+
+.profile-group-section.is-server-group {
+  padding: 12px;
+}
+.profile-group-section.is-server-group.srv-sec-moonlight {
+  border-color: rgba(165, 180, 252, 0.32);
+  background: linear-gradient(180deg, rgba(129, 140, 248, 0.06) 0%, rgba(15, 23, 42, 0.62) 100%);
+}
+.profile-group-section.is-server-group.srv-sec-stardust {
+  border-color: rgba(56, 189, 248, 0.32);
+  background: linear-gradient(180deg, rgba(56, 189, 248, 0.06) 0%, rgba(15, 23, 42, 0.62) 100%);
+}
+.profile-group-section.is-server-group.srv-sec-nightfall {
+  border-color: rgba(192, 132, 252, 0.34);
+  background: linear-gradient(180deg, rgba(168, 85, 247, 0.06) 0%, rgba(15, 23, 42, 0.62) 100%);
+}
+.profile-group-section.is-server-group.srv-sec-sunflare {
+  border-color: rgba(251, 191, 36, 0.38);
+  background: linear-gradient(180deg, rgba(245, 158, 11, 0.07) 0%, rgba(15, 23, 42, 0.62) 100%);
+}
+.profile-group-section.is-server-group.srv-sec-custom {
+  border-color: rgba(52, 211, 153, 0.3);
+  background: linear-gradient(180deg, rgba(16, 185, 129, 0.05) 0%, rgba(15, 23, 42, 0.62) 100%);
+}
+.profile-group-section.is-server-group.srv-sec-auto {
+  border-color: rgba(148, 163, 184, 0.25);
+  background: linear-gradient(180deg, rgba(148, 163, 184, 0.04) 0%, rgba(15, 23, 42, 0.62) 100%);
+}
+
+.pg-group-badge.server.srv-moonlight {
+  background: linear-gradient(135deg, rgba(129, 140, 248, 0.28), rgba(99, 102, 241, 0.18));
+  border: 1px solid rgba(165, 180, 252, 0.55);
+  color: #e0e7ff;
+}
+.pg-group-badge.server.srv-stardust {
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.26), rgba(56, 189, 248, 0.18));
+  border: 1px solid rgba(56, 189, 248, 0.55);
+  color: #bae6fd;
+}
+.pg-group-badge.server.srv-nightfall {
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.28), rgba(139, 92, 246, 0.18));
+  border: 1px solid rgba(192, 132, 252, 0.55);
+  color: #f3e8ff;
+}
+.pg-group-badge.server.srv-sunflare {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.3), rgba(234, 88, 12, 0.2));
+  border: 1px solid rgba(251, 191, 36, 0.6);
+  color: #fef3c7;
+}
+.pg-group-badge.server.srv-custom {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.25), rgba(20, 184, 166, 0.16));
+  border: 1px solid rgba(52, 211, 153, 0.5);
+  color: #a7f3d0;
+}
+.pg-group-badge.server.srv-auto {
+  background: linear-gradient(135deg, rgba(148, 163, 184, 0.22), rgba(100, 116, 139, 0.16));
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  color: #e2e8f0;
+}
+.pg-meta-chip.gold {
+  color: #fde68a;
+  border-color: rgba(251, 191, 36, 0.32);
+}
+.pg-server-launch-btn {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.24), rgba(5, 150, 105, 0.2));
+  border: 1px solid rgba(52, 211, 153, 0.48);
+  color: #a7f3d0;
+  font-weight: 700;
+}
+.pg-server-launch-btn:hover {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.38), rgba(5, 150, 105, 0.3));
+  border-color: rgba(110, 231, 183, 0.72);
+  color: #ecfdf5;
+}
+
 .pg-problem-refresh-btn {
   background: rgba(148, 163, 184, 0.14);
   border: 1px solid rgba(148, 163, 184, 0.32);

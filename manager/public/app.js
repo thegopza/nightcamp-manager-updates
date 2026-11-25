@@ -1660,7 +1660,64 @@ function isProfilePremium(p) {
 
 const captchaHighlightUntilMap = new Map();
 
+const NIGHTCAMP_SERVER_META_MAP = {
+  moonlight: { key: 'moonlight', order: 1, code: 'S1', name: 'Moonlight', label: 'S1 · Moonlight', icon: '🌕', tone: 'moonlight' },
+  stardust:  { key: 'stardust',  order: 2, code: 'S2', name: 'Stardust',  label: 'S2 · Stardust',  icon: '✨', tone: 'stardust' },
+  nightfall: { key: 'nightfall', order: 3, code: 'S3', name: 'Nightfall', label: 'S3 · Nightfall', icon: '🌌', tone: 'nightfall' },
+  sunflare:  { key: 'sunflare',  order: 4, code: 'S4', name: 'Sunflare',  label: 'S4 · Sunflare',  icon: '☀️', tone: 'sunflare' }
+};
+
+function normalizeNightcampServerMeta(rawName) {
+  const s = String(rawName || '').trim();
+  if (!s) {
+    return { key: 'auto', order: 99, code: 'AUTO', name: 'อัตโนมัติ', label: 'อัตโนมัติ (ยังไม่ระบุเซิร์ฟ)', shortLabel: 'อัตโนมัติ', icon: '🌐', tone: 'auto' };
+  }
+  const low = s.toLowerCase();
+  for (const [k, meta] of Object.entries(NIGHTCAMP_SERVER_META_MAP)) {
+    if (low === k || low.includes(k) || low === meta.code.toLowerCase() || low.startsWith(meta.code.toLowerCase() + ' ')) {
+      return { ...meta, shortLabel: meta.label };
+    }
+  }
+  const safeKey = low.replace(/[^a-z0-9_-]+/g, '_') || 'custom';
+  return { key: `srv_${safeKey}`, order: 50, code: s, name: s, label: s, shortLabel: s, icon: '🌐', tone: 'custom' };
+}
+
+function resolveProfileServerInfo(p) {
+  const cfgSrv = String(p?.serverName || '').trim();
+  const isOnline = Boolean(p?.isRunning);
+  const st = isOnline ? p?.liveState : null;
+  const inGame = Boolean(st && !st.error && !st._syntheticLoading && (!st.screenPhase || st.screenPhase === 'in_game'));
+  const liveSrv = inGame ? String(st.serverName || '').trim() : '';
+  const lastSrv = String(p?.lastServerName || '').trim();
+
+  const primaryRaw = cfgSrv || liveSrv || lastSrv || '';
+  const primaryMeta = normalizeNightcampServerMeta(primaryRaw);
+  const liveMeta = liveSrv ? normalizeNightcampServerMeta(liveSrv) : null;
+  const mismatch = Boolean(cfgSrv && liveMeta && liveMeta.key !== primaryMeta.key);
+  const isFromAutoDetected = Boolean(!cfgSrv && (liveSrv || lastSrv));
+
+  let tooltip = `เซิร์ฟเวอร์: ${primaryMeta.label} — คลิกเพื่อเปลี่ยนเซิร์ฟในตั้งค่าโปรไฟล์`;
+  if (mismatch) {
+    tooltip = `ตั้งค่าโปรไฟล์: ${primaryMeta.label} · จอออนไลน์กำลังอยู่ที่: ${liveMeta.label} (คลิกเพื่อแก้ไขโปรไฟล์)`;
+  } else if (isFromAutoDetected) {
+    tooltip = `เซิร์ฟล่าสุด: ${primaryMeta.label} (ตั้งค่าโปรไฟล์: อัตโนมัติ · คลิกเพื่อล็อกเซิร์ฟ)`;
+  } else if (primaryMeta.key === 'auto') {
+    tooltip = 'ยังไม่ได้ระบุเซิร์ฟเวอร์ (โหมดอัตโนมัติ) — คลิกเพื่อเลือกเซิร์ฟเวอร์ในตั้งค่าโปรไฟล์';
+  }
+
+  return {
+    ...primaryMeta,
+    configured: cfgSrv,
+    live: liveSrv,
+    liveMeta,
+    mismatch,
+    isFromAutoDetected,
+    tooltip
+  };
+}
+
 function buildProfileCard(p) {
+  const serverInfo = resolveProfileServerInfo(p);
   const isOnline = p.isRunning;
   const state = isOnline ? p.liveState : null;
   const isWindowHidden = Boolean(state && typeof state.zeroRender === 'boolean' ? state.zeroRender : p.windowState?.isHidden);
@@ -1819,6 +1876,7 @@ function buildProfileCard(p) {
           </div>
           <div class="card-class-row">
             <span class="chip chip-class">${escapeHTML(curClass)}</span>
+            <span class="chip chip-server srv-${serverInfo.tone}" onclick="event.stopPropagation(); openEditModal('${p.id}')" title="${escapeHTML(serverInfo.tooltip)}">${serverInfo.icon} ${escapeHTML(serverInfo.shortLabel)}${serverInfo.mismatch && serverInfo.liveMeta ? ` <small class="srv-mismatch-tag">(${escapeHTML(serverInfo.liveMeta.code)})</small>` : ''}</span>
             ${baseLv !== null ? `<span class="lv-text">Base <b>${baseLv}</b></span>` : ''}
             ${jobLv !== null ? `<span class="lv-text">Job <b>${jobLv}</b></span>` : ''}
             ${buildPartyRoleChip(p.id)}
@@ -2696,6 +2754,67 @@ function buildSoloGroupSection(soloProfiles) {
     </section>`;
 }
 
+function launchServerGroupClients(serverKey, event) {
+  if (event) event.stopPropagation();
+  const targets = currentProfiles.filter(p =>
+    !p.isRunning &&
+    !getLaunchProfileFlags(p).isBlocked &&
+    resolveProfileServerInfo(p).key === serverKey
+  );
+  if (targets.length === 0) {
+    if (typeof showToast === 'function') showToast('🟢 จอในเซิร์ฟนี้เปิดครบแล้ว หรือติดสถานะคุก/แบน', 'info');
+    return;
+  }
+  const meta = resolveProfileServerInfo(targets[0]);
+  executeLaunchProfiles(targets.map(p => String(p.id)), `เซิร์ฟ ${meta.label} (${targets.length} จอ)`);
+}
+window.launchServerGroupClients = launchServerGroupClients;
+
+function buildServerGroupSection(serverMeta, serverProfiles) {
+  const groupKey = `server:${serverMeta.key}`;
+  const isCollapsed = collapsedCardGroups.has(groupKey);
+  const sorted = sortProfileList(serverProfiles);
+  const stats = summarizeGroupStats(sorted);
+  const offlineNotBlocked = sorted.filter(p => !p.isRunning && !getLaunchProfileFlags(p).isBlocked);
+  let totalGold = 0;
+  for (const p of sorted) {
+    const st = p.isRunning ? p.liveState : null;
+    const z = (st && typeof st.zeny === 'number') ? st.zeny : ((st && typeof st.coins === 'number') ? st.coins : (typeof p.lastZeny === 'number' ? p.lastZeny : 0));
+    const v = (st && typeof st.vaultCoins === 'number') ? st.vaultCoins : (typeof p.lastVaultCoins === 'number' ? p.lastVaultCoins : 0);
+    totalGold += (Number(z) || 0) + (Number(v) || 0);
+  }
+
+  return `
+    <section class="profile-group-section is-server-group srv-sec-${serverMeta.tone} ${isCollapsed ? 'is-collapsed' : ''}" data-group-id="group-server-${escapeHTML(serverMeta.key)}">
+      <header class="profile-group-header" onclick="toggleCardGroupCollapse('${groupKey}', event)">
+        <div class="pg-head-left">
+          <button type="button" class="pg-collapse-btn" title="${isCollapsed ? 'คลิกเพื่อขยายดูการ์ดในเซิร์ฟนี้' : 'คลิกเพื่อพับเก็บการ์ดในเซิร์ฟนี้'}">${isCollapsed ? '▶' : '▼'}</button>
+          <span class="pg-group-badge server srv-${serverMeta.tone}">${serverMeta.icon} ${escapeHTML(serverMeta.label)}</span>
+          <div class="pg-title-block">
+            <div class="pg-title-main">
+              <span>${serverMeta.key === 'auto' ? 'จอที่ยังไม่ได้ระบุเซิร์ฟเวอร์' : `เซิร์ฟเวอร์ <b>${escapeHTML(serverMeta.name)}</b>`} (${stats.totalCount} จอ)</span>
+            </div>
+            <div class="pg-meta-pills">
+              <span class="pg-meta-chip">🖥️ ออนไลน์ <b>${stats.onlineCount}</b>/${stats.totalCount} จอ</span>
+              ${stats.farmingCount > 0 ? `<span class="pg-meta-chip">⚔️ กำลังทำงาน <b>${stats.farmingCount}</b> จอ</span>` : ''}
+              ${totalGold > 0 ? `<span class="pg-meta-chip gold" title="ยอดเงินรวมติดตัว + คลังร่วมของจอในเซิร์ฟนี้">💰 เงินรวม <b>${totalGold.toLocaleString()} z</b></span>` : ''}
+            </div>
+          </div>
+        </div>
+
+        <div class="pg-head-right" onclick="event.stopPropagation()">
+          <div class="pg-head-actions">
+            ${offlineNotBlocked.length > 0 ? `<button type="button" class="btn btn-sm pg-action-btn pg-server-launch-btn" onclick="launchServerGroupClients('${escapeHTML(serverMeta.key)}', event)" title="เปิดจอเกมที่ยังปิดอยู่ทั้งหมดในเซิร์ฟ ${escapeHTML(serverMeta.label)} (ข้ามจอติดคุก/แบน)">▶️ เปิดจอเซิร์ฟนี้ (${offlineNotBlocked.length})</button>` : ''}
+          </div>
+        </div>
+      </header>
+      ${isCollapsed ? '' : `
+      <div class="profile-group-grid profiles-grid">
+        ${sorted.map(buildProfileCard).join('')}
+      </div>`}
+    </section>`;
+}
+
 function renderProfiles() {
   syncViewModeControls();
   if (currentProfiles.length === 0) {
@@ -2745,11 +2864,24 @@ function renderProfiles() {
     html += buildSoloGroupSection(soloProfilesAll);
     tpl.innerHTML = html;
   } else {
-    gridEl.classList.remove('grouped-mode');
+    gridEl.classList.add('grouped-mode');
     const problemProfilesDefault = currentProfiles.filter(p => isProfileProblemNotInGame(p));
     const stoppedProfilesDefault = currentProfiles.filter(p => !isProfileProblemNotInGame(p) && isProfileBotStopped(p));
     const activeProfilesDefault = currentProfiles.filter(p => !isProfileProblemNotInGame(p) && !isProfileBotStopped(p));
-    const sortedActive = sortProfileList(activeProfilesDefault);
+
+    const serverBuckets = new Map();
+    for (const p of activeProfilesDefault) {
+      const info = resolveProfileServerInfo(p);
+      if (!serverBuckets.has(info.key)) {
+        serverBuckets.set(info.key, { meta: info, profiles: [] });
+      }
+      serverBuckets.get(info.key).profiles.push(p);
+    }
+    const orderedServerGroups = Array.from(serverBuckets.values()).sort((a, b) => {
+      if (a.meta.order !== b.meta.order) return a.meta.order - b.meta.order;
+      return String(a.meta.label).localeCompare(String(b.meta.label));
+    });
+
     let html = '';
     if (problemProfilesDefault.length > 0) {
       html += buildProblemGroupSection(problemProfilesDefault);
@@ -2757,7 +2889,7 @@ function renderProfiles() {
     if (stoppedProfilesDefault.length > 0) {
       html += buildStoppedGroupSection(stoppedProfilesDefault);
     }
-    html += sortedActive.map(buildProfileCard).join('');
+    html += orderedServerGroups.map(g => buildServerGroupSection(g.meta, g.profiles)).join('');
     tpl.innerHTML = html;
   }
 
@@ -3643,6 +3775,14 @@ function jumpToAndFocusCaptchaClient(profileId) {
   for (const gk of ["problem", "stopped", "solo"]) {
     if (collapsedCardGroups.has(gk)) {
       collapsedCardGroups.delete(gk);
+      expandedAny = true;
+    }
+  }
+  const targetProfForExpand = currentProfiles.find(p => String(p.id) === pid);
+  if (targetProfForExpand && typeof resolveProfileServerInfo === "function") {
+    const srvGroupKey = `server:${resolveProfileServerInfo(targetProfForExpand).key}`;
+    if (collapsedCardGroups.has(srvGroupKey)) {
+      collapsedCardGroups.delete(srvGroupKey);
       expandedAny = true;
     }
   }

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "sourceCommit": "bd7a7d7d685fd35b792061f9732b221714f356c3",
+  "sourceCommit": "3cdaef93a1fbd618043d5fef160ed28476abb401",
   "files": [
     {
       "path": "manager/asset_cache.js",
@@ -144,7 +144,7 @@
     },
     {
       "path": "manager/public/app.js",
-      "sha256": "260e70ecc7c4d891492636ce998edbe9181734881719b76478e7cd0fc805ddea"
+      "sha256": "bd9e702f1b52c2694eae3eb7f5e8b2274caace7834fc7b96b390beaca4fc963e"
     },
     {
       "path": "manager/public/assets/updates/ui_v212_bag_rightclick.jpg",
@@ -228,7 +228,7 @@
     },
     {
       "path": "manager/public/index.html",
-      "sha256": "765265ebea1f03585cb096a874a7f2ea015440eba4fe06c2f5abd46201647309"
+      "sha256": "c9193170d90a74087e3b7938ab568fc7e535ab34f448ce5a46f1f47f06bd3da9"
     },
     {
       "path": "manager/public/inventory_market.css",
@@ -292,7 +292,7 @@
     },
     {
       "path": "manager/public/style.css",
-      "sha256": "81c25c7d664ee765371fafe2c33c904daf87dd62218e7b73650de02dfd4810c0"
+      "sha256": "3748cf5cafc4eee3d5dc8493b4afcfb7f2b60d732f4cfb270b8d77e85e4c667f"
     },
     {
       "path": "manager/public/support_chat.css",
@@ -308,7 +308,7 @@
     },
     {
       "path": "manager/public/update_log.js",
-      "sha256": "072daffbd557412803137d40e4289bae5e12d04e964ebaccb91b7edc081e13fd"
+      "sha256": "a4255cae0a06db26033b498fd3ac205dada66b1e467fdaa66fc4891b6cba980d"
     },
     {
       "path": "manager/public/wiki/calc.js",
@@ -352,7 +352,7 @@
     },
     {
       "path": "manager/server.js",
-      "sha256": "bb47a8c22b88f13d505879cb1a4934eed9b641a5060edb20ad5d132e86d5f9dd"
+      "sha256": "95eae057e528db0a74fc3c22feb6731bdeed7a2955794a835c56cfe68355d354"
     },
     {
       "path": "manager/test_isolation.js",

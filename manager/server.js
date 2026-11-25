@@ -10962,7 +10962,9 @@ const server = http.createServer(async (req, res) => {
                           (inGamePhase && hasChar && s.hasPremium === false && Number(p.lastPremiumUntil || 0) > Date.now());
       const zenyChanged = inGamePhase && typeof s.zeny === 'number' && s.zeny !== p.lastZeny;
       const vaultChanged = inGamePhase && typeof s.vaultCoins === 'number' && s.vaultCoins !== p.lastVaultCoins;
-      return (portrait && portrait !== p.lastPortrait) || (hasChar && s.charName !== p.lastCharName) || (hasChar && s.charClass && s.charClass !== p.lastCharClass) || premChanged || zenyChanged || vaultChanged;
+      const liveSrvClean = (inGamePhase && s.serverName) ? String(s.serverName).trim() : '';
+      const srvLastChanged = Boolean(liveSrvClean && liveSrvClean !== String(p.lastServerName || '').trim());
+      return (portrait && portrait !== p.lastPortrait) || (hasChar && s.charName !== p.lastCharName) || (hasChar && s.charClass && s.charClass !== p.lastCharClass) || premChanged || zenyChanged || vaultChanged || srvLastChanged;
     });
     if (changed.length > 0) {
       const fresh = loadProfiles();
@@ -10993,6 +10995,10 @@ const server = http.createServer(async (req, res) => {
             }
             if (inGamePhase && typeof p.liveState.vaultCoins === 'number') {
               target.lastVaultCoins = p.lastVaultCoins = p.liveState.vaultCoins;
+            }
+            const liveSrvClean = (inGamePhase && p.liveState.serverName) ? String(p.liveState.serverName).trim() : '';
+            if (liveSrvClean) {
+              target.lastServerName = p.lastServerName = liveSrvClean;
             }
             if (Number(p.liveState.premiumUntil) > 0) {
               target.lastPremiumUntil = p.lastPremiumUntil = Number(p.liveState.premiumUntil);
