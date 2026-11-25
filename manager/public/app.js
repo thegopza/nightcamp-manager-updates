@@ -9152,27 +9152,30 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
           <span style="color:#cbd5e1;">⚔️ อาวุธ:</span>
           <select id="p-nc-sell-weapon-grade" style="background:#090d16; border:1px solid rgba(56,189,248,0.4); color:#e2e8f0; border-radius:4px; font-size:10px; padding:3px 4px;">
             <option value="0" ${Number(sc.weaponMaxGrade ?? 1) === 0 ? 'selected' : ''}>❌ ไม่ขาย</option>
-            <option value="1" ${Number(sc.weaponMaxGrade ?? 1) === 1 ? 'selected' : ''}>⚪ ทั่วไป (Common)</option>
-            <option value="2" ${Number(sc.weaponMaxGrade ?? 1) === 2 ? 'selected' : ''}>🔵≤ หายาก (Rare)</option>
-            <option value="3" ${Number(sc.weaponMaxGrade ?? 1) === 3 ? 'selected' : ''}>🟣≤ ล้ำค่า (Epic)</option>
+            <option value="1" ${Number(sc.weaponMaxGrade ?? 1) === 1 ? 'selected' : ''}>⚪ ธรรมดา (Common)</option>
+            <option value="2" ${Number(sc.weaponMaxGrade ?? 1) === 2 ? 'selected' : ''}>🔵 หายาก (Rare) ลงไป</option>
+            <option value="3" ${Number(sc.weaponMaxGrade ?? 1) === 3 ? 'selected' : ''}>🟣 มหากาพย์ (Epic) ลงไป</option>
+            <option value="4" ${Number(sc.weaponMaxGrade ?? 1) === 4 ? 'selected' : ''}>🟡 ตำนาน (Legend) ลงไป</option>
           </select>
         </div>
         <div style="display:flex; flex-direction:column; gap:2px;">
           <span style="color:#cbd5e1;">🛡️ ชุดเกราะ/หมวก/โล่:</span>
           <select id="p-nc-sell-armor-grade" style="background:#090d16; border:1px solid rgba(56,189,248,0.4); color:#e2e8f0; border-radius:4px; font-size:10px; padding:3px 4px;">
             <option value="0" ${Number(sc.armorMaxGrade ?? 1) === 0 ? 'selected' : ''}>❌ ไม่ขาย</option>
-            <option value="1" ${Number(sc.armorMaxGrade ?? 1) === 1 ? 'selected' : ''}>⚪ ทั่วไป (Common)</option>
-            <option value="2" ${Number(sc.armorMaxGrade ?? 1) === 2 ? 'selected' : ''}>🔵≤ หายาก (Rare)</option>
-            <option value="3" ${Number(sc.armorMaxGrade ?? 1) === 3 ? 'selected' : ''}>🟣≤ ล้ำค่า (Epic)</option>
+            <option value="1" ${Number(sc.armorMaxGrade ?? 1) === 1 ? 'selected' : ''}>⚪ ธรรมดา (Common)</option>
+            <option value="2" ${Number(sc.armorMaxGrade ?? 1) === 2 ? 'selected' : ''}>🔵 หายาก (Rare) ลงไป</option>
+            <option value="3" ${Number(sc.armorMaxGrade ?? 1) === 3 ? 'selected' : ''}>🟣 มหากาพย์ (Epic) ลงไป</option>
+            <option value="4" ${Number(sc.armorMaxGrade ?? 1) === 4 ? 'selected' : ''}>🟡 ตำนาน (Legend) ลงไป</option>
           </select>
         </div>
         <div style="display:flex; flex-direction:column; gap:2px;">
           <span style="color:#cbd5e1;">💍 เครื่องประดับ:</span>
           <select id="p-nc-sell-acc-grade" style="background:#090d16; border:1px solid rgba(56,189,248,0.4); color:#e2e8f0; border-radius:4px; font-size:10px; padding:3px 4px;">
             <option value="0" ${Number(sc.accMaxGrade ?? 0) === 0 ? 'selected' : ''}>❌ ไม่ขาย</option>
-            <option value="1" ${Number(sc.accMaxGrade ?? 0) === 1 ? 'selected' : ''}>⚪ ทั่วไป (Common)</option>
-            <option value="2" ${Number(sc.accMaxGrade ?? 0) === 2 ? 'selected' : ''}>🔵≤ หายาก (Rare)</option>
-            <option value="3" ${Number(sc.accMaxGrade ?? 0) === 3 ? 'selected' : ''}>🟣≤ ล้ำค่า (Epic)</option>
+            <option value="1" ${Number(sc.accMaxGrade ?? 0) === 1 ? 'selected' : ''}>⚪ ธรรมดา (Common)</option>
+            <option value="2" ${Number(sc.accMaxGrade ?? 0) === 2 ? 'selected' : ''}>🔵 หายาก (Rare) ลงไป</option>
+            <option value="3" ${Number(sc.accMaxGrade ?? 0) === 3 ? 'selected' : ''}>🟣 มหากาพย์ (Epic) ลงไป</option>
+            <option value="4" ${Number(sc.accMaxGrade ?? 0) === 4 ? 'selected' : ''}>🟡 ตำนาน (Legend) ลงไป</option>
           </select>
         </div>
         <div style="display:flex; flex-direction:column; gap:2px;">
@@ -9205,8 +9208,18 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
       </div>
       <label style="display:flex; align-items:center; gap:5px; color:#f1f5f9; cursor:pointer;">
         <input type="checkbox" id="p-nc-sell-keep-special" ${sc.keepSpecial !== false ? 'checked' : ''} style="accent-color:#a855f7;">
-        <span>✨ ล็อกของมีออปชัน 3–4 แถว / เกรดขัด ≥ 2 / ประกายจันทร์ (✦)</span>
+        <span>✨ ล็อกของมีออปชัน 3–4 แถว / ประกายจันทร์ (✦)</span>
       </label>
+      <div style="display:flex; align-items:center; gap:5px; color:#f1f5f9;">
+        <span style="white-space:nowrap;">💎 เกรดขัด:</span>
+        <select id="p-nc-sell-keep-polish" style="flex:1; min-width:0; background:#090d16; border:1px solid rgba(168,85,247,0.5); color:#e9d5ff; border-radius:4px; font-size:10px; padding:2px 5px;">
+          <option value="0" ${Number(sc.keepPolishMinGrade ?? 3) === 0 ? 'selected' : ''}>ปิด (ไม่ล็อกตามเกรดขัด)</option>
+          <option value="2" ${Number(sc.keepPolishMinGrade ?? 3) === 2 ? 'selected' : ''}>ล็อก ≥ G2 (วาว)</option>
+          <option value="3" ${Number(sc.keepPolishMinGrade ?? 3) === 3 ? 'selected' : ''}>ล็อก ≥ G3 (แวววาว · แนะนำ)</option>
+          <option value="4" ${Number(sc.keepPolishMinGrade ?? 3) === 4 ? 'selected' : ''}>ล็อก ≥ G4 (เจิดจ้า)</option>
+          <option value="5" ${Number(sc.keepPolishMinGrade ?? 3) === 5 ? 'selected' : ''}>ล็อก ≥ G5 (ราตรี)</option>
+        </select>
+      </div>
       <label style="display:flex; align-items:center; gap:5px; color:#fde68a; cursor:pointer; border-top:1px solid rgba(255,255,255,0.08); padding-top:4px;">
         <input type="checkbox" id="p-nc-sell-auto-repair" ${sc.autoRepair !== false ? 'checked' : ''} style="accent-color:#f59e0b;">
         <span>🔧 แวะซ่อมอุปกรณ์ที่ป๋าหมูหริ่งอัตโนมัติ</span>
@@ -10068,6 +10081,7 @@ async function openWebBotHUD(profileId) {
     ['#p-nc-sell-keep-best', 'keepBestCopy', 'bool'],
     ['#p-nc-sell-keep-refined', 'keepRefined', 'bool'],
     ['#p-nc-sell-keep-special', 'keepSpecial', 'bool'],
+    ['#p-nc-sell-keep-polish', 'keepPolishMinGrade', 'num'],
     ['#p-nc-sell-keep-boss', 'keepBossGear', 'bool'],
     ['#p-nc-sell-auto-repair', 'autoRepair', 'bool'],
     ['#p-nc-sell-store-mats', 'storeMats', 'bool'],
@@ -10665,6 +10679,7 @@ function populateWebHudData(profileId, data) {
     setField('#p-nc-sell-keep-best', sc.keepBestCopy !== false, true);
     setField('#p-nc-sell-keep-refined', sc.keepRefined !== false, true);
     setField('#p-nc-sell-keep-special', sc.keepSpecial !== false, true);
+    setField('#p-nc-sell-keep-polish', sc.keepPolishMinGrade ?? 3, false);
     setField('#p-nc-sell-keep-boss', sc.keepBossGear !== false, true);
     setField('#p-nc-sell-auto-repair', sc.autoRepair !== false, true);
     setField('#p-nc-sell-store-mats', sc.storeMats !== false, true);
@@ -16461,16 +16476,16 @@ function saveLocalNightcampCMarketCfg(profileId, cfg) {
 
 function getNightcampRarityStyle(rarity, starshine) {
   const r = String(rarity || 'common').toLowerCase();
-  if (starshine || r === 'legendary' || r === 'mythic' || r === 'boss') {
+  if (starshine || r === 'legend' || r === 'legendary' || r === 'mythic' || r === 'boss') {
     return { color: '#fbbf24', border: 'rgba(251, 191, 36, 0.55)', bg: 'rgba(245, 158, 11, 0.14)', label: 'ตำนาน' };
   }
   if (r === 'epic') {
-    return { color: '#d8b4fe', border: 'rgba(192, 132, 252, 0.5)', bg: 'rgba(168, 85, 247, 0.14)', label: 'ล้ำค่า' };
+    return { color: '#d8b4fe', border: 'rgba(192, 132, 252, 0.5)', bg: 'rgba(168, 85, 247, 0.14)', label: 'มหากาพย์' };
   }
   if (r === 'rare') {
     return { color: '#7dd3fc', border: 'rgba(56, 189, 248, 0.48)', bg: 'rgba(14, 165, 233, 0.13)', label: 'หายาก' };
   }
-  return { color: '#e2e8f0', border: 'rgba(148, 163, 184, 0.28)', bg: 'rgba(30, 41, 59, 0.55)', label: 'ทั่วไป' };
+  return { color: '#e2e8f0', border: 'rgba(148, 163, 184, 0.28)', bg: 'rgba(30, 41, 59, 0.55)', label: 'ธรรมดา' };
 }
 
 function ensureNightcampCharacterModalDom() {
