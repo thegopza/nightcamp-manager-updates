@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "sourceCommit": "21040d42b4210b0479c3811527052563f195fd58",
+  "sourceCommit": "f0c963c6a048de866212a064bafa4e6b97fd8e5d",
   "files": [
     {
       "path": "manager/asset_cache.js",
@@ -308,7 +308,7 @@
     },
     {
       "path": "manager/public/update_log.js",
-      "sha256": "6baff02888ee5402023c2da958a00d8f36d7302ea49b32c070bc4f1ba2be5e63"
+      "sha256": "3f804ba6b3537d602fc3eede7b741302e2f13fa7c84ac0bad4dd2796e2d06db3"
     },
     {
       "path": "manager/public/wiki/calc.js",
