@@ -11680,6 +11680,7 @@ const server = http.createServer(async (req, res) => {
         const nextPassword = passwordProvided ? String(data.loginPassword || "").trim() : existingPassword;
         const passwordChanged = passwordProvided && nextPassword !== existingPassword;
         const accountChanged = data.account !== undefined && nextAccount !== (profiles[idx].account || "");
+        const serverChanged = data.serverName !== undefined && String(data.serverName || "").trim() !== String(profiles[idx].serverName || "").trim();
         const wantsNewAutoRegister = data.autoRegister === true || (
           data.autoRegister !== false &&
           !nextPassword &&
@@ -11707,10 +11708,10 @@ const server = http.createServer(async (req, res) => {
           autoResumeBot: data.autoResumeBot !== undefined ? Boolean(data.autoResumeBot) : Boolean(profiles[idx].autoResumeBot),
           autoRegister: nextAutoRegister,
           ...(wantsNewAutoRegister
-            ? { generatedAccount: false, registerError: "", loginSyncPending: false, proxyFallbackBrowser: undefined, proxyRegistrationState: undefined }
+            ? { generatedAccount: false, registerError: "", loginSyncPending: false, proxyFallbackBrowser: undefined, proxyRegistrationState: undefined, ...(serverChanged ? { lastAuthSyncPushAt: Date.now() } : {}) }
             : (hasExplicitManualCreds || accountChanged || passwordChanged
                 ? { generatedAccount: false, registerError: "", loginSyncPending: true, lastAuthSyncPushAt: Date.now() }
-                : {})),
+                : (serverChanged ? { lastAuthSyncPushAt: Date.now() } : {}))),
           charClass: data.charClass || profiles[idx].charClass,
           targetMap: data.targetMap !== undefined ? data.targetMap : profiles[idx].targetMap,
           debugPort: data.debugPort || profiles[idx].debugPort,
@@ -11718,13 +11719,29 @@ const server = http.createServer(async (req, res) => {
           notes: data.notes !== undefined ? data.notes : profiles[idx].notes,
           whitelist: data.whitelist !== undefined ? data.whitelist : profiles[idx].whitelist
         };
-        if (!wantsNewAutoRegister && (hasExplicitManualCreds || accountChanged || passwordChanged)) {
+        if (!wantsNewAutoRegister && (hasExplicitManualCreds || accountChanged || passwordChanged || serverChanged)) {
           if (typeof authSync?.resetProfileRegistration === "function") {
             authSync.resetProfileRegistration(id);
           }
           syncProfileAuthToBrowserStorage(id, profiles[idx], nextPassword, {
             clearSession: Boolean(accountChanged || passwordChanged)
           });
+        }
+        if (serverChanged && profiles[idx].debugPort) {
+          const nextSrvStr = String(profiles[idx].serverName || "").trim();
+          evalProfilePort(profiles[idx].debugPort, `(() => {
+            try {
+              const cfg = window.__authConfig || JSON.parse(localStorage.getItem('pelican_auth_cfg') || '{}') || {};
+              cfg.serverName = ${JSON.stringify(nextSrvStr)};
+              cfg.serverEditedAt = 0;
+              window.__authConfig = cfg;
+              localStorage.setItem('pelican_auth_cfg', JSON.stringify(cfg));
+              const sel = document.getElementById('p-auth-server');
+              if (sel) sel.value = ${JSON.stringify(nextSrvStr)};
+              if (typeof window.syncAllHudInputsFromConfig === 'function') window.syncAllHudInputsFromConfig();
+            } catch (_) {}
+            return true;
+          })()`, 3000).catch(() => {});
         }
         if (wantsNewAutoRegister) {
           delete profiles[idx].proxyFallbackBrowser;
@@ -12877,7 +12894,7 @@ public class PmFocus {
             enabled: (resultObj.authConfig && resultObj.authConfig.enabled !== undefined)
               ? Boolean(resultObj.authConfig.enabled)
               : (profile.autoLoginEnabled !== false),
-            serverName: (resultObj.authConfig && resultObj.authConfig.serverName) || profile.serverName || "",
+            serverName: profile.serverName || (resultObj.authConfig && resultObj.authConfig.serverName) || "",
             username: (resultObj.authConfig && resultObj.authConfig.username) || savedAccount || "",
             password: savedPassword || (resultObj.authConfig && resultObj.authConfig.password) || "",
             charName: (resultObj.authConfig && resultObj.authConfig.charName) || profile.charName || "",
@@ -13057,9 +13074,14 @@ public class PmFocus {
                 target.registerError = '';
                 target.loginSyncPending = false;
                 target.lastAuthSyncPushAt = Date.now();
+              } else if (nextServer !== undefined) {
+                target.lastAuthSyncPushAt = Date.now();
               }
               if (nextChar && !target.lastCharName) target.lastCharName = nextChar;
               saveProfiles(fresh);
+              if (nextServer !== undefined) {
+                syncProfileAuthToBrowserStorage(profile.id, target, credentials.getPassword(profile.id) || "", { clearSession: false });
+              }
             }
           }
         }

@@ -8855,7 +8855,9 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
     fpsCap: 30
   };
   const savedEnabled = (auth.enabled !== undefined) ? !!auth.enabled : (profile?.autoLoginEnabled !== false);
-  const savedServer = (auth.serverName !== undefined) ? String(auth.serverName || '') : String(profile?.serverName || firstOnlineProf?.serverName || '');
+  const savedServer = isCentral
+    ? '__KEEP__'
+    : String((profile?.serverName !== undefined && profile?.serverName !== '') ? profile.serverName : ((auth.serverName !== undefined ? auth.serverName : profile?.serverName) || ''));
   const savedUser = (auth.username !== undefined) ? String(auth.username || '') : String(profile?.account || '');
   const savedPass = (auth.password !== undefined) ? String(auth.password || '') : String(profile?.loginPassword || '');
   const savedChar = (auth.charName !== undefined) ? String(auth.charName || '') : String(profile?.charName || '');
@@ -8875,7 +8877,7 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
   const spText = (typeof state?.sp === 'number')
     ? `${state.sp.toLocaleString()} / ${(state.spMax || state.sp).toLocaleString()}`
     : '-- / --';
-  const authStatusText = state?.authStatus || (savedEnabled ? (savedServer ? `Auto-Login: พร้อม (${savedServer})` : 'Auto-Login: พร้อมใช้งาน') : 'Auto-Login: ปิดใช้งาน');
+  const authStatusText = state?.authStatus || (savedEnabled ? (savedServer && savedServer !== '__KEEP__' ? `Auto-Login: พร้อม (${savedServer})` : 'Auto-Login: พร้อมใช้งาน') : 'Auto-Login: ปิดใช้งาน');
   const sellWeightThreshold = Number(sc.weightThreshold || state?.autoSellWeightPct || 65);
   const smartQuestChecked = state?.smartAutoQuestEnabled !== false;
 
@@ -9420,7 +9422,8 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
       <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
         <span style="font-size:10.5px; color:#e2e8f0; white-space:nowrap;">เลือก Server:</span>
         <select id="p-central-auth-server" style="flex:1; min-width:0; background:#090d16; border:1px solid rgba(192,132,252,0.5); color:#fff; border-radius:5px; font-size:11px; padding:5px 7px;">
-          ${renderNightcampServerOptions(savedServer)}
+          <option value="__KEEP__" selected>🛡️ คงเซิร์ฟเดิมของแต่ละจอ (ไม่เปลี่ยนเซิร์ฟ)</option>
+          ${renderNightcampServerOptions('__KEEP__')}
         </select>
       </div>
       <label style="display:flex; align-items:center; gap:6px; font-size:10.5px; color:#4ade80; cursor:pointer;">
@@ -9638,7 +9641,9 @@ async function applyCentralAuthSettings(hudEl, { triggerNow = false, btn = null 
     return;
   }
   const enabled = Boolean(hudEl.querySelector('#p-central-auth-enabled')?.checked);
-  const serverName = String(hudEl.querySelector('#p-central-auth-server')?.value || '').trim();
+  const rawServerVal = String(hudEl.querySelector('#p-central-auth-server')?.value ?? '__KEEP__').trim();
+  const keepEachServer = rawServerVal === '__KEEP__';
+  const serverName = keepEachServer ? undefined : rawServerVal;
   const autoResumeBot = Boolean(hudEl.querySelector('#p-central-auth-resume')?.checked);
   const origText = btn ? btn.innerText : '';
   if (btn) {
@@ -9653,17 +9658,17 @@ async function applyCentralAuthSettings(hudEl, { triggerNow = false, btn = null 
         name: p.name,
         account: p.account || '',
         loginPassword: p.loginPassword || '',
-        serverName,
+        ...(keepEachServer ? {} : { serverName }),
         charName: p.charName || '',
         autoLoginEnabled: enabled,
         autoResumeBot,
         debugPort: p.debugPort
       })
     })));
-    online.forEach(p => Object.assign(p, { serverName, autoLoginEnabled: enabled, autoResumeBot }));
+    online.forEach(p => Object.assign(p, keepEachServer ? { autoLoginEnabled: enabled, autoResumeBot } : { serverName, autoLoginEnabled: enabled, autoResumeBot }));
     await sendWebHudAction('__central__', {
       type: 'update-auth',
-      config: { enabled, serverName, autoResumeBot, triggerNow: Boolean(triggerNow) }
+      config: { enabled, ...(keepEachServer ? {} : { serverName }), autoResumeBot, triggerNow: Boolean(triggerNow) }
     });
     if (typeof fetchProfiles === 'function') fetchProfiles();
   } catch (err) {
@@ -10815,7 +10820,7 @@ function populateWebHudData(profileId, data) {
 
   const auth = data.authConfig || st.authConfig || {};
   const resolvedEnabled = (auth.enabled !== undefined) ? !!auth.enabled : (prof.autoLoginEnabled !== false);
-  const resolvedServer = String((auth.serverName !== undefined ? auth.serverName : prof.serverName) || '');
+  const resolvedServer = String((prof.serverName !== undefined && prof.serverName !== '') ? prof.serverName : ((auth.serverName !== undefined ? auth.serverName : prof.serverName) || ''));
   const resolvedUser = String((auth.username !== undefined ? auth.username : prof.account) || '');
   const resolvedPass = String((auth.password !== undefined ? auth.password : prof.loginPassword) || '');
   const resolvedChar = String((auth.charName !== undefined ? auth.charName : prof.charName) || '');

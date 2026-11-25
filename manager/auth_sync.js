@@ -295,6 +295,7 @@ const READ_JS = `(() => {
     registerError: c.registerError || '',
     generatedUser: !!c.generatedUser,
     userEditedAt: Number(c.userEditedAt) || 0,
+    serverEditedAt: Number(c.serverEditedAt) || 0,
     verifiedLoginAt: Number(c.verifiedLoginAt) || 0,
     userToggledAt: Number(c.userToggledAt) || 0,
     inGame,
@@ -936,11 +937,15 @@ function createAuthSync({
         await evalProfilePort(profile.debugPort, pushQueueOverlayJs(null), 2000);
         lastPushedQueueDigest.delete(profile.id);
       }
-      if (!isSameAccountId(cur.username, profile.account) || cur.username !== profile.account || cur.password !== pw(profile) || (cur.serverName && cur.serverName !== (profile.serverName || '')) || (cur.charNameCfg && cur.charNameCfg !== (profile.charName || '')) || profile.autoRegister || (profile.generatedAccount && !cur.generatedUser)) {
+      const shouldAdoptServer = Boolean(
+        cur.serverName &&
+        (!profile.serverName || (Number(cur.serverEditedAt) > lastManagerPushAt))
+      );
+      if (!isSameAccountId(cur.username, profile.account) || cur.username !== profile.account || cur.password !== pw(profile) || (shouldAdoptServer && cur.serverName !== (profile.serverName || '')) || (cur.charNameCfg && cur.charNameCfg !== (profile.charName || '')) || profile.autoRegister || (profile.generatedAccount && !cur.generatedUser)) {
         credentials.setPassword(profile.id, cur.password);
         updateProfile(profile.id, {
           account: cur.username,
-          ...(cur.serverName ? { serverName: cur.serverName } : {}),
+          ...(shouldAdoptServer ? { serverName: cur.serverName } : {}),
           ...(cur.charNameCfg ? { charName: cur.charNameCfg } : {}),
           autoRegister: false,
           generatedAccount: !!cur.generatedUser,

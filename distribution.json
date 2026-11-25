@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "sourceCommit": "e765438666cd92774da42b7cd117ea574f129d43",
+  "sourceCommit": "bd7a7d7d685fd35b792061f9732b221714f356c3",
   "files": [
     {
       "path": "manager/asset_cache.js",
@@ -8,7 +8,7 @@
     },
     {
       "path": "manager/auth_sync.js",
-      "sha256": "f5c32bcecc01e616d3591bcfebb27ca063bb64fc18fbaea1e8e870f3d3a2a8fd"
+      "sha256": "f888e7059cc35d6237c1b650549d428b7904b55a41732e0143238136d3d4894d"
     },
     {
       "path": "manager/bot_auto_update.js",
@@ -28,7 +28,7 @@
     },
     {
       "path": "manager/config_copy_api.js",
-      "sha256": "8971efee4d387e83475a2304e750c443caec648c22606884fac7e8c633283af9"
+      "sha256": "c51eecc82c8e53d3c210f4f9fe5f767f91c4ec4ffff213f671a2e92fb1974320"
     },
     {
       "path": "manager/coordinated_coordinator.js",
@@ -144,7 +144,7 @@
     },
     {
       "path": "manager/public/app.js",
-      "sha256": "148b062e3b03f0b0a3e9f600c322ed7605fd5f3be9af681493798eeef1d331ad"
+      "sha256": "260e70ecc7c4d891492636ce998edbe9181734881719b76478e7cd0fc805ddea"
     },
     {
       "path": "manager/public/assets/updates/ui_v212_bag_rightclick.jpg",
@@ -228,7 +228,7 @@
     },
     {
       "path": "manager/public/index.html",
-      "sha256": "6f617b3e8218093d4544973e4c3a989d8ec683577279813c84aa5b5b48e334a5"
+      "sha256": "765265ebea1f03585cb096a874a7f2ea015440eba4fe06c2f5abd46201647309"
     },
     {
       "path": "manager/public/inventory_market.css",
@@ -308,7 +308,7 @@
     },
     {
       "path": "manager/public/update_log.js",
-      "sha256": "2b86906a246e7c8bbeb353160d9d8e4f47d3c8e7740690d416a3bb6fd786375a"
+      "sha256": "072daffbd557412803137d40e4289bae5e12d04e964ebaccb91b7edc081e13fd"
     },
     {
       "path": "manager/public/wiki/calc.js",
@@ -352,7 +352,7 @@
     },
     {
       "path": "manager/server.js",
-      "sha256": "45fce71a07a3a430da4fdc233faab77e9dce8c0e034f9cf0ed7dc625246c50d3"
+      "sha256": "bb47a8c22b88f13d505879cb1a4934eed9b641a5060edb20ad5d132e86d5f9dd"
     },
     {
       "path": "manager/test_isolation.js",

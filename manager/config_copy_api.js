@@ -10,12 +10,13 @@
 // wrong names, which made copied market settings disappear after the next page reload.
 const IMPORT_JS = config => `(() => {
   if (typeof window.importAllBotSettings !== 'function') return { success: false, error: 'บอทในจอนี้ยังไม่พร้อม (importAllBotSettings ไม่มี)' };
-  const before = window.__authConfig ? { username: window.__authConfig.username, password: window.__authConfig.password, charName: window.__authConfig.charName } : null;
+  const before = window.__authConfig ? { username: window.__authConfig.username, password: window.__authConfig.password, charName: window.__authConfig.charName, serverName: window.__authConfig.serverName } : null;
   const r = window.importAllBotSettings(${JSON.stringify(config)});
   if (before && window.__authConfig) {
     window.__authConfig.username = before.username;
     window.__authConfig.password = before.password;
     window.__authConfig.charName = before.charName;
+    if (before.serverName !== undefined) window.__authConfig.serverName = before.serverName;
     try { localStorage.setItem('pelican_auth_cfg', JSON.stringify(window.__authConfig)); } catch (e) {}
   }
   try {
@@ -64,11 +65,12 @@ async function handleConfigCopyRoute(req, res, pathname, ctx) {
     sendJSON({ success: false, error: 'อ่านการตั้งค่าจากจอต้นทางไม่สำเร็จ (บอทอาจยังโหลดไม่เสร็จ)' }, 502);
     return true;
   }
-  // Account-specific: never copy
+  // Account-specific: never copy (keep each profile's own ID, password, char, and server!)
   if (config.authConfig) {
     delete config.authConfig.username;
     delete config.authConfig.password;
     delete config.authConfig.charName;
+    delete config.authConfig.serverName;
   }
 
   const results = [];
