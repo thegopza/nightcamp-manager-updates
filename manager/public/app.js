@@ -9271,6 +9271,20 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
       </div>
 
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px; font-size:9.5px; color:#cbd5e1;">
+        <label style="display:flex; align-items:center; gap:4px; cursor:pointer;" title="รูนเทียบเฉพาะ % ใกล้เคียง/สูงกว่า · อุปกรณ์เทียบเฉพาะเกรด/ตีบวกเดียวกัน ไม่เอาของดีไปตัดราคาของต่ำ">
+          <input type="checkbox" id="p-nc-cm-smart-quality" ${state?.cmarketAutoSellConfig?.smartQualityPricing !== false ? 'checked' : ''} style="accent-color:#f59e0b;">
+          <span>🎯 เทียบตาม % รูน/เกรด</span>
+        </label>
+        <div style="display:flex; align-items:center; gap:3px;" title="กันไม่ขายรูนท็อปอัตโนมัติถ้าคะแนนสุ่มถึงเกณฑ์ที่ตั้งไว้">
+          <span style="white-space:nowrap;">🔒 รูนท็อป:</span>
+          <select id="p-nc-cm-keep-top-rune" style="flex:1; min-width:0; background:#090d16; border:1px solid rgba(251,191,36,0.45); color:#fde68a; border-radius:4px; font-size:9.5px; font-weight:700; padding:1px 3px;">
+            <option value="0" ${Number(state?.cmarketAutoSellConfig?.keepTopRuneQualityPct ?? 90) === 0 ? 'selected' : ''}>ขายหมด</option>
+            <option value="80" ${Number(state?.cmarketAutoSellConfig?.keepTopRuneQualityPct ?? 90) === 80 ? 'selected' : ''}>เก็บ ≥80%</option>
+            <option value="85" ${Number(state?.cmarketAutoSellConfig?.keepTopRuneQualityPct ?? 90) === 85 ? 'selected' : ''}>เก็บ ≥85%</option>
+            <option value="90" ${Number(state?.cmarketAutoSellConfig?.keepTopRuneQualityPct ?? 90) === 90 ? 'selected' : ''}>เก็บ ≥90%</option>
+            <option value="95" ${Number(state?.cmarketAutoSellConfig?.keepTopRuneQualityPct ?? 90) === 95 ? 'selected' : ''}>เก็บ ≥95%</option>
+          </select>
+        </div>
         <label style="display:flex; align-items:center; gap:4px; cursor:pointer;">
           <input type="checkbox" id="p-nc-cm-auto-claim" ${state?.cmarketAutoSellConfig?.autoClaimMail !== false ? 'checked' : ''} style="accent-color:#10b981;">
           <span>📬 รับเงินจดหมายออโต้</span>
@@ -10109,6 +10123,31 @@ async function openWebBotHUD(profileId) {
     };
   }
 
+  const cmSmartQCb = hudEl.querySelector('#p-nc-cm-smart-quality');
+  if (cmSmartQCb) {
+    cmSmartQCb.onchange = async () => {
+      try {
+        await sendWebHudAction(profileId, {
+          type: 'eval',
+          code: `(typeof window.__setCMarketAutoSellConfig === 'function' ? window.__setCMarketAutoSellConfig({ smartQualityPricing: ${Boolean(cmSmartQCb.checked)} }) : null)`
+        });
+      } catch (_) {}
+    };
+  }
+
+  const cmKeepTopSel = hudEl.querySelector('#p-nc-cm-keep-top-rune');
+  if (cmKeepTopSel) {
+    cmKeepTopSel.onchange = async () => {
+      try {
+        const kv = Number(cmKeepTopSel.value) || 0;
+        await sendWebHudAction(profileId, {
+          type: 'eval',
+          code: `(typeof window.__setCMarketAutoSellConfig === 'function' ? window.__setCMarketAutoSellConfig({ keepTopRuneQualityPct: ${kv} }) : null)`
+        });
+      } catch (_) {}
+    };
+  }
+
   const cmClaimCb = hudEl.querySelector('#p-nc-cm-auto-claim');
   if (cmClaimCb) {
     cmClaimCb.onchange = async () => {
@@ -10643,6 +10682,8 @@ function populateWebHudData(profileId, data) {
     const cmc = st.cmarketAutoSellConfig;
     setField('#p-nc-cm-autosell-enabled', Boolean(cmc.enabled), true);
     setField('#p-nc-cm-price-strategy', cmc.priceStrategy || 'undercut_1', false);
+    setField('#p-nc-cm-smart-quality', cmc.smartQualityPricing !== false, true);
+    setField('#p-nc-cm-keep-top-rune', String(Number(cmc.keepTopRuneQualityPct ?? 90)), false);
     setField('#p-nc-cm-auto-claim', cmc.autoClaimMail !== false, true);
     setField('#p-nc-cm-auto-unlist', cmc.autoUnlistExpired !== false, true);
   }
@@ -16392,6 +16433,8 @@ function loadLocalNightcampCMarketCfg(profileId) {
       return {
         enabled: Boolean(raw.enabled),
         priceStrategy: raw.priceStrategy || 'undercut_1',
+        smartQualityPricing: raw.smartQualityPricing !== false,
+        keepTopRuneQualityPct: raw.keepTopRuneQualityPct !== undefined ? Number(raw.keepTopRuneQualityPct) : 90,
         autoClaimMail: raw.autoClaimMail !== false,
         autoUnlistExpired: raw.autoUnlistExpired !== false,
         rules: Array.isArray(raw.rules) ? raw.rules : []
@@ -16401,6 +16444,8 @@ function loadLocalNightcampCMarketCfg(profileId) {
   return {
     enabled: false,
     priceStrategy: 'undercut_1',
+    smartQualityPricing: true,
+    keepTopRuneQualityPct: 90,
     autoClaimMail: true,
     autoUnlistExpired: true,
     rules: []
@@ -17188,6 +17233,8 @@ async function executeNightcampCMarketCopyToProfiles() {
     const targetCfg = {
       enabled: srcCfg.enabled,
       priceStrategy: srcCfg.priceStrategy,
+      smartQualityPricing: srcCfg.smartQualityPricing !== false,
+      keepTopRuneQualityPct: srcCfg.keepTopRuneQualityPct !== undefined ? Number(srcCfg.keepTopRuneQualityPct) : 90,
       autoClaimMail: srcCfg.autoClaimMail,
       autoUnlistExpired: srcCfg.autoUnlistExpired,
       rules: mergedRules
@@ -17787,6 +17834,20 @@ function renderNightcampCMarketTabHtml(d) {
               <option value="lowest" ${cfg.priceStrategy === 'lowest' ? 'selected' : ''}>🏷️ เท่ากับราคาต่ำสุดในตลาด</option>
               <option value="median" ${cfg.priceStrategy === 'median' ? 'selected' : ''}>⚖️ ราคากลางสมดุล (FairTrade Median)</option>
               <option value="band_max" ${cfg.priceStrategy === 'band_max' ? 'selected' : ''}>📈 ราคาเพดานสูงสุดตามกรอบตลาด</option>
+            </select>
+          </div>
+          <label style="display:flex; align-items:center; gap:6px; font-size:11px; color:#fde68a; cursor:pointer; font-weight:700;" title="รูนเทียบเฉพาะ % คุณภาพใกล้เคียงหรือสูงกว่า · อุปกรณ์เทียบเฉพาะเกรดและระดับตีบวกเดียวกัน ไม่เอาของดีไปตัดราคาของต่ำ">
+            <input type="checkbox" ${cfg.smartQualityPricing !== false ? 'checked' : ''} onchange="updateNightcampCMarketMasterSetting('smartQualityPricing', this.checked)" style="accent-color:#f59e0b;">
+            <span>🎯 เทียบราคาตาม % รูน / เกรดของ</span>
+          </label>
+          <div style="display:flex; align-items:center; gap:6px;" title="กันไม่ให้บอทลงขายรูนที่สุ่มได้เกรดท็อปอัตโนมัติ (เก็บไว้ใช้เองหรือตั้งราคาเอง)">
+            <span style="font-size:11px; color:#fde68a; white-space:nowrap;">🔒 กันขายรูนท็อป:</span>
+            <select onchange="updateNightcampCMarketMasterSetting('keepTopRuneQualityPct', Number(this.value) || 0)" style="flex:1; background:#090d16; border:1px solid rgba(251,191,36,0.5); color:#fde68a; border-radius:6px; font-size:11px; font-weight:700; padding:4px 7px;">
+              <option value="0" ${Number(cfg.keepTopRuneQualityPct ?? 90) === 0 ? 'selected' : ''}>ปิด (ขายทุกชิ้น)</option>
+              <option value="80" ${Number(cfg.keepTopRuneQualityPct ?? 90) === 80 ? 'selected' : ''}>เก็บไว้เอง ≥ 80%</option>
+              <option value="85" ${Number(cfg.keepTopRuneQualityPct ?? 90) === 85 ? 'selected' : ''}>เก็บไว้เอง ≥ 85%</option>
+              <option value="90" ${Number(cfg.keepTopRuneQualityPct ?? 90) === 90 ? 'selected' : ''}>เก็บไว้เอง ≥ 90% (แนะนำ)</option>
+              <option value="95" ${Number(cfg.keepTopRuneQualityPct ?? 90) === 95 ? 'selected' : ''}>เก็บไว้เอง ≥ 95%</option>
             </select>
           </div>
           <label style="display:flex; align-items:center; gap:6px; font-size:11px; color:#cbd5e1; cursor:pointer;">
