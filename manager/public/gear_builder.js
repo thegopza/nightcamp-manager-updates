@@ -1,599 +1,944 @@
-// manager/public/gear_builder.js — "🛡️ เซ็ตอุปกรณ์" of a plan.
-//
-// plan.gearPlan = { startClass, steps: [...] } — the bot works through the steps strictly in order, one at a time:
-//   { id, kind: 'equip',  slot, itemId, itemName, options: 'DEX>=1, ASPD>=1', zeny }   buy (market) / equip
-//   { id, kind: 'refine', slot, itemName, toLevel, zeny, blessing }                    refine at Blacksmith Enok
-// A step runs only when the zeny reached its amount AND every step before it is done (wearing the item with the
-// required random options / refined to the level). It starts once the character is the chosen class (or later).
+// ============================================================================
+// NIGHTCAMP VISUAL SET GEAR BUILDER (v2.2.0)
+// plan.gearPlan = { enabled, startClass, reserveCoins, steps: [...] }
+// Per-Slot Priority Lock: slots satisfied by Set Gear are locked against
+// Smart Gear, Auto-Sell, Auto-Store & Party Share; unconfigured slots keep
+// using Smart Gear automatically.
+// ============================================================================
 (function () {
-  const SLOTS = [
-    { key: 'head-upper', label: 'หมวกบน', types: ['Helmet'], side: 'L' },
-    { key: 'head-middle', label: 'หน้า', types: ['HeadMid'], side: 'L' },
-    { key: 'head-lower', label: 'ปาก', types: ['HeadLow'], side: 'L' },
-    { key: 'armor', label: 'เกราะ / เสื้อ', types: ['Armor'], side: 'L' },
-    { key: 'gloves', label: 'ถุงมือ', types: ['Glove'], side: 'L' },
-    { key: 'accessory-left', label: 'เครื่องประดับ 1', types: ['Acc'], side: 'L' },
-    { key: 'main-hand', label: 'อาวุธ', types: ['Weapon'], side: 'R' },
-    { key: 'off-hand', label: 'มือซ้าย / โล่', types: ['Shield'], side: 'R' },
-    { key: 'garment', label: 'ผ้าคลุม', types: ['Cape'], side: 'R' },
-    { key: 'legs', label: 'กางเกง', types: ['Pants'], side: 'R' },
-    { key: 'boots', label: 'รองเท้า', types: ['Boot'], side: 'R' },
-    { key: 'accessory-right', label: 'เครื่องประดับ 2', types: ['Acc'], side: 'R' },
-    { key: 'gem-1', label: 'เจม 1', types: ['Gem'], side: 'G' },
-    { key: 'gem-2', label: 'เจม 2', types: ['Gem'], side: 'G' },
-    { key: 'gem-3', label: 'เจม 3', types: ['Gem'], side: 'G' },
-    { key: 'gem-4', label: 'เจม 4', types: ['Gem'], side: 'G' }
-  ];
-  const OPTION_TYPES = ['DEX', 'AGI', 'STR', 'VIT', 'INT', 'LUK', 'ATK', 'ATK%', 'MATK', 'MATK%', 'ASPD', 'HIT', 'FLEE', 'CRIT', 'CRIT_DAMAGE', 'MAXHP', 'MAXSP', 'DEF', 'MDEF', 'MOVE_SPEED', 'RANGED_DAMAGE_PERCENT', 'MELEE_DAMAGE_PERCENT', 'MAGIC_DAMAGE_PERCENT', 'DAMAGE_REDUCTION', 'HEAL_POWER'];
-  const RARITY = { common: '#cbd5e1', uncommon: '#4ade80', rare: '#38bdf8', epic: '#c084fc', legendary: '#fbbf24' };
-  const RARITY_TH = { common: 'ทั่วไป', uncommon: 'ดี', rare: 'หายาก', epic: 'มหากาพย์', legendary: 'ตำนาน' };
-  const WEAPON_TYPE_TH = {
-    Bow: 'ธนู', Instrument: 'เครื่องดนตรี', Whip: 'แส้', Staff: 'คทา', Book: 'สมุด/ตำรา',
-    Dagger: 'มีดสั้น', Katar: 'คาตาร์', Sword: 'ดาบมือเดียว', TwoHandSword: 'ดาบสองมือ',
-    Spear: 'หอก', TwoHandSpear: 'หอกสองมือ', Axe: 'ขวาน', TwoHandAxe: 'ขวานสองมือ',
-    Mace: 'กระบอง', Knuckle: 'สนับมือ'
-  };
-  const ATTR_TH = { MELEE_ATTACK: 'ATK ประชิด', RANGE_ATTACK: 'ATK ระยะไกล', MAGIC_ATTACK: 'MATK', MELEE_DEFENSE: 'DEF', MAGIC_DEFENSE: 'MDEF' };
+  'use strict';
 
-  let cards = [], pickMode = 'item';
-  let items = null, classes = [], snapshot = null, slotSel = 'main-hand', query = '', onlyMine = true, focusStepId = null;
-  const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const num = n => (Number(n) || 0).toLocaleString();
+  const LEFT_SLOTS = [
+    { key: 'hat', label: 'หมวก', icon: '🎩' },
+    { key: 'glasses', label: 'แว่นตา', icon: '🕶️' },
+    { key: 'top', label: 'เสื้อเกราะ', icon: '👕' },
+    { key: 'pants', label: 'กางเกง', icon: '👖' },
+    { key: 'cape', label: 'ผ้าคลุม', icon: '🧣' }
+  ];
+  const RIGHT_SLOTS = [
+    { key: 'weapon', label: 'อาวุธ', icon: '⚔️' },
+    { key: 'shield', label: 'โล่', icon: '🛡️' },
+    { key: 'acc1', label: 'ประดับ 1', icon: '💍' },
+    { key: 'acc2', label: 'ประดับ 2', icon: '📿' }
+  ];
+  const ALL_SLOTS = LEFT_SLOTS.concat(RIGHT_SLOTS);
+  const SLOT_LABEL = Object.fromEntries(ALL_SLOTS.map(s => [s.key, `${s.icon} ${s.label}`]));
+
+  const RARITY_META = {
+    common: { label: 'ทั่วไป', color: '#cbd5e1', badge: '⚪' },
+    rare: { label: 'หายาก', color: '#60a5fa', badge: '🔵' },
+    epic: { label: 'มหากาพย์', color: '#c084fc', badge: '🟣' },
+    legend: { label: 'ตำนาน', color: '#fbbf24', badge: '🟡' }
+  };
+
+  const GRADE_OPTIONS = [
+    [0, 'G0 ด้าน+'],
+    [1, 'G1 เรียบ+'],
+    [2, 'G2 ใส+'],
+    [3, 'G3 แวววาว+'],
+    [4, 'G4 แสงจันทร์+']
+  ];
+
+  const OPT_FILTERS = [
+    ['', 'ไม่จำกัดออปชัน'],
+    ['leech', 'ดูดเลือด (leech)'],
+    ['atk', 'ATK เพิ่ม (atk)'],
+    ['matk', 'MATK เพิ่ม (matk)'],
+    ['pen', 'เจาะเกราะ (pen)'],
+    ['crit', 'คริติคอล (crit)'],
+    ['skill', 'เสริมสกิล (skill)'],
+    ['cdr', 'ลดคูลดาวน์ (cdr)'],
+    ['cast', 'ลดร่าย (cast)'],
+    ['stat', 'สเตตัส (stat)'],
+    ['hpPct', 'HP% (hpPct)'],
+    ['spPct', 'SP% (spPct)']
+  ];
+
+  const CLASS_ALLOWED_WTYPES = {
+    puppeteer: ['puppet', 'wire'],
+    showmaster: ['puppet', 'wire'],
+    archmage: ['staff', 'wand'],
+    astral: ['staff', 'wand'],
+    paladin: ['sword', 'mace', 'spear', 'axe'],
+    dawnwarden: ['sword', 'mace', 'spear', 'axe'],
+    bishop: ['wand', 'staff', 'mace'],
+    starsaint: ['wand', 'staff', 'mace'],
+    bard: ['harp', 'bow'],
+    maestro: ['harp', 'bow'],
+    ranger: ['bow', 'crossbow'],
+    moonsniper: ['bow', 'crossbow'],
+    assassin: ['dagger', 'katar', 'dualsword'],
+    shinobi: ['dagger', 'katana'],
+    reaper: ['scythe'],
+    gunslinger: ['pistol', 'shotgun', 'rifle']
+  };
+
+  const PRESETS = {
+    puppeteer_lv40: {
+      label: '🎎 นักเชิดหุ่น (Lv.40+ ฟาร์มคุ้ม)',
+      startClass: 'puppeteer',
+      reserveCoins: 50000,
+      steps: [
+        { id: 'sg_pp_wpn1', type: 'buy_equip', slot: 'weapon', mode: 'exact', itemId: 'pp_foxtails', itemName: 'ไม้เชิดหุ่นหางจิ้งจอก', minGrade: 1, minRefine: 0, requiredOpt: '', minLevel: 44, minCoins: 0, maxBuyPrice: 2500 },
+        { id: 'sg_pp_hat1', type: 'buy_equip', slot: 'hat', mode: 'exact', itemId: 'hat_hc_misc_cat', itemName: 'แมวดำหลับบนหัว', minGrade: 0, minRefine: 0, requiredOpt: '', minLevel: 38, minCoins: 0, maxBuyPrice: 1800 },
+        { id: 'sg_pp_top1', type: 'buy_equip', slot: 'top', mode: 'exact', itemId: 'top_of_rg_courier', itemName: 'เสื้อบุรุษไปรษณีย์ป่า', minGrade: 0, minRefine: 0, requiredOpt: '', minLevel: 42, minCoins: 0, maxBuyPrice: 1500 },
+        { id: 'sg_pp_pants1', type: 'buy_equip', slot: 'pants', mode: 'exact', itemId: 'pants_of_rg_courier', itemName: 'กางเกงบุรุษไปรษณีย์ป่า', minGrade: 0, minRefine: 0, requiredOpt: '', minLevel: 42, minCoins: 0, maxBuyPrice: 1500 },
+        { id: 'sg_pp_rune1', type: 'buy_rune', runeKind: 'execute', tier: 1, skillId: 'pp_dance', skillSlot: 0, minQualityPct: 0, minLevel: 20, minCoins: 0, maxBuyPrice: 8000 },
+        { id: 'sg_pp_rune2', type: 'buy_rune', runeKind: 'heavy', tier: 1, skillId: 'pp_dance', skillSlot: 1, minQualityPct: 0, minLevel: 20, minCoins: 0, maxBuyPrice: 9000 },
+        { id: 'sg_pp_rune3', type: 'buy_rune', runeKind: 'apierce', tier: 1, skillId: 'pp_theatre', skillSlot: 0, minQualityPct: 0, minLevel: 20, minCoins: 0, maxBuyPrice: 9000 },
+        { id: 'sg_pp_card1', type: 'buy_card', monType: 'skeleton', cardName: 'การ์ดโครงกระดูกทหาร', equipMode: 'pas', slotIndex: 0, minLevel: 20, minCoins: 0, maxBuyPrice: 15000 },
+        { id: 'sg_pp_card2', type: 'buy_card', monType: 'ghost', cardName: 'การ์ดผีดวงไฟ', equipMode: 'pas', slotIndex: 1, minLevel: 20, minCoins: 0, maxBuyPrice: 15000 },
+        { id: 'sg_pp_card3', type: 'buy_card', monType: 'hedgehog', cardName: 'การ์ดเม่นแตกตัว', equipMode: 'act', slotIndex: 0, minLevel: 20, minCoins: 0, maxBuyPrice: 15000 },
+        { id: 'sg_pp_wpn2', type: 'buy_equip', slot: 'weapon', mode: 'exact', itemId: 'pp_antqueen', itemName: 'ไม้เชิดหุ่นนางพญามด (Legend)', minGrade: 1, minRefine: 0, requiredOpt: '', minLevel: 46, minCoins: 0, maxBuyPrice: 45000 }
+      ]
+    },
+    archmage_lv40: {
+      label: '🔮 อาร์คเมจ (Lv.40+ สายสายฟ้า/สามธาตุ)',
+      startClass: 'archmage',
+      reserveCoins: 50000,
+      steps: [
+        { id: 'sg_am_wpn', type: 'buy_equip', slot: 'weapon', mode: 'flex', wtype: 'staff', itemName: 'คทา Lv.40+ (หายากขึ้นไป)', minItemLv: 40, minRarity: 'rare', minGrade: 1, minRefine: 0, minLevel: 40, minCoins: 0, maxBuyPrice: 8000 },
+        { id: 'sg_am_top', type: 'buy_equip', slot: 'top', mode: 'flex', itemName: 'เสื้อเกราะ Lv.38+ (หายากขึ้นไป)', minItemLv: 38, minRarity: 'rare', minGrade: 0, minRefine: 0, minLevel: 38, minCoins: 0, maxBuyPrice: 3000 },
+        { id: 'sg_am_pants', type: 'buy_equip', slot: 'pants', mode: 'flex', itemName: 'กางเกง Lv.38+ (หายากขึ้นไป)', minItemLv: 38, minRarity: 'rare', minGrade: 0, minRefine: 0, minLevel: 38, minCoins: 0, maxBuyPrice: 3000 },
+        { id: 'sg_am_rune1', type: 'buy_rune', runeKind: 'heavy', tier: 1, skillId: 'am_chain', skillSlot: 0, minQualityPct: 0, minLevel: 25, minCoins: 0, maxBuyPrice: 10000 },
+        { id: 'sg_am_rune2', type: 'buy_rune', runeKind: 'wpierce', tier: 1, skillId: 'am_chain', skillSlot: 1, minQualityPct: 0, minLevel: 25, minCoins: 0, maxBuyPrice: 12000 }
+      ]
+    },
+    paladin_lv40: {
+      label: '🛡️ พาลาดิน (Lv.40+ แทงก์/ดาบโล่)',
+      startClass: 'paladin',
+      reserveCoins: 50000,
+      steps: [
+        { id: 'sg_pal_wpn', type: 'buy_equip', slot: 'weapon', mode: 'flex', wtype: 'sword', itemName: 'ดาบมือเดียว Lv.40+ (หายากขึ้นไป)', minItemLv: 40, minRarity: 'rare', minGrade: 1, minRefine: 0, minLevel: 40, minCoins: 0, maxBuyPrice: 8000 },
+        { id: 'sg_pal_top', type: 'buy_equip', slot: 'top', mode: 'flex', itemName: 'เสื้อเกราะ Lv.38+ (หายากขึ้นไป)', minItemLv: 38, minRarity: 'rare', minGrade: 0, minRefine: 0, minLevel: 38, minCoins: 0, maxBuyPrice: 3000 },
+        { id: 'sg_pal_pants', type: 'buy_equip', slot: 'pants', mode: 'flex', itemName: 'กางเกง Lv.38+ (หายากขึ้นไป)', minItemLv: 38, minRarity: 'rare', minGrade: 0, minRefine: 0, minLevel: 38, minCoins: 0, maxBuyPrice: 3000 }
+      ]
+    },
+    bishop_lv40: {
+      label: '✨ บิชอป (Lv.40+ พระซัพพอร์ต)',
+      startClass: 'bishop',
+      reserveCoins: 50000,
+      steps: [
+        { id: 'sg_bi_wpn', type: 'buy_equip', slot: 'weapon', mode: 'flex', wtype: 'wand', itemName: 'คทามือเดียว Lv.40+ (หายากขึ้นไป)', minItemLv: 40, minRarity: 'rare', minGrade: 0, minRefine: 0, minLevel: 40, minCoins: 0, maxBuyPrice: 6000 },
+        { id: 'sg_bi_top', type: 'buy_equip', slot: 'top', mode: 'flex', itemName: 'เสื้อ Lv.38+ (หายากขึ้นไป)', minItemLv: 38, minRarity: 'rare', minGrade: 0, minRefine: 0, minLevel: 38, minCoins: 0, maxBuyPrice: 3000 },
+        { id: 'sg_bi_pants', type: 'buy_equip', slot: 'pants', mode: 'flex', itemName: 'กางเกง Lv.38+ (หายากขึ้นไป)', minItemLv: 38, minRarity: 'rare', minGrade: 0, minRefine: 0, minLevel: 38, minCoins: 0, maxBuyPrice: 3000 }
+      ]
+    },
+    bard_lv40: {
+      label: '🎵 นักกวี (Lv.40+ บัฟ+ดาเมจ)',
+      startClass: 'bard',
+      reserveCoins: 50000,
+      steps: [
+        { id: 'sg_bd_wpn', type: 'buy_equip', slot: 'weapon', mode: 'flex', wtype: 'harp', itemName: 'พิณ Lv.40+ (หายากขึ้นไป)', minItemLv: 40, minRarity: 'rare', minGrade: 0, minRefine: 0, minLevel: 40, minCoins: 0, maxBuyPrice: 8000 },
+        { id: 'sg_bd_top', type: 'buy_equip', slot: 'top', mode: 'flex', itemName: 'เสื้อ Lv.38+ (หายากขึ้นไป)', minItemLv: 38, minRarity: 'rare', minGrade: 0, minRefine: 0, minLevel: 38, minCoins: 0, maxBuyPrice: 3000 },
+        { id: 'sg_bd_pants', type: 'buy_equip', slot: 'pants', mode: 'flex', itemName: 'กางเกง Lv.38+ (หายากขึ้นไป)', minItemLv: 38, minRarity: 'rare', minGrade: 0, minRefine: 0, minLevel: 38, minCoins: 0, maxBuyPrice: 3000 }
+      ]
+    }
+  };
+
+  let catalog = null;
+  let catalogPromise = null;
+  let modal = null;
+  let snapshot = null;
+  let activePanel = 'weapon'; // slot key | 'runes' | 'cards'
+  let equipPickMode = 'exact'; // 'exact' | 'flex'
+  let onlyClassFit = true;
+  let searchQ = '';
+  let runeTargetSkillId = '';
+  let runeTargetSlot = 0;
+  let runeTargetTier = 1;
+  let cardTargetMode = 'pas'; // 'pas' | 'act' | 'learn_only'
+  let cardTargetSlot = 0;
+
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const uid = () => 'sg_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6);
   const plan = () => (typeof activeEditingPlan !== 'undefined' ? activeEditingPlan : null);
-  const gp = () => {
+
+  function gp() {
     const p = plan();
-    if (!p.gearPlan || typeof p.gearPlan !== 'object') p.gearPlan = { startClass: 'novice', steps: [] };
+    if (!p) return null;
+    if (!p.gearPlan || typeof p.gearPlan !== 'object') {
+      p.gearPlan = { enabled: true, startClass: 'traveler', reserveCoins: 50000, steps: [] };
+    }
+    if (p.gearPlan.enabled === undefined) p.gearPlan.enabled = true;
+    if (p.gearPlan.reserveCoins === undefined) p.gearPlan.reserveCoins = 50000;
     if (!Array.isArray(p.gearPlan.steps)) p.gearPlan.steps = [];
     return p.gearPlan;
-  };
-  const newId = () => 'g' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+  }
 
-  // classes of this plan: novice -> class 1 -> class 2
-  function lineage() {
-    const p = plan() || {};
-    return ['novice', p.class1Target || 'archer', p.class2Target || ''].filter(Boolean);
-  }
-  const className = id => (classes.find(c => c.id === id) || {}).name || (id ? id[0].toUpperCase() + id.slice(1) : '');
-  const gemSkill = name => String(name || '').replace(/\s+Gem\b.*$/i, '').trim().toLowerCase();
-  function planSkillNames() {
-    const db = (typeof SKILLS_DATABASE !== 'undefined' && SKILLS_DATABASE) || {};
-    const mine = new Set(), all = new Set();
-    Object.keys(db).forEach(t => (db[t] || []).forEach(s => {
-      const n = String(s.name || '').toLowerCase();
-      all.add(n);
-      if (lineage().includes(t)) mine.add(n);
-    }));
-    return { mine, all };
-  }
-  function wearableByPlan(it) {
-    if (it.slotType === 'Gem') {
-      const sk = gemSkill(it.name), names = planSkillNames();
-      return names.mine.has(sk) || !names.all.has(sk);
+  async function loadCatalog() {
+    if (catalog) return catalog;
+    if (!catalogPromise) {
+      catalogPromise = fetch('nightcamp_gear_catalog.json?v=nc2.2.0')
+        .then(r => r.ok ? r.json() : null)
+        .catch(() => null)
+        .then(data => {
+          catalog = data || { items: [], runes: [], cards: [], wtypes: {}, skills: [] };
+          return catalog;
+        });
     }
-    if (!it.jobs || !it.jobs.length) return true;
-    const names = lineage().map(className).map(n => n.toLowerCase());
-    return it.jobs.some(j => names.includes(String(j).toLowerCase()));
-  }
-  const itemById = id => (items || []).find(i => i.id === id);
-
-  const cardById = id => cards.find(c => c.id === id);
-  const SOCKETABLE_SLOTS = ['main-hand', 'head-upper', 'head-middle', 'head-lower', 'accessory-left', 'accessory-right'];
-  // what the steps plan for a slot: last item + highest refine + socket step + its cards
-  function slotPlan(slotKey) {
-    const steps = gp().steps;
-    let equip = null, refine = 0, cardCount = 0, socketed = false;
-    steps.forEach(st => {
-      if (st.slot !== slotKey) return;
-      if (st.kind === 'equip') { equip = st; refine = 0; cardCount = 0; socketed = false; }
-      else if (st.kind === 'socket' && equip && st.itemName === equip.itemName) socketed = true;
-      else if (st.kind === 'refine' && equip && st.itemName === equip.itemName) refine = Math.max(refine, st.toLevel || 0);
-      else if (st.kind === 'card' && equip && st.itemName === equip.itemName) cardCount++;
-    });
-    return { equip, refine, cardCount, socketed };
+    return catalogPromise;
   }
 
-  function ensureModal() {
-    let m = document.getElementById('gear-builder-modal');
-    if (m) return m;
-    m = document.createElement('div');
-    m.id = 'gear-builder-modal';
-    m.className = 'gb-backdrop';
-    m.innerHTML = `
-      <div class="gb-card" role="dialog" aria-label="เซ็ตอุปกรณ์">
-        <header class="gb-head">
+  function getPlanTargetClassIds() {
+    const p = plan() || {};
+    const out = [];
+    if (p.class1Target) out.push(String(p.class1Target).toLowerCase());
+    if (p.class2Target) out.push(String(p.class2Target).toLowerCase());
+    if (p.class3Target) out.push(String(p.class3Target).toLowerCase());
+    return out;
+  }
+
+  function getClassOptions() {
+    const p = plan() || {};
+    const opts = [{ id: 'traveler', label: '🌱 นักเดินทาง (เริ่มตั้งแต่ต้น)' }];
+    if (p.class1Target) opts.push({ id: p.class1Target, label: `⚔️ คลาส 1: ${p.class1Target}` });
+    if (p.class2Target) opts.push({ id: p.class2Target, label: `🌟 คลาส 2: ${p.class2Target}` });
+    if (p.class3Target) opts.push({ id: p.class3Target, label: `👑 คลาส 3: ${p.class3Target}` });
+    return opts;
+  }
+
+  function getLatestEquipStepForSlot(slotKey) {
+    const g = gp();
+    if (!g) return null;
+    let found = null;
+    for (const s of g.steps) {
+      if (s && s.type === 'buy_equip' && s.slot === slotKey) found = s;
+    }
+    return found;
+  }
+
+  function getLatestForgeForSlot(slotKey) {
+    const g = gp();
+    if (!g) return { grade: 0, refine: 0 };
+    let grade = 0;
+    let refine = 0;
+    for (const s of g.steps) {
+      if (!s || s.slot !== slotKey) continue;
+      if (s.type === 'buy_equip') {
+        grade = Math.max(grade, Number(s.minGrade) || 0);
+        refine = Math.max(refine, Number(s.minRefine) || 0);
+      } else if (s.type === 'polish') {
+        grade = Math.max(grade, Number(s.targetGrade) || 0);
+      } else if (s.type === 'refine') {
+        refine = Math.max(refine, Number(s.targetRefine) || 0);
+      }
+    }
+    return { grade, refine };
+  }
+
+  function buildModal() {
+    if (modal) return modal;
+    modal = document.createElement('div');
+    modal.id = 'gear-builder-modal';
+    modal.className = 'gb-backdrop';
+    modal.innerHTML = `
+      <div class="gb-card nc-gb-card">
+        <div class="gb-head">
           <div>
-            <h3>🛡️ เซ็ตอุปกรณ์ <span class="gb-plan-name"></span></h3>
-            <small>คลิกช่องสวมใส่ / เจม → เลือกไอเทม → ใส่เงินและเลเวลที่ต้องถึงก่อน · <b>🕳️</b> = เจาะรู · <b>+</b> = ตีบวก · <b>🃏</b> = ใส่การ์ด · ของในกระเป๋าที่ตรงกับเซ็ตจะสวมให้ทันทีไม่ต้องรอคิว · เจม % สูงกว่าที่ตั้งก็นับว่าผ่าน</small>
+            <h3>🛡️ จัดเซ็ตอุปกรณ์อัตโนมัติ (Nightcamp Set Gear)</h3>
+            <small>🔒 ล็อกเฉพาะช่องที่ตั้งค่าไว้ (ช่องอื่นยังใช้ Smart Gear อัตโนมัติ) · 🏦 เบิกเงินจากคลังร่วมให้อัตโนมัติโดยเหลือเงินสำรองไว้เสมอ · 🔍 สแกนตลาดกลางก่อนวาร์ปกลับค่าย ไม่เสียเวลาเดินฟรี</small>
           </div>
-          <button type="button" class="gb-x" data-gb="cancel" aria-label="ปิด">✕</button>
-        </header>
-        <div class="gb-start">
-          <label>▶️ เริ่มทำเซ็ตเมื่อเป็นอาชีพ</label>
-          <select class="gb-start-sel"></select>
-          <span class="gb-start-hint"></span>
-          <label style="margin-left:auto; display:inline-flex; align-items:center; gap:6px; color:#fbbf24; font-weight:600; font-size:12px;" title="กันเงินสำรองติดตัวไว้เสมอ (ไม่ซื้อของหรือแร่จนเงินเกลี้ยง 0 z) เพื่อเหลือไว้ซื้อลูกธนู ยา ใบน้ำหนัก และค่าธรรมเนียมตั้งขายตลาด">
-            💰 เงินสำรองติดตัว ≥
-            <input type="text" inputmode="numeric" class="gb-reserve-inp" style="width:96px; padding:3px 7px; border-radius:6px; border:1px solid rgba(251,191,36,0.45); background:rgba(15,23,42,0.85); color:#fbbf24; font-weight:700; text-align:right;" value="0"> z
+          <button type="button" class="gb-x" id="gb-close-x">✕</button>
+        </div>
+
+        <div class="gb-start nc-gb-topbar">
+          <label class="nc-gb-chk"><input type="checkbox" id="gb-enabled"> เปิดใช้ Set Gear</label>
+          <label>เริ่มทำงานเมื่อ:
+            <select id="gb-start-class"></select>
+          </label>
+          <label>🏦 กันเงินสำรอง (ตัว+คลัง):
+            <input type="number" id="gb-reserve-coins" min="0" step="5000" value="50000" class="nc-gb-num"> g
+          </label>
+          <div class="nc-gb-presets">
+            <select id="gb-preset-select">
+              <option value="">✨ โหลดพรีเซ็ตแนะนำตามอาชีพ...</option>
+              ${Object.entries(PRESETS).map(([k, v]) => `<option value="${esc(k)}">${esc(v.label)}</option>`).join('')}
+            </select>
+            <button type="button" class="btn btn-secondary btn-sm" id="gb-apply-preset">โหลด</button>
+            <button type="button" class="btn btn-secondary btn-sm" id="gb-clear-all" style="color:#fca5a5;">ล้างคิว</button>
+          </div>
+        </div>
+
+        <div class="gb-main">
+          <div class="nc-gb-board-wrap">
+            <div class="gb-board nc-gb-board" id="gb-board"></div>
+            <div class="nc-gb-special-row" id="gb-special-row"></div>
+          </div>
+          <div class="gb-picker" id="gb-picker"></div>
+        </div>
+
+        <div class="gb-steps-head">
+          <b>📋 ลำดับการทำงาน Set Gear (<span id="gb-step-count">0</span> ขั้นตอน)</b>
+          <small>บอทเช็คของในกระเป๋า/คลังก่อน (ใส่ฟรีทันที) ➔ ถ้ายังไม่มีจะสแกนตลาดกลางตามงบสูงสุด ➔ ถอนคลังร่วมมาซื้อและสวมใส่ + ล็อกช่องให้อัตโนมัติ</small>
+        </div>
+        <div class="gb-steps" id="gb-steps"></div>
+
+        <div class="gb-foot">
+          <button type="button" class="btn btn-secondary" id="gb-cancel">ยกเลิก</button>
+          <button type="button" class="btn btn-success" id="gb-save">💾 บันทึก Set Gear</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+
+    modal.addEventListener('click', e => {
+      if (e.target === modal) close(false);
+    });
+    modal.querySelector('#gb-close-x').onclick = () => close(false);
+    modal.querySelector('#gb-cancel').onclick = () => close(false);
+    modal.querySelector('#gb-save').onclick = () => close(true);
+
+    modal.querySelector('#gb-enabled').onchange = e => {
+      const g = gp();
+      if (g) g.enabled = Boolean(e.target.checked);
+    };
+    modal.querySelector('#gb-start-class').onchange = e => {
+      const g = gp();
+      if (g) g.startClass = e.target.value;
+    };
+    modal.querySelector('#gb-reserve-coins').onchange = e => {
+      const g = gp();
+      if (g) g.reserveCoins = Math.max(0, Math.floor(Number(e.target.value) || 0));
+    };
+    modal.querySelector('#gb-apply-preset').onclick = () => {
+      const key = modal.querySelector('#gb-preset-select').value;
+      const preset = PRESETS[key];
+      if (!preset) return;
+      const g = gp();
+      if (!g) return;
+      if (g.steps.length > 0 && !confirm(`แทนที่คิว Set Gear เดิมด้วยพรีเซ็ต "${preset.label}" ใช่ไหม?`)) return;
+      g.enabled = true;
+      g.startClass = preset.startClass;
+      g.reserveCoins = preset.reserveCoins;
+      g.steps = JSON.parse(JSON.stringify(preset.steps));
+      renderAll();
+    };
+    modal.querySelector('#gb-clear-all').onclick = () => {
+      const g = gp();
+      if (!g || g.steps.length === 0) return;
+      if (!confirm('ล้างรายการ Set Gear ทั้งหมดในแผนนี้ใช่ไหม?')) return;
+      g.steps = [];
+      renderAll();
+    };
+
+    return modal;
+  }
+
+  function renderBoard() {
+    const g = gp();
+    const board = modal.querySelector('#gb-board');
+    const special = modal.querySelector('#gb-special-row');
+    if (!g || !board) return;
+
+    const slotCardHtml = (s) => {
+      const step = getLatestEquipStepForSlot(s.key);
+      const forge = getLatestForgeForSlot(s.key);
+      const activeCls = activePanel === s.key ? 'active' : '';
+      const filledCls = step ? 'filled' : '';
+      let title = 'ยังไม่ได้ตั้ง (Smart Gear)';
+      let subBadge = '';
+      if (step) {
+        title = step.itemName || step.itemId || (step.mode === 'flex' ? `${step.wtype || s.label} Lv.${step.minItemLv || 1}+` : s.label);
+        const parts = [];
+        if (forge.grade > 0) parts.push(`G${forge.grade}`);
+        if (forge.refine > 0) parts.push(`+${forge.refine}`);
+        if (step.maxBuyPrice > 0) parts.push(`≤${Number(step.maxBuyPrice).toLocaleString()}g`);
+        subBadge = parts.join(' · ');
+      }
+      return `
+        <div class="gb-slot ${filledCls} ${activeCls}" data-panel="${esc(s.key)}">
+          <div class="gb-slot-icon"><span style="font-size:18px;">${s.icon}</span></div>
+          <div class="gb-slot-text">
+            <small>${esc(s.label)} ${step ? '<span style="color:#4ade80;">🔒</span>' : ''}</small>
+            <b style="${step ? 'color:#f8fafc;' : ''}">${esc(title)}</b>
+            ${subBadge ? `<small style="color:#fbbf24;">${esc(subBadge)}</small>` : ''}
+          </div>
+        </div>
+      `;
+    };
+
+    const targetClasses = getPlanTargetClassIds();
+    const classTitle = targetClasses[1] || targetClasses[0] || 'traveler';
+    board.innerHTML = `
+      <div class="gb-col">${LEFT_SLOTS.map(slotCardHtml).join('')}</div>
+      <div class="gb-figure nc-gb-center">
+        <div class="nc-gb-avatar-badge">🛡️</div>
+        <div class="nc-gb-class-name">${esc(classTitle.toUpperCase())}</div>
+        <div class="nc-gb-lock-note">คลิกช่องเพื่อเลือกของ<br>ช่องที่ตั้งไว้จะ <b>🔒 ล็อก</b><br>ไม่ให้ Smart Gear ทับ</div>
+      </div>
+      <div class="gb-col">${RIGHT_SLOTS.map(slotCardHtml).join('')}</div>
+    `;
+
+    const runeCount = g.steps.filter(s => s && s.type === 'buy_rune').length;
+    const cardCount = g.steps.filter(s => s && s.type === 'buy_card').length;
+    special.innerHTML = `
+      <div class="gb-slot ${runeCount > 0 ? 'filled' : ''} ${activePanel === 'runes' ? 'active' : ''}" data-panel="runes">
+        <div class="gb-slot-icon"><span style="font-size:18px;">🔮</span></div>
+        <div class="gb-slot-text">
+          <small>รูนสกิล (Rune Socket)</small>
+          <b style="${runeCount > 0 ? 'color:#e9d5ff;' : ''}">${runeCount > 0 ? `ตั้งไว้ ${runeCount} รูน` : 'คลิกเพื่อเพิ่มรูนสกิล'}</b>
+        </div>
+      </div>
+      <div class="gb-slot ${cardCount > 0 ? 'filled' : ''} ${activePanel === 'cards' ? 'active' : ''}" data-panel="cards">
+        <div class="gb-slot-icon"><span style="font-size:18px;">🃏</span></div>
+        <div class="gb-slot-text">
+          <small>การ์ดวิชามอน (Monster Arts)</small>
+          <b style="${cardCount > 0 ? 'color:#fde68a;' : ''}">${cardCount > 0 ? `ตั้งไว้ ${cardCount} การ์ด` : 'คลิกเพื่อเพิ่มการ์ดพาสซีฟ/วิชามอน'}</b>
+        </div>
+      </div>
+    `;
+
+    board.querySelectorAll('[data-panel]').forEach(el => {
+      el.onclick = () => {
+        activePanel = el.dataset.panel;
+        searchQ = '';
+        renderBoard();
+        renderPicker();
+      };
+    });
+    special.querySelectorAll('[data-panel]').forEach(el => {
+      el.onclick = () => {
+        activePanel = el.dataset.panel;
+        searchQ = '';
+        renderBoard();
+        renderPicker();
+      };
+    });
+  }
+
+  function renderPicker() {
+    const box = modal.querySelector('#gb-picker');
+    if (!box) return;
+    const cat = catalog || { items: [], runes: [], cards: [], wtypes: {}, skills: [] };
+    const planClasses = getPlanTargetClassIds();
+
+    if (activePanel === 'runes') {
+      const classSkills = (cat.skills || []).filter(s => !planClasses.length || planClasses.includes(String(s.job || '').toLowerCase()) || !s.job);
+      const activeSkills = classSkills.filter(s => s.fits && s.fits.length > 0);
+      if (!runeTargetSkillId || !activeSkills.some(s => s.id === runeTargetSkillId)) {
+        const pref = activeSkills.find(s => s.kind === 'active' && planClasses.includes(String(s.job || '').toLowerCase())) || activeSkills[0];
+        runeTargetSkillId = pref ? pref.id : '';
+      }
+      const selSk = activeSkills.find(s => s.id === runeTargetSkillId) || null;
+      const fitSet = new Set(selSk ? selSk.fits : []);
+      const qLow = searchQ.trim().toLowerCase();
+      const runesList = (cat.runes || []).filter(r => {
+        if (selSk && !fitSet.has(r.k)) return false;
+        if (qLow && !(`${r.name} ${r.k} ${(r.t || []).join(' ')}`).toLowerCase().includes(qLow)) return false;
+        return true;
+      });
+
+      box.innerHTML = `
+        <div class="gb-picker-title"><b>🔮 เพิ่มรูนสกิล (ซื้อตลาดกลาง + ฝังลงสกิลอัตโนมัติ)</b></div>
+        <div class="nc-gb-mini-grid">
+          <label>สกิลเป้าหมาย:
+            <select id="gb-rune-skill" class="gb-search">
+              ${activeSkills.map(s => `<option value="${esc(s.id)}" ${s.id === runeTargetSkillId ? 'selected' : ''}>${esc(s.name)} (${esc(s.job || 'ทั่วไป')})</option>`).join('')}
+            </select>
+          </label>
+          <label>ช่องรูน:
+            <select id="gb-rune-slot" class="gb-search">
+              <option value="0" ${runeTargetSlot === 0 ? 'selected' : ''}>ช่อง 1 (ปลด Lv.${selSk ? selSk.slot0Lv : 5})</option>
+              <option value="1" ${runeTargetSlot === 1 ? 'selected' : ''}>ช่อง 2 (ปลด Lv.${selSk ? selSk.slot1Lv : 10})</option>
+            </select>
+          </label>
+          <label>ขั้นรูน:
+            <select id="gb-rune-tier" class="gb-search">
+              <option value="1" ${runeTargetTier === 1 ? 'selected' : ''}>ขั้น I+</option>
+              <option value="2" ${runeTargetTier === 2 ? 'selected' : ''}>ขั้น II+</option>
+              <option value="3" ${runeTargetTier === 3 ? 'selected' : ''}>ขั้น III</option>
+            </select>
           </label>
         </div>
-        <div class="gb-main">
-          <div class="gb-board">
-            <div class="gb-col gb-col-L"></div>
-            <div class="gb-figure"><img class="gb-figure-img" alt=""></div>
-            <div class="gb-col gb-col-R"></div>
-            <div class="gb-gems gb-col-G"></div>
-          </div>
-          <div class="gb-picker">
-            <div class="gb-picker-head"><b class="gb-picker-title"></b></div>
-            <input type="search" class="gb-search" placeholder="ค้นหาชื่อ / ประเภท / สเตตัส (เช่น bow, dex, staff)">
-            <label class="gb-only"><input type="checkbox" class="gb-only-cb" checked> แสดงเฉพาะที่อาชีพในแผนใส่ได้</label>
-            <div class="gb-list"><div class="gb-empty">กำลังโหลดรายการไอเทมจากเกม...</div></div>
-          </div>
+        <input type="text" id="gb-search-input" class="gb-search" placeholder="ค้นหารูน เช่น รูนหนัก, รูนประหาร, รูนก้อง, รูนเจาะเกราะ..." value="${esc(searchQ)}">
+        <div class="gb-list">
+          ${runesList.length === 0 ? '<div class="gb-empty">ไม่พบรูนที่เข้ากับสกิลนี้</div>' : runesList.map(r => `
+            <div class="gb-item">
+              <div class="gb-item-icon">🔮</div>
+              <div class="gb-item-body">
+                <b style="color:#e9d5ff;">${esc(r.name)} <small style="color:#94a3b8;">(${esc(r.k)})</small></b>
+                <small>${esc((r.t && r.t[Math.max(0, runeTargetTier - 1)]) || '')}</small>
+              </div>
+              <button type="button" class="gb-pick" data-add-rune="${esc(r.k)}">+ เพิ่ม</button>
+            </div>
+          `).join('')}
         </div>
-        <div class="gb-done-map">
-          <label>🏁 เมื่อเซ็ตครบทุกรายการ → เปลี่ยนแมพฟาร์มเป็น</label>
-          <select class="gb-done-sel"></select>
-          <span class="gb-start-hint">ทำครั้งเดียวต่อตัวละคร · เปลี่ยนแมพเองภายหลังได้ ระบบจะไม่เปลี่ยนกลับ</span>
+      `;
+      box.querySelector('#gb-rune-skill').onchange = e => { runeTargetSkillId = e.target.value; renderPicker(); };
+      box.querySelector('#gb-rune-slot').onchange = e => { runeTargetSlot = Number(e.target.value) || 0; };
+      box.querySelector('#gb-rune-tier').onchange = e => { runeTargetTier = Number(e.target.value) || 1; renderPicker(); };
+      box.querySelector('#gb-search-input').oninput = e => { searchQ = e.target.value; renderPicker(); };
+      box.querySelectorAll('[data-add-rune]').forEach(btn => {
+        btn.onclick = () => {
+          const g = gp();
+          if (!g || !runeTargetSkillId) return;
+          const rk = btn.dataset.addRune;
+          const rMeta = (cat.runes || []).find(x => x.k === rk);
+          g.steps.push({
+            id: uid(),
+            type: 'buy_rune',
+            runeKind: rk,
+            itemName: `${rMeta ? rMeta.name : rk} (ขั้น ${'I'.repeat(runeTargetTier)})`,
+            tier: runeTargetTier,
+            skillId: runeTargetSkillId,
+            skillSlot: runeTargetSlot,
+            minQualityPct: 0,
+            minLevel: 20,
+            minCoins: 0,
+            maxBuyPrice: 12000
+          });
+          renderBoard();
+          renderSteps();
+        };
+      });
+      return;
+    }
+
+    if (activePanel === 'cards') {
+      const qLow = searchQ.trim().toLowerCase();
+      const cardsList = (cat.cards || []).filter(c => {
+        if (!qLow) return true;
+        return (`${c.name} ${c.mon} ${(c.pas || []).join(' ')} ${c.act || ''}`).toLowerCase().includes(qLow);
+      }).slice(0, 60);
+
+      box.innerHTML = `
+        <div class="gb-picker-title"><b>🃏 เพิ่มการ์ดวิชามอน (ซื้อตลาดกลาง + เรียนลงสมุด + ติดตั้งช่องอัตโนมัติ)</b></div>
+        <div class="nc-gb-mini-grid">
+          <label>วิธีติดตั้ง:
+            <select id="gb-card-mode" class="gb-search">
+              <option value="pas" ${cardTargetMode === 'pas' ? 'selected' : ''}>✨ ใส่ช่องพาสซีฟ (ได้โบนัสถาวร)</option>
+              <option value="act" ${cardTargetMode === 'act' ? 'selected' : ''}>⚡ ใส่ช่องวิชามอนกดใช้ (7/8)</option>
+              <option value="learn_only" ${cardTargetMode === 'learn_only' ? 'selected' : ''}>📖 เรียนเก็บลงสมุดอย่างเดียว</option>
+            </select>
+          </label>
+          <label>ช่องที่ใส่:
+            <select id="gb-card-slot" class="gb-search" ${cardTargetMode === 'learn_only' ? 'disabled' : ''}>
+              <option value="0" ${cardTargetSlot === 0 ? 'selected' : ''}>ช่อง #1</option>
+              <option value="1" ${cardTargetSlot === 1 ? 'selected' : ''}>ช่อง #2</option>
+              ${cardTargetMode === 'pas' ? `<option value="2" ${cardTargetSlot === 2 ? 'selected' : ''}>ช่อง #3</option>` : ''}
+            </select>
+          </label>
         </div>
-        <div class="gb-steps-head">
-          <b>📋 ลำดับการทำงาน (<span class="gb-steps-count">0</span> รายการ)</b>
-          <small>รายการถัดไปจะเริ่มเมื่อรายการก่อนหน้าเสร็จแล้ว และเงิน + เลเวลถึงตามที่ตั้ง</small>
+        <input type="text" id="gb-search-input" class="gb-search" placeholder="ค้นหาการ์ด หรือเอฟเฟกต์ เช่น ตีเบิ้ล, ดูดเลือด, คูลดาวน์, คริ, หุ่นร้อยเชือก..." value="${esc(searchQ)}">
+        <div class="gb-list">
+          ${cardsList.length === 0 ? '<div class="gb-empty">ไม่พบการ์ดที่ค้นหา</div>' : cardsList.map(c => `
+            <div class="gb-item">
+              <div class="gb-item-icon">${c.boss ? '👑' : '🃏'}</div>
+              <div class="gb-item-body">
+                <b style="color:${c.boss ? '#fbbf24' : '#e2e8f0'};">${esc(c.name)} ${c.boss ? '<span style="font-size:10px;color:#f59e0b;">[BOSS]</span>' : ''}</b>
+                <small style="color:#86efac;">${esc((c.pas || []).join(' · '))}</small>
+                ${c.act ? `<small style="display:block;color:#93c5fd;">วิชา: ${esc(c.act)}</small>` : ''}
+              </div>
+              <button type="button" class="gb-pick" data-add-card="${esc(c.mon)}">+ เพิ่ม</button>
+            </div>
+          `).join('')}
         </div>
-        <div class="gb-steps"></div>
-        <footer class="gb-foot">
-          <button type="button" class="btn btn-secondary" data-gb="cancel">ยกเลิก</button>
-          <button type="button" class="btn btn-success" data-gb="save">💾 ใช้เซ็ตนี้</button>
-        </footer>
-      </div>`;
-    document.body.appendChild(m);
-    m.addEventListener('click', onClick);
-    m.addEventListener('change', onChange);
-    m.addEventListener('input', onInput);
-    return m;
+      `;
+      box.querySelector('#gb-card-mode').onchange = e => { cardTargetMode = e.target.value; renderPicker(); };
+      box.querySelector('#gb-card-slot').onchange = e => { cardTargetSlot = Number(e.target.value) || 0; };
+      box.querySelector('#gb-search-input').oninput = e => { searchQ = e.target.value; renderPicker(); };
+      box.querySelectorAll('[data-add-card]').forEach(btn => {
+        btn.onclick = () => {
+          const g = gp();
+          if (!g) return;
+          const mon = btn.dataset.addCard;
+          const cMeta = (cat.cards || []).find(x => x.mon === mon);
+          g.steps.push({
+            id: uid(),
+            type: 'buy_card',
+            monType: mon,
+            cardName: cMeta ? cMeta.name : `bl_card_${mon}`,
+            equipMode: cardTargetMode,
+            slotIndex: cardTargetSlot,
+            minLevel: 20,
+            minCoins: 0,
+            maxBuyPrice: 25000
+          });
+          renderBoard();
+          renderSteps();
+        };
+      });
+      return;
+    }
+
+    // Equipment slot picker (Exact OR Flex mode)
+    const rawSlot = (activePanel === 'acc1' || activePanel === 'acc2') ? 'acc' : activePanel;
+    const allowedWtSet = new Set();
+    for (const c of planClasses) {
+      (CLASS_ALLOWED_WTYPES[c] || []).forEach(w => allowedWtSet.add(w));
+    }
+
+    if (equipPickMode === 'flex') {
+      const wtOpts = Object.entries(cat.wtypes || {}).map(([k, v]) => `<option value="${esc(k)}">${esc(v.name || k)} (${esc(k)})</option>`).join('');
+      const defaultWt = Array.from(allowedWtSet)[0] || '';
+      box.innerHTML = `
+        <div class="gb-picker-title" style="display:flex;justify-content:space-between;align-items:center;">
+          <b>🎲 โหมดยืดหยุ่น (Flex): ${esc(SLOT_LABEL[activePanel] || activePanel)}</b>
+          <button type="button" class="btn btn-secondary btn-sm" id="gb-mode-exact">🎯 สลับไประบุชื่อไอเทม</button>
+        </div>
+        <div class="nc-gb-flex-form">
+          ${rawSlot === 'weapon' ? `<label>ชนิดอาวุธ: <select id="gb-flex-wt" class="gb-search"><option value="">ทุกชนิดที่อาชีพใส่ได้</option>${wtOpts}</select></label>` : ''}
+          <label>Lv. ไอเทมขั้นต่ำ: <input type="number" id="gb-flex-lv" class="gb-search" min="0" max="99" value="40"></label>
+          <label>ระดับความหายากขั้นต่ำ:
+            <select id="gb-flex-rar" class="gb-search">
+              <option value="common">⚪ ทั่วไป (Common)+</option>
+              <option value="rare" selected>🔵 หายาก (Rare)+</option>
+              <option value="epic">🟣 มหากาพย์ (Epic)+</option>
+              <option value="legend">🟡 ตำนาน (Legend)</option>
+            </select>
+          </label>
+          <label>เกรดขัดขั้นต่ำ:
+            <select id="gb-flex-grade" class="gb-search">
+              ${GRADE_OPTIONS.map(([v, l]) => `<option value="${v}">${esc(l)}</option>`).join('')}
+            </select>
+          </label>
+          <label>งบสูงสุด (g): <input type="number" id="gb-flex-price" class="gb-search" min="100" step="500" value="5000"></label>
+          <button type="button" class="btn btn-success" id="gb-flex-add">+ เพิ่มขั้นตอน Flex ลงคิว</button>
+        </div>
+      `;
+      if (rawSlot === 'weapon' && defaultWt) {
+        const sel = box.querySelector('#gb-flex-wt');
+        if (sel) sel.value = defaultWt;
+      }
+      box.querySelector('#gb-mode-exact').onclick = () => { equipPickMode = 'exact'; renderPicker(); };
+      box.querySelector('#gb-flex-add').onclick = () => {
+        const g = gp();
+        if (!g) return;
+        const wt = rawSlot === 'weapon' ? (box.querySelector('#gb-flex-wt')?.value || '') : '';
+        const minItemLv = Math.max(0, Number(box.querySelector('#gb-flex-lv')?.value) || 0);
+        const minRarity = box.querySelector('#gb-flex-rar')?.value || 'rare';
+        const minGrade = Number(box.querySelector('#gb-flex-grade')?.value) || 0;
+        const maxBuyPrice = Math.max(100, Number(box.querySelector('#gb-flex-price')?.value) || 5000);
+        const wtLabel = wt && cat.wtypes?.[wt]?.name ? cat.wtypes[wt].name : (SLOT_LABEL[activePanel] || activePanel);
+        g.steps.push({
+          id: uid(),
+          type: 'buy_equip',
+          slot: activePanel,
+          mode: 'flex',
+          wtype: wt,
+          minItemLv,
+          minRarity,
+          minGrade,
+          minRefine: 0,
+          requiredOpt: '',
+          itemName: `${wtLabel} Lv.${minItemLv}+ (${RARITY_META[minRarity]?.label || minRarity}+)`,
+          minLevel: Math.max(1, minItemLv),
+          minCoins: 0,
+          maxBuyPrice
+        });
+        renderBoard();
+        renderSteps();
+      };
+      return;
+    }
+
+    const qLow = searchQ.trim().toLowerCase();
+    const list = (cat.items || []).filter(it => {
+      if (it.slot !== rawSlot) return false;
+      if (onlyClassFit && rawSlot === 'weapon' && allowedWtSet.size > 0 && it.wt && !allowedWtSet.has(it.wt)) return false;
+      if (qLow && !(`${it.name} ${it.id} ${it.wsk || ''} ${it.abil || ''}`).toLowerCase().includes(qLow)) return false;
+      return true;
+    }).slice(0, 70);
+
+    box.innerHTML = `
+      <div class="gb-picker-title" style="display:flex;justify-content:space-between;align-items:center;gap:6px;">
+        <b>🎯 เลือกไอเทม: ${esc(SLOT_LABEL[activePanel] || activePanel)}</b>
+        <button type="button" class="btn btn-secondary btn-sm" id="gb-mode-flex">🎲 โหมดยืดหยุ่น (Flex)</button>
+      </div>
+      <input type="text" id="gb-search-input" class="gb-search" placeholder="ค้นหาชื่อไอเทม, รหัส, หรือสกิลที่เสริม..." value="${esc(searchQ)}">
+      ${rawSlot === 'weapon' && allowedWtSet.size > 0 ? `<label class="gb-only"><input type="checkbox" id="gb-only-fit" ${onlyClassFit ? 'checked' : ''}> แสดงเฉพาะอาวุธที่อาชีพในแผนใช้ได้ (${esc(Array.from(allowedWtSet).join(', '))})</label>` : ''}
+      <div class="gb-list">
+        ${list.length === 0 ? '<div class="gb-empty">ไม่พบไอเทมในหมวดนี้</div>' : list.map(it => {
+          const rm = RARITY_META[it.rar] || RARITY_META.common;
+          const attrs = [];
+          attrs.push(`Lv.${it.lv || 0}`);
+          if (it.atk) attrs.push(`ATK ${it.atk}`);
+          if (it.matk) attrs.push(`MATK ${it.matk}`);
+          if (it.def) attrs.push(`DEF ${it.def}`);
+          if (it.el) attrs.push(`ธาตุ ${it.el}`);
+          if (it.wt && cat.wtypes?.[it.wt]?.name) attrs.push(cat.wtypes[it.wt].name);
+          return `
+            <div class="gb-item">
+              <div class="gb-item-icon">${rm.badge}</div>
+              <div class="gb-item-body">
+                <b style="color:${rm.color};">${esc(it.name)}</b>
+                <div class="gb-attrs">${attrs.map(a => `<span>${esc(a)}</span>`).join('')}</div>
+                ${it.wsk ? `<small style="color:#86efac;display:block;">✨ ${esc(it.wsk)}</small>` : ''}
+                ${it.abil ? `<small style="color:#fde68a;display:block;">⚡ ${esc(it.abil)}</small>` : ''}
+              </div>
+              <button type="button" class="gb-pick" data-add-item="${esc(it.id)}">+ เพิ่ม</button>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+    box.querySelector('#gb-mode-flex').onclick = () => { equipPickMode = 'flex'; renderPicker(); };
+    box.querySelector('#gb-search-input').oninput = e => { searchQ = e.target.value; renderPicker(); };
+    const fitCb = box.querySelector('#gb-only-fit');
+    if (fitCb) fitCb.onchange = e => { onlyClassFit = e.target.checked; renderPicker(); };
+    box.querySelectorAll('[data-add-item]').forEach(btn => {
+      btn.onclick = () => {
+        const g = gp();
+        if (!g) return;
+        const id = btn.dataset.addItem;
+        const it = (cat.items || []).find(x => x.id === id);
+        if (!it) return;
+        const defPrice = it.rar === 'legend' ? 45000 : (it.rar === 'epic' ? 12000 : (it.rar === 'rare' ? 3000 : 1200));
+        g.steps.push({
+          id: uid(),
+          type: 'buy_equip',
+          slot: activePanel,
+          mode: 'exact',
+          itemId: it.id,
+          itemName: it.name,
+          minGrade: 0,
+          minRefine: 0,
+          requiredOpt: '',
+          minLevel: Math.max(1, Number(it.lv) || 1),
+          minCoins: 0,
+          maxBuyPrice: defPrice
+        });
+        renderBoard();
+        renderSteps();
+      };
+    });
   }
 
-  // ---------- render ----------
-  function render() {
-    const m = ensureModal();
-    const p = plan();
-    m.querySelector('.gb-plan-name').textContent = p && p.name ? '— ' + p.name : '';
-    // start class
-    const sel = m.querySelector('.gb-start-sel');
-    sel.innerHTML = lineage().map((c, i) => `<option value="${esc(c)}">${['Novice', 'Class 1', 'Class 2'][i] || ''}: ${esc(className(c))}</option>`).join('');
-    if (!lineage().includes(gp().startClass)) gp().startClass = 'novice';
-    sel.value = gp().startClass;
-    m.querySelector('.gb-start-hint').textContent = `บอทจะเริ่มทำรายการแรกเมื่อตัวละครเป็น ${className(sel.value)} (หรืออาชีพถัดไปในสาย) แล้ว`;
-    const resInp = m.querySelector('.gb-reserve-inp');
-    if (resInp) resInp.value = num(gp().reserveZeny || 0);
-    // map after the whole set is done (once)
-    const dm = m.querySelector('.gb-done-sel');
-    const groups = (typeof PLAN_MAP_OPTIONS !== 'undefined' && Array.isArray(PLAN_MAP_OPTIONS)) ? PLAN_MAP_OPTIONS : [];
-    dm.innerHTML = '<option value="">— ไม่เปลี่ยนแมพ —</option>' + groups.map(g => `<optgroup label="${esc(g.group)}">${(g.maps || [])
-      .filter(x => !/เมืองหลวง|โซลเฮเวน/.test(x.value)).map(x => `<option value="${esc(x.value)}">${esc(x.label)}</option>`).join('')}</optgroup>`).join('');
-    dm.value = gp().onCompleteMap || '';
-    // figure
-    const cls = lineage()[lineage().length - 1];
-    const img = m.querySelector('.gb-figure-img');
-    img.src = `https://www.aetheria-online.in.th/art/classes/${cls}.webp`;
-    img.onerror = () => { img.style.visibility = 'hidden'; };
-    // slots
-    ['L', 'R', 'G'].forEach(side => {
-      m.querySelector('.gb-col-' + side).innerHTML = SLOTS.filter(s => s.side === side).map(s => {
-        const sp = slotPlan(s.key);
-        const it = sp.equip && itemById(sp.equip.itemId);
-        const isFlex = !!(sp.equip && sp.equip.flexSlot);
-        const slotColor = it ? (RARITY[it.rarity] || '#e2e8f0') : (isFlex ? (RARITY[sp.equip.minRarity] || '#38bdf8') : '');
-        const hasSlottedInSlot = items && items.some(x => s.types.includes(x.slotType) && x.slots > 0);
-        const baseSlots = it ? (Number(it.slots) || 0) : (isFlex && hasSlottedInSlot ? Math.max(Number(sp.equip.minSlots) || 0, 1) : 0);
-        const maxSlots = Math.max(baseSlots, sp.socketed ? 1 : 0);
-        const canSocket = Boolean(sp.equip && SOCKETABLE_SLOTS.includes(s.key));
-        return `<div class="gb-slot ${slotSel === s.key ? 'active' : ''} ${sp.equip ? 'filled' : ''}" data-slot="${s.key}">
-          <div class="gb-slot-icon">${it && it.icon ? `<img src="${esc(it.icon)}" alt="">` : (isFlex ? '<span style="font-size:15px">⚡</span>' : '')}</div>
-          <div class="gb-slot-text">
-            <small>${esc(s.label)}</small>
-            <b style="${slotColor ? 'color:' + slotColor : ''}">${sp.equip ? esc(sp.equip.itemName) + (sp.socketed ? ' <span class="gb-ref" style="color:#d8b4fe;">🕳️[1]</span>' : '') + (sp.refine ? ` <span class="gb-ref">+${sp.refine}</span>` : '') + (sp.cardCount ? ` <span class="gb-cardn">🃏${sp.cardCount}</span>` : '') : 'ว่าง'}</b>
+  function renderSteps() {
+    const g = gp();
+    const listEl = modal.querySelector('#gb-steps');
+    const countEl = modal.querySelector('#gb-step-count');
+    if (!g || !listEl) return;
+    if (countEl) countEl.textContent = String(g.steps.length);
+
+    if (g.steps.length === 0) {
+      listEl.innerHTML = '<div class="gb-empty">ยังไม่มีขั้นตอน Set Gear — คลิกเลือกช่องทางซ้าย หรือเลือก "พรีเซ็ตแนะนำตามอาชีพ" ด้านบนได้เลย!</div>';
+      return;
+    }
+
+    const cat = catalog || { runes: [], skills: [], cards: [] };
+    listEl.innerHTML = g.steps.map((s, idx) => {
+      const icon = s.type === 'buy_equip' ? '⚔️' : s.type === 'buy_rune' ? '🔮' : s.type === 'buy_card' ? '🃏' : s.type === 'polish' ? '✨' : '🔨';
+      let title = '';
+      let extraHtml = '';
+
+      if (s.type === 'buy_equip') {
+        title = `<b>${esc(SLOT_LABEL[s.slot] || s.slot)}</b>: ${esc(s.itemName || s.itemId || 'Flex')} <small>(${s.mode === 'flex' ? 'Flex' : esc(s.itemId || '')})</small>`;
+        extraHtml = `
+          <div class="gb-step-opts">
+            <select data-idx="${idx}" data-field="minGrade" class="gb-opt-type">
+              ${GRADE_OPTIONS.map(([v, l]) => `<option value="${v}" ${(Number(s.minGrade) || 0) === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}
+            </select>
+            <select data-idx="${idx}" data-field="minRefine" class="gb-opt-type">
+              ${[0,1,2,3,4,5,6,7,8,9,10].map(r => `<option value="${r}" ${(Number(s.minRefine) || 0) === r ? 'selected' : ''}>${r === 0 ? 'ตีบวกไม่จำกัด' : `+${r} ขึ้นไป`}</option>`).join('')}
+            </select>
+            <select data-idx="${idx}" data-field="requiredOpt" class="gb-opt-type">
+              ${OPT_FILTERS.map(([v, l]) => `<option value="${esc(v)}" ${(s.requiredOpt || '') === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}
+            </select>
+            <button type="button" class="gb-card-btn" data-add-polish="${idx}" title="เพิ่มขั้นตอนขัดเกรดที่ป๋าหมูหริ่ง">+ ขัดเกรด</button>
+            <button type="button" class="gb-card-btn" data-add-refine="${idx}" title="เพิ่มขั้นตอนตีบวกที่ป๋าหมูหริ่ง">+ ตีบวก</button>
           </div>
-          ${canSocket ? `<button type="button" class="gb-card-btn ${sp.socketed ? 'on' : ''}" data-gb="socket-toggle" data-slot="${s.key}" title="${sp.socketed ? 'ยกเลิกรายการเจาะรูการ์ด' : 'เพิ่มรายการเจาะรูการ์ด [1] (สำหรับอุปกรณ์ที่ยังไม่มีรู บอทจะไปเจาะรูที่ NPC ให้ก่อนใส่การ์ด)'}" style="${sp.socketed ? 'border-color:#a855f7;color:#e9d5ff;background:rgba(168,85,247,0.22);' : ''}">🕳️${sp.socketed ? ' [1]' : ''}</button>` : ''}
-          ${sp.equip && maxSlots > 0 ? `<button type="button" class="gb-card-btn ${slotSel === s.key && pickMode === 'card' ? 'on' : ''}" data-gb="card-mode" data-slot="${s.key}" title="ใส่การ์ดใน ${esc(sp.equip.itemName)} (${sp.cardCount}/${maxSlots} ช่อง)">🃏 ${sp.cardCount}/${maxSlots}</button>` : ''}
-          ${sp.equip && (!it || it.refineable) ? `<div class="gb-slot-ref"><button type="button" data-gb="ref-minus" data-slot="${s.key}" title="เอาขั้นตีบวกล่าสุดออก" ${sp.refine ? '' : 'disabled'}>−</button><button type="button" data-gb="ref-plus" data-slot="${s.key}" title="เพิ่มรายการตีบวก +${sp.refine + 1}" ${sp.refine >= 10 ? 'disabled' : ''}>+</button></div>` : ''}
-        </div>`;
-      }).join('');
+        `;
+      } else if (s.type === 'buy_rune') {
+        const rName = (cat.runes || []).find(r => r.k === s.runeKind)?.name || s.runeKind;
+        const sName = (cat.skills || []).find(sk => sk.id === s.skillId)?.name || s.skillId;
+        title = `<b>รูน ${esc(rName)} ขั้น ${'I'.repeat(Math.max(1, Number(s.tier) || 1))}</b> ➔ ฝังสกิล <b>${esc(sName)}</b> (ช่อง ${(Number(s.skillSlot) || 0) + 1})`;
+        extraHtml = `
+          <div class="gb-step-opts">
+            <span>คุณภาพขั้นต่ำ:</span>
+            <input type="number" data-idx="${idx}" data-field="minQualityPct" min="0" max="100" value="${Number(s.minQualityPct) || 0}" style="width:52px;" class="gb-opt-type"> %
+          </div>
+        `;
+      } else if (s.type === 'buy_card') {
+        const cName = s.cardName || (cat.cards || []).find(c => c.mon === s.monType)?.name || s.monType;
+        const modeTxt = s.equipMode === 'act' ? `วิชามอน #${(Number(s.slotIndex) || 0) + 1}` : (s.equipMode === 'learn_only' ? 'เรียนลงสมุด' : `พาสซีฟ #${(Number(s.slotIndex) || 0) + 1}`);
+        title = `<b>การ์ด ${esc(cName)}</b> ➔ ${esc(modeTxt)}`;
+      } else if (s.type === 'polish') {
+        title = `<b>✨ ขัดเกรด ${esc(SLOT_LABEL[s.slot] || s.slot)}</b> ➔ เป้า G${Number(s.targetGrade) || 2}`;
+        extraHtml = `
+          <div class="gb-step-opts">
+            <span>เป้าเกรด:</span>
+            <select data-idx="${idx}" data-field="targetGrade" class="gb-opt-type">
+              ${[1,2,3,4].map(gVal => `<option value="${gVal}" ${(Number(s.targetGrade) || 2) === gVal ? 'selected' : ''}>G${gVal}</option>`).join('')}
+            </select>
+            <label style="margin:0;display:inline-flex;align-items:center;gap:4px;"><input type="checkbox" data-idx="${idx}" data-bool="useSeal" ${s.useSeal ? 'checked' : ''}> ใช้ตราผนึก</label>
+          </div>
+        `;
+      } else if (s.type === 'refine') {
+        title = `<b>🔨 ตีบวก ${esc(SLOT_LABEL[s.slot] || s.slot)}</b> ➔ เป้า +${Number(s.targetRefine) || 3}`;
+        extraHtml = `
+          <div class="gb-step-opts">
+            <span>เป้าตีบวก:</span>
+            <select data-idx="${idx}" data-field="targetRefine" class="gb-opt-type">
+              ${[1,2,3,4,5,6,7,8,9,10].map(rVal => `<option value="${rVal}" ${(Number(s.targetRefine) || 3) === rVal ? 'selected' : ''}>+${rVal}${rVal >= 9 ? ' (ใช้หินกันแตก)' : ''}</option>`).join('')}
+            </select>
+          </div>
+        `;
+      }
+
+      const priceField = (s.type === 'polish' || s.type === 'refine') ? 'maxSpend' : 'maxBuyPrice';
+      const priceLabel = (s.type === 'polish' || s.type === 'refine') ? 'งบสูงสุด' : 'ซื้อไม่เกิน';
+      const priceVal = Number(s[priceField]) || 0;
+
+      return `
+        <div class="gb-step">
+          <div class="gb-step-no">${idx + 1}</div>
+          <div class="gb-step-icon">${icon}</div>
+          <div class="gb-step-body">
+            <div class="gb-step-title">${title}</div>
+            ${extraHtml}
+          </div>
+          <div class="gb-conds">
+            <label class="gb-lv">Lv.≥ <input type="number" data-idx="${idx}" data-field="minLevel" min="1" max="99" value="${Number(s.minLevel) || 1}"></label>
+            <label class="gb-zeny">${priceLabel} <input type="number" data-idx="${idx}" data-field="${priceField}" min="0" step="500" value="${priceVal}"> g</label>
+          </div>
+          <div class="gb-step-btns">
+            <button type="button" data-move="${idx}:-1" ${idx === 0 ? 'disabled' : ''}>▲</button>
+            <button type="button" data-move="${idx}:1" ${idx === g.steps.length - 1 ? 'disabled' : ''}>▼</button>
+            <button type="button" class="gb-del" data-del="${idx}">✕</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    listEl.querySelectorAll('[data-field]').forEach(el => {
+      el.onchange = () => {
+        const i = Number(el.dataset.idx);
+        const f = el.dataset.field;
+        if (!g.steps[i]) return;
+        const isNum = el.type === 'number' || ['minGrade', 'minRefine', 'targetGrade', 'targetRefine', 'minLevel', 'maxBuyPrice', 'maxSpend', 'minQualityPct'].includes(f);
+        g.steps[i][f] = isNum ? Math.max(0, Math.floor(Number(el.value) || 0)) : el.value;
+        renderBoard();
+      };
     });
+    listEl.querySelectorAll('[data-bool]').forEach(el => {
+      el.onchange = () => {
+        const i = Number(el.dataset.idx);
+        if (g.steps[i]) g.steps[i][el.dataset.bool] = Boolean(el.checked);
+      };
+    });
+    listEl.querySelectorAll('[data-move]').forEach(btn => {
+      btn.onclick = () => {
+        const [i, dir] = btn.dataset.move.split(':').map(Number);
+        const j = i + dir;
+        if (j < 0 || j >= g.steps.length) return;
+        const tmp = g.steps[i];
+        g.steps[i] = g.steps[j];
+        g.steps[j] = tmp;
+        renderSteps();
+      };
+    });
+    listEl.querySelectorAll('[data-del]').forEach(btn => {
+      btn.onclick = () => {
+        const i = Number(btn.dataset.del);
+        g.steps.splice(i, 1);
+        renderBoard();
+        renderSteps();
+      };
+    });
+    listEl.querySelectorAll('[data-add-polish]').forEach(btn => {
+      btn.onclick = () => {
+        const i = Number(btn.dataset.addPolish);
+        const src = g.steps[i];
+        if (!src) return;
+        g.steps.splice(i + 1, 0, {
+          id: uid(),
+          type: 'polish',
+          slot: src.slot,
+          itemId: src.mode === 'exact' ? (src.itemId || '') : '',
+          targetGrade: 2,
+          useSeal: false,
+          minLevel: Number(src.minLevel) || 20,
+          minCoins: 0,
+          maxSpend: 10000
+        });
+        renderBoard();
+        renderSteps();
+      };
+    });
+    listEl.querySelectorAll('[data-add-refine]').forEach(btn => {
+      btn.onclick = () => {
+        const i = Number(btn.dataset.addRefine);
+        const src = g.steps[i];
+        if (!src) return;
+        g.steps.splice(i + 1, 0, {
+          id: uid(),
+          type: 'refine',
+          slot: src.slot,
+          itemId: src.mode === 'exact' ? (src.itemId || '') : '',
+          targetRefine: 3,
+          useSafety: true,
+          minLevel: Number(src.minLevel) || 20,
+          minCoins: 0,
+          maxSpend: 10000
+        });
+        renderBoard();
+        renderSteps();
+      };
+    });
+  }
+
+  function renderTopBar() {
+    const g = gp();
+    if (!g || !modal) return;
+    modal.querySelector('#gb-enabled').checked = g.enabled !== false;
+    modal.querySelector('#gb-reserve-coins').value = Number(g.reserveCoins ?? 50000);
+    const sel = modal.querySelector('#gb-start-class');
+    const opts = getClassOptions();
+    sel.innerHTML = opts.map(o => `<option value="${esc(o.id)}">${esc(o.label)}</option>`).join('');
+    sel.value = opts.some(o => o.id === g.startClass) ? g.startClass : 'traveler';
+  }
+
+  function renderAll() {
+    renderTopBar();
+    renderBoard();
     renderPicker();
     renderSteps();
   }
 
-  const RARITY_RANK = { common: 1, uncommon: 2, rare: 3, epic: 4, legendary: 5 };
-  function fitsSlot(it, slot) {
-    if (!it || !slot || !slot.types.includes(it.slotType)) return false;
-    if (it.accSlot && (slot.key === 'accessory-left' || slot.key === 'accessory-right') && it.accSlot !== slot.key) return false;
-    return true;
-  }
-
-  function buildFlexOptionsForSlot(slot, q) {
-    if (!slot || slot.side === 'G' || !items) return [];
-    const slotType = slot.types[0];
-    const lin = lineage();
-    const out = [];
-    if (slot.key === 'main-hand') {
-      const wTypes = [...new Set(items.filter(it => it.slotType === 'Weapon' && wearableByPlan(it) && (it.jobs.length > 0 || lin.includes('thief'))).map(it => it.weaponType).filter(w => w && w !== 'None'))];
-      wTypes.forEach(wt => {
-        const wtLabel = WEAPON_TYPE_TH[wt] || wt;
-        [
-          { r: 'rare', slots: 0, desc: `อาวุธ ${wtLabel} ชิ้นไหนก็ได้ที่อาชีพในแผนใส่ได้ · หายากขึ้นไป (ถ้ามหากาพย์ถูกกว่าจะซื้อมหากาพย์ให้)` },
-          { r: 'epic', slots: 0, desc: `อาวุธ ${wtLabel} ชิ้นไหนก็ได้ที่อาชีพในแผนใส่ได้ · ระดับมหากาพย์ขึ้นไป` }
-        ].forEach(cfg => {
-          const name = `${wtLabel} (${RARITY_TH[cfg.r]})`;
-          if (q && !`${name} ${wt} ${cfg.r} flex ยืดหยุ่น`.toLowerCase().includes(q)) return;
-          out.push({ name, slotType: 'Weapon', weaponType: wt, minRarity: cfg.r, minSlots: cfg.slots, desc: cfg.desc });
-        });
-      });
-      return out;
-    }
-    const slotItems = items.filter(it => fitsSlot(it, slot) && (!onlyMine || wearableByPlan(it)));
-    const hasAtLeast = (minR, minS) => slotItems.some(it => (RARITY_RANK[it.rarity] || 1) >= (RARITY_RANK[minR] || 1) && (Number(it.slots) || 0) >= minS);
-    const tiers = [
-      ...(hasAtLeast('rare', 0) ? [{ r: 'rare', slots: 0, desc: 'ชิ้นไหนก็ได้ที่อาชีพในแผนใส่ได้ · หายากขึ้นไป (ถ้ามหากาพย์ถูกกว่าและไม่ได้เลือกรูไว้ จะซื้อมหากาพย์ให้)' }] : []),
-      ...(hasAtLeast('rare', 1) ? [{ r: 'rare', slots: 1, desc: 'ชิ้นไหนก็ได้ที่อาชีพในแผนใส่ได้ · หายากขึ้นไป แบบมีรูการ์ด [1]' }] : []),
-      ...(hasAtLeast('epic', 0) ? [{ r: 'epic', slots: 0, desc: 'ชิ้นไหนก็ได้ที่อาชีพในแผนใส่ได้ · ระดับมหากาพย์ขึ้นไป (ไม่บังคับรูการ์ด)' }] : []),
-      ...(hasAtLeast('epic', 1) ? [{ r: 'epic', slots: 1, desc: 'ชิ้นไหนก็ได้ที่อาชีพในแผนใส่ได้ · ระดับมหากาพย์ขึ้นไป แบบมีรูการ์ด [1]' }] : []),
-      ...(hasAtLeast('uncommon', 0) ? [{ r: 'uncommon', slots: 0, desc: 'ชิ้นไหนก็ได้ที่อาชีพในแผนใส่ได้ · ระดับดี (เขียว) ขึ้นไป' }] : []),
-      ...(hasAtLeast('common', 0) ? [{ r: 'common', slots: 0, desc: 'ชิ้นไหนก็ได้ที่อาชีพในแผนใส่ได้ · ทุกระดับ (ขาว/เขียว/ฟ้า/ม่วง ที่ถูกสุดในตลาด)' }] : [])
-    ];
-    tiers.forEach(cfg => {
-      const name = `${slot.label} (${RARITY_TH[cfg.r]}${cfg.slots ? ` [${cfg.slots}]` : ''})`;
-      if (q && !`${name} ${slotType} ${cfg.r} flex ยืดหยุ่น`.toLowerCase().includes(q)) return;
-      out.push({ name, slotType, weaponType: '', minRarity: cfg.r, minSlots: cfg.slots, desc: cfg.desc });
-    });
-    return out;
-  }
-
-  function renderPicker() {
-    const m = ensureModal();
-    const slot = SLOTS.find(s => s.key === slotSel);
-    m.querySelector('.gb-picker-title').textContent = `เลือก${slot ? slot.label : ''}`;
-    const box = m.querySelector('.gb-list');
-    if (!items) return;
-    if (pickMode === 'card') return renderCardPicker(m, slot, box);
-    const q = query.trim().toLowerCase();
-    const flexList = buildFlexOptionsForSlot(slot, q);
-    const list = items.filter(it => fitsSlot(it, slot))
-      .filter(it => !onlyMine || wearableByPlan(it))
-      .filter(it => !q || [it.name, it.weaponType, ...(it.attributes || []).map(a => a.type), ...(it.jobs || [])].join(' ').toLowerCase().includes(q))
-      .sort((a, b) => (a.level - b.level) || a.name.localeCompare(b.name, undefined, { numeric: true }));
-    if (!flexList.length && !list.length) { box.innerHTML = '<div class="gb-empty">ไม่พบไอเทมที่ตรงกับการค้นหา</div>'; return; }
-    const isGemSlot = !!(slot && slot.side === 'G');
-    const gemBanner = isGemSlot
-      ? `<div class="gb-card-note" style="border-color:rgba(56,189,248,0.35);color:#7dd3fc;">💎 <b>ระบบซื้อเจมคุ้มค่าอัตโนมัติ:</b> เลือกเจม % ขั้นต่ำที่ต้องการ (เช่น <b>Mana Gem (Skill) 3%</b>) — หากในตลาดมีเจมชนิดเดียวกันที่ <b>% สูงกว่า (4%–10%) แต่ราคาถูกกว่าหรือเท่ากัน</b> บอทจะซื้ออัน % สูงกว่าให้อัตโนมัติ</div>`
-      : '';
-    const flexHtml = flexList.map(fx => `
-      <div class="gb-item gb-item-flex" style="border: 1px dashed ${RARITY[fx.minRarity] || '#38bdf8'}; background: rgba(15, 23, 42, 0.78);">
-        <div class="gb-item-icon" style="display:flex;align-items:center;justify-content:center;font-size:18px;">⚡</div>
-        <div class="gb-item-body">
-          <b style="color:${RARITY[fx.minRarity] || '#38bdf8'}">${esc(fx.name)} <span style="font-size:10px;padding:1px 5px;border-radius:4px;background:rgba(56,189,248,0.16);color:#7dd3fc;font-weight:normal;">Flex ไม่ล็อคชื่อ</span></b>
-          <small>${esc(fx.desc)}</small>
-        </div>
-        <button type="button" class="gb-pick" data-gb="pick-flex" data-name="${esc(fx.name)}" data-slot-type="${esc(fx.slotType)}" data-weapon-type="${esc(fx.weaponType)}" data-rarity="${esc(fx.minRarity)}" data-slots="${fx.minSlots}">เลือก</button>
-      </div>`).join('');
-    box.innerHTML = gemBanner + flexHtml + list.map(it => {
-      const isPctGem = isGemSlot && /\d+(?:\.\d+)?\s*%$/.test(it.name || '');
-      return `
-      <div class="gb-item">
-        <div class="gb-item-icon">${it.icon ? `<img src="${esc(it.icon)}" alt="" loading="lazy">` : ''}</div>
-        <div class="gb-item-body">
-          <b style="color:${RARITY[it.rarity] || '#e2e8f0'}">${esc(it.name)}${it.slots ? ` [${it.slots}]` : ''}${isPctGem ? ` <span style="font-size:10px;padding:1px 5px;border-radius:4px;background:rgba(56,189,248,0.15);color:#7dd3fc;font-weight:normal;">ถ้า % สูงกว่าถูกกว่า ซื้ออันสูงกว่า</span>` : ''}</b>
-          <small>Lv.${it.level}${it.weaponType && it.weaponType !== 'None' ? ' · ' + esc(it.weaponType) : ''}${it.refineable ? '' : ' · ตีบวกไม่ได้'}${it.jobs.length ? ' · ' + esc(it.jobs.join('/')) : ''}</small>
-          <div class="gb-attrs">${(it.attributes || []).map(a => `<span>${esc(ATTR_TH[a.type] || a.type)} +${a.value}</span>`).join('')}</div>
-        </div>
-        <button type="button" class="gb-pick" data-gb="pick" data-id="${it.id}">เลือก</button>
-      </div>`;
-    }).join('');
-  }
-
-  // Cards that fit the planned item of the slot (game: card.cardSlotTypes has the item's equipment type)
-  function renderCardPicker(m, slot, box) {
-    const sp = slotPlan(slotSel);
-    const it = sp.equip && itemById(sp.equip.itemId);
-    const isFlex = !!(sp.equip && sp.equip.flexSlot);
-    if (!sp.equip || (!it && !isFlex)) { pickMode = 'item'; return renderPicker(); }
-    const targetSlotType = it ? it.slotType : (sp.equip.slotType || (slot && slot.types[0]) || '');
-    const maxSlots = Math.max(it ? (Number(it.slots) || 0) : Math.max(Number(sp.equip.minSlots) || 0, 1), sp.socketed ? 1 : 0);
-    m.querySelector('.gb-picker-title').textContent = `🃏 เลือกการ์ดใส่ ${sp.equip.itemName} (${sp.cardCount}/${maxSlots} ช่อง)`;
-    const q = query.trim().toLowerCase();
-    const list = cards.filter(c => (c.cardSlotTypes || []).includes(targetSlotType))
-      .filter(c => !q || [c.name, ...(c.attributes || []).map(a => a.type)].join(' ').toLowerCase().includes(q))
-      .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
-    const full = sp.cardCount >= maxSlots;
-    if (!list.length) { box.innerHTML = '<div class="gb-empty">ไม่มีการ์ดที่ใส่กับไอเทมชนิดนี้ได้</div>'; return; }
-    box.innerHTML = `<div class="gb-card-note">ใส่แล้วถอดเองไม่ได้ (ต้องให้ NPC ถอดและเสียเงิน) · การ์ดติดไปกับอุปกรณ์ชิ้นนี้${full ? ' · <b>ช่องการ์ดเต็มแล้ว</b>' : ''}</div>` + list.map(c => `
-      <div class="gb-item">
-        <div class="gb-item-icon">${c.icon ? `<img src="${esc(c.icon)}" alt="" loading="lazy">` : ''}</div>
-        <div class="gb-item-body">
-          <b style="color:${RARITY[c.rarity] || '#e2e8f0'}">${esc(c.name)}</b>
-          <small>ใส่ได้กับ: ${esc((c.cardSlotTypes || []).join(', '))}</small>
-          <div class="gb-attrs">${(c.attributes || []).map(a => `<span>${esc(ATTR_TH[a.type] || a.type)} +${esc(a.value)}</span>`).join('')}</div>
-        </div>
-        <button type="button" class="gb-pick" data-gb="pick-card" data-id="${c.id}" ${full ? 'disabled' : ''}>ใส่</button>
-      </div>`).join('');
-  }
-
-  function stepText(st) {
-    if (st.kind === 'socket') return `🕳️ เจาะรูการ์ด <b>${esc(st.itemName)}</b> → <span class="gb-ref">[${Number(st.toSlots) || 1}]</span>`;
-    if (st.kind === 'card') return `🃏 ใส่การ์ด <b>${esc(st.cardName)}</b> ใน <b>${esc(st.itemName)}</b>`;
-    if (st.kind === 'refine') return `🔨 ตีบวก <b>${esc(st.itemName)}</b> → <span class="gb-ref">+${Number(st.toLevel) || 0}</span>`;
-    if (st.flexSlot) return `⚡ ซื้อ / สวมแบบยืดหยุ่น <b>${esc(st.itemName)}</b>`;
-    return `🛒 ซื้อ / สวม <b>${esc(st.itemName)}${st.minSlots ? ` [${st.minSlots}]` : ''}</b>`;
-  }
-  function optionChips(st) {
-    const terms = String(st.options || '').split(',').map(s => s.trim()).filter(Boolean);
-    return terms.map((t, i) => `<span class="gb-opt">${esc(t.replace('>=', ' ≥ '))}<button type="button" data-gb="opt-del" data-id="${esc(st.id)}" data-i="${i}" aria-label="ลบ">✕</button></span>`).join('');
-  }
-  function renderSteps() {
-    const m = ensureModal();
-    const steps = gp().steps;
-    m.querySelector('.gb-steps-count').textContent = steps.length;
-    const box = m.querySelector('.gb-steps');
-    if (!steps.length) {
-      box.innerHTML = '<div class="gb-empty">ยังไม่มีรายการ — คลิกช่องสวมใส่ด้านบน แล้วกด "เลือก" ที่ไอเทม</div>';
-      return;
-    }
-    box.innerHTML = steps.map((st, i) => {
-      const it = st.kind === 'card' ? cardById(st.cardId) : st.itemId ? itemById(st.itemId) : (items || []).find(x => x.name === st.itemName);
-      const slot = SLOTS.find(s => s.key === st.slot);
-      // a refine/socket/card step needs its item equipped by an earlier step
-      const orphan = (st.kind === 'refine' || st.kind === 'socket' || st.kind === 'card') && !steps.slice(0, i).some(x => x.kind === 'equip' && x.slot === st.slot && x.itemName === st.itemName);
-      return `<div class="gb-step ${focusStepId === st.id ? 'flash' : ''} ${orphan ? 'warn' : ''}" data-id="${esc(st.id)}">
-        <span class="gb-step-no">${i + 1}</span>
-        <div class="gb-step-icon">${it && it.icon ? `<img src="${esc(it.icon)}" alt="">` : (st.flexSlot ? '<span style="font-size:16px">⚡</span>' : '')}</div>
-        <div class="gb-step-body">
-          <div class="gb-step-title">${stepText(st)} <small>· ${esc(slot ? slot.label : st.slot)}</small></div>
-          ${st.kind === 'equip' ? `<div class="gb-step-opts"><small>ออปชั่นสุ่มที่ต้องมี:</small> ${optionChips(st) || '<small class="gb-muted">ไม่กำหนด (ชื่อ/ระดับตรงก็ใช้ได้)</small>'}
-            <select class="gb-opt-type" data-id="${esc(st.id)}"><option value="">+ เพิ่มออปชั่น</option>${OPTION_TYPES.map(o => `<option value="${o}">${o}</option>`).join('')}</select></div>` : ''}
-          ${st.kind === 'equip' && st.flexSlot ? `<small class="gb-muted" style="color:#7dd3fc;">⚡ เลือกชิ้นไหนก็ได้ในช่องนี้ที่อาชีพในแผนใส่ได้ · ระดับ ${esc(RARITY_TH[st.minRarity] || st.minRarity || 'หายาก')} ขึ้นไป${st.minSlots ? ` · ต้องมีรูการ์ด [${st.minSlots}]` : ' (ถ้ามหากาพย์ถูกกว่าจะซื้อมหากาพย์ให้)'}</small>` : ''}
-          ${st.kind === 'equip' && /^gem-/.test(st.slot || '') && /\d+(?:\.\d+)?\s*%?$/.test(st.itemName || '') ? `<small class="gb-muted" style="color:#7dd3fc;">💎 ขั้นต่ำตามชื่อที่เลือก — ถ้าเจมชนิดเดียวกันที่ % สูงกว่าในตลาดราคาถูกกว่าหรือเท่ากัน บอทจะซื้ออัน % สูงกว่าให้อัตโนมัติ</small>` : ''}
-          ${st.kind === 'socket' ? `<label class="gb-step-bless"><input type="checkbox" data-gb="charm" data-id="${esc(st.id)}" ${st.useCharm !== false ? 'checked' : ''}> ใช้ Socket Charm (ยันต์เจาะรู +5%) ถ้ามีในกระเป๋า</label>` : ''}
-          ${st.kind === 'socket' ? `<small class="gb-muted" style="color:#d8b4fe;">${st.slot === 'main-hand' ? '🕳️ เจาะช่องอาวุธที่ Blacksmith Enok (ใช้ Oridecon + อาวุธวัตถุดิบ +0 [0] ชื่อเดียวกัน 1–2 ชิ้น · หากขาดจะหาซื้อจากตลาดในงบซื้อไม่เกิน ≤)' : (st.slot === 'accessory-left' || st.slot === 'accessory-right') ? '🕳️ เจาะช่องประดับม่วงที่ ลักกี้ลูลู่ (Auger Socket) · ใช้สว่านรูนบัวหลวง + Elunium + Oridecon' : '🕳️ เจาะช่องการ์ดหมวกที่ ลักกี้ลูลู่ (Auger Socket) · ใช้ Auger Of Spirit + Elunium'}</small>` : ''}
-          ${st.kind === 'refine' ? `<label class="gb-step-bless"><input type="checkbox" data-gb="bless" data-id="${esc(st.id)}" ${st.blessing !== false ? 'checked' : ''}> ใช้ Blacksmith Blessing เฉพาะขั้นสูง (+8 ถึง +10 หรือขั้นที่เสี่ยงแตก · ไม่เปลือง Blessing กับ +1 ถึง +7)</label>` : ''}
-          ${st.kind === 'refine' && st.toLevel > 4 ? `<small class="gb-warn-text">${['armor','garment','boots','head-upper','head-middle','head-lower','off-hand','gloves','legs'].includes(st.slot) && st.toLevel <= 7 ? '🛡️ ชุดเกราะ/โล่/ผ้าคลุม/รองเท้า/หมวก ตีบวกด้วย Elunium ถึง +7 โอกาสแตก 0% (พลาดอาจลดขั้น แต่ของไม่มีวันหาย)' : `⚠️ เกิน +4 ตีพลาดอาจลดขั้น (ไม่แตกที่ +5..+7)${st.toLevel >= 10 ? ' · +10 มีโอกาสแตกหากไม่มี Blessing ในกระเป๋า' : ''}`}</small>` : ''}
-          ${st.kind === 'card' ? '<small class="gb-warn-text">🃏 ใส่แล้วถอดเองไม่ได้ · ไม่มีการ์ดในกระเป๋า = ซื้อในตลาด (ราคาไม่เกินเพดานที่ตั้ง)</small>' : ''}
-          ${orphan ? '<small class="gb-warn-text">⚠️ ต้องมีรายการซื้อ/สวมไอเทมนี้อยู่ก่อนหน้า — ไม่งั้นบอทจะข้ามรายการนี้</small>' : ''}
-        </div>
-        <div class="gb-conds">
-          <label class="gb-zeny" title="บอทเริ่มรายการนี้เมื่อมีเงินในตัวถึงจำนวนนี้">เมื่อเงิน ≥ <input type="text" inputmode="numeric" data-gb="zeny" data-id="${esc(st.id)}" value="${num(st.zeny)}"> z</label>
-          ${st.kind !== 'refine' ? `<label class="gb-zeny" title="เพดานราคาสูงสุดที่ยอมซื้อจากตลาด (0 = ไม่จำกัดเพดาน ซื้อชิ้นที่ถูกสุดในตลาดเมื่อเงินในตัวพอจ่ายหลังหักเงินสำรอง)">ซื้อไม่เกิน ≤ <input type="text" inputmode="numeric" data-gb="maxprice" data-id="${esc(st.id)}" value="${num(st.maxPrice || 0)}"> z</label>` : ''}
-          <label class="gb-lv" title="และ Base Lv. ถึงค่านี้ (0 = ไม่กำหนด)">เลเวล ≥ <input type="text" inputmode="numeric" data-gb="lv" data-id="${esc(st.id)}" value="${Number(st.minLevel) || 0}"></label>
-        </div>
-        <div class="gb-step-btns">
-          <button type="button" data-gb="up" data-id="${esc(st.id)}" ${i === 0 ? 'disabled' : ''} title="ขึ้น">▲</button>
-          <button type="button" data-gb="down" data-id="${esc(st.id)}" ${i === steps.length - 1 ? 'disabled' : ''} title="ลง">▼</button>
-          <button type="button" data-gb="del" data-id="${esc(st.id)}" title="ลบ" class="gb-del">🗑</button>
-        </div>
-      </div>`;
-    }).join('');
-    if (focusStepId) {
-      const el = box.querySelector(`.gb-step[data-id="${CSS.escape(focusStepId)}"]`);
-      if (el) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-      focusStepId = null;
-    }
-  }
-
-  // ---------- events ----------
-  const stepById = id => gp().steps.find(s => s.id === id);
-  const lastZeny = () => { const st = gp().steps; return st.length ? (Number(st[st.length - 1].zeny) || 0) : 0; };
-  const lastLevel = () => { const st = gp().steps; return st.length ? (Number(st[st.length - 1].minLevel) || 0) : 0; };
-  function onClick(e) {
-    const slotEl = e.target.closest('.gb-slot');
-    const btn = e.target.closest('[data-gb]');
-    const act = btn && btn.dataset.gb;
-    if (slotEl && !btn) { slotSel = slotEl.dataset.slot; pickMode = 'item'; query = ''; ensureModal().querySelector('.gb-search').value = ''; render(); return; }
-    if (!act) return;
-    const steps = gp().steps;
-    const id = btn.dataset.id;
-    if (act === 'cancel') return close(false);
-    if (act === 'save') return close(true);
-    if (act === 'pick-flex') {
-      const st = {
-        id: newId(),
-        kind: 'equip',
-        slot: slotSel,
-        itemId: 0,
-        itemName: btn.dataset.name,
-        flexSlot: true,
-        slotType: btn.dataset.slotType || '',
-        weaponType: btn.dataset.weaponType || '',
-        minRarity: btn.dataset.rarity || 'rare',
-        minSlots: Number(btn.dataset.slots) || 0,
-        jobs: [],
-        options: '',
-        zeny: lastZeny(),
-        minLevel: 0
-      };
-      steps.push(st);
-      focusStepId = st.id;
-      return render();
-    }
-    if (act === 'pick') {
-      const it = itemById(Number(id));
-      if (!it) return;
-      const hasZeroSlotTwin = it.slots > 0 && (items || []).some(x => x.id !== it.id && x.name === it.name && (Number(x.slots) || 0) === 0);
-      const st = {
-        id: newId(),
-        kind: 'equip',
-        slot: slotSel,
-        itemId: it.id,
-        itemName: it.name,
-        slotType: it.slotType || '',
-        rarity: it.rarity || 'common',
-        minSlots: hasZeroSlotTwin ? (Number(it.slots) || 0) : 0,
-        jobs: (it.jobs || []).slice(),
-        options: '',
-        zeny: lastZeny(),
-        minLevel: Number(it.level) || 0
-      };
-      steps.push(st);
-      focusStepId = st.id;
-      return render();
-    }
-    if (act === 'socket-toggle') {
-      const tSlot = btn.dataset.slot;
-      const sp = slotPlan(tSlot);
-      if (!sp.equip) return;
-      if (sp.socketed) {
-        for (let i = steps.length - 1; i >= 0; i--) {
-          if (steps[i].kind === 'socket' && steps[i].slot === tSlot && steps[i].itemName === sp.equip.itemName) {
-            steps.splice(i, 1);
-          }
-        }
-      } else {
-        sp.equip.minSlots = 0;
-        const st = {
-          id: newId(),
-          kind: 'socket',
-          slot: tSlot,
-          itemName: sp.equip.itemName,
-          toSlots: 1,
-          useCharm: true,
-          zeny: lastZeny(),
-          maxPrice: 0,
-          minLevel: lastLevel()
-        };
-        const firstCardIdx = steps.findIndex(s => s.kind === 'card' && s.slot === tSlot && s.itemName === sp.equip.itemName);
-        if (firstCardIdx >= 0) steps.splice(firstCardIdx, 0, st);
-        else steps.push(st);
-        focusStepId = st.id;
-      }
-      return render();
-    }
-    if (act === 'card-mode') {
-      slotSel = btn.dataset.slot;
-      pickMode = 'card';
-      query = '';
-      ensureModal().querySelector('.gb-search').value = '';
-      return render();
-    }
-    if (act === 'pick-card') {
-      const c = cardById(Number(id));
-      const sp = slotPlan(slotSel);
-      const it = sp.equip && itemById(sp.equip.itemId);
-      const isFlex = !!(sp.equip && sp.equip.flexSlot);
-      if (!c || !sp.equip || (!it && !isFlex)) return;
-      const maxSlots = Math.max(it ? (Number(it.slots) || 0) : Math.max(Number(sp.equip.minSlots) || 0, 1), sp.socketed ? 1 : 0);
-      if (sp.cardCount >= maxSlots) return alert(`${sp.equip.itemName} มีช่องการ์ดแค่ ${maxSlots} ช่อง`);
-      if (isFlex && !sp.equip.minSlots && !sp.socketed) {
-        const oldName = sp.equip.itemName;
-        sp.equip.minSlots = 1;
-        if (!/\[\s*1\s*\]/.test(sp.equip.itemName)) {
-          sp.equip.itemName = sp.equip.itemName.replace(/\)\s*$/, ' [1])');
-          steps.forEach(s => { if (s.slot === slotSel && s.itemName === oldName) s.itemName = sp.equip.itemName; });
-        }
-      }
-      const st = { id: newId(), kind: 'card', slot: slotSel, itemName: sp.equip.itemName, cardId: c.id, cardName: c.name, zeny: lastZeny(), minLevel: lastLevel() };
-      steps.push(st);
-      focusStepId = st.id;
-      return render();
-    }
-    if (act === 'ref-plus' || act === 'ref-minus') {
-      const sp = slotPlan(btn.dataset.slot);
-      if (!sp.equip) return;
-      if (act === 'ref-plus') {
-        const st = { id: newId(), kind: 'refine', slot: btn.dataset.slot, itemName: sp.equip.itemName, toLevel: sp.refine + 1, zeny: lastZeny(), minLevel: lastLevel(), blessing: true };
-        steps.push(st);
-        focusStepId = st.id;
-      } else {
-        for (let i = steps.length - 1; i >= 0; i--) {
-          if (steps[i].kind === 'refine' && steps[i].slot === btn.dataset.slot && steps[i].itemName === sp.equip.itemName && steps[i].toLevel === sp.refine) { steps.splice(i, 1); break; }
-        }
-      }
-      return render();
-    }
-    const idx = steps.findIndex(s => s.id === id);
-    if (idx < 0) return;
-    if (act === 'del') steps.splice(idx, 1);
-    else if (act === 'up' && idx > 0) [steps[idx - 1], steps[idx]] = [steps[idx], steps[idx - 1]];
-    else if (act === 'down' && idx < steps.length - 1) [steps[idx + 1], steps[idx]] = [steps[idx], steps[idx + 1]];
-    else if (act === 'opt-del') {
-      const terms = String(steps[idx].options || '').split(',').map(s => s.trim()).filter(Boolean);
-      terms.splice(Number(btn.dataset.i), 1);
-      steps[idx].options = terms.join(', ');
-    } else return;
-    render();
-  }
-  function onChange(e) {
-    const t = e.target;
-    if (t.classList.contains('gb-start-sel')) { gp().startClass = t.value; render(); return; }
-    if (t.classList.contains('gb-done-sel')) { gp().onCompleteMap = t.value || ''; return; }
-    if (t.classList.contains('gb-only-cb')) { onlyMine = t.checked; renderPicker(); return; }
-    if (t.classList.contains('gb-opt-type') && t.value) {
-      const st = stepById(t.dataset.id);
-      const min = prompt(`${t.value} อย่างน้อยเท่าไร? (ออปชั่นสุ่ม ไม่นับค่าพื้นฐานของไอเทม)`, '1');
-      if (st && min !== null) {
-        const v = Math.max(1, parseInt(min, 10) || 1);
-        const terms = String(st.options || '').split(',').map(s => s.trim()).filter(Boolean).filter(x => !x.startsWith(t.value + '>='));
-        terms.push(`${t.value}>=${v}`);
-        st.options = terms.join(', ');
-      }
-      renderSteps();
-      return;
-    }
-    if (t.dataset.gb === 'bless') { const st = stepById(t.dataset.id); if (st) st.blessing = t.checked; return; }
-    if (t.dataset.gb === 'charm') { const st = stepById(t.dataset.id); if (st) st.useCharm = t.checked; return; }
-    if (t.classList.contains('gb-reserve-inp')) { t.value = num(parseInt(String(t.value).replace(/[^0-9]/g, ''), 10) || 0); return; }
-    if (t.dataset.gb === 'zeny') { t.value = num(parseInt(String(t.value).replace(/[^0-9]/g, ''), 10) || 0); }
-    if (t.dataset.gb === 'maxprice') { t.value = num(parseInt(String(t.value).replace(/[^0-9]/g, ''), 10) || 0); }
-    if (t.dataset.gb === 'lv') { t.value = Math.min(99, parseInt(String(t.value).replace(/[^0-9]/g, ''), 10) || 0); }
-  }
-  function onInput(e) {
-    const t = e.target;
-    if (t.classList.contains('gb-search')) { query = t.value; renderPicker(); return; }
-    if (t.classList.contains('gb-reserve-inp')) { gp().reserveZeny = parseInt(String(t.value).replace(/[^0-9]/g, ''), 10) || 0; return; }
-    if (t.dataset.gb === 'zeny') { const st = stepById(t.dataset.id); if (st) st.zeny = parseInt(String(t.value).replace(/[^0-9]/g, ''), 10) || 0; }
-    if (t.dataset.gb === 'maxprice') { const st = stepById(t.dataset.id); if (st) st.maxPrice = parseInt(String(t.value).replace(/[^0-9]/g, ''), 10) || 0; }
-    if (t.dataset.gb === 'lv') { const st = stepById(t.dataset.id); if (st) st.minLevel = Math.min(99, parseInt(String(t.value).replace(/[^0-9]/g, ''), 10) || 0); }
-  }
-
-  async function loadItems() {
-    if (items) return;
-    try {
-      const r = await fetch('/api/game-items').then(x => x.json());
-      if (!r.success) throw new Error(r.error || 'error');
-      items = r.items;
-      classes = r.classes || [];
-      cards = r.cards || [];
-    } catch (e) {
-      if (!plan()) return;
-      const box = ensureModal().querySelector('.gb-list');
-      box.innerHTML = `<div class="gb-empty">❌ โหลดรายการไอเทมไม่สำเร็จ: ${esc(e.message)}</div>`;
-      return;
-    }
-    if (plan() && ensureModal().style.display !== 'none') render();
-  }
-
-  function open() {
+  async function open() {
     if (!plan()) return;
     gp();
     snapshot = JSON.stringify(plan().gearPlan);
-    const m = ensureModal();
-    m.style.display = 'flex';
-    render();
-    loadItems();
+    buildModal();
+    modal.style.display = 'flex';
+    modal.querySelector('#gb-picker').innerHTML = '<div class="gb-empty">⏳ กำลังโหลดฐานข้อมูลไอเทม รูน และการ์ด Nightcamp...</div>';
+    renderTopBar();
+    renderBoard();
+    renderSteps();
+    await loadCatalog();
+    renderPicker();
+    renderSteps();
   }
+
   function close(save) {
-    const m = ensureModal();
-    if (!save && snapshot && plan()) plan().gearPlan = JSON.parse(snapshot);
+    if (!save && snapshot && plan()) {
+      plan().gearPlan = JSON.parse(snapshot);
+    }
+    if (save && typeof markPlanDirty === 'function') {
+      markPlanDirty(true);
+    }
     snapshot = null;
-    m.style.display = 'none';
-    if (save && typeof markPlanDirty === 'function') markPlanDirty();
-    updateGearBadge();
+    if (modal) modal.style.display = 'none';
+    updateBadge();
   }
-  function updateGearBadge() {
+
+  function updateBadge() {
     const badge = document.getElementById('plan-gear-count-badge');
     if (!badge || !plan()) return;
-    const n = (plan().gearPlan && plan().gearPlan.steps || []).length;
-    badge.textContent = `${n} รายการ`;
-    badge.style.background = n ? 'rgba(34, 197, 94, 0.4)' : 'rgba(34, 197, 94, 0.18)';
+    const g = plan().gearPlan;
+    const n = (g && Array.isArray(g.steps)) ? g.steps.length : 0;
+    const on = g && g.enabled !== false && n > 0;
+    badge.textContent = on ? `${n} รายการ` : (n > 0 ? `${n} (ปิด)` : '0 รายการ');
+    badge.style.background = on ? 'rgba(245, 158, 11, 0.35)' : 'rgba(148, 163, 184, 0.25)';
   }
 
   window.openGearBuilderModal = open;
-  window.updateGearBadge = updateGearBadge;
-  document.addEventListener('click', e => { if (e.target.closest('#btn-open-gear-builder')) open(); });
+  window.updateGearBuilderBadge = updateBadge;
+  document.addEventListener('click', e => {
+    if (e.target && e.target.closest('#btn-open-gear-builder')) {
+      open();
+    }
+  });
 })();

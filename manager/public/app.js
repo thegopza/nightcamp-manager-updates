@@ -12385,6 +12385,9 @@ function openPlanWorkflowEditor(planId) {
   if (typeof updatePlanEditorBadges === 'function') {
     updatePlanEditorBadges();
   }
+  if (typeof window.updateGearBuilderBadge === 'function') {
+    window.updateGearBuilderBadge();
+  }
 
   sortPlanTriggers();
   renderPlanWorkflowCanvas();

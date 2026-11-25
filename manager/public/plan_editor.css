@@ -813,3 +813,23 @@
 .gb-cardn { color: #7dd3fc; font-weight: 800; }
 .gb-card-note { font-size: 10.5px; color: #fbbf24; background: rgba(251, 191, 36, 0.08); border: 1px dashed rgba(251, 191, 36, 0.35); border-radius: 8px; padding: 5px 8px; }
 .gb-pick:disabled { opacity: .4; cursor: default; }
+
+/* Nightcamp Set Gear v2.2.0 layout refinements */
+.nc-gb-card { width: min(1220px, 100%); }
+.nc-gb-topbar { gap: 12px; }
+.nc-gb-chk { display: inline-flex; align-items: center; gap: 6px; margin: 0; cursor: pointer; }
+.nc-gb-chk input { width: 15px; height: 15px; accent-color: #22c55e; }
+.nc-gb-num { width: 88px; background: #020617; color: #fde68a; border: 1px solid rgba(250, 204, 21, 0.45); border-radius: 7px; padding: 4px 8px; text-align: right; font-family: var(--font-mono, monospace); font-size: 12px; }
+.nc-gb-presets { margin-left: auto; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.nc-gb-board-wrap { display: flex; flex-direction: column; gap: 8px; min-height: 0; overflow-y: auto; }
+.nc-gb-board { grid-template-columns: 1fr 124px 1fr; }
+.nc-gb-center { flex-direction: column; gap: 6px; text-align: center; padding: 10px 6px; border-radius: 10px; background: rgba(15, 23, 42, 0.55); border: 1px solid rgba(56, 189, 248, 0.18); }
+.nc-gb-avatar-badge { font-size: 38px; line-height: 1; }
+.nc-gb-class-name { font-size: 11px; font-weight: 800; color: #38bdf8; letter-spacing: 0.4px; }
+.nc-gb-lock-note { font-size: 10px; color: #94a3b8; line-height: 1.4; }
+.nc-gb-lock-note b { color: #4ade80; }
+.nc-gb-special-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.nc-gb-mini-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 6px; }
+.nc-gb-mini-grid label { display: flex; flex-direction: column; gap: 3px; font-size: 10.5px; color: #cbd5e1; margin: 0; }
+.nc-gb-flex-form { display: flex; flex-direction: column; gap: 8px; padding: 4px 2px; }
+.nc-gb-flex-form label { display: flex; flex-direction: column; gap: 3px; font-size: 11.5px; color: #e2e8f0; margin: 0; }
