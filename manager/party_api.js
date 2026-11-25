@@ -1289,6 +1289,8 @@ function createPartyService(opts) {
       }
       if ((needsInitialChannelCheck || movers.length) && !rt.gathering && (triggeredByPostSell || channelOverlapsOtherParty || now() - rt.gatherAt >= T.gatherCooldownMs) && !isBusy()) {
         gatherChannels(party, profiles, anchorId, anchorSnap, movers, needsInitialChannelCheck, allPartyNames, avoidChannels).catch(e => log('gather error', e.message));
+      } else if (!needsInitialChannelCheck && !movers.length && !rt.gathering && rt.channelNote) {
+        rt.channelNote = null;
       }
       if (rt.gathering && rt.gatherNote) notes.push(rt.gatherNote);
       else if (rt.channelNote) notes.push(rt.channelNote);
