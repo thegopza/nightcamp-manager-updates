@@ -9099,9 +9099,13 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
         <input type="checkbox" id="p-nc-smart-autoquest-enabled" ${smartQuestChecked ? 'checked' : ''} style="accent-color:#22c55e;">
         <span>🧭 เปิด Smart Auto-Quest (ทำเควสอัตโนมัติ - ใหญ่สุด)</span>
       </label>
-      <label style="display:flex; align-items:center; gap:5px; font-size:10.5px; font-weight:700; color:#7dd3fc; cursor:pointer;" title="ออโต้สกิลครบทั้งแถบ 1 + แถบ 2 (16 ช่อง) + พระใช้แสงเยียวยาใส่มอนธาตุมืด/ซอมบี้รอบตัวอัตโนมัติ + เก็บของไว/ไม่เดินวน">
+      <label style="display:flex; align-items:center; gap:5px; font-size:10.5px; font-weight:700; color:#7dd3fc; cursor:pointer;" title="ออโต้สกิลครบทั้งแถบ 1 + แถบ 2 (16 ช่อง) + พระใช้แสงเยียวยาใส่มอนธาตุมืด/ซอมบี้รอบตัวอัตโนมัติ + เก็บของไว/ไม่เดินวน + ใช้ตั๋ว Premium ในกระเป๋าอัตโนมัติ">
         <input type="checkbox" id="p-nc-upgrade-ai-enabled" ${state?.upgradeBotAiEnabled !== false ? 'checked' : ''} style="accent-color:#0ea5e9;">
         <span>🧠 Upgrade BOT AI (ออโต้สกิลแถบ 1+2 / พระฮีลซอมบี้ / เก็บของไว)</span>
+      </label>
+      <label style="display:flex; align-items:center; gap:5px; font-size:9.8px; font-weight:600; color:#fde68a; cursor:pointer; padding-left:18px;" title="เมื่อเปิด Upgrade BOT AI จะกดใช้ไอเทมที่ได้ Premium ทั้งหมดในกระเป๋าอัตโนมัติ (ตั๋วบัตรกองไฟ 12 ชม./1/3/7/14/15/30 วัน และตั๋ว AUTO Premium รวมถึงแบบผูกตัว)">
+        <input type="checkbox" id="p-nc-auto-use-premium-items" ${state?.autoUsePremiumItemsEnabled !== false ? 'checked' : ''} style="accent-color:#f59e0b;">
+        <span>👑 ใช้ไอเทม Premium ในกระเป๋าทั้งหมดอัตโนมัติ</span>
       </label>
       <label style="display:flex; align-items:center; gap:5px; font-size:10.5px; font-weight:700; color:#fda4af; cursor:pointer;" title="ตายแล้วกดกลับค่ายเกิดใหม่ทันที ไม่ต้องรอ 30 วินาที แล้วกลับไปทำเควส/แมพฟาร์มต่อ">
         <input type="checkbox" id="p-nc-autorespawn-enabled" ${state?.autoRespawnEnabled !== false ? 'checked' : ''} style="accent-color:#f43f5e;">
@@ -10011,6 +10015,18 @@ async function openWebBotHUD(profileId) {
     };
   }
 
+  const premItemsEnableCb = hudEl.querySelector('#p-nc-auto-use-premium-items');
+  if (premItemsEnableCb) {
+    premItemsEnableCb.onchange = async () => {
+      try {
+        await sendWebHudAction(profileId, {
+          type: 'eval',
+          code: `(typeof window.__setAutoUsePremiumItemsEnabled === 'function' ? window.__setAutoUsePremiumItemsEnabled(${Boolean(premItemsEnableCb.checked)}) : (window.__autoUsePremiumItemsEnabled = ${Boolean(premItemsEnableCb.checked)}))`
+        });
+      } catch (_) {}
+    };
+  }
+
   const respEnableCb = hudEl.querySelector('#p-nc-autorespawn-enabled');
   if (respEnableCb) {
     respEnableCb.onchange = async () => {
@@ -10806,6 +10822,7 @@ function populateWebHudData(profileId, data) {
     }
   }
   if (typeof st.upgradeBotAiEnabled === 'boolean') setField('#p-nc-upgrade-ai-enabled', st.upgradeBotAiEnabled, true);
+  if (typeof st.autoUsePremiumItemsEnabled === 'boolean') setField('#p-nc-auto-use-premium-items', st.autoUsePremiumItemsEnabled, true);
   if (typeof st.autoRespawnEnabled === 'boolean') setField('#p-nc-autorespawn-enabled', st.autoRespawnEnabled, true);
   if (typeof st.smartGearEnabled === 'boolean') setField('#p-nc-smartgear-enabled', st.smartGearEnabled, true);
   if (st.smartGearWeaponType) setField('#p-nc-smartgear-wtype', st.smartGearWeaponType, false);
