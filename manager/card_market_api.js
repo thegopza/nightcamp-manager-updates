@@ -316,7 +316,7 @@ const EXTRACT_CATALOG_JS = `(() => {
   return { ok: true, cards, runes, extractedAt: Date.now() };
 })()`;
 
-// In-page market RPC sweep (hot + batched prices for all requested keys)
+// In-page market RPC sweep (hot + batched 7d prices + REAL 24h chart D/H stats for every active item)
 function buildMarketSweepJs(keys) {
   return `(async () => {
     const NC = window.NC;
@@ -332,7 +332,9 @@ function buildMarketSweepJs(keys) {
         if (!h || !h.key) continue;
         hotMap[h.key] = {
           sales: Number(h.sales || h.n || 0),
+          n: Number(h.n || h.sales || 0),
           avg: Number(h.avg || 0),
+          before: Number(h.before || 0),
           cheapest: Number(h.open?.cheapest || 0),
           pieces: Number(h.open?.pieces || 0),
           listings: Number(h.open?.listings || 0),
@@ -358,10 +360,97 @@ function buildMarketSweepJs(keys) {
           }
         }
       } catch (_) {}
-      await new Promise(r => setTimeout(r, 120));
+      await new Promise(r => setTimeout(r, 90));
     }
 
-    return { ok: true, hotMap, prices, scannedAt: Date.now(), keyCount: allKeys.length };
+    // Phase 2: Fetch TRUE 24-hour ('24h') chart metrics (n, sales, avg, lo, hi, last)
+    // Skip keys whose lastAt > 24h ago (mathematically 0 in 24h) and reuse hotMap for items already in hot!
+    const cutoff24h = Date.now() - (24 * 3600 * 1000) - 60000;
+    const charts24h = {};
+    const needChartKeys = [];
+
+    for (const k of allKeys) {
+      const p = prices[k];
+      const h = hotMap[k];
+      const pSales = p ? Number(p.sales || p.pieces || p.n || 0) : 0;
+      const pLastAt = p ? Number(p.lastAt || 0) : 0;
+      if (h && Number(h.n || h.sales || 0) > 0) {
+        charts24h[k] = {
+          n: Number(h.n || h.sales || 0),
+          sales: Number(h.sales || h.n || 0),
+          avg: Number(h.avg || 0),
+          lo: Number(p?.low || 0),
+          hi: Number(p?.high || 0),
+          last: Number(p?.last || h.avg || 0),
+          lastAt: pLastAt
+        };
+        continue;
+      }
+      if (pSales <= 0 || (pLastAt > 0 && pLastAt < cutoff24h)) {
+        charts24h[k] = { n: 0, sales: 0, avg: 0, lo: 0, hi: 0, last: Number(p?.last || 0), lastAt: pLastAt };
+        continue;
+      }
+      needChartKeys.push(k);
+    }
+
+    // Prioritize highest-value / highest-volume items first
+    needChartKeys.sort((a, b) => {
+      const pa = prices[a] || {}, pb = prices[b] || {};
+      const ta = Number(pa.sales || 0) * Number(pa.median || pa.last || 0);
+      const tb = Number(pb.sales || 0) * Number(pb.median || pb.last || 0);
+      return tb - ta;
+    });
+
+    const C_CONC = 4;
+    let rateLimitedHits = 0;
+    let failedKeys = [];
+    const fetchOneChart = async (k) => {
+      const ch = await NC.Online.rpc('nc_market', { op: 'chart', key: k, range: '24h' });
+      if (ch && typeof ch === 'object') {
+        charts24h[k] = {
+          n: Number(ch.n || ch.sales || 0),
+          sales: Number(ch.sales || ch.n || 0),
+          avg: Number(ch.avg || 0),
+          lo: Number(ch.lo || 0),
+          hi: Number(ch.hi || 0),
+          last: Number(ch.last || 0),
+          lastAt: Number(ch.lastAt || 0)
+        };
+        return true;
+      }
+      return false;
+    };
+
+    for (let i = 0; i < needChartKeys.length; i += C_CONC) {
+      const batch = needChartKeys.slice(i, i + C_CONC);
+      let batchHadErr = false;
+      await Promise.all(batch.map(async (k) => {
+        try {
+          await fetchOneChart(k);
+        } catch (_) {
+          batchHadErr = true;
+          rateLimitedHits++;
+          failedKeys.push(k);
+        }
+      }));
+      if (i + C_CONC < needChartKeys.length) {
+        await new Promise(r => setTimeout(r, batchHadErr ? 950 : 210));
+      }
+    }
+
+    // Single gentle retry pass for any keys that hit transient burst rate-limit
+    if (failedKeys.length > 0) {
+      await new Promise(r => setTimeout(r, 1200));
+      for (let i = 0; i < failedKeys.length; i += 2) {
+        const batch = failedKeys.slice(i, i + 2);
+        await Promise.all(batch.map(async (k) => {
+          try { await fetchOneChart(k); } catch (_) {}
+        }));
+        if (i + 2 < failedKeys.length) await new Promise(r => setTimeout(r, 380));
+      }
+    }
+
+    return { ok: true, hotMap, prices, charts24h, active24hChecked: needChartKeys.length, rateLimitedHits, scannedAt: Date.now(), keyCount: allKeys.length };
   })()`;
 }
 
@@ -371,7 +460,7 @@ function createCardMarketService(deps = {}) {
   const queryProfileState = deps.queryProfileState || (async () => null);
 
   let catalog = safeReadJson(CATALOG_FILE, { cards: [], runes: [], extractedAt: 0 });
-  let marketCache = safeReadJson(MARKET_CACHE_FILE, { hotMap: {}, prices: {}, lastFullSweepAt: 0 });
+  let marketCache = safeReadJson(MARKET_CACHE_FILE, { hotMap: {}, prices: {}, charts24h: {}, lastFullSweepAt: 0 });
   let overrides = safeReadJson(OVERRIDES_FILE, {});
   let scanning = false;
   let sweepTimer = null;
@@ -432,15 +521,16 @@ function createCardMarketService(deps = {}) {
       }
       if (keys.length === 0) return { ok: false, error: 'empty-catalog' };
 
-      const raw = await evalProfilePort(port, buildMarketSweepJs(keys), 45000);
+      const raw = await evalProfilePort(port, buildMarketSweepJs(keys), 90000);
       const res = raw?.result || raw;
       if (!res || !res.ok) return { ok: false, error: res?.error || 'scan-failed' };
 
       marketCache.hotMap = Object.assign({}, marketCache.hotMap || {}, res.hotMap || {});
       marketCache.prices = Object.assign({}, marketCache.prices || {}, res.prices || {});
+      marketCache.charts24h = Object.assign({}, marketCache.charts24h || {}, res.charts24h || {});
       if (!customIds) marketCache.lastFullSweepAt = res.scannedAt || Date.now();
       safeWriteJson(MARKET_CACHE_FILE, marketCache);
-      return { ok: true, scannedCount: keys.length, scannedAt: res.scannedAt || Date.now() };
+      return { ok: true, scannedCount: keys.length, active24hChecked: res.active24hChecked || 0, scannedAt: res.scannedAt || Date.now() };
     } catch (e) {
       return { ok: false, error: String(e?.message || e) };
     } finally {
@@ -452,6 +542,7 @@ function createCardMarketService(deps = {}) {
     const rawList = kind === 'rune' ? (catalog.runes || []) : (catalog.cards || []);
     const hotMap = marketCache.hotMap || {};
     const prices = marketCache.prices || {};
+    const charts24h = marketCache.charts24h || {};
 
     // Count how many profiles currently have an override pointing to each item / map
     const mapFarmerCount = {};
@@ -468,28 +559,43 @@ function createCardMarketService(deps = {}) {
       const mKey = it.marketKey || ((kind === 'rune' ? 'rune:' : 'mat:') + it.id);
       const pr = prices[mKey] || {};
       const hot = hotMap[mKey] || null;
-      const soldQty7d = Number(pr.sales || pr.pieces || pr.n || hot?.sales || 0);
-      const medianPrice = Number(pr.median || hot?.avg || 0);
-      const lastPrice = Number(pr.last || medianPrice || 0);
-      const lowPrice = Number(pr.low || 0);
-      const highPrice = Number(pr.high || 0);
+      const ch24 = charts24h[mKey] || null;
+
+      const soldQty7d = Number(pr.sales || pr.pieces || pr.n || 0);
+      const soldQty24h = ch24
+        ? Number(ch24.n || ch24.sales || 0)
+        : (hot ? Number(hot.n || hot.sales || 0) : 0);
+
+      const avgPrice24h = Number(ch24?.avg || hot?.avg || 0);
+      const medianPrice = Number(pr.median || avgPrice24h || 0);
+      const displayPrice = avgPrice24h || medianPrice || Number(pr.last || 0);
+      const lastPrice = Number(ch24?.last || pr.last || displayPrice || 0);
+      const lowPrice = Number(ch24?.lo || pr.low || 0);
+      const highPrice = Number(ch24?.hi || pr.high || 0);
       const lowestPrice = Number(hot?.cheapest || pr.cheapest || 0);
       const listedCount = Number(hot?.pieces || hot?.listings || 0);
-      const avgSoldPerDay = Math.round((soldQty7d / 7) * 100) / 100;
-      const avgSoldPerHour = Math.round((soldQty7d / 168) * 100) / 100;
+
+      // True 24-hour (D/H) velocity: pieces per day (last 24h) & pieces per hour (last 24h / 24)
+      const avgSoldPerDay = soldQty24h;
+      const avgSoldPerHour = Math.round((soldQty24h / 24) * 100) / 100;
+      const turnover24h = Math.round(soldQty24h * (avgPrice24h || lastPrice || medianPrice || 0));
       const turnover7d = Math.round(soldQty7d * (medianPrice || lastPrice || 0));
 
       return {
         ...it,
+        soldQty24h,
         soldQty7d,
         avgSoldPerDay,
         avgSoldPerHour,
+        avgPrice24h,
+        displayPrice,
         medianPrice,
         lastPrice,
         lowPrice,
         highPrice,
         lowestPrice,
         listedCount,
+        turnover24h,
         turnover7d,
         isHot: Boolean(hot?.isHot),
         farmingCount: itemFarmerCount[it.id] || 0
@@ -582,14 +688,14 @@ function createCardMarketService(deps = {}) {
       const enrichedRunes = enrichItems('rune');
       for (const c of enrichedCards) {
         if (seenIds.has(c.id)) continue;
-        if (c.medianPrice >= 50000 && c.maps?.some(m => m.mapId === slot.mapId)) {
+        if (Math.max(c.avgPrice24h || 0, c.medianPrice || 0) >= 50000 && c.maps?.some(m => m.mapId === slot.mapId)) {
           slot.rules.push({ itemId: c.id, itemName: c.name, kind: 'mat', minQty: 1, sellMode: 'all' });
           seenIds.add(c.id);
         }
       }
       for (const r of enrichedRunes) {
         if (r.tier !== 1 || seenIds.has(r.id)) continue;
-        if (r.medianPrice >= 50000 && r.maps?.some(m => m.mapId === slot.mapId)) {
+        if (Math.max(r.avgPrice24h || 0, r.medianPrice || 0) >= 50000 && r.maps?.some(m => m.mapId === slot.mapId)) {
           slot.rules.push({ itemId: r.id, itemName: r.name, kind: 'rune', minQty: 1, sellMode: 'single' });
           seenIds.add(r.id);
         }
@@ -685,8 +791,9 @@ function createCardMarketService(deps = {}) {
 
   async function buildListResponse(kind) {
     await ensureCatalog(false);
-    // If never scanned yet and an online screen exists, trigger initial live sweep immediately!
-    if (!marketCache.lastFullSweepAt && !scanning) {
+    // If never scanned yet OR cache doesn't have 24h chart metrics yet, trigger live sweep!
+    const hasCharts24h = marketCache.charts24h && Object.keys(marketCache.charts24h).length > 0;
+    if ((!marketCache.lastFullSweepAt || !hasCharts24h) && !scanning) {
       const port = await pickHealthyPort();
       if (port) await scanMarket({ kind: 'all' });
     }
@@ -694,10 +801,11 @@ function createCardMarketService(deps = {}) {
     const clients = await buildClientsSnapshot();
     const activeOverrides = Object.entries(overrides || {}).filter(([, ov]) => ov && ov.kind === kind);
 
-    const traded = items.filter(x => x.soldQty7d > 0);
-    const topVelocity = traded.slice().sort((a, b) => b.soldQty7d - a.soldQty7d)[0] || null;
-    const topPrice = traded.slice().sort((a, b) => b.medianPrice - a.medianPrice)[0] || null;
-    const topTurnover = traded.slice().sort((a, b) => b.turnover7d - a.turnover7d)[0] || null;
+    const traded24h = items.filter(x => x.soldQty24h > 0);
+    const tradedAny = traded24h.length > 0 ? traded24h : items.filter(x => x.soldQty7d > 0);
+    const topVelocity = tradedAny.slice().sort((a, b) => (b.soldQty24h - a.soldQty24h) || (b.avgPrice24h - a.avgPrice24h))[0] || null;
+    const topPrice = tradedAny.slice().sort((a, b) => (b.displayPrice - a.displayPrice) || (b.soldQty24h - a.soldQty24h))[0] || null;
+    const topTurnover = tradedAny.slice().sort((a, b) => (b.turnover24h - a.turnover24h) || (b.soldQty24h - a.soldQty24h))[0] || null;
 
     return {
       success: true,
@@ -711,11 +819,36 @@ function createCardMarketService(deps = {}) {
       lastFullSweepAt: marketCache.lastFullSweepAt || 0,
       summary: {
         totalItems: items.length,
-        tradedCount: traded.length,
+        tradedCount: traded24h.length,
+        tradedCount24h: traded24h.length,
+        tradedCount7d: items.filter(x => x.soldQty7d > 0).length,
         farmingClientsCount: activeOverrides.length,
-        topVelocity: topVelocity ? { id: topVelocity.id, name: topVelocity.name, soldQty7d: topVelocity.soldQty7d, avgSoldPerDay: topVelocity.avgSoldPerDay, medianPrice: topVelocity.medianPrice } : null,
-        topPrice: topPrice ? { id: topPrice.id, name: topPrice.name, medianPrice: topPrice.medianPrice, soldQty7d: topPrice.soldQty7d } : null,
-        topTurnover: topTurnover ? { id: topTurnover.id, name: topTurnover.name, turnover7d: topTurnover.turnover7d, medianPrice: topTurnover.medianPrice, soldQty7d: topTurnover.soldQty7d } : null
+        topVelocity: topVelocity ? {
+          id: topVelocity.id,
+          name: topVelocity.name,
+          soldQty24h: topVelocity.soldQty24h,
+          avgSoldPerDay: topVelocity.avgSoldPerDay,
+          avgSoldPerHour: topVelocity.avgSoldPerHour,
+          avgPrice24h: topVelocity.avgPrice24h,
+          displayPrice: topVelocity.displayPrice,
+          medianPrice: topVelocity.medianPrice
+        } : null,
+        topPrice: topPrice ? {
+          id: topPrice.id,
+          name: topPrice.name,
+          avgPrice24h: topPrice.avgPrice24h,
+          displayPrice: topPrice.displayPrice,
+          medianPrice: topPrice.medianPrice,
+          soldQty24h: topPrice.soldQty24h,
+          avgSoldPerHour: topPrice.avgSoldPerHour
+        } : null,
+        topTurnover: topTurnover ? {
+          id: topTurnover.id,
+          name: topTurnover.name,
+          turnover24h: topTurnover.turnover24h,
+          displayPrice: topTurnover.displayPrice,
+          soldQty24h: topTurnover.soldQty24h
+        } : null
       }
     };
   }

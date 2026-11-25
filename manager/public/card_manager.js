@@ -78,7 +78,7 @@
 
   const CARD_FILTERS = [
     { key: 'all', label: 'ทั้งหมด' },
-    { key: 'traded', label: '🔥 มีขายใน 7 วัน' },
+    { key: 'traded', label: '🔥 มีขายใน 24ชม.' },
     { key: '100k', label: '💎 แสน+ (≥100k)' },
     { key: 'hot', label: '⚡ TOP HOT' }
   ];
@@ -86,6 +86,7 @@
   const RUNE_FILTERS = [
     { key: 'all', label: 'ทั้งหมด' },
     { key: 'tier1', label: '🔮 Tier I (ดรอปมอน)' },
+    { key: 'traded', label: '🔥 มีขายใน 24ชม.' },
     { key: 'tier2', label: '✨ Tier II (หลอม)' },
     { key: '100k', label: '💎 แสน+ (≥100k)' },
     { key: 'cat:proj', label: '🎯 ยิงไกล' },
@@ -150,9 +151,9 @@
           <div class="cd-toolbar">
             <input type="text" class="cd-search" id="cd-search-input" placeholder="🔍 ค้นหาชื่อการ์ด/รูน, มอนสเตอร์, แมพ, หรือความสามารถ..." autocomplete="off">
             <select class="cd-sort" id="cd-sort-select">
-              <option value="turnover_desc">💰 มูลค่าขายรวมสูงสุด (ราคา × ยอดขาย)</option>
-              <option value="velocity_desc">🔥 ขายออกถี่สุด (7 วัน)</option>
-              <option value="price_desc">💎 ราคากลางสูงสุด (7 วัน)</option>
+              <option value="turnover_desc">💰 มูลค่าขายรวม 24ชม. (ราคา × ยอด/วัน)</option>
+              <option value="velocity_desc">🔥 ขายออกถี่สุด (เฉลี่ย/ชม. · 24ชม.)</option>
+              <option value="price_desc">💎 ราคาเฉลี่ย 24ชม. สูงสุด</option>
               <option value="last_desc">⚡ ราคาขายล่าสุดสูงสุด</option>
               <option value="lv_asc">📊 เลเวลน้อย → มาก</option>
             </select>
@@ -362,8 +363,8 @@
       ? 'เช็คราคารูน & เปลี่ยนแมพฟาร์ม (Runes)'
       : 'เช็คราคาการ์ด & เปลี่ยนแมพฟาร์ม (Cards)';
     document.getElementById('cd-head-sub').textContent = activeMode === 'rune'
-      ? 'ติ๊กเลือกได้หลายรูนเพื่อเฉลี่ยจอฟาร์มอัตโนมัติ · ซิงค์ราคาปิดจริง 7 วัน + คำนวณเรทดรอปตามช่วงเลเวล'
-      : 'ติ๊กเลือกได้หลายการ์ดเพื่อเฉลี่ยจอฟาร์มอัตโนมัติ · ซิงค์ราคาปิดจริง 7 วัน + คำนวณเรทดรอปตามช่วงเลเวล';
+      ? 'ติ๊กเลือกได้หลายรูนเพื่อเฉลี่ยจอฟาร์มอัตโนมัติ · ซิงค์ยอดขาย 24 ชม. จริง (เฉลี่ย/ชม. และ /วัน) + เรทดรอปตามช่วงเลเวล'
+      : 'ติ๊กเลือกได้หลายการ์ดเพื่อเฉลี่ยจอฟาร์มอัตโนมัติ · ซิงค์ยอดขาย 24 ชม. จริง (เฉลี่ย/ชม. และ /วัน) + เรทดรอปตามช่วงเลเวล';
 
     document.getElementById('cd-search-input').value = st.search || '';
     document.getElementById('cd-sort-select').value = st.sort || 'turnover_desc';
@@ -414,8 +415,10 @@
     const flt = st.filter || 'all';
 
     let list = (st.items || []).filter(it => {
-      if (flt === 'traded' && !(it.soldQty7d > 0)) return false;
-      if (flt === '100k' && !(Math.max(it.medianPrice || 0, it.lastPrice || 0) >= 100000)) return false;
+      const q24 = Number(it.soldQty24h ?? 0);
+      const effPrice = Number(it.avgPrice24h || it.displayPrice || it.medianPrice || it.lastPrice || 0);
+      if (flt === 'traded' && !(q24 > 0)) return false;
+      if (flt === '100k' && !(Math.max(effPrice, it.lastPrice || 0) >= 100000)) return false;
       if (flt === 'hot' && !it.isHot) return false;
       if (flt === 'tier1' && it.tier !== 1) return false;
       if (flt === 'tier2' && it.tier !== 2) return false;
@@ -446,11 +449,15 @@
 
     const sort = st.sort || 'turnover_desc';
     list.sort((a, b) => {
-      if (sort === 'turnover_desc') return (b.turnover7d - a.turnover7d) || (b.soldQty7d - a.soldQty7d) || (b.medianPrice - a.medianPrice);
-      if (sort === 'velocity_desc') return (b.soldQty7d - a.soldQty7d) || (b.medianPrice - a.medianPrice);
-      if (sort === 'price_desc') return (b.medianPrice - a.medianPrice) || (b.soldQty7d - a.soldQty7d);
-      if (sort === 'last_desc') return (b.lastPrice - a.lastPrice) || (b.soldQty7d - a.soldQty7d);
-      if (sort === 'lv_asc') return ((a.minLv || 999) - (b.minLv || 999)) || (b.turnover7d - a.turnover7d);
+      const aQ24 = Number(a.soldQty24h ?? 0), bQ24 = Number(b.soldQty24h ?? 0);
+      const aT24 = Number(a.turnover24h ?? 0), bT24 = Number(b.turnover24h ?? 0);
+      const aP = Number(a.avgPrice24h || a.displayPrice || a.medianPrice || 0);
+      const bP = Number(b.avgPrice24h || b.displayPrice || b.medianPrice || 0);
+      if (sort === 'turnover_desc') return (bT24 - aT24) || (bQ24 - aQ24) || (bP - aP) || ((b.turnover7d || 0) - (a.turnover7d || 0));
+      if (sort === 'velocity_desc') return (bQ24 - aQ24) || (bP - aP) || ((b.soldQty7d || 0) - (a.soldQty7d || 0));
+      if (sort === 'price_desc') return (bP - aP) || (bQ24 - aQ24);
+      if (sort === 'last_desc') return ((b.lastPrice || 0) - (a.lastPrice || 0)) || (bQ24 - aQ24);
+      if (sort === 'lv_asc') return ((a.minLv || 999) - (b.minLv || 999)) || (bT24 - aT24);
       return 0;
     });
     return list;
@@ -480,19 +487,19 @@
 
     kpiEl.innerHTML = `
       <div class="cd-kpi">
-        <div class="cd-kpi-lbl">${label}ที่มีซื้อขาย (7 วัน)</div>
-        <div class="cd-kpi-val">${fmt(s.tradedCount || 0)} / ${fmt(s.totalItems || st.items.length)} ${unit}</div>
+        <div class="cd-kpi-lbl">${label}ที่มีซื้อขาย (24 ชม.)</div>
+        <div class="cd-kpi-val">${fmt(s.tradedCount24h ?? s.tradedCount ?? 0)} / ${fmt(s.totalItems || st.items.length)} ${unit}</div>
         <div class="cd-kpi-sub">ซิงค์ล่าสุด ${esc(timeAgo(st.lastFullSweepAt))}</div>
       </div>
       <div class="cd-kpi">
-        <div class="cd-kpi-lbl">ขายออกถี่สุด (7 วัน)</div>
+        <div class="cd-kpi-lbl">ขายออกถี่สุด (24 ชม.)</div>
         <div class="cd-kpi-val">${tv ? esc(tv.name) : '—'}</div>
-        <div class="cd-kpi-sub">${tv ? `🔥 ${tv.soldQty7d} ${unit}/7วัน (${tv.avgSoldPerDay}/วัน) · ${fmt(tv.medianPrice)}g` : 'กดเช็คราคาเพื่อซิงค์'}</div>
+        <div class="cd-kpi-sub">${tv ? `⚡ ${tv.avgSoldPerHour} ${unit}/ชม. (${tv.soldQty24h ?? tv.avgSoldPerDay}/วัน) · ${fmt(tv.avgPrice24h || tv.displayPrice || tv.medianPrice)}g` : 'กดเช็คราคาเพื่อซิงค์'}</div>
       </div>
       <div class="cd-kpi">
-        <div class="cd-kpi-lbl">ราคาขายกลางสูงสุด</div>
+        <div class="cd-kpi-lbl">ราคาเฉลี่ย 24 ชม. สูงสุด</div>
         <div class="cd-kpi-val">${tp ? esc(tp.name) : '—'}</div>
-        <div class="cd-kpi-sub">${tp ? `💎 กลาง ${fmt(tp.medianPrice)}g · ขาย ${tp.soldQty7d} ${unit}` : '—'}</div>
+        <div class="cd-kpi-sub">${tp ? `💎 เฉลี่ย ${fmt(tp.avgPrice24h || tp.displayPrice || tp.medianPrice)}g · ${tp.avgSoldPerHour ?? 0} ${unit}/ชม. (${tp.soldQty24h ?? 0}/วัน)` : '—'}</div>
       </div>
       <div class="cd-kpi">
         <div class="cd-kpi-lbl">จอที่ฟาร์มแมพ${label}</div>
@@ -571,7 +578,14 @@
 
     const html = items.slice(0, 120).map(it => {
       const checked = st.selectedIds.has(it.id);
-      const isExpensive = Math.max(it.medianPrice || 0, it.lastPrice || 0) >= 100000;
+      const q24 = Number(it.soldQty24h ?? 0);
+      const perHr = Number(it.avgSoldPerHour ?? (q24 / 24)).toFixed(2);
+      const priceVal = Number(it.avgPrice24h || it.displayPrice || it.medianPrice || 0);
+      const priceLbl = it.avgPrice24h > 0 ? '💰 เฉลี่ย 24ชม.' : '💰 ราคากลาง';
+      const isExpensive = Math.max(priceVal, it.lastPrice || 0) >= 100000;
+      const velText = q24 > 0
+        ? `⚡ ${perHr} ${unit}/ชม. (${q24}/วัน)`
+        : (it.soldQty7d > 0 ? `⚡ 0/ชม. (0/วัน)` : `⚡ 0 ${unit}/ชม. (0/วัน)`);
       const mapsHtml = (it.maps || []).slice(0, 4).map(m =>
         `<button type="button" class="cd-map-pill" data-item-id="${esc(it.id)}" data-map-id="${esc(m.mapId)}" title="คลิกเพื่อฟาร์มแมพนี้">
           🗺️ ${esc(m.mapName)} <span class="cd-map-lv">Lv.${m.minLv}-${m.maxLv}</span> <span class="cd-map-share">${m.sharePct}%</span>${m.hasBoss ? ' 👑' : ''}
@@ -605,11 +619,11 @@
           <div class="cd-row-price">
             ${it.lowestPrice > 0 ? `<div class="cd-open-price">วางขายต่ำสุด ${fmt(it.lowestPrice)}g (${it.listedCount} ${unit})</div>` : (it.lastPrice > 0 ? `<div class="cd-open-price">ขายล่าสุด ${fmt(it.lastPrice)}g</div>` : '<div class="cd-open-price">ยังไม่มีประวัติขาย</div>')}
             <div class="cd-med-box">
-              <span>💰 ราคากลาง</span>
-              <b>${it.medianPrice > 0 ? fmt(it.medianPrice) + ' g' : '—'}</b>
+              <span>${priceLbl}</span>
+              <b>${priceVal > 0 ? fmt(priceVal) + ' g' : '—'}</b>
             </div>
-            <div class="cd-vel-box">
-              <span>⚡ ${it.soldQty7d > 0 ? `${it.soldQty7d} ${unit}/7วัน (${it.avgSoldPerDay}/วัน)` : '0 ขาย/7วัน'}</span>
+            <div class="cd-vel-box" ${q24 === 0 ? 'style="opacity:0.6;"' : ''}>
+              <span>${velText}</span>
             </div>
           </div>
         </div>

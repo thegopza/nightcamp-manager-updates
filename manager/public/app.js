@@ -1334,14 +1334,15 @@ function updateMetrics() {
   }
 
   const totalZeny = currentProfiles.reduce((sum, p) => {
-    const liveZ = (p.liveState && typeof p.liveState.zeny === 'number')
-      ? p.liveState.zeny
-      : ((p.liveState && typeof p.liveState.coins === 'number') ? p.liveState.coins : null);
-    const z = liveZ !== null ? liveZ : (typeof p.lastZeny === 'number' ? p.lastZeny : 0);
+    const z = (typeof getProfileConsolidatableCoins === 'function')
+      ? getProfileConsolidatableCoins(p)
+      : ((p.liveState && typeof p.liveState.totalCoins === 'number')
+        ? p.liveState.totalCoins
+        : ((p.liveState && typeof p.liveState.zeny === 'number') ? p.liveState.zeny : (typeof p.lastZeny === 'number' ? p.lastZeny : 0)));
     return sum + z;
   }, 0);
   if (zenyEl) {
-    zenyEl.innerText = `${totalZeny.toLocaleString()} z`;
+    zenyEl.innerText = `${totalZeny.toLocaleString()} g`;
   }
 }
 

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "sourceCommit": "f0c963c6a048de866212a064bafa4e6b97fd8e5d",
+  "sourceCommit": "5e446ec1bcbefd0b964d6d924483176ef686a475",
   "files": [
     {
       "path": "manager/asset_cache.js",
@@ -24,7 +24,7 @@
     },
     {
       "path": "manager/card_market_api.js",
-      "sha256": "d005449542174135461e86cd1ee8e3e97940a70c86abe212ddac2da5f4fa2315"
+      "sha256": "7078c4fcc472f4b407b2e34e8df693ebb539657e27b3a86f1de5b060c5838859"
     },
     {
       "path": "manager/config_copy_api.js",
@@ -144,7 +144,7 @@
     },
     {
       "path": "manager/public/app.js",
-      "sha256": "d2c328ef534917942586c9006d339a28f5a42e7327aac0568dcf16bd8b5537d2"
+      "sha256": "148b062e3b03f0b0a3e9f600c322ed7605fd5f3be9af681493798eeef1d331ad"
     },
     {
       "path": "manager/public/assets/updates/ui_v212_bag_rightclick.jpg",
@@ -180,7 +180,7 @@
     },
     {
       "path": "manager/public/card_manager.js",
-      "sha256": "e7b50c86abfe9d43115c4173f1121fc173d5e3e6ff33f6d8cd70667bf68639ad"
+      "sha256": "e18362667aa137a3e8a6a75ef3f7b2a3b3acb86268ade47bc2733716c11721a6"
     },
     {
       "path": "manager/public/config_copy.js",
@@ -228,7 +228,7 @@
     },
     {
       "path": "manager/public/index.html",
-      "sha256": "b9f60d807fdc26c371ce1dfa3d17e8cc9c2de330bb6bafb1802fde87a8b35b80"
+      "sha256": "6f617b3e8218093d4544973e4c3a989d8ec683577279813c84aa5b5b48e334a5"
     },
     {
       "path": "manager/public/inventory_market.css",
@@ -308,7 +308,7 @@
     },
     {
       "path": "manager/public/update_log.js",
-      "sha256": "3f804ba6b3537d602fc3eede7b741302e2f13fa7c84ac0bad4dd2796e2d06db3"
+      "sha256": "2b86906a246e7c8bbeb353160d9d8e4f47d3c8e7740690d416a3bb6fd786375a"
     },
     {
       "path": "manager/public/wiki/calc.js",
