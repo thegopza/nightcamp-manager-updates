@@ -17040,6 +17040,374 @@ function getNightcampRarityStyle(rarity, starshine) {
   return { color: '#e2e8f0', border: 'rgba(148, 163, 184, 0.28)', bg: 'rgba(30, 41, 59, 0.55)', label: 'ธรรมดา' };
 }
 
+// ============================================================================
+// NIGHTCAMP MANAGER FLOATING CENTRAL MARKET PRICE TOOLTIP (Hover Info)
+// Displays Last Sold Price + 1-Hour Average + 24h Average + 7d Median on hover
+// ============================================================================
+const ncMarketPriceUiCache = {}; // `${serverScope}|${marketKey}` -> priceData
+const ncMarketPriceInFlight = {};
+let ncMarketHoverTimer = null;
+let ncMarketHoverActiveEl = null;
+let ncMarketHoverMouseX = 0;
+let ncMarketHoverMouseY = 0;
+
+function getNcCurrentServerScopeKey() {
+  const d = ncCharModalState?.data;
+  const origin = String(d?.serverOrigin || d?.serverName || ncCharModalState?.profileId || 'default').trim().toLowerCase();
+  return origin || 'default';
+}
+
+function resolveNcGearMarketKey(item) {
+  if (!item || !item.id) return '';
+  if (item.slot === 'glasses') return `mat:fc_${item.id}`;
+  return `item:${item.id}`;
+}
+
+function resolveNcMatMarketKey(m) {
+  if (!m) return '';
+  const rawId = String(m.marketItemId || m.id || '').trim();
+  if (!rawId) return '';
+  if (/^(item|mat|pot|rune):/.test(rawId)) return rawId;
+  if (m.useKind === 'builtin_potion' || ['red', 'red_m', 'red_l', 'blue', 'blue_m', 'blue_l'].includes(rawId)) {
+    return `pot:${rawId}`;
+  }
+  if (m.category === 'rune' || /^bl_rune_/.test(rawId)) {
+    return `rune:${rawId}`;
+  }
+  return `mat:${rawId}`;
+}
+
+function getCachedNcUiMarketPrice(marketKey) {
+  if (!marketKey) return null;
+  const sk = `${getNcCurrentServerScopeKey()}|${marketKey}`;
+  return ncMarketPriceUiCache[sk] || null;
+}
+
+function setCachedNcUiMarketPrice(marketKey, rec, scopeOverride) {
+  if (!marketKey || !rec) return;
+  const scope = scopeOverride || getNcCurrentServerScopeKey();
+  const sk = `${scope}|${marketKey}`;
+  const prev = ncMarketPriceUiCache[sk];
+  ncMarketPriceUiCache[sk] = Object.assign({}, prev || {}, rec, {
+    hasChart: Boolean(rec.hasChart || (prev && prev.hasChart && !(rec.fetchedAt && prev.fetchedAt && rec.fetchedAt > prev.fetchedAt + 45000)))
+  });
+}
+
+function formatNcMarketTimeAgo(ts) {
+  const n = Number(ts) || 0;
+  if (!(n > 0)) return '';
+  const diffSec = Math.max(0, Math.floor((Date.now() - n) / 1000));
+  if (diffSec < 60) return `${diffSec} วิที่แล้ว`;
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin} นาทีที่แล้ว`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr} ชม.ที่แล้ว`;
+  return `${Math.floor(diffHr / 24)} วันที่แล้ว`;
+}
+
+function buildNcInlineMarketPricePillHtml(marketKey) {
+  if (!marketKey) return '';
+  const rec = getCachedNcUiMarketPrice(marketKey);
+  const last = Number(rec?.last) || 0;
+  const avg1h = Number(rec?.avg1h) || 0;
+  const med = Number(rec?.median7d) || 0;
+  let inner = '';
+  let style = 'display:none;';
+  if (last > 0 || avg1h > 0 || med > 0) {
+    const parts = [];
+    if (last > 0) parts.push(`ล่าสุด ${last.toLocaleString()}g`);
+    if (avg1h > 0) parts.push(`1ชม. ${avg1h.toLocaleString()}g`);
+    else if (!last && med > 0) parts.push(`กลาง ${med.toLocaleString()}g`);
+    inner = `📊 ${parts.join(' · ')}`;
+    style = 'display:inline-flex;align-items:center;gap:3px;font-size:9.5px;font-weight:700;color:#fde68a;background:rgba(245,158,11,0.14);border:1px solid rgba(251,191,36,0.38);padding:0 6px;border-radius:999px;white-space:nowrap;';
+  }
+  return `<span data-nc-inline-price-key="${escapeHTML(marketKey)}" style="${style}">${inner}</span>`;
+}
+
+function refreshInlineNcMarketPricePillsInDom() {
+  const modal = document.getElementById('nc-char-inspector-modal');
+  if (!modal || modal.style.display === 'none') return;
+  const pills = modal.querySelectorAll('[data-nc-inline-price-key]');
+  for (const el of pills) {
+    const mk = el.getAttribute('data-nc-inline-price-key');
+    if (!mk) continue;
+    const rec = getCachedNcUiMarketPrice(mk);
+    const last = Number(rec?.last) || 0;
+    const avg1h = Number(rec?.avg1h) || 0;
+    const med = Number(rec?.median7d) || 0;
+    if (last > 0 || avg1h > 0 || med > 0) {
+      const parts = [];
+      if (last > 0) parts.push(`ล่าสุด ${last.toLocaleString()}g`);
+      if (avg1h > 0) parts.push(`1ชม. ${avg1h.toLocaleString()}g`);
+      else if (!last && med > 0) parts.push(`กลาง ${med.toLocaleString()}g`);
+      el.textContent = `📊 ${parts.join(' · ')}`;
+      el.style.cssText = 'display:inline-flex;align-items:center;gap:3px;font-size:9.5px;font-weight:700;color:#fde68a;background:rgba(245,158,11,0.14);border:1px solid rgba(251,191,36,0.38);padding:0 6px;border-radius:999px;white-space:nowrap;';
+    }
+  }
+}
+
+function buildNcMarketHoverAttrs({ key, name, rarity, icon, npcPrice, extra }) {
+  if (!key) return '';
+  return [
+    `data-nc-mkt-key="${escapeHTML(key)}"`,
+    `data-nc-mkt-name="${escapeHTML(name || key)}"`,
+    `data-nc-mkt-rarity="${escapeHTML(rarity || 'common')}"`,
+    icon ? `data-nc-mkt-icon="${escapeHTML(icon)}"` : '',
+    Number(npcPrice) > 0 ? `data-nc-mkt-npc="${Math.round(Number(npcPrice))}"` : '',
+    extra ? `data-nc-mkt-extra="${escapeHTML(extra)}"` : ''
+  ].filter(Boolean).join(' ');
+}
+
+function ensureNcMarketTooltipEl() {
+  let tip = document.getElementById('nc-market-hover-tooltip');
+  if (tip) return tip;
+  tip = document.createElement('div');
+  tip.id = 'nc-market-hover-tooltip';
+  tip.style.cssText = 'display:none; position:fixed; z-index:101500; pointer-events:none; width:320px; max-width:92vw; background:linear-gradient(155deg, rgba(9,13,26,0.98), rgba(22,19,48,0.98)); border:1.5px solid rgba(56,189,248,0.6); border-radius:12px; padding:11px 13px; box-shadow:0 18px 48px rgba(0,0,0,0.85), 0 0 24px rgba(56,189,248,0.18); color:#f8fafc; font-family:"IBM Plex Sans Thai","Plus Jakarta Sans",sans-serif; backdrop-filter:blur(8px);';
+  document.body.appendChild(tip);
+  return tip;
+}
+
+function positionNcMarketTooltip(x, y) {
+  const tip = document.getElementById('nc-market-hover-tooltip');
+  if (!tip || tip.style.display === 'none') return;
+  const pad = 14;
+  const vw = window.innerWidth || 1280;
+  const vh = window.innerHeight || 800;
+  const rect = tip.getBoundingClientRect();
+  const tw = rect.width || 320;
+  const th = rect.height || 180;
+  let left = x + pad;
+  let top = y + pad;
+  if (left + tw > vw - 10) left = Math.max(10, x - tw - pad);
+  if (top + th > vh - 10) top = Math.max(10, y - th - pad);
+  tip.style.left = `${Math.round(left)}px`;
+  tip.style.top = `${Math.round(top)}px`;
+}
+
+function renderNcMarketTooltipHtml(el, rec, loading) {
+  const name = el.getAttribute('data-nc-mkt-name') || '';
+  const rarity = el.getAttribute('data-nc-mkt-rarity') || 'common';
+  const icon = el.getAttribute('data-nc-mkt-icon') || '';
+  const npcPrice = Number(el.getAttribute('data-nc-mkt-npc')) || 0;
+  const extra = el.getAttribute('data-nc-mkt-extra') || '';
+  const st = getNightcampRarityStyle(rarity, false);
+  const srvName = rec?.serverName || ncCharModalState?.data?.serverName || '';
+  const fmt = (v) => `${Math.round(Number(v) || 0).toLocaleString()} g`;
+
+  const last = Number(rec?.last) || 0;
+  const lastAgo = rec?.lastAt ? formatNcMarketTimeAgo(rec.lastAt) : '';
+  const avg1h = Number(rec?.avg1h) || 0;
+  const vol1h = Number(rec?.vol1h) || 0;
+  const lo1h = Number(rec?.lo1h) || 0;
+  const hi1h = Number(rec?.hi1h) || 0;
+  const avg24h = Number(rec?.avg24h) || 0;
+  const sales24h = Number(rec?.sales24h) || 0;
+  const med7d = Number(rec?.median7d) || 0;
+  const low7d = Number(rec?.low7d) || 0;
+  const high7d = Number(rec?.high7d) || 0;
+  const sales7d = Number(rec?.sales7d) || 0;
+  const cheap = Number(rec?.cheapestListing) || 0;
+  const hasAny = last > 0 || avg1h > 0 || avg24h > 0 || med7d > 0 || cheap > 0;
+
+  let marketBodyHtml = '';
+  if (loading && !hasAny) {
+    marketBodyHtml = `<div style="padding:10px 8px;text-align:center;font-size:11.5px;color:#7dd3fc;">⏳ กำลังดึงราคาตลาดกลางล่าสุด &amp; เฉลี่ย 1 ชม...</div>`;
+  } else if (!hasAny) {
+    marketBodyHtml = `<div style="padding:8px;text-align:center;font-size:11px;color:#94a3b8;background:rgba(2,6,23,0.55);border-radius:8px;">ยังไม่มีประวัติซื้อขายในตลาดกลาง (7 วันล่าสุด)</div>`;
+  } else {
+    const avg1hBody = avg1h > 0
+      ? `<div style="font-size:14px;font-weight:800;color:#6ee7b7;">${fmt(avg1h)}</div>
+         <div style="font-size:9.5px;color:#94a3b8;">${vol1h} ชิ้น${lo1h > 0 && hi1h > lo1h ? ` · ${lo1h.toLocaleString()}–${hi1h.toLocaleString()}` : ''}</div>`
+      : (loading && !rec?.hasChart
+          ? `<div style="font-size:11px;color:#7dd3fc;">⏳ กำลังคำนวณ 1 ชม...</div>`
+          : `<div style="font-size:11.5px;font-weight:700;color:#94a3b8;">ไม่มีใน 1 ชม.</div>
+             ${rec?.latestHourAvg > 0 ? `<div style="font-size:9.5px;color:#64748b;">ชม.ล่าสุด: ${fmt(rec.latestHourAvg)} (${rec.latestHourVol})</div>` : ''}`);
+
+    marketBodyHtml = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:7px;">
+        <div style="background:rgba(2,6,23,0.72);border:1px solid rgba(251,191,36,0.38);border-radius:8px;padding:7px 9px;">
+          <div style="font-size:9.5px;color:#cbd5e1;">💰 ขายออกล่าสุด</div>
+          <div style="font-size:14px;font-weight:800;color:#fde047;margin-top:2px;">${last > 0 ? fmt(last) : '—'}</div>
+          <div style="font-size:9.5px;color:#94a3b8;">${lastAgo || '—'}</div>
+        </div>
+        <div style="background:rgba(2,6,23,0.72);border:1px solid rgba(52,211,153,0.38);border-radius:8px;padding:7px 9px;">
+          <div style="font-size:9.5px;color:#cbd5e1;">⏱️ เฉลี่ย 1 ชม.</div>
+          <div style="margin-top:2px;">${avg1hBody}</div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:3px;font-size:10.5px;color:#cbd5e1;background:rgba(2,6,23,0.52);border-radius:7px;padding:6px 8px;">
+        ${avg24h > 0 ? `<div style="display:flex;justify-content:space-between;gap:8px;"><span style="color:#94a3b8;">📈 เฉลี่ย 24 ชม. (${sales24h} ชิ้น)</span><b style="color:#7dd3fc;">${fmt(avg24h)}</b></div>` : ''}
+        ${med7d > 0 ? `<div style="display:flex;justify-content:space-between;gap:8px;"><span style="color:#94a3b8;">📊 ราคากลาง 7 วัน (${sales7d} ชิ้น)</span><b style="color:#c4b5fd;">${fmt(med7d)}</b></div>` : ''}
+        ${low7d > 0 && high7d > low7d ? `<div style="display:flex;justify-content:space-between;gap:8px;"><span style="color:#94a3b8;">↕️ ช่วงราคา 7 วัน</span><span style="color:#e2e8f0;">${low7d.toLocaleString()} – ${high7d.toLocaleString()} g</span></div>` : ''}
+        ${cheap > 0 ? `<div style="display:flex;justify-content:space-between;gap:8px;"><span style="color:#94a3b8;">🏷️ ตั้งขายต่ำสุดตอนนี้</span><b style="color:#fde68a;">${fmt(cheap)}</b></div>` : ''}
+      </div>
+    `;
+  }
+
+  return `
+    <div style="display:flex;align-items:center;gap:9px;padding-bottom:7px;margin-bottom:7px;border-bottom:1px solid rgba(148,163,184,0.18);">
+      <div style="width:36px;height:36px;border-radius:8px;background:#020617;border:1px solid ${st.border};display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;">
+        ${icon ? `<img src="${escapeHTML(icon)}" alt="" style="width:30px;height:30px;object-fit:contain;">` : `<span style="font-size:16px;">📦</span>`}
+      </div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:12.5px;font-weight:800;color:${st.color};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHTML(name)}</div>
+        <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-top:2px;">
+          <span style="font-size:9.5px;font-weight:700;color:${st.color};background:${st.bg};border:1px solid ${st.border};padding:0 5px;border-radius:999px;">${st.label}</span>
+          ${srvName ? `<span style="font-size:9.5px;font-weight:700;color:#7dd3fc;background:rgba(14,165,233,0.16);border:1px solid rgba(56,189,248,0.4);padding:0 6px;border-radius:999px;">🌐 ${escapeHTML(srvName)}</span>` : ''}
+          ${npcPrice > 0 ? `<span style="font-size:9.5px;color:#fde68a;">ขายร้าน ${npcPrice.toLocaleString()}g</span>` : ''}
+        </div>
+      </div>
+    </div>
+    ${extra ? `<div style="font-size:10px;color:#86efac;margin-bottom:7px;line-height:1.35;">${escapeHTML(extra)}</div>` : ''}
+    ${marketBodyHtml}
+  `;
+}
+
+function hideNcMarketTooltip() {
+  if (ncMarketHoverTimer) {
+    clearTimeout(ncMarketHoverTimer);
+    ncMarketHoverTimer = null;
+  }
+  ncMarketHoverActiveEl = null;
+  const tip = document.getElementById('nc-market-hover-tooltip');
+  if (tip) tip.style.display = 'none';
+}
+
+async function fetchNcMarketPriceForManager(profileId, marketKey) {
+  const scope = getNcCurrentServerScopeKey();
+  const sk = `${scope}|${marketKey}`;
+  const cached = ncMarketPriceUiCache[sk];
+  if (cached && cached.hasChart && (Date.now() - (cached.fetchedAt || 0)) < 45000) {
+    return cached;
+  }
+  if (ncMarketPriceInFlight[sk]) return ncMarketPriceInFlight[sk];
+
+  const work = (async () => {
+    try {
+      const res = await sendWebHudAction(profileId, {
+        type: 'eval',
+        code: `(typeof window.__fetchNightcampMarketPrice === 'function' ? window.__fetchNightcampMarketPrice('', ${JSON.stringify(marketKey)}, false) : null)`
+      });
+      const rec = res?.result?.result || res?.result || res;
+      if (rec && rec.ok) {
+        setCachedNcUiMarketPrice(marketKey, rec, scope);
+        if (rec.key && rec.key !== marketKey) setCachedNcUiMarketPrice(rec.key, rec, scope);
+        refreshInlineNcMarketPricePillsInDom();
+        return ncMarketPriceUiCache[sk];
+      }
+    } catch (_) {}
+    return cached || null;
+  })().finally(() => {
+    delete ncMarketPriceInFlight[sk];
+  });
+  ncMarketPriceInFlight[sk] = work;
+  return work;
+}
+
+function showNcMarketTooltipForEl(el, x, y) {
+  const pid = ncCharModalState?.profileId;
+  const marketKey = el?.getAttribute?.('data-nc-mkt-key');
+  if (!pid || !marketKey || ncCharModalState?.data?.isOfflineFallback) return;
+
+  ncMarketHoverActiveEl = el;
+  ncMarketHoverMouseX = x;
+  ncMarketHoverMouseY = y;
+  const tip = ensureNcMarketTooltipEl();
+  const cached = getCachedNcUiMarketPrice(marketKey);
+  const needsFetch = !cached || !cached.hasChart || (Date.now() - (cached.fetchedAt || 0)) >= 45000;
+  tip.innerHTML = renderNcMarketTooltipHtml(el, cached, needsFetch);
+  tip.style.display = 'block';
+  positionNcMarketTooltip(x, y);
+
+  if (ncMarketHoverTimer) {
+    clearTimeout(ncMarketHoverTimer);
+    ncMarketHoverTimer = null;
+  }
+  if (needsFetch) {
+    ncMarketHoverTimer = setTimeout(async () => {
+      ncMarketHoverTimer = null;
+      if (ncMarketHoverActiveEl !== el) return;
+      const fresh = await fetchNcMarketPriceForManager(pid, marketKey);
+      if (ncMarketHoverActiveEl !== el) return;
+      const tipNow = document.getElementById('nc-market-hover-tooltip');
+      if (!tipNow || tipNow.style.display === 'none') return;
+      tipNow.innerHTML = renderNcMarketTooltipHtml(el, fresh || cached, false);
+      positionNcMarketTooltip(ncMarketHoverMouseX, ncMarketHoverMouseY);
+    }, 75);
+  }
+}
+
+async function prefetchVisibleNcMarketPrices(profileId, data) {
+  if (!profileId || !data || data.isOfflineFallback) return;
+  const scope = String(data.serverOrigin || data.serverName || profileId || 'default').trim().toLowerCase();
+  if (data.marketPrices && typeof data.marketPrices === 'object') {
+    for (const [k, rec] of Object.entries(data.marketPrices)) {
+      if (k && rec) setCachedNcUiMarketPrice(k, rec, scope);
+    }
+    refreshInlineNcMarketPricePillsInDom();
+  }
+  const keys = [];
+  const seen = new Set();
+  const pushK = (k) => {
+    if (!k || seen.has(k)) return;
+    seen.add(k);
+    keys.push(k);
+  };
+  for (const eq of Object.values(data.equipment || {})) { if (eq) pushK(resolveNcGearMarketKey(eq)); }
+  for (const g of (data.bagGear || [])) pushK(resolveNcGearMarketKey(g));
+  for (const m of (data.consumablesAndMats || [])) pushK(resolveNcMatMarketKey(m));
+  for (const g of (data.storageGear || [])) pushK(resolveNcGearMarketKey(g));
+  for (const m of (data.storageMats || [])) pushK(resolveNcMatMarketKey(m));
+  for (const r of (data.cmarket?.ruleStates || [])) { if (r?.itemId) pushK(`${r.kind || 'mat'}:${r.itemId}`); }
+  for (const h of (data.cmarket?.tradableHoldings || [])) { if (h?.id) pushK(`${h.k || 'mat'}:${h.id}`); }
+  for (const l of (data.cmarket?.mineListings || [])) { if (l?.itemId) pushK(`${l.k || 'mat'}:${l.itemId}`); }
+  for (const c of (data.cmarket?.shelfCards || [])) { if (c?.key) pushK(c.key); }
+  if (keys.length === 0) return;
+
+  try {
+    const res = await sendWebHudAction(profileId, {
+      type: 'eval',
+      code: `(typeof window.__batchPrefetchNightcampMarketPrices === 'function' ? window.__batchPrefetchNightcampMarketPrices(${JSON.stringify(keys.slice(0, 160))}, false) : null)`
+    });
+    const out = res?.result?.result || res?.result || res;
+    if (out && out.ok && out.prices && typeof out.prices === 'object') {
+      for (const [k, rec] of Object.entries(out.prices)) {
+        if (k && rec) setCachedNcUiMarketPrice(k, rec, scope);
+      }
+      refreshInlineNcMarketPricePillsInDom();
+    }
+  } catch (_) {}
+}
+
+function attachNcMarketHoverListeners(modal) {
+  if (!modal || modal.__ncMarketHoverBound) return;
+  modal.__ncMarketHoverBound = true;
+  modal.addEventListener('mouseover', (e) => {
+    const target = e.target?.closest?.('[data-nc-mkt-key]');
+    if (!target || !modal.contains(target)) {
+      if (ncMarketHoverActiveEl) hideNcMarketTooltip();
+      return;
+    }
+    if (target !== ncMarketHoverActiveEl) {
+      showNcMarketTooltipForEl(target, e.clientX, e.clientY);
+    }
+  });
+  modal.addEventListener('mousemove', (e) => {
+    if (!ncMarketHoverActiveEl) return;
+    const target = e.target?.closest?.('[data-nc-mkt-key]');
+    if (!target || !modal.contains(target)) {
+      hideNcMarketTooltip();
+      return;
+    }
+    ncMarketHoverMouseX = e.clientX;
+    ncMarketHoverMouseY = e.clientY;
+    positionNcMarketTooltip(e.clientX, e.clientY);
+  });
+  modal.addEventListener('mouseleave', () => hideNcMarketTooltip());
+  modal.addEventListener('scroll', () => hideNcMarketTooltip(), true);
+}
+
 function ensureNightcampCharacterModalDom() {
   let modal = document.getElementById('nc-char-inspector-modal');
   if (modal) return modal;
@@ -17056,6 +17424,7 @@ function ensureNightcampCharacterModalDom() {
   modal.addEventListener('click', (e) => {
     if (e.target === modal) closeNightcampCharacterModal();
   });
+  attachNcMarketHoverListeners(modal);
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && modal.style.display === 'flex') {
       closeNightcampCharacterModal();
@@ -17066,6 +17435,7 @@ function ensureNightcampCharacterModalDom() {
 }
 
 function closeNightcampCharacterModal() {
+  hideNcMarketTooltip();
   const modal = document.getElementById('nc-char-inspector-modal');
   if (modal) modal.style.display = 'none';
   ncCharModalState.profileId = null;
@@ -17254,6 +17624,7 @@ async function refreshNightcampCharacterModal() {
   }
   ncCharModalState.data = data;
   renderNightcampCharacterModal();
+  prefetchVisibleNcMarketPrices(pid, data).catch(() => {});
 }
 window.refreshNightcampCharacterModal = refreshNightcampCharacterModal;
 
@@ -17511,16 +17882,57 @@ function showNightcampCatalogHoverCard(item, anchorEl) {
     ${item.abil ? `<div style="font-size:11px; color:#6ee7b7; margin-bottom:3px;">✨ <b>ความสามารถ:</b> ${escapeHTML(item.abil)}</div>` : ''}
     ${item.wsk ? `<div style="font-size:11px; color:#fde68a; margin-bottom:3px;">🎯 <b>เสริมสกิล:</b> ${escapeHTML(item.wsk)}</div>` : ''}
     ${item.desc ? `<div style="font-size:10.5px; color:#cbd5e1; margin-top:4px; padding-top:5px; border-top:1px solid rgba(255,255,255,0.08);">${escapeHTML(item.desc)}</div>` : ''}
-    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px; margin-top:7px; padding-top:6px; border-top:1px solid rgba(255,255,255,0.08); font-size:10.5px;">
+    <div id="nc-cat-hover-live-price" style="margin-top:7px; padding-top:6px; border-top:1px solid rgba(255,255,255,0.08); font-size:10.5px;"></div>
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px; margin-top:6px; padding-top:5px; border-top:1px solid rgba(255,255,255,0.06); font-size:10px;">
       <div>
-        ${med > 0
-          ? `<span style="color:#fde047; font-weight:800;">📊 ราคากลาง 7 วัน: ${med.toLocaleString()}g</span>`
-          : (price > 0 ? `<span style="color:#94a3b8;">💰 ราคาอ้างอิงร้าน: ${price.toLocaleString()}g</span>` : `<span style="color:#64748b;">รหัส: <code>${escapeHTML(item.id)}</code></span>`)}
+        ${price > 0 ? `<span style="color:#94a3b8;">💰 ราคาอ้างอิงร้าน: ${price.toLocaleString()}g</span>` : `<span style="color:#64748b;">รหัส: <code>${escapeHTML(item.id)}</code></span>`}
       </div>
       ${bagQty > 0 ? `<span style="color:#4ade80; font-weight:800;">🎒 ในตัว ×${bagQty.toLocaleString()}</span>` : `<code style="font-size:9.5px; color:#64748b;">${escapeHTML(item.id)}</code>`}
     </div>
   `;
   document.body.appendChild(card);
+
+  const mk = `${item.kind || 'mat'}:${item.id}`;
+  const liveBox = card.querySelector('#nc-cat-hover-live-price');
+  const renderLivePrice = (rec, isLoading) => {
+    if (!liveBox) return;
+    const last = Number(rec?.last) || 0;
+    const avg1h = Number(rec?.avg1h) || 0;
+    const vol1h = Number(rec?.vol1h) || 0;
+    const avg24h = Number(rec?.avg24h) || 0;
+    const med7d = Number(rec?.median7d) || med || 0;
+    const ago = rec?.lastAt ? formatNcMarketTimeAgo(rec.lastAt) : '';
+    if (last > 0 || avg1h > 0 || avg24h > 0 || med7d > 0) {
+      liveBox.innerHTML = `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:4px;">
+          <div style="background:rgba(2,6,23,0.7);border:1px solid rgba(251,191,36,0.35);border-radius:6px;padding:4px 7px;">
+            <div style="font-size:9px;color:#94a3b8;">💰 ขายออกล่าสุด</div>
+            <div style="font-size:12px;font-weight:800;color:#fde047;">${last > 0 ? `${last.toLocaleString()}g` : '—'}</div>
+            <div style="font-size:8.5px;color:#64748b;">${ago || '—'}</div>
+          </div>
+          <div style="background:rgba(2,6,23,0.7);border:1px solid rgba(52,211,153,0.35);border-radius:6px;padding:4px 7px;">
+            <div style="font-size:9px;color:#94a3b8;">⏱️ เฉลี่ย 1 ชม.</div>
+            <div style="font-size:12px;font-weight:800;color:${avg1h > 0 ? '#6ee7b7' : '#94a3b8'};">${avg1h > 0 ? `${avg1h.toLocaleString()}g` : (isLoading ? '⏳...' : 'ไม่มีใน 1 ชม.')}</div>
+            <div style="font-size:8.5px;color:#64748b;">${avg1h > 0 ? `${vol1h} ชิ้น` : (avg24h > 0 ? `24ชม.: ${avg24h.toLocaleString()}g` : (med7d > 0 ? `กลาง 7d: ${med7d.toLocaleString()}g` : ''))}</div>
+          </div>
+        </div>
+        ${med7d > 0 ? `<div style="font-size:9.5px;color:#c4b5fd;">📊 ราคากลาง 7 วัน: <b>${med7d.toLocaleString()}g</b>${avg24h > 0 ? ` · เฉลี่ย 24 ชม.: <b style="color:#7dd3fc;">${avg24h.toLocaleString()}g</b>` : ''}</div>` : ''}
+      `;
+    } else if (isLoading) {
+      liveBox.innerHTML = `<div style="color:#7dd3fc;font-size:10px;">⏳ กำลังดึงราคาตลาดกลางล่าสุด &amp; เฉลี่ย 1 ชม...</div>`;
+    } else {
+      liveBox.innerHTML = `<div style="color:#64748b;font-size:10px;">ยังไม่มีประวัติซื้อขายในตลาดกลาง (7 วันล่าสุด)</div>`;
+    }
+  };
+  const cachedRec = getCachedNcUiMarketPrice(mk);
+  const pidNow = ncCharModalState?.profileId;
+  const needLive = Boolean(pidNow && !ncCharModalState?.data?.isOfflineFallback && (!cachedRec || !cachedRec.hasChart || (Date.now() - (cachedRec.fetchedAt || 0)) >= 45000));
+  renderLivePrice(cachedRec, needLive);
+  if (needLive) {
+    fetchNcMarketPriceForManager(pidNow, mk).then((fresh) => {
+      if (document.body.contains(card)) renderLivePrice(fresh || cachedRec, false);
+    }).catch(() => {});
+  }
 
   const rc = anchorEl.getBoundingClientRect();
   const cw = card.offsetWidth || 295;
@@ -17874,10 +18286,19 @@ function renderNightcampEquipSlotCard(def, eqItem) {
   const st = getNightcampRarityStyle(eqItem?.rarity, eqItem?.starshine);
   const borderCol = isSelected ? '#38bdf8' : (eqItem ? st.border : 'rgba(148,163,184,0.2)');
   const bgCol = isSelected ? 'rgba(14,165,233,0.22)' : (eqItem ? st.bg : 'rgba(15,23,42,0.55)');
+  const mktAttrs = eqItem ? buildNcMarketHoverAttrs({
+    key: resolveNcGearMarketKey(eqItem),
+    name: eqItem.name,
+    rarity: eqItem.rarity,
+    icon: eqItem.icon,
+    npcPrice: eqItem.salePrice,
+    extra: [eqItem.abilText, ...(eqItem.options || []).map(o => '✦ ' + o.text)].filter(Boolean).join(' · ')
+  }) : '';
 
   return `
     <div onclick="selectNightcampEquipSlotFilter('${def.key}')"
-         title="${eqItem ? `${escapeHTML(eqItem.name)}${eqItem.abilText ? ' · ' + escapeHTML(eqItem.abilText) : ''}` : `ช่อง ${def.label} (คลิกเพื่อดูของในกระเป๋าที่ใส่ช่องนี้ได้)`}"
+         ${mktAttrs}
+         title="${eqItem ? '' : `ช่อง ${def.label} (คลิกเพื่อดูของในกระเป๋าที่ใส่ช่องนี้ได้)`}"
          style="background:${bgCol}; border:1.5px solid ${borderCol}; border-radius:9px; padding:6px 7px; display:flex; align-items:center; gap:7px; cursor:pointer; transition:all 0.15s ease; min-height:46px; position:relative;">
       <div style="width:36px; height:36px; border-radius:7px; background:#020617; border:1px solid ${eqItem ? st.border : 'rgba(148,163,184,0.2)'}; display:flex; align-items:center; justify-content:center; flex-shrink:0; overflow:hidden; position:relative;">
         ${eqItem?.icon
@@ -17906,8 +18327,17 @@ function renderNightcampEquipSlotCard(def, eqItem) {
 function renderNightcampGearCardHtml(item, { isStorage = false } = {}) {
   const st = getNightcampRarityStyle(item.rarity, item.starshine);
   const isWorn = Boolean(item.wornSlot);
+  const mk = resolveNcGearMarketKey(item);
+  const mktAttrs = buildNcMarketHoverAttrs({
+    key: mk,
+    name: item.name,
+    rarity: item.rarity,
+    icon: item.icon,
+    npcPrice: item.salePrice,
+    extra: [item.abilText, ...(item.options || []).map(o => '✦ ' + o.text)].filter(Boolean).join(' · ')
+  });
   return `
-    <div style="background:${isWorn ? 'linear-gradient(135deg, rgba(16,185,129,0.14), rgba(15,23,42,0.9))' : 'rgba(15,23,42,0.78)'}; border:1px solid ${isWorn ? 'rgba(52,211,153,0.55)' : st.border}; border-radius:10px; padding:9px 11px; display:flex; flex-direction:column; gap:6px;">
+    <div ${mktAttrs} style="background:${isWorn ? 'linear-gradient(135deg, rgba(16,185,129,0.14), rgba(15,23,42,0.9))' : 'rgba(15,23,42,0.78)'}; border:1px solid ${isWorn ? 'rgba(52,211,153,0.55)' : st.border}; border-radius:10px; padding:9px 11px; display:flex; flex-direction:column; gap:6px;">
       <div style="display:flex; align-items:flex-start; gap:9px;">
         <div style="width:44px; height:44px; border-radius:8px; background:#020617; border:1px solid ${st.border}; display:flex; align-items:center; justify-content:center; flex-shrink:0; position:relative;">
           ${item.icon ? `<img src="${escapeHTML(item.icon)}" alt="" style="width:38px;height:38px;object-fit:contain;">` : `<span style="font-size:18px;">⚔️</span>`}
@@ -17918,6 +18348,7 @@ function renderNightcampGearCardHtml(item, { isStorage = false } = {}) {
           <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
             <span style="font-size:12.5px; font-weight:800; color:${st.color};">${escapeHTML(item.name)}</span>
             <span style="font-size:9.5px; font-weight:700; color:${st.color}; background:${st.bg}; border:1px solid ${st.border}; padding:0 6px; border-radius:999px;">${st.label}</span>
+            ${buildNcInlineMarketPricePillHtml(mk)}
             ${isWorn ? `<span style="font-size:9.5px; font-weight:800; color:#6ee7b7; background:rgba(16,185,129,0.2); border:1px solid rgba(52,211,153,0.45); padding:0 6px; border-radius:999px;">✨ สวมใส่อยู่ (${escapeHTML(item.wornSlot)})</span>` : ''}
             ${item.score > 0 ? `<span style="font-size:9.5px; color:#38bdf8; background:rgba(14,165,233,0.14); border:1px solid rgba(56,189,248,0.32); padding:0 6px; border-radius:999px;" title="คะแนนความเหมาะสมกับสายอาชีพปัจจุบัน">⚡ คะแนน ${item.score}</span>` : ''}
           </div>
@@ -17964,8 +18395,17 @@ function renderNightcampMatCardHtml(m) {
   const fallbackEmoji = m.category === 'card'
     ? '🃏'
     : (m.category === 'food' ? '🍲' : (m.category === 'potion' ? '🧪' : (m.category === 'box' ? '🎁' : (m.category === 'rune' ? '💠' : (m.category === 'seed' ? '🌱' : '🌰')))));
+  const mk = resolveNcMatMarketKey(m);
+  const mktAttrs = buildNcMarketHoverAttrs({
+    key: mk,
+    name: m.name,
+    rarity: m.rarity,
+    icon: m.icon,
+    npcPrice: m.price,
+    extra: m.desc || ''
+  });
   return `
-    <div style="background:rgba(15,23,42,0.78); border:1px solid ${st.border}; border-radius:9px; padding:8px 10px; display:flex; flex-direction:column; justify-content:space-between; gap:6px;">
+    <div ${mktAttrs} style="background:rgba(15,23,42,0.78); border:1px solid ${st.border}; border-radius:9px; padding:8px 10px; display:flex; flex-direction:column; justify-content:space-between; gap:6px;">
       <div style="display:flex; align-items:flex-start; gap:8px;">
         <div style="width:42px; height:42px; border-radius:8px; background:#020617; border:1px solid ${st.border}; display:flex; align-items:center; justify-content:center; flex-shrink:0; overflow:hidden;">
           ${m.icon ? `<img src="${escapeHTML(m.icon)}" alt="" style="width:36px;height:36px;object-fit:contain;">` : `<span style="font-size:18px;">${fallbackEmoji}</span>`}
@@ -17975,6 +18415,7 @@ function renderNightcampMatCardHtml(m) {
             <span style="font-size:12px; font-weight:700; color:${st.color}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHTML(m.name)}</span>
             <span style="font-size:11px; font-weight:800; color:#fde047; background:rgba(234,179,8,0.16); border:1px solid rgba(250,204,21,0.4); padding:0 6px; border-radius:999px;">x${m.qty.toLocaleString()}</span>
           </div>
+          <div style="margin-top:2px;">${buildNcInlineMarketPricePillHtml(mk)}</div>
           ${m.desc ? `<div style="font-size:10px; color:#94a3b8; margin-top:2px; line-height:1.35;">${escapeHTML(m.desc)}</div>` : ''}
         </div>
       </div>
@@ -18286,18 +18727,25 @@ function renderNightcampRightPaneContentHtml(d) {
 
       <div style="font-size:12px; font-weight:800; color:#6ee7b7; margin-bottom:6px;">📦 วัตถุดิบในคลังค่าย (${stMats.length} รายการ):</div>
       <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(230px, 1fr)); gap:7px;">
-        ${stMats.length > 0 ? stMats.map(m => `
-          <div style="background:rgba(15,23,42,0.78); border:1px solid rgba(148,163,184,0.25); border-radius:8px; padding:7px 10px; display:flex; align-items:center; justify-content:space-between; gap:8px;">
+        ${stMats.length > 0 ? stMats.map(m => {
+          const mk = resolveNcMatMarketKey(m);
+          const mktAttrs = buildNcMarketHoverAttrs({ key: mk, name: m.name, rarity: m.rarity, icon: m.icon, extra: m.desc || '' });
+          return `
+          <div ${mktAttrs} style="background:rgba(15,23,42,0.78); border:1px solid rgba(148,163,184,0.25); border-radius:8px; padding:7px 10px; display:flex; align-items:center; justify-content:space-between; gap:8px;">
             <div style="display:flex; align-items:center; gap:8px; min-width:0;">
               ${m.icon ? `<img src="${escapeHTML(m.icon)}" alt="" style="width:30px;height:30px;object-fit:contain;">` : `<span>📦</span>`}
               <div style="min-width:0;">
                 <div style="font-size:11.5px; font-weight:700; color:#e2e8f0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHTML(m.name)}</div>
-                <div style="font-size:10px; color:#fde047; font-weight:700;">x${m.qty.toLocaleString()}</div>
+                <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin-top:1px;">
+                  <span style="font-size:10px; color:#fde047; font-weight:700;">x${m.qty.toLocaleString()}</span>
+                  ${buildNcInlineMarketPricePillHtml(mk)}
+                </div>
               </div>
             </div>
             <button type="button" onclick="runNightcampCharacterAction({ action: 'withdraw_mat', itemId: '${escapeHTML(m.id)}', qty: ${m.qty} })" style="background:#0284c7;border:1px solid #38bdf8;color:#fff;border-radius:5px;padding:3px 8px;font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap;">📤 เบิก</button>
           </div>
-        `).join('') : `<div style="grid-column:1 / -1; text-align:center; padding:26px; color:#64748b; background:rgba(2,6,23,0.45); border-radius:9px; font-size:12px;">ยังไม่มีวัตถุดิบฝากไว้ในคลังค่าย (หรือเปิดดูคลังที่ร้านลุงโกโก้เพื่อซิงค์ข้อมูล)</div>`}
+        `;
+        }).join('') : `<div style="grid-column:1 / -1; text-align:center; padding:26px; color:#64748b; background:rgba(2,6,23,0.45); border-radius:9px; font-size:12px;">ยังไม่มีวัตถุดิบฝากไว้ในคลังค่าย (หรือเปิดดูคลังที่ร้านลุงโกโก้เพื่อซิงค์ข้อมูล)</div>`}
       </div>
     `;
   }
@@ -18518,17 +18966,26 @@ function renderNightcampCMarketTabHtml(d) {
         <!-- Quick-Pick from Current Bag -->
         ${tradableBagItems.length > 0 ? `
           <div style="display:flex; flex-direction:column; gap:4px; padding-top:4px; border-top:1px solid rgba(255,255,255,0.06);">
-            <span style="font-size:10px; font-weight:700; color:#fde68a;">🎒 คลิกเพิ่มจากของในกระเป๋าที่แลกเปลี่ยนได้ (${tradableBagItems.length} รายการ):</span>
+            <span style="font-size:10px; font-weight:700; color:#fde68a;">🎒 คลิกเพิ่มจากของในกระเป๋าที่แลกเปลี่ยนได้ (${tradableBagItems.length} รายการ · ชี้เพื่อดูราคาตลาดกลาง):</span>
             <div style="display:flex; flex-wrap:wrap; gap:5px; max-height:76px; overflow-y:auto;">
-              ${tradableBagItems.map(h => `
-                <button type="button" onclick="quickAddNightcampCMarketRule('${escapeHTML(h.id)}', '${escapeHTML(h.baseName || h.name)}', '${escapeHTML(h.k)}', ${h.k === 'item' || h.k === 'rune' ? 1 : Math.min(10, Math.max(1, h.freeQty))})"
-                        title="คลิกเพื่อเพิ่ม ${escapeHTML(h.name)} เข้า Auto-Sell ตลาดกลาง (กรอบราคา ${h.band ? h.band[0].toLocaleString() + '–' + h.band[1].toLocaleString() : '-'}g)"
+              ${tradableBagItems.map(h => {
+                const mk = `${h.k || 'mat'}:${h.id}`;
+                const hoverAttrs = buildNcMarketHoverAttrs({
+                  key: mk,
+                  name: h.name || h.baseName || h.id,
+                  rarity: h.rarity || 'common',
+                  icon: h.icon || '',
+                  extra: Array.isArray(h.band) && h.band.length === 2 ? `กรอบราคา FairTrade: ${Number(h.band[0]).toLocaleString()}–${Number(h.band[1]).toLocaleString()}g` : ''
+                });
+                return `
+                <button type="button" ${hoverAttrs} onclick="quickAddNightcampCMarketRule('${escapeHTML(h.id)}', '${escapeHTML(h.baseName || h.name)}', '${escapeHTML(h.k)}', ${h.k === 'item' || h.k === 'rune' ? 1 : Math.min(10, Math.max(1, h.freeQty))})"
                         style="display:inline-flex; align-items:center; gap:5px; background:rgba(2,6,23,0.75); border:1px solid rgba(56,189,248,0.38); color:#e2e8f0; border-radius:999px; padding:3px 9px 3px 5px; font-size:10.5px; font-weight:600; cursor:pointer;">
                   ${h.icon ? `<img src="${escapeHTML(h.icon)}" alt="" style="width:18px;height:18px;object-fit:contain;">` : `<span>📦</span>`}
                   <span>${escapeHTML(h.baseName || h.name)}</span>
                   <b style="color:#fde047;">x${h.freeQty}</b>
                 </button>
-              `).join('')}
+              `;
+              }).join('')}
             </div>
           </div>
         ` : ''}
@@ -18536,12 +18993,19 @@ function renderNightcampCMarketTabHtml(d) {
         <!-- 1-Click Popular Presets -->
         <div style="display:flex; align-items:center; flex-wrap:wrap; gap:5px; padding-top:4px; border-top:1px solid rgba(255,255,255,0.06);">
           <span style="font-size:10px; font-weight:700; color:#a5b4fc;">✨ เพิ่มรายการยอดนิยม 1-Click:</span>
-          ${NC_CMARKET_PRESET_ITEMS.map(pr => `
-            <button type="button" onclick="quickAddNightcampCMarketRule('${escapeHTML(pr.itemId)}', '${escapeHTML(pr.itemName)}', '${escapeHTML(pr.kind)}', ${pr.minQty})"
+          ${NC_CMARKET_PRESET_ITEMS.map(pr => {
+            const hoverAttrs = buildNcMarketHoverAttrs({
+              key: `${pr.kind || 'mat'}:${pr.itemId}`,
+              name: pr.itemName,
+              rarity: pr.kind === 'rune' ? 'epic' : 'rare'
+            });
+            return `
+            <button type="button" ${hoverAttrs} onclick="quickAddNightcampCMarketRule('${escapeHTML(pr.itemId)}', '${escapeHTML(pr.itemName)}', '${escapeHTML(pr.kind)}', ${pr.minQty})"
                     style="background:rgba(79,70,229,0.18); border:1px solid rgba(129,140,248,0.4); color:#c7d2fe; border-radius:999px; padding:2px 8px; font-size:10px; font-weight:600; cursor:pointer;">
               + ${escapeHTML(pr.itemName)} (≥${pr.minQty})
             </button>
-          `).join('')}
+          `;
+          }).join('')}
         </div>
       </div>
 
@@ -18581,9 +19045,17 @@ function renderNightcampCMarketTabHtml(d) {
             ? ` · 📊 ราคากลาง 7 วัน: ${Number(r.medianPrice).toLocaleString()}g`
             : (r.refPrice > 0 ? ` · ราคาอ้างอิงร้าน: ${Number(r.refPrice).toLocaleString()}g` : '');
           const cheapTxt = r.cheapKnown > 0 ? ` · 🏷️ ต่ำสุดตลาด: ${Number(r.cheapKnown).toLocaleString()}g` : '';
+          const rMk = `${r.kind || 'mat'}:${r.itemId}`;
+          const rHoverAttrs = buildNcMarketHoverAttrs({
+            key: rMk,
+            name: r.itemName || r.itemId,
+            rarity: r.kind === 'rune' ? 'epic' : 'rare',
+            icon: r.icon || '',
+            extra: bandTxt
+          });
 
           return `
-            <div style="background:rgba(15,23,42,0.82); border:1px solid ${r.ready ? 'rgba(52,211,153,0.55)' : 'rgba(129,140,248,0.32)'}; border-radius:10px; padding:9px 11px; display:flex; flex-direction:column; gap:7px; opacity:${r.enabled ? '1' : '0.6'};">
+            <div ${rHoverAttrs} style="background:rgba(15,23,42,0.82); border:1px solid ${r.ready ? 'rgba(52,211,153,0.55)' : 'rgba(129,140,248,0.32)'}; border-radius:10px; padding:9px 11px; display:flex; flex-direction:column; gap:7px; opacity:${r.enabled ? '1' : '0.6'};">
               <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap;">
                 <div style="display:flex; align-items:center; gap:9px; min-width:0;">
                   <input type="checkbox" ${r.enabled ? 'checked' : ''} onchange="updateNightcampCMarketRuleField('${escapeHTML(r.id)}', 'enabled', this.checked)"
@@ -18594,6 +19066,7 @@ function renderNightcampCMarketTabHtml(d) {
                   <div style="min-width:0;">
                     <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
                       <span style="font-size:12.5px; font-weight:800; color:#f8fafc;">${escapeHTML(r.itemName)}</span>
+                      ${buildNcInlineMarketPricePillHtml(rMk)}
                       <code style="font-size:9.5px; color:#94a3b8; background:rgba(2,6,23,0.65); padding:1px 5px; border-radius:4px;">${escapeHTML(r.itemId)}</code>
                       <span style="font-size:10px; font-weight:700; color:${badgeColor.text}; background:${badgeColor.bg}; border:1px solid ${badgeColor.border}; padding:1px 8px; border-radius:999px;">
                         ${escapeHTML(r.statusLabel)}
@@ -18684,8 +19157,16 @@ function renderNightcampCMarketTabHtml(d) {
           const band = Array.isArray(h.band) && h.band.length === 2 ? h.band : [1, 999999];
           const defaultPrice = Math.max(band[0], Math.min(band[1], h.refPrice || band[0] || 100));
           const isSingle = (h.k === 'item' || h.k === 'rune');
+          const sMk = `${h.k || 'mat'}:${h.id}`;
+          const sHoverAttrs = buildNcMarketHoverAttrs({
+            key: sMk,
+            name: h.name,
+            rarity: h.rarity || 'common',
+            icon: h.icon || '',
+            extra: `กรอบราคา FairTrade: ${band[0].toLocaleString()}–${band[1].toLocaleString()}g`
+          });
           return `
-            <div style="background:rgba(15,23,42,0.82); border:1px solid ${st.border}; border-radius:10px; padding:10px; display:flex; flex-direction:column; justify-content:space-between; gap:8px;">
+            <div ${sHoverAttrs} style="background:rgba(15,23,42,0.82); border:1px solid ${st.border}; border-radius:10px; padding:10px; display:flex; flex-direction:column; justify-content:space-between; gap:8px;">
               <div style="display:flex; align-items:flex-start; gap:9px;">
                 <div style="width:42px; height:42px; border-radius:8px; background:#020617; border:1px solid ${st.border}; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
                   ${h.icon ? `<img src="${escapeHTML(h.icon)}" alt="" style="width:36px;height:36px;object-fit:contain;">` : `<span>📦</span>`}
@@ -18695,8 +19176,9 @@ function renderNightcampCMarketTabHtml(d) {
                     <span style="font-size:12px; font-weight:800; color:${st.color}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHTML(h.name)}</span>
                     <span style="font-size:10.5px; font-weight:800; color:#fde047; background:rgba(234,179,8,0.16); border:1px solid rgba(250,204,21,0.4); padding:0 6px; border-radius:999px;">ขายได้ x${h.freeQty}</span>
                   </div>
-                  <div style="font-size:10px; color:#94a3b8; margin-top:2px;">
-                    กรอบราคา FairTrade: <b style="color:#7dd3fc;">${band[0].toLocaleString()}–${band[1].toLocaleString()}g</b> / ชิ้น
+                  <div style="display:flex; align-items:center; flex-wrap:wrap; gap:5px; font-size:10px; color:#94a3b8; margin-top:2px;">
+                    <span>กรอบ FairTrade: <b style="color:#7dd3fc;">${band[0].toLocaleString()}–${band[1].toLocaleString()}g</b></span>
+                    ${buildNcInlineMarketPricePillHtml(sMk)}
                   </div>
                   ${h.options && h.options.length > 0 ? `
                     <div style="display:flex; flex-wrap:wrap; gap:3px; margin-top:3px;">
@@ -18767,8 +19249,16 @@ function renderNightcampCMarketTabHtml(d) {
         ${mineListings.length > 0 ? mineListings.map(l => {
           const st = getNightcampRarityStyle(l.rarity, false);
           const isOpen = l.state === 'open';
+          const lMk = `${l.k || 'mat'}:${l.itemId}`;
+          const lHoverAttrs = buildNcMarketHoverAttrs({
+            key: lMk,
+            name: l.name,
+            rarity: l.rarity || 'common',
+            icon: l.icon || '',
+            extra: `วางขายชิ้นละ ${l.price.toLocaleString()}g · รวม ${l.totalPrice.toLocaleString()}g`
+          });
           return `
-            <div style="background:rgba(15,23,42,0.82); border:1px solid ${isOpen ? st.border : 'rgba(248,113,113,0.45)'}; border-radius:10px; padding:9px 12px; display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+            <div ${lHoverAttrs} style="background:rgba(15,23,42,0.82); border:1px solid ${isOpen ? st.border : 'rgba(248,113,113,0.45)'}; border-radius:10px; padding:9px 12px; display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
               <div style="display:flex; align-items:center; gap:9px; min-width:0;">
                 <div style="width:40px; height:40px; border-radius:8px; background:#020617; border:1px solid ${st.border}; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
                   ${l.icon ? `<img src="${escapeHTML(l.icon)}" alt="" style="width:34px;height:34px;object-fit:contain;">` : `<span>📦</span>`}
@@ -18776,6 +19266,7 @@ function renderNightcampCMarketTabHtml(d) {
                 <div style="min-width:0;">
                   <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
                     <span style="font-size:12.5px; font-weight:800; color:${st.color};">${escapeHTML(l.name)}</span>
+                    ${buildNcInlineMarketPricePillHtml(lMk)}
                     <span style="font-size:10.5px; font-weight:800; color:#fde047;">×${l.n}${l.n0 && l.n0 !== l.n ? ` / ${l.n0}` : ''} ชิ้น</span>
                     <span style="font-size:10px; font-weight:700; color:${isOpen ? '#6ee7b7' : '#fca5a5'}; background:${isOpen ? 'rgba(16,185,129,0.18)' : 'rgba(239,68,68,0.18)'}; border:1px solid ${isOpen ? 'rgba(52,211,153,0.45)' : 'rgba(248,113,113,0.45)'}; padding:1px 7px; border-radius:999px;">
                       ${isOpen ? '🟢 กำลังวางขายบนชั้น' : '🔴 หมดเวลา / รอถอนคืน'}
@@ -18837,8 +19328,16 @@ function renderNightcampCMarketTabHtml(d) {
       <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;">
         ${sheetListings.map((l, idx) => {
           const st = getNightcampRarityStyle(l.rarity, false);
+          const shMk = `${l.k || 'mat'}:${l.itemId}`;
+          const shHoverAttrs = buildNcMarketHoverAttrs({
+            key: shMk,
+            name: l.name,
+            rarity: l.rarity || 'common',
+            icon: l.icon || '',
+            extra: `ผู้ขาย: ${l.seller} · ตั้งขายชิ้นละ ${l.price.toLocaleString()}g`
+          });
           return `
-            <div style="background:rgba(15,23,42,0.85); border:1px solid ${st.border}; border-radius:9px; padding:8px 11px; display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+            <div ${shHoverAttrs} style="background:rgba(15,23,42,0.85); border:1px solid ${st.border}; border-radius:9px; padding:8px 11px; display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
               <div style="display:flex; align-items:center; gap:8px; min-width:0;">
                 <div style="width:36px; height:36px; border-radius:7px; background:#020617; border:1px solid ${st.border}; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
                   ${l.icon ? `<img src="${escapeHTML(l.icon)}" alt="" style="width:30px;height:30px;object-fit:contain;">` : `<span>📦</span>`}
@@ -18846,6 +19345,7 @@ function renderNightcampCMarketTabHtml(d) {
                 <div style="min-width:0;">
                   <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
                     <span style="font-size:12px; font-weight:800; color:${st.color};">${escapeHTML(l.name)}</span>
+                    ${buildNcInlineMarketPricePillHtml(shMk)}
                     <span style="font-size:10.5px; font-weight:800; color:#fde047;">มี ${l.n} ชิ้น</span>
                     <span style="font-size:10px; color:#94a3b8;">ผู้ขาย: <b style="color:#cbd5e1;">${escapeHTML(l.seller)}</b></span>
                   </div>
@@ -18873,8 +19373,16 @@ function renderNightcampCMarketTabHtml(d) {
     <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(225px, 1fr)); gap:7px;">
       ${shelfCards.length > 0 ? shelfCards.map(c => {
         const st = getNightcampRarityStyle(c.rarity, false);
+        const cMk = c.key || `${c.k || 'mat'}:${c.itemId}`;
+        const cHoverAttrs = buildNcMarketHoverAttrs({
+          key: cMk,
+          name: c.name,
+          rarity: c.rarity || 'common',
+          icon: c.icon || '',
+          extra: `ตั้งขายต่ำสุดตอนนี้ ${c.cheapest.toLocaleString()}g (${c.n} ชิ้น)`
+        });
         return `
-          <div onclick="searchNightcampCMarketNow('${escapeHTML(c.key)}')"
+          <div ${cHoverAttrs} onclick="searchNightcampCMarketNow('${escapeHTML(c.key)}')"
                style="background:rgba(15,23,42,0.82); border:1px solid ${st.border}; border-radius:9px; padding:8px 10px; display:flex; align-items:center; justify-content:space-between; gap:8px; cursor:pointer; transition:all 0.15s ease;">
             <div style="display:flex; align-items:center; gap:8px; min-width:0;">
               <div style="width:36px; height:36px; border-radius:7px; background:#020617; border:1px solid ${st.border}; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
@@ -18882,7 +19390,10 @@ function renderNightcampCMarketTabHtml(d) {
               </div>
               <div style="min-width:0;">
                 <div style="font-size:11.5px; font-weight:800; color:${st.color}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHTML(c.name)}</div>
-                <div style="font-size:10px; color:#86efac; font-weight:700;">เริ่ม ${c.cheapest.toLocaleString()}g · ${c.n} ชิ้น</div>
+                <div style="display:flex; align-items:center; flex-wrap:wrap; gap:4px; margin-top:1px;">
+                  <span style="font-size:10px; color:#86efac; font-weight:700;">เริ่ม ${c.cheapest.toLocaleString()}g · ${c.n} ชิ้น</span>
+                  ${buildNcInlineMarketPricePillHtml(cMk)}
+                </div>
               </div>
             </div>
             <span style="font-size:10px; color:#7dd3fc; font-weight:700; white-space:nowrap;">ดูร้าน →</span>
@@ -18898,6 +19409,7 @@ function renderNightcampCMarketTabHtml(d) {
 }
 
 function renderNightcampRightPaneOnly() {
+  hideNcMarketTooltip();
   const d = ncCharModalState.data;
   const contentEl = document.getElementById('nc-char-right-content');
   if (d && contentEl) {
@@ -18927,6 +19439,7 @@ function renderNightcampCharacterModal() {
         <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
           <span style="font-size:16.5px; font-weight:800; color:#f8fafc;">${escapeHTML(d.charName)}</span>
           <span style="background:rgba(56,189,248,0.18); border:1px solid rgba(56,189,248,0.45); color:#7dd3fc; font-size:11.5px; font-weight:700; padding:1px 9px; border-radius:999px;">${escapeHTML(d.jobName)} · Base Lv.${d.baseLv} / Job Lv.${d.jobLv}</span>
+          ${d.serverName ? `<span style="background:rgba(129,140,248,0.18); border:1px solid rgba(129,140,248,0.45); color:#c7d2fe; font-size:11px; font-weight:700; padding:1px 8px; border-radius:999px;">🌐 ${escapeHTML(d.serverName)}</span>` : ''}
           <span style="background:rgba(148,163,184,0.16); border:1px solid rgba(148,163,184,0.32); color:#cbd5e1; font-size:11px; font-weight:600; padding:1px 8px; border-radius:999px;">🖥️ ${escapeHTML(prof?.name || pid)} · 📍 ${escapeHTML(d.mapName)}</span>
         </div>
         <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-top:4px; font-size:11.5px;">
