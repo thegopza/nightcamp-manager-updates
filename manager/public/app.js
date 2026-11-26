@@ -9260,7 +9260,7 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
   <div class="p-header-badges" style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
     <span id="p-nc-online-pill" style="font-size: 10px; background: ${isOnline ? 'rgba(16, 185, 129, 0.22)' : 'rgba(148, 163, 184, 0.16)'}; border: 1px solid ${isOnline ? 'rgba(52, 211, 153, 0.5)' : 'rgba(148, 163, 184, 0.35)'}; color: ${isOnline ? '#6ee7b7' : '#cbd5e1'}; padding: 1px 8px; border-radius: 999px; font-weight: 700;">${isCentral ? `ออนไลน์ ${onlineCount}/${currentProfiles.length} จอ` : (isOnline ? '🟢 ออนไลน์' : '⚫ ออฟไลน์')}</span>
     <span id="p-nc-lv-pill" style="font-size: 10px; background: rgba(56, 189, 248, 0.16); border: 1px solid rgba(56, 189, 248, 0.4); color: #7dd3fc; padding: 1px 8px; border-radius: 999px; font-weight: 700;">${escapeHTML(lvLine)}</span>
-    ${!isCentral ? `<button type="button" onclick="openConfigCopyDialog('${profileId}')" title="คัดลอกการตั้งค่าบอททั้งหมดของจอนี้ไปจออื่น (ไม่รวม ID/รหัส/ชื่อตัว/เซิร์ฟ)" style="margin-left:auto; font-size:10px; font-weight:700; padding:2px 8px; border-radius:999px; border:1px solid rgba(52,211,153,0.55); background:rgba(16,185,129,0.2); color:#a7f3d0; cursor:pointer; white-space:nowrap;">📋 คัดลอกไปจออื่น</button>` : ''}
+    ${!isCentral ? `<button type="button" onclick="openConfigCopyDialog('${profileId}')" title="คัดลอกการตั้งค่าบอททั้งหมดของจอนี้ไปจออื่น (ไม่รวมแมพฟาร์ม, ID/รหัส/ชื่อตัว/เซิร์ฟ)" style="margin-left:auto; font-size:10px; font-weight:700; padding:2px 8px; border-radius:999px; border:1px solid rgba(52,211,153,0.55); background:rgba(16,185,129,0.2); color:#a7f3d0; cursor:pointer; white-space:nowrap;">📋 คัดลอกไปจออื่น</button>` : ''}
   </div>
 </div>
 
@@ -15146,14 +15146,14 @@ function renderPresetsList() {
 
   container.innerHTML = currentPresets.map(preset => {
     const cfg = preset.config || {};
-    const targetMapRaw = cfg.targetFarmMap || cfg.targetMap || 'auto';
-    const targetMapLabel = targetMapRaw === 'auto' ? 'อัตโนมัติตามเลเวล' : targetMapRaw;
     const wlCount = String(cfg.sellConfig?.whitelist || '').split(/[,\n]+/).map(s => s.trim()).filter(Boolean).length;
     const fsCount = String(cfg.sellConfig?.forceSellList || '').split(/[,\n]+/).map(s => s.trim()).filter(Boolean).length;
     const cmRules = Array.isArray(cfg.cmarketAutoSellConfig?.rules)
       ? cfg.cmarketAutoSellConfig.rules
       : (Array.isArray(cfg.autoMarketSellConfig?.rules) ? cfg.autoMarketSellConfig.rules : []);
     const cmCount = cmRules.length;
+    const gatherOres = Array.isArray(cfg.gatherConfig?.ores) ? cfg.gatherConfig.ores.length : 0;
+    const gatherWoods = Array.isArray(cfg.gatherConfig?.woods) ? cfg.gatherConfig.woods.length : 0;
     const planName = (cfg.planScriptEnabled && cfg.scriptPlan && cfg.scriptPlan.name) ? String(cfg.scriptPlan.name).trim() : '';
     const updateTime = new Date(preset.updatedAt || preset.createdAt || Date.now()).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
 
@@ -15162,14 +15162,12 @@ function renderPresetsList() {
         <div style="flex: 1; min-width: 0;">
           <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
             <span style="font-size: 13.5px; font-weight: 700; color: #f8fafc;">💾 ${escapeHTML(preset.name)}</span>
-            <span class="badge" style="background: rgba(168, 85, 247, 0.2); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.4); font-size: 9.5px; padding: 1px 6px; border-radius: 4px;">
-              🗺️ ${escapeHTML(targetMapLabel)}
-            </span>
             ${wlCount > 0 ? `<span class="badge" style="background: rgba(56, 189, 248, 0.15); color: #7dd3fc; border: 1px solid rgba(56, 189, 248, 0.35); font-size: 9.5px; padding: 1px 6px; border-radius: 4px;">🛡️ ห้ามขาย ${wlCount}</span>` : ''}
             ${fsCount > 0 ? `<span class="badge" style="background: rgba(249, 115, 22, 0.16); color: #fdba74; border: 1px solid rgba(249, 115, 22, 0.38); font-size: 9.5px; padding: 1px 6px; border-radius: 4px;">💰 บังคับขาย ${fsCount}</span>` : ''}
             ${cmCount > 0 ? `<span class="badge" style="background: rgba(20, 184, 166, 0.16); color: #5eead4; border: 1px solid rgba(45, 212, 191, 0.38); font-size: 9.5px; padding: 1px 6px; border-radius: 4px;">🏪 ตลาดกลาง ${cmCount}</span>` : ''}
+            ${(gatherOres + gatherWoods) > 0 ? `<span class="badge" style="background: rgba(202, 138, 4, 0.18); color: #fde68a; border: 1px solid rgba(251, 191, 36, 0.4); font-size: 9.5px; padding: 1px 6px; border-radius: 4px;">⛏️ เก็บเกี่ยว ${gatherOres + gatherWoods}</span>` : ''}
             ${planName ? `<span class="badge" style="background: rgba(245, 158, 11, 0.16); color: #fde68a; border: 1px solid rgba(251, 191, 36, 0.38); font-size: 9.5px; padding: 1px 6px; border-radius: 4px;">📜 ${escapeHTML(planName)}</span>` : ''}
-            <span style="font-size: 10px; color: #34d399; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.25); padding: 1px 5px; border-radius: 3px;">🔒 ปลอดภัย (ไม่รวม ID/รหัส/ชื่อตัว/เซิร์ฟ)</span>
+            <span style="font-size: 10px; color: #34d399; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.25); padding: 1px 5px; border-radius: 3px;">🔒 ปลอดภัย (ไม่รวมแมพฟาร์ม, ID/รหัส/ชื่อตัว/เซิร์ฟ)</span>
           </div>
           <div style="font-size: 11px; color: #94a3b8; margin-top: 5px; line-height: 1.4;">
             ${escapeHTML(preset.description || 'ไม่มีคำอธิบาย')}
@@ -15219,9 +15217,7 @@ function openCopyToModal(presetId) {
 
   const titleEl = document.getElementById('copy-to-preset-title');
   if (titleEl) {
-    const presetMapRaw = preset.config?.targetFarmMap || preset.config?.targetMap || 'auto';
-    const presetMapLabel = presetMapRaw === 'auto' ? 'อัตโนมัติตามเลเวล' : presetMapRaw;
-    titleEl.innerText = `Preset: "${preset.name}" (แมพ: ${presetMapLabel}) — ไม่ทับ ID/รหัส/ชื่อตัว/เซิร์ฟ`;
+    titleEl.innerText = `Preset: "${preset.name}" — คงแมพฟาร์มประจำ และ ID/รหัส/ชื่อตัว/เซิร์ฟเดิมของทุกจอ`;
   }
 
   const checklistContainer = document.getElementById('copy-to-profiles-checklist');
@@ -15292,11 +15288,13 @@ async function confirmApplyCopyTo() {
     confirmBtn.innerHTML = '⏳ กำลังคัดลอกและอัปเดต...';
   }
 
+  const cmarketCopyMode = document.querySelector('input[name="preset-cm-copy-mode"]:checked')?.value === 'replace' ? 'replace' : 'merge';
+
   try {
     const res = await fetch(`${API_BASE}/api/presets/${activeCopyToPresetId}/apply`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ targetProfileIds })
+      body: JSON.stringify({ targetProfileIds, cmarketCopyMode })
     });
     const result = await res.json();
     if (result.success) {
@@ -15492,7 +15490,7 @@ async function handleSaveClientPresetSubmit(e) {
     });
     const result = await res.json();
     if (result.success) {
-      alert(`บันทึก "${name}" เข้า Save List ส่วนกลางเรียบร้อย! (ไม่รวม ID/รหัส/ชื่อตัว/เซิร์ฟ)`);
+      alert(`บันทึก "${name}" เข้า Save List ส่วนกลางเรียบร้อย! (ไม่รวมแมพฟาร์ม, ID/รหัส/ชื่อตัว/เซิร์ฟ)`);
       closeSaveClientPresetModal();
       openPresetsModal();
       fetchPresets();
@@ -15981,6 +15979,8 @@ function updateWLTabModeUI() {
   const hintEl = document.getElementById('card-wl-mode-hint');
   const headerIconEl = document.getElementById('card-wl-header-icon');
   const copyLabelEl = document.getElementById('card-wl-copy-label');
+  const cmCopyModeRowEl = document.getElementById('card-wl-cm-copy-mode-row');
+  if (cmCopyModeRowEl) cmCopyModeRowEl.style.display = activeWLTabMode === 'cmarket' ? 'flex' : 'none';
   const wlCountEl = document.getElementById('card-wl-tab-count-wl');
   const fsCountEl = document.getElementById('card-wl-tab-count-fs');
   const cmCountEl = document.getElementById('card-wl-tab-count-cm');
@@ -16453,8 +16453,9 @@ async function executeCardWhitelistCopyToTargets() {
 
   const isFs = activeWLTabMode === 'forceSell';
   const isCm = activeWLTabMode === 'cmarket';
+  const cmarketCopyMode = document.querySelector('input[name="card-wl-cm-copy-mode"]:checked')?.value === 'replace' ? 'replace' : 'merge';
   const reqBody = isCm
-    ? { mode: 'cmarket', cmarketRules: activeCMRules, targets: targetIds }
+    ? { mode: 'cmarket', cmarketRules: activeCMRules, cmarketCopyMode, targets: targetIds }
     : (isFs
       ? { mode: 'forceSell', forceSellList: activeFSItems.join(', '), targets: targetIds }
       : { mode: 'whitelist', whitelist: activeWLItems.join(', '), targets: targetIds });
@@ -18859,16 +18860,22 @@ async function executeNightcampCMarketCopyToProfiles() {
     const existingLocal = loadLocalNightcampCMarketCfg(targetId);
     let mergedRules = srcCfg.rules || [];
     if (mergeMode) {
-      const map = new Map();
-      for (const r of (existingLocal.rules || [])) {
-        const k = String(r.itemId || r.itemName || '').toLowerCase();
-        if (k) map.set(k, r);
-      }
-      for (const r of (srcCfg.rules || [])) {
-        const k = String(r.itemId || r.itemName || '').toLowerCase();
-        if (k) map.set(k, r);
-      }
-      mergedRules = Array.from(map.values());
+      const out = [];
+      const seenIds = new Set();
+      const seenNames = new Set();
+      const addIfNew = (r) => {
+        if (!r || typeof r !== 'object') return;
+        const idKey = String(r.itemId || '').trim().toLowerCase();
+        const nmKey = String(r.itemName || '').trim().toLowerCase();
+        if (!idKey && !nmKey) return;
+        if ((idKey && seenIds.has(idKey)) || (nmKey && seenNames.has(nmKey))) return;
+        if (idKey) seenIds.add(idKey);
+        if (nmKey) seenNames.add(nmKey);
+        out.push(r);
+      };
+      for (const r of (existingLocal.rules || [])) addIfNew(r);
+      for (const r of (srcCfg.rules || [])) addIfNew(r);
+      mergedRules = out;
     }
     const targetCfg = {
       enabled: srcCfg.enabled,
@@ -19549,7 +19556,7 @@ function renderNightcampCMarketTabHtml(d) {
               <div style="display:flex; align-items:center; gap:10px; font-size:11px;">
                 <label style="display:flex; align-items:center; gap:4px; color:#86efac; cursor:pointer; font-weight:700;">
                   <input type="radio" name="nc-cm-copy-mode" value="merge" ${ncCharModalState.cmCopyMode !== 'replace' ? 'checked' : ''}>
-                  <span>➕ รวมกับของเดิม (Merge)</span>
+                  <span>➕ เพิ่มเฉพาะที่ยังไม่มี (ไม่ทับ/ไม่ซ้ำ)</span>
                 </label>
                 <label style="display:flex; align-items:center; gap:4px; color:#fde047; cursor:pointer; font-weight:700;">
                   <input type="radio" name="nc-cm-copy-mode" value="replace" ${ncCharModalState.cmCopyMode === 'replace' ? 'checked' : ''}>

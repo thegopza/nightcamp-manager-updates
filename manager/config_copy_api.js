@@ -8,7 +8,26 @@
 
 // Persist with the keys bot.js actually loads from — older bot builds saved two of them under the
 // wrong names, which made copied market settings disappear after the next page reload.
-const IMPORT_JS = config => `(() => {
+function mergeCMarketRulesDedup(existingRules, incomingRules) {
+  const out = [];
+  const seenIds = new Set();
+  const seenNames = new Set();
+  const addIfNew = (r) => {
+    if (!r || typeof r !== 'object') return;
+    const idKey = String(r.itemId || '').trim().toLowerCase();
+    const nmKey = String(r.itemName || '').trim().toLowerCase();
+    if (!idKey && !nmKey) return;
+    if ((idKey && seenIds.has(idKey)) || (nmKey && seenNames.has(nmKey))) return;
+    if (idKey) seenIds.add(idKey);
+    if (nmKey) seenNames.add(nmKey);
+    out.push(r);
+  };
+  for (const r of (Array.isArray(existingRules) ? existingRules : [])) addIfNew(r);
+  for (const r of (Array.isArray(incomingRules) ? incomingRules : [])) addIfNew(r);
+  return out;
+}
+
+const IMPORT_JS = (config, mergeCMarketRules = true) => `(() => {
   if (typeof window.importAllBotSettings !== 'function') return { success: false, error: 'บอทในจอนี้ยังไม่พร้อม (กรุณาอัปเดตสคริปต์บอทเป็นเวอร์ชันล่าสุดก่อน)' };
   const before = window.__authConfig ? {
     username: window.__authConfig.username,
@@ -21,7 +40,7 @@ const IMPORT_JS = config => `(() => {
     userEditedAt: window.__authConfig.userEditedAt,
     serverEditedAt: window.__authConfig.serverEditedAt
   } : null;
-  const r = window.importAllBotSettings(${JSON.stringify(config)});
+  const r = window.importAllBotSettings(${JSON.stringify(config)}, { mergeCMarketRules: ${Boolean(mergeCMarketRules)} });
   if (before && window.__authConfig) {
     for (const [k, v] of Object.entries(before)) {
       if (v !== undefined) window.__authConfig[k] = v;
@@ -32,11 +51,12 @@ const IMPORT_JS = config => `(() => {
     if (window.__sellConfig) localStorage.setItem('pelican_nc_sell_cfg', JSON.stringify(window.__sellConfig));
     if (window.__cmarketAutoSellConfig) localStorage.setItem('pelican_nc_cmarket_autosell', JSON.stringify(window.__cmarketAutoSellConfig));
     if (window.__potionConfig) localStorage.setItem('pelican_potion_cfg', JSON.stringify(window.__potionConfig));
+    if (window.__gatherConfig) localStorage.setItem('pelican_nc_gather_cfg', JSON.stringify(window.__gatherConfig));
     if (window.__ncPerfConfig) localStorage.setItem('pelican_nc_perf_cfg', JSON.stringify(window.__ncPerfConfig));
     if (window.__autoMarketSellConfig) localStorage.setItem('pelican_auto_market_sell_cfg', JSON.stringify(window.__autoMarketSellConfig));
     if (window.__marketFilterConfig) localStorage.setItem('pelican_market_filter_cfg', JSON.stringify(window.__marketFilterConfig));
   } catch (e) {}
-  return Object.assign({}, r || { success: true }, { effectiveTargetMap: window.__targetFarmMap || null });
+  return Object.assign({}, r || { success: true });
 })()`;
 
 function readBody(req) {
@@ -70,7 +90,9 @@ async function handleConfigCopyRoute(req, res, pathname, ctx) {
     sendJSON({ success: false, error: 'อ่านการตั้งค่าจากจอต้นทางไม่สำเร็จ (บอทอาจยังโหลดไม่เสร็จ)' }, 502);
     return true;
   }
-  // Account-specific: never copy (keep each profile's own ID, password, char, and server!)
+  // Per-window farm map & account-specific identity: NEVER copy!
+  delete config.targetFarmMap;
+  delete config.targetMap;
   if (config.authConfig) {
     delete config.authConfig.username;
     delete config.authConfig.password;
@@ -85,27 +107,30 @@ async function handleConfigCopyRoute(req, res, pathname, ctx) {
     delete config.authConfig.verifiedLoginAt;
   }
 
+  const mergeCMarketRules = payload.cmarketCopyMode !== 'replace';
   const results = [];
   for (const id of payload.targets) {
     const target = profiles.find(p => p.id === id);
     if (!target || id === source.id) continue;
     if (!target.debugPort) { results.push({ id, name: target.name, success: false, error: 'ไม่มีพอร์ต' }); continue; }
-    const r = await evalProfilePort(target.debugPort, IMPORT_JS(config), 6000);
+    const r = await evalProfilePort(target.debugPort, IMPORT_JS(config, mergeCMarketRules), 6000);
     const ok = Boolean(r && r.success && r.result && r.result.success !== false);
     results.push({ id, name: target.name, success: ok, error: ok ? null : (r && r.result && r.result.error) || (r && r.error) || 'จอนี้ออฟไลน์หรือไม่ตอบสนอง' });
     if (ok) {
-      // Keep the Manager's own record in step (card map label, whitelist, forceSellList, cmarket rules)
-      const effMap = r && r.result && r.result.effectiveTargetMap;
-      if (effMap && effMap !== 'auto') target.targetMap = effMap;
-      else if (config.targetFarmMap && config.targetFarmMap !== 'auto') target.targetMap = config.targetFarmMap;
-      else if (config.targetMap && config.targetMap !== 'auto') target.targetMap = config.targetMap;
+      // Keep Manager's own record in step (whitelist, forceSellList, cmarket rules — NEVER touch target.targetMap!)
       if (config.sellConfig && typeof config.sellConfig === 'object') {
         target.sellConfig = Object.assign({}, target.sellConfig || {}, config.sellConfig);
         if (typeof config.sellConfig.whitelist === 'string') target.whitelist = config.sellConfig.whitelist;
         if (typeof config.sellConfig.forceSellList === 'string') target.forceSellList = config.sellConfig.forceSellList;
       }
       if (config.cmarketAutoSellConfig && typeof config.cmarketAutoSellConfig === 'object') {
-        target.cmarketAutoSellConfig = JSON.parse(JSON.stringify(config.cmarketAutoSellConfig));
+        const clonedCm = JSON.parse(JSON.stringify(config.cmarketAutoSellConfig));
+        const existingRules = Array.isArray(target.cmarketAutoSellConfig?.rules) ? target.cmarketAutoSellConfig.rules : [];
+        const incomingRules = Array.isArray(clonedCm.rules) ? clonedCm.rules : [];
+        clonedCm.rules = mergeCMarketRules
+          ? mergeCMarketRulesDedup(existingRules, incomingRules)
+          : mergeCMarketRulesDedup([], incomingRules);
+        target.cmarketAutoSellConfig = clonedCm;
       }
     }
   }

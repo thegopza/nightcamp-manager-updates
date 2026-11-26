@@ -197,6 +197,25 @@ function savePresets(presets) {
   try { writeJsonAtomic(PRESETS_BACKUP_FILE, presets); } catch (_) {}
 }
 
+function mergeCMarketRulesDedup(existingRules, incomingRules) {
+  const out = [];
+  const seenIds = new Set();
+  const seenNames = new Set();
+  const addIfNew = (r) => {
+    if (!r || typeof r !== "object") return;
+    const idKey = String(r.itemId || "").trim().toLowerCase();
+    const nmKey = String(r.itemName || "").trim().toLowerCase();
+    if (!idKey && !nmKey) return;
+    if ((idKey && seenIds.has(idKey)) || (nmKey && seenNames.has(nmKey))) return;
+    if (idKey) seenIds.add(idKey);
+    if (nmKey) seenNames.add(nmKey);
+    out.push(r);
+  };
+  for (const r of (Array.isArray(existingRules) ? existingRules : [])) addIfNew(r);
+  for (const r of (Array.isArray(incomingRules) ? incomingRules : [])) addIfNew(r);
+  return out;
+}
+
 function sanitizePresetBotConfig(rawCfg) {
   let safeCfg = {};
   try {
@@ -204,13 +223,15 @@ function sanitizePresetBotConfig(rawCfg) {
   } catch (_) {
     safeCfg = Object.assign({}, rawCfg && typeof rawCfg === "object" ? rawCfg : {});
   }
-  // Strictly strip all account/character/server identity so a Preset NEVER overwrites another profile's login, character, or server!
+  // Strictly strip all per-window farm map & account/character/server identity so a Preset NEVER overwrites another profile's map, login, character, or server!
   if (safeCfg.authConfig && typeof safeCfg.authConfig === "object") {
     safeCfg.authConfig = {
       enabled: safeCfg.authConfig.enabled !== false,
       autoResumeBot: safeCfg.authConfig.autoResumeBot !== false
     };
   }
+  delete safeCfg.targetFarmMap;
+  delete safeCfg.targetMap;
   delete safeCfg.username;
   delete safeCfg.password;
   delete safeCfg.account;
@@ -12217,9 +12238,10 @@ const server = http.createServer(async (req, res) => {
 
         const newWhitelist = updateWL ? String(payload.whitelist || "") : (profile.whitelist || (profile.sellConfig && profile.sellConfig.whitelist) || "");
         const newForceSellList = updateFS ? String(payload.forceSellList || "") : ((profile.sellConfig && profile.sellConfig.forceSellList) || profile.forceSellList || "");
-        const newCMRules = updateCM ? payload.cmarketRules : (Array.isArray(profile.cmarketAutoSellConfig?.rules) ? profile.cmarketAutoSellConfig.rules : []);
+        const newCMRules = updateCM ? mergeCMarketRulesDedup([], payload.cmarketRules) : (Array.isArray(profile.cmarketAutoSellConfig?.rules) ? profile.cmarketAutoSellConfig.rules : []);
+        const mergeCMTargets = payload.cmarketCopyMode !== "replace";
 
-        const applyRecordToProfile = (p) => {
+        const applyRecordToProfile = (p, mergeCM = false) => {
           if (!p.sellConfig) p.sellConfig = {};
           if (updateWL) {
             p.whitelist = newWhitelist;
@@ -12230,13 +12252,17 @@ const server = http.createServer(async (req, res) => {
             p.sellConfig.forceSellList = newForceSellList;
           }
           if (updateCM) {
-            p.cmarketAutoSellConfig = Object.assign({}, p.cmarketAutoSellConfig || {}, { rules: JSON.parse(JSON.stringify(newCMRules)) });
+            const existingRules = Array.isArray(p.cmarketAutoSellConfig?.rules) ? p.cmarketAutoSellConfig.rules : [];
+            const nextRules = mergeCM
+              ? mergeCMarketRulesDedup(existingRules, JSON.parse(JSON.stringify(newCMRules)))
+              : JSON.parse(JSON.stringify(newCMRules));
+            p.cmarketAutoSellConfig = Object.assign({}, p.cmarketAutoSellConfig || {}, { rules: nextRules });
           }
         };
 
-        applyRecordToProfile(profile);
+        applyRecordToProfile(profile, false);
 
-        const syncToLiveClient = async (p, syncWL, syncFS, syncCM) => {
+        const syncToLiveClient = async (p, syncWL, syncFS, syncCM, mergeCM = false) => {
           if (!p.debugPort) return;
           const sellPatch = {};
           if (syncWL) sellPatch.whitelist = newWhitelist;
@@ -12259,11 +12285,31 @@ const server = http.createServer(async (req, res) => {
               }
               if (${Boolean(syncCM)}) {
                 const rules = ${JSON.stringify(newCMRules)};
+                const shouldMerge = ${Boolean(mergeCM)};
                 if (typeof window.__setCMarketAutoSellConfig === 'function') {
-                  window.__setCMarketAutoSellConfig({ rules }, false);
+                  window.__setCMarketAutoSellConfig({ rules }, shouldMerge);
                 } else {
                   if (!window.__cmarketAutoSellConfig) window.__cmarketAutoSellConfig = { enabled: false, rules: [] };
-                  window.__cmarketAutoSellConfig.rules = rules;
+                  if (shouldMerge) {
+                    const out = [];
+                    const seenIds = new Set();
+                    const seenNames = new Set();
+                    const addIfNew = (r) => {
+                      if (!r || typeof r !== 'object') return;
+                      const idKey = String(r.itemId || '').trim().toLowerCase();
+                      const nmKey = String(r.itemName || '').trim().toLowerCase();
+                      if (!idKey && !nmKey) return;
+                      if ((idKey && seenIds.has(idKey)) || (nmKey && seenNames.has(nmKey))) return;
+                      if (idKey) seenIds.add(idKey);
+                      if (nmKey) seenNames.add(nmKey);
+                      out.push(r);
+                    };
+                    (window.__cmarketAutoSellConfig.rules || []).forEach(addIfNew);
+                    rules.forEach(addIfNew);
+                    window.__cmarketAutoSellConfig.rules = out;
+                  } else {
+                    window.__cmarketAutoSellConfig.rules = rules;
+                  }
                   try { localStorage.setItem('pelican_nc_cmarket_autosell', JSON.stringify(window.__cmarketAutoSellConfig)); } catch (_) {}
                 }
               }
@@ -12274,23 +12320,24 @@ const server = http.createServer(async (req, res) => {
           await evalProfilePort(p.debugPort, code, 5000).catch(() => {});
         };
 
-        await syncToLiveClient(profile, updateWL, updateFS, updateCM);
+        await syncToLiveClient(profile, updateWL, updateFS, updateCM, false);
 
         let copiedTargetsCount = 0;
         if (Array.isArray(payload.targets) && payload.targets.length > 0) {
           for (const targetId of payload.targets) {
             const targetProfile = profiles.find(p => p.id === targetId);
             if (targetProfile) {
-              applyRecordToProfile(targetProfile);
-              await syncToLiveClient(targetProfile, updateWL, updateFS, updateCM);
-              if (targetProfile.id !== profile.id) copiedTargetsCount++;
+              const isOther = targetProfile.id !== profile.id;
+              applyRecordToProfile(targetProfile, isOther && mergeCMTargets);
+              await syncToLiveClient(targetProfile, updateWL, updateFS, updateCM, isOther && mergeCMTargets);
+              if (isOther) copiedTargetsCount++;
             }
           }
         }
 
         saveProfiles(profiles);
         const listLabel = mode === "cmarket"
-          ? "List ตลาดกลาง (Auto-Sell)"
+          ? `List ตลาดกลาง (Auto-Sell · ${mergeCMTargets ? "เพิ่มเฉพาะที่ยังไม่มี ไม่ซ้ำ" : "เขียนทับทั้งหมด"})`
           : (updateFS && !updateWL ? "รายการบังคับขาย NPC" : (updateWL && !updateFS ? "Whitelist (ห้ามขาย)" : "Whitelist + บังคับขาย NPC + List ตลาดกลาง"));
         sendJSON({
           success: true,
@@ -14656,23 +14703,26 @@ public class PmFocus {
         const appliedProfiles = [];
         const failedProfiles = [];
         const presetConfig = sanitizePresetBotConfig(preset.config || {});
+        const mergeCMarketRules = data.cmarketCopyMode !== "replace";
 
         for (const pId of targetIds) {
           const profile = profiles.find(p => p.id === pId);
           if (!profile) continue;
 
-          // Update offline-persisted targetMap/whitelist/forceSell/cmarket records in Manager profile (NEVER touch account/password/charName/serverName!)
-          const nextMap = presetConfig.targetFarmMap || presetConfig.targetMap;
-          if (nextMap && nextMap !== "auto") {
-            profile.targetMap = nextMap;
-          }
+          // Update offline-persisted whitelist/forceSell/cmarket records in Manager profile (NEVER touch targetMap or account/password/charName/serverName!)
           if (presetConfig.sellConfig && typeof presetConfig.sellConfig === "object") {
             profile.sellConfig = Object.assign({}, profile.sellConfig || {}, presetConfig.sellConfig);
             if (typeof presetConfig.sellConfig.whitelist === "string") profile.whitelist = presetConfig.sellConfig.whitelist;
             if (typeof presetConfig.sellConfig.forceSellList === "string") profile.forceSellList = presetConfig.sellConfig.forceSellList;
           }
           if (presetConfig.cmarketAutoSellConfig && typeof presetConfig.cmarketAutoSellConfig === "object") {
-            profile.cmarketAutoSellConfig = JSON.parse(JSON.stringify(presetConfig.cmarketAutoSellConfig));
+            const clonedCm = JSON.parse(JSON.stringify(presetConfig.cmarketAutoSellConfig));
+            const existingRules = Array.isArray(profile.cmarketAutoSellConfig?.rules) ? profile.cmarketAutoSellConfig.rules : [];
+            const incomingRules = Array.isArray(clonedCm.rules) ? clonedCm.rules : [];
+            clonedCm.rules = mergeCMarketRules
+              ? mergeCMarketRulesDedup(existingRules, incomingRules)
+              : mergeCMarketRulesDedup([], incomingRules);
+            profile.cmarketAutoSellConfig = clonedCm;
           }
 
           // Send importAllBotSettings to the running game (POST: the config is too long for a URL)
@@ -14690,7 +14740,7 @@ public class PmFocus {
                   userEditedAt: window.__authConfig.userEditedAt,
                   serverEditedAt: window.__authConfig.serverEditedAt
                 } : null;
-                const res = window.importAllBotSettings(${JSON.stringify(presetConfig)});
+                const res = window.importAllBotSettings(${JSON.stringify(presetConfig)}, { mergeCMarketRules: ${Boolean(mergeCMarketRules)} });
                 if (beforeAuth && window.__authConfig) {
                   for (const [k, v] of Object.entries(beforeAuth)) {
                     if (v !== undefined) window.__authConfig[k] = v;
@@ -14704,7 +14754,7 @@ public class PmFocus {
                   if (window.__gatherConfig) localStorage.setItem('pelican_nc_gather_cfg', JSON.stringify(window.__gatherConfig));
                   if (window.__ncPerfConfig) localStorage.setItem('pelican_nc_perf_cfg', JSON.stringify(window.__ncPerfConfig));
                 } catch (e) {}
-                return Object.assign({}, res, { effectiveTargetMap: window.__targetFarmMap || null });
+                return Object.assign({}, res);
               } else {
                 return { success: false, error: 'กรุณาอัปเดตสคริปต์บอทเป็นเวอร์ชันล่าสุดก่อน (importAllBotSettings not ready)' };
               }
@@ -14712,9 +14762,6 @@ public class PmFocus {
 
             const r = await evalProfilePort(profile.debugPort, codeToRun, 8000);
             if (r && r.success && r.result && r.result.success) {
-              if (r.result.effectiveTargetMap && r.result.effectiveTargetMap !== "auto") {
-                profile.targetMap = r.result.effectiveTargetMap;
-              }
               appliedProfiles.push(profile.name || profile.id);
             }
             else failedProfiles.push(`${profile.name || profile.id} (${(r && r.result && r.result.error) || (r && r.error) || 'จอออฟไลน์'})`);
@@ -14729,7 +14776,7 @@ public class PmFocus {
           appliedCount: appliedProfiles.length,
           appliedProfiles: appliedProfiles,
           failedProfiles,
-          message: `คัดลอกการตั้งค่า "${preset.name}" ไปยัง ${appliedProfiles.length} จอเรียบร้อยแล้ว (คง ID/รหัส/ชื่อตัว/เซิร์ฟเดิมของทุกจอ)`
+          message: `คัดลอกการตั้งค่า "${preset.name}" ไปยัง ${appliedProfiles.length} จอเรียบร้อยแล้ว (คงแมพฟาร์มประจำ และ ID/รหัส/ชื่อตัว/เซิร์ฟเดิมของทุกจอ)`
             + (failedProfiles.length ? `\n\n⚠️ ส่งไม่สำเร็จ ${failedProfiles.length} จอ (ต้องเปิดจอเกมไว้ก่อน):\n• ${failedProfiles.join('\n• ')}` : ''),
           error: appliedProfiles.length ? undefined : `ส่งการตั้งค่าไม่สำเร็จ — ต้องเปิดจอเกมไว้ก่อน:\n• ${failedProfiles.join('\n• ')}`
         });

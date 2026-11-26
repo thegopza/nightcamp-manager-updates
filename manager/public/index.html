@@ -1556,8 +1556,22 @@
         <button class="modal-close" id="copy-to-modal-close-btn">&times;</button>
       </div>
 
-      <div style="background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 8px; padding: 10px 12px; margin: 12px 0; font-size: 11.5px; color: #a7f3d0; line-height: 1.45;">
-        🔒 <b>ปลอดภัย 100%:</b> ระบบจะคัดลอกเฉพาะการตั้งค่าบอท (แมพฟาร์ม, Upgrade BOT AI, ตั้งค่ายา, ขายขยะ/Whitelist ห้ามขาย/บังคับขาย NPC, List ตลาดกลาง, Plan Script) โดย <b>คง User ID, รหัสผ่าน, ชื่อตัวละคร และเซิร์ฟเวอร์เดิมของแต่ละจอไว้เสมอ</b> ไม่เขียนทับเด็ดขาด
+      <div style="background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 8px; padding: 10px 12px; margin: 12px 0 8px 0; font-size: 11.5px; color: #a7f3d0; line-height: 1.45;">
+        🔒 <b>ปลอดภัย 100%:</b> ระบบจะคัดลอกเฉพาะการตั้งค่าบอท (Upgrade BOT AI, ตั้งค่ายา, ขายขยะ/Whitelist ห้ามขาย/บังคับขาย NPC, List ตลาดกลาง, เก็บเกี่ยว, Plan Script) โดย <b>คงแมพฟาร์มประจำ, User ID, รหัสผ่าน, ชื่อตัวละคร และเซิร์ฟเวอร์เดิมของแต่ละจอไว้เสมอ</b> ไม่เขียนทับเด็ดขาด
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:4px; padding:8px 10px; margin-bottom:10px; border-radius:8px; background:rgba(13,148,136,0.12); border:1px solid rgba(45,212,191,0.32); font-size:11px;">
+        <div style="font-weight:700; color:#5eead4;">🏪 วิธีคัดลอกรายการ Auto-Sell ตลาดกลาง:</div>
+        <div style="display:flex; gap:14px; flex-wrap:wrap;">
+          <label style="display:flex; align-items:center; gap:5px; color:#86efac; cursor:pointer; font-weight:700;">
+            <input type="radio" name="preset-cm-copy-mode" value="merge" checked style="accent-color:#10b981;">
+            <span>➕ เพิ่มเฉพาะที่ยังไม่มี (ไม่ทับ/ไม่ซ้ำ)</span>
+          </label>
+          <label style="display:flex; align-items:center; gap:5px; color:#fde047; cursor:pointer; font-weight:600;">
+            <input type="radio" name="preset-cm-copy-mode" value="replace" style="accent-color:#f59e0b;">
+            <span>🔄 เขียนทับทั้งหมด</span>
+          </label>
+        </div>
       </div>
 
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
@@ -1748,6 +1762,19 @@
 
       <!-- COPY TO TARGET PANEL (Collapsible) -->
       <div id="card-wl-copy-panel" style="display: none; background: rgba(168, 85, 247, 0.08); border: 1px solid rgba(168, 85, 247, 0.25); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px;">
+        <div id="card-wl-cm-copy-mode-row" style="display: none; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; padding: 6px 8px; margin-bottom: 8px; border-radius: 6px; background: rgba(13, 148, 136, 0.14); border: 1px solid rgba(45, 212, 191, 0.32); font-size: 11px;">
+          <span style="font-weight: 700; color: #5eead4;">🏪 วิธีคัดลอก List ตลาดกลาง:</span>
+          <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+            <label style="display: flex; align-items: center; gap: 4px; color: #86efac; cursor: pointer; font-weight: 700;">
+              <input type="radio" name="card-wl-cm-copy-mode" value="merge" checked style="accent-color: #10b981;">
+              <span>➕ เพิ่มเฉพาะที่ยังไม่มี (ไม่ทับ/ไม่ซ้ำ)</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 4px; color: #fde047; cursor: pointer; font-weight: 600;">
+              <input type="radio" name="card-wl-cm-copy-mode" value="replace" style="accent-color: #f59e0b;">
+              <span>🔄 เขียนทับทั้งหมด</span>
+            </label>
+          </div>
+        </div>
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
           <span id="card-wl-copy-label" style="font-size: 11.5px; font-weight: 600; color: #d8b4fe;">เลือกจอที่ต้องการคัดลอกรายการนี้ไปใช้:</span>
           <div style="display: flex; gap: 4px;">
@@ -1987,12 +2014,12 @@
   </div>
 
   <script src="image_board_solver.js?v=nc1.9.4"></script>
-  <script src="app.js?v=nc2.3.20"></script>
+  <script src="app.js?v=nc2.3.21"></script>
   <script src="builder_module.js?v=nc1.9.6"></script>
   <script src="gear_builder.js?v=nc2.3.19"></script>
   <script src="patcher_module.js?v=nc1.9.4"></script>
   <script src="bot_update.js?v=nc2.3.17"></script>
-  <script src="config_copy.js?v=nc2.3.7"></script>
+  <script src="config_copy.js?v=nc2.3.21"></script>
   <script src="party_manager.js?v=nc2.3.18"></script>
   <script src="card_manager.js?v=nc2.3.2"></script>
   <script src="jail_manager.js?v=nc1.9.4"></script>
@@ -2000,7 +2027,7 @@
   <script src="fleet_dashboard.js?v=nc1.9.4"></script>
   <script src="support_chat.js?v=nc1.9.4"></script>
   <script src="announcements.js?v=nc1.9.4"></script>
-  <script src="update_log.js?v=nc2.3.20"></script>
+  <script src="update_log.js?v=nc2.3.21"></script>
   <!-- FLOATING IN-GAME BOT HUDS CONTAINER -->
   <div id="web-huds-container"></div>
 

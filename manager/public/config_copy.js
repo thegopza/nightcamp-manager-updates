@@ -65,8 +65,21 @@
         <div class="cc-head"><b>📋 คัดลอกการตั้งค่าบอทไปจออื่น</b><button type="button" class="cc-x" data-cc="close">✕</button></div>
         <div class="cc-src">จาก: <b>${esc(sourceName)}</b>${sourceSrv && sourceSrv.key !== 'auto' ? ` <span style="font-size:10.5px; color:#fde68a;">(${esc(sourceSrv.icon)} ${esc(sourceSrv.label)})</span>` : ''}${!sourceOnline ? ` <span style="font-size:10.5px; color:#fca5a5;">(⚪ ออฟไลน์ — เปิดจอต้นทางก่อนคัดลอก)</span>` : ''}</div>
         <div class="cc-info">
-          คัดลอกทุกอย่าง: Smart Auto-Quest, Upgrade BOT AI (ใช้ตั๋ว Premium / รับ Event), Auto-Respawn, Smart Gear, ซ่อมของ, แมพฟาร์ม, Plan Script, ตั้งค่ายา, ขายของ NPC + <b>Whitelist (ห้ามขาย)</b> + <b>บังคับขาย NPC</b> + ฝากคลัง, <b>รายการขายตลาดกลาง (List ตลาดกลาง)</b>, กราฟิก/ประหยัดไฟ, Auto-Login (เปิด/ปิด, เริ่มบอทต่อ)<br>
-          <span class="no">🔒 ไม่คัดลอก: User ID, รหัสผ่าน, ชื่อตัวละคร และเซิร์ฟเวอร์ (จอปลายทางคงของเดิม 100%)</span>
+          คัดลอกทุกอย่าง: Smart Auto-Quest, Upgrade BOT AI (ใช้ตั๋ว Premium / รับ Event), Auto-Respawn, Smart Gear, ซ่อมของ, Plan Script, ตั้งค่ายา, ขายของ NPC + <b>Whitelist (ห้ามขาย)</b> + <b>บังคับขาย NPC</b> + ฝากคลัง, <b>รายการขายตลาดกลาง (List ตลาดกลาง)</b>, <b>เก็บเกี่ยว (Gathering)</b>, กราฟิก/ประหยัดไฟ, Auto-Login (เปิด/ปิด, เริ่มบอทต่อ)<br>
+          <span class="no">🔒 ไม่คัดลอก: แมพฟาร์มประจำ, User ID, รหัสผ่าน, ชื่อตัวละคร และเซิร์ฟเวอร์ (จอปลายทางคงของเดิม 100%)</span>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:4px; padding:7px 10px; border-radius:8px; background:rgba(13,148,136,0.12); border:1px solid rgba(45,212,191,0.32); font-size:11px;">
+          <div style="font-weight:700; color:#5eead4;">🏪 วิธีคัดลอกรายการ Auto-Sell ตลาดกลาง:</div>
+          <div style="display:flex; gap:12px; flex-wrap:wrap;">
+            <label style="display:flex; align-items:center; gap:5px; color:#86efac; cursor:pointer; font-weight:700;">
+              <input type="radio" name="cc-cm-mode" value="merge" checked style="accent-color:#10b981;">
+              <span>➕ เพิ่มเฉพาะที่ยังไม่มี (ไม่ทับ/ไม่ซ้ำ)</span>
+            </label>
+            <label style="display:flex; align-items:center; gap:5px; color:#fde047; cursor:pointer; font-weight:600;">
+              <input type="radio" name="cc-cm-mode" value="replace" style="accent-color:#f59e0b;">
+              <span>🔄 เขียนทับทั้งหมด</span>
+            </label>
+          </div>
         </div>
         <div class="cc-tools">
           <span>เลือกจอปลายทาง</span>
@@ -125,10 +138,11 @@
         if (!targets.length) return;
         goBtn.disabled = true;
         goBtn.textContent = '⏳ กำลังคัดลอก...';
+        const cmarketCopyMode = el.querySelector('input[name="cc-cm-mode"]:checked')?.value === 'replace' ? 'replace' : 'merge';
         let r = null;
         try {
           const res = await fetch(`/api/profiles/${encodeURIComponent(sourceId)}/copy-config`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ targets })
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ targets, cmarketCopyMode })
           });
           r = await res.json();
         } catch (err) {
