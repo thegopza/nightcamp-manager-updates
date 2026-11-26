@@ -7536,12 +7536,50 @@ const botAutoUpdater = createBotAutoUpdater({
   dataDir: path.join(__dirname, "data")
 });
 // Auto-login / auto-register: game clients get their profile's ID + password (manager/auth_sync.js)
+async function ensureScreenProxyForRegister(profile) {
+  if (typeof screenProxy === "undefined" || !screenProxy || !screenProxy.isEnabled()) {
+    return { ok: true, proxied: false };
+  }
+  const profileId = profile?.id;
+  if (!profileId) return { ok: false, error: "INVALID_PROFILE" };
+  try {
+    const acquired = await screenProxy.acquireForProfile(profileId, { debugPort: profile.debugPort || 48876 });
+    if (!acquired || !acquired.lease || !acquired.lease.assigned) {
+      return { ok: false, error: acquired?.error || "ไม่สามารถจอง Proxy IP สำหรับสมัครไอดีได้" };
+    }
+    if (acquired.lease.useHomeIp || acquired.lease.directHomeIp) {
+      return { ok: true, proxied: false, useHomeIp: true, ip: acquired.lease.ip || "IP บ้าน" };
+    }
+    if (
+      typeof isBrowserMode === "function" &&
+      isBrowserMode() &&
+      typeof browserMode !== "undefined" &&
+      browserMode &&
+      browserMode.isOpen(profileId) &&
+      typeof browserMode.hasProxyContext === "function" &&
+      !browserMode.hasProxyContext(profileId)
+    ) {
+      const applied = await browserMode.applyProxyModeToOpenWindows({ onlyProfileIds: [profileId] });
+      const migrated = Number(applied?.switched || 0) > 0;
+      if (!browserMode.hasProxyContext(profileId)) {
+        return { ok: false, error: "ยังสลับหน้าต่างเข้า Proxy BrowserContext ไม่สำเร็จ" };
+      }
+      return { ok: true, proxied: true, migrated, ip: acquired.lease.ip || acquired.lease.proxyHost || "" };
+    }
+    return { ok: true, proxied: true, migrated: false, ip: acquired.lease.ip || acquired.lease.proxyHost || "" };
+  } catch (e) {
+    return { ok: false, error: e.message || "PROXY_REGISTER_PREPARE_FAILED" };
+  }
+}
+
 const authSync = createAuthSync({
   loadProfiles: loadAllRuntimeProfiles,
   saveProfiles: saveAllRuntimeProfiles,
   evalProfilePort,
   credentials,
   proxyRegister,
+  isScreenProxyEnabled: () => Boolean(typeof screenProxy !== "undefined" && screenProxy && screenProxy.isEnabled()),
+  ensureScreenProxyForRegister,
   requireOnlineWindowForQueue: true,
   waveOptions: {
     minBatchSize: 10,
@@ -10507,7 +10545,8 @@ const server = http.createServer(async (req, res) => {
         let openApplied = null;
         if (updated.enabled) {
           await syncScreenProxyForOpenProfiles().catch(() => {});
-          if ((data.applyToOpen || data.applyToOpenWindows) && isBrowserMode()) {
+          const shouldApplyOpen = data.applyToOpen !== false && data.applyToOpenWindows !== false;
+          if (shouldApplyOpen && isBrowserMode()) {
             openApplied = await browserMode.applyProxyModeToOpenWindows().catch(err => ({ error: err.message }));
           }
         } else {

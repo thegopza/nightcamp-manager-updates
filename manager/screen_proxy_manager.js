@@ -22,6 +22,9 @@ function isGameOrIpCheckHost(hostname) {
   return (
     h === 'nightcamp.app' ||
     h.endsWith('.nightcamp.app') ||
+    h.endsWith('.cloudfront.net') ||
+    h === 'challenges.cloudflare.com' ||
+    h.endsWith('.challenges.cloudflare.com') ||
     h === 'api.ipify.org'
   );
 }
@@ -2093,7 +2096,7 @@ function createScreenProxyManager({ dataDir, solver, loadProfiles, assetCache: p
     };
   }
 
-  const EXPECTED_DAEMON_VERSION = 3;
+  const EXPECTED_DAEMON_VERSION = 4;
 
   async function ensureDaemonRunning() {
     if (!usePersistentDaemon) return false;

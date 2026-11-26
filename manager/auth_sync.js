@@ -512,6 +512,8 @@ function createAuthSync({
   evalProfilePort,
   credentials,
   proxyRegister,
+  isScreenProxyEnabled,
+  ensureScreenProxyForRegister,
   requireOnlineWindowForQueue = false,
   waveOptions = {}
 }) {
@@ -1062,6 +1064,28 @@ function createAuthSync({
         return;
       }
 
+      // If per-screen proxy (แยก IP) is enabled, guarantee this screen has an active proxy lease
+      // AND is running inside an isolated proxy BrowserContext BEFORE sending the register command (Fail-Closed).
+      let screenProxyRegisterIp = '';
+      if (typeof isScreenProxyEnabled === 'function' && isScreenProxyEnabled() && typeof ensureScreenProxyForRegister === 'function') {
+        const pxReady = await ensureScreenProxyForRegister(profile);
+        if (!pxReady || !pxReady.ok) {
+          const errMsg = '🛡️ รอจับคู่ Proxy แยกจอก่อนสมัครไอดี: ' + (pxReady?.error || 'ไม่มี Proxy ว่าง');
+          if (profile.registerError !== errMsg) {
+            updateProfile(profile.id, { registerError: errMsg });
+          }
+          console.warn(`[AuthSync] 🛡️ ${profile.name}: บล็อคการสมัครผ่านเน็ตบ้าน (${pxReady?.error || 'proxy not ready'})`);
+          return;
+        }
+        if (pxReady.migrated) {
+          console.log(`[AuthSync] 🛡️🔄 ${profile.name}: ย้ายหน้าต่างเข้าช่องทาง Proxy แยกจอ (${pxReady.ip || 'assigned'}) เรียบร้อย — รอรอบถัดไปเพื่อส่งคำสั่งสมัคร`);
+          return;
+        }
+        if (pxReady.proxied && pxReady.ip) {
+          screenProxyRegisterIp = String(pxReady.ip);
+        }
+      }
+
       const cred = getCandidateCreds(profile);
       const pushRes = await evalProfilePort(profile.debugPort, pushJs({
         enabled: true, autoResumeBot: true, username: cred.username, password: cred.password,
@@ -1083,8 +1107,11 @@ function createAuthSync({
         console.log(`[AuthSync] 🛡️ ${profile.name}: ยกเลิกการสร้างไอดีใหม่ เพราะพบไอดีผู้ใช้ "${pushRes.result.username}" ในเมนูบอท`);
         return;
       }
-      updateProfile(profile.id, { lastAuthSyncPushAt: Date.now() });
-      console.log(`[AuthSync] 📝 ${profile.name}: ส่งคำสั่งสมัครบัญชี "${cred.username}" ไปที่จอ`);
+      updateProfile(profile.id, {
+        ...(profile.registerError && profile.registerError.startsWith('🛡️') ? { registerError: '' } : {}),
+        lastAuthSyncPushAt: Date.now()
+      });
+      console.log(`[AuthSync] ${screenProxyRegisterIp ? '🛡️📝' : '📝'} ${profile.name}: ส่งคำสั่งสมัครบัญชี "${cred.username}" ไปที่จอ${screenProxyRegisterIp ? ` (ผ่าน Proxy แยกจอ ${screenProxyRegisterIp})` : ''}`);
       return;
     }
 
@@ -1142,6 +1169,14 @@ function createAuthSync({
       (!cur.userToggledAt && profile.autoLoginEnabled !== undefined && cur.enabled !== (profile.autoLoginEnabled !== false)) ||
       (profile.autoResumeBot !== undefined && cur.autoResumeBot !== Boolean(profile.autoResumeBot))
     )) {
+      // If per-screen proxy is enabled and we are pushing new credentials (which may auto-switch to signup if account is new),
+      // ensure the screen is running in its isolated proxy BrowserContext first so signup/login never leaks Home IP.
+      if (profile.loginSyncPending && typeof isScreenProxyEnabled === 'function' && isScreenProxyEnabled() && typeof ensureScreenProxyForRegister === 'function') {
+        const pxReady = await ensureScreenProxyForRegister(profile);
+        if (!pxReady || !pxReady.ok || pxReady.migrated) {
+          return;
+        }
+      }
       const delivered = await evalProfilePort(profile.debugPort, pushJs({
         enabled: profile.autoLoginEnabled !== false,
         preserveUserToggle: !profile.loginSyncPending,

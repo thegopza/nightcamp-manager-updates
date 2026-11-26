@@ -9,7 +9,7 @@ const fs = require('fs');
 const path = require('path');
 const { createAssetCache } = require('./asset_cache');
 
-const DAEMON_VERSION = 3;
+const DAEMON_VERSION = 4;
 const DEFAULT_CONTROL_PORT = Number(process.env.NIGHTCAMP_TUNNEL_DAEMON_PORT || process.env.PELICAN_TUNNEL_DAEMON_PORT) || 18991;
 
 function isJailOnlyBlockRecord(obj) {
@@ -47,6 +47,9 @@ function isGameOrIpCheckHost(hostname) {
   return (
     h === 'nightcamp.app' ||
     h.endsWith('.nightcamp.app') ||
+    h.endsWith('.cloudfront.net') ||
+    h === 'challenges.cloudflare.com' ||
+    h.endsWith('.challenges.cloudflare.com') ||
     h === 'api.ipify.org'
   );
 }

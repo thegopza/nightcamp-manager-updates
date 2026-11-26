@@ -2000,7 +2000,7 @@
   <script src="fleet_dashboard.js?v=nc1.9.4"></script>
   <script src="support_chat.js?v=nc1.9.4"></script>
   <script src="announcements.js?v=nc1.9.4"></script>
-  <script src="update_log.js?v=nc2.3.9"></script>
+  <script src="update_log.js?v=nc2.3.10"></script>
   <!-- FLOATING IN-GAME BOT HUDS CONTAINER -->
   <div id="web-huds-container"></div>
 
@@ -2655,6 +2655,9 @@
 
       <!-- Modal Body -->
       <div style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding-right: 4px;">
+        <div id="proxy-modal-screen-proxy-banner" style="display: none; background: rgba(16, 185, 129, 0.14); border: 1px solid rgba(52, 211, 153, 0.45); border-radius: 10px; padding: 10px 14px; font-size: 12px; color: #a7f3d0; line-height: 1.5;">
+          🛡️ <strong>ระบบแยก IP รายจอกำลังเปิดใช้งานอยู่:</strong> ขณะสมัครไอดีใหม่ของแต่ละจอ ระบบจะวิ่งผ่าน <strong>Proxy IP แยกจอ</strong> ของจอนั้นโดยอัตโนมัติ (Fail-Closed ไม่รั่วเน็ตบ้าน และไม่เสียค่าสมัครแยก 0.1 ส่วนบุญ)
+        </div>
         
         <!-- Highlight Notice Box -->
         <div style="background: rgba(14, 165, 233, 0.08); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 10px; padding: 12px 14px;">
@@ -2849,11 +2852,11 @@
           <div style="display: flex; flex-direction: column; gap: 6px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.06);">
             <label style="display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: #a7f3d0; cursor: pointer;">
               <input type="checkbox" id="sp-only-game-traffic" checked style="accent-color: #10b981;">
-              <span>⚡ <b>Split-Tunnel:</b> ส่งเฉพาะ Traffic เกม (`*.nightcamp.app`) ผ่าน Proxy (เชื่อมต่อไวและประหยัดเน็ตสูงสุด)</span>
+              <span>⚡ <b>Split-Tunnel:</b> ส่งเฉพาะ Traffic เกม &amp; สมัครไอดี (<code>*.nightcamp.app</code> + <code>*.cloudfront.net</code>) ผ่าน Proxy (รวมสมัครไอดีอัตโนมัติ + ประหยัดเน็ตสูงสุด)</span>
             </label>
             <label style="display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: #fde68a; cursor: pointer;">
               <input type="checkbox" id="sp-local-asset-cache" checked style="accent-color: #f59e0b;">
-              <span>📦 <b>Local Asset Cache:</b> โหลดรูป/เสียง/ฟอนต์ (`.png`, `.webp`, `.mp3`, `.woff2`) จาก Cache ในเครื่อง (ไม่เปลืองเน็ต Proxy เลย)</span>
+              <span>📦 <b>Local Asset Cache:</b> โหลดรูป/เสียง/สคริปต์ (<code>/cas/*.js</code>, <code>.png</code>, <code>.webp</code>, <code>.mp3</code>, <code>.woff2</code>) จาก Cache ในเครื่อง (ไม่เปลืองเน็ต Proxy เลย)</span>
             </label>
           </div>
         </div>

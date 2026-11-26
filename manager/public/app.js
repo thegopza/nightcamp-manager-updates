@@ -3946,7 +3946,14 @@ function updateProxyRegisterToolbarBtn(enabled) {
   const btn = document.getElementById("btn-toggle-proxy-register");
   const lbl = document.getElementById("lbl-toggle-proxy-register");
   if (!btn) return;
-  if (enabled) {
+  const viaScreenProxy = Boolean(typeof currentScreenProxySettings !== "undefined" && currentScreenProxySettings && currentScreenProxySettings.enabled);
+  if (viaScreenProxy) {
+    if (lbl) lbl.textContent = "Proxy สมัคร: ผ่านแยก IP";
+    btn.style.borderColor = "rgba(56, 189, 248, 0.55)";
+    btn.style.background = "rgba(14, 165, 233, 0.18)";
+    btn.style.color = "#7dd3fc";
+    btn.title = "ระบบแยก IP รายจอเปิดใช้งานอยู่ — การสมัครไอดีใหม่ของแต่ละจอจะใช้ Proxy IP ของจอนั้นให้อัตโนมัติ (ไม่เสียค่าสมัครแยก)";
+  } else if (enabled) {
     if (lbl) lbl.textContent = "Proxy สมัคร: เปิด";
     btn.style.borderColor = "rgba(14, 165, 233, 0.5)";
     btn.style.background = "rgba(14, 165, 233, 0.15)";
@@ -3957,7 +3964,7 @@ function updateProxyRegisterToolbarBtn(enabled) {
     btn.style.borderColor = "rgba(148, 163, 184, 0.3)";
     btn.style.background = "rgba(148, 163, 184, 0.08)";
     btn.style.color = "#94a3b8";
-    btn.title = "ระบบ Proxy สมัครไอดีปิดอยู่ — คลิกเพื่อดูเงื่อนไขและเปิดใช้งาน";
+    btn.title = "ระบบ Proxy สมัครไอดีปิดอยู่ — หากเปิดระบบแยก IP รายจอ จะใช้ Proxy แยกจอสมัครไอดีให้อัตโนมัติ";
   }
 }
 window.updateProxyRegisterToolbarBtn = updateProxyRegisterToolbarBtn;
@@ -3992,6 +3999,11 @@ function openProxyRegisterModal() {
       confirmBtn.style.background = "#0284c7";
       confirmBtn.style.borderColor = "#38bdf8";
     }
+  }
+
+  const spBanner = document.getElementById("proxy-modal-screen-proxy-banner");
+  if (spBanner) {
+    spBanner.style.display = Boolean(typeof currentScreenProxySettings !== "undefined" && currentScreenProxySettings && currentScreenProxySettings.enabled) ? "block" : "none";
   }
 
   fetchProxyRegisterSettings();
@@ -4233,13 +4245,16 @@ function updateScreenProxyToolbarBtn(summary) {
     btn.style.borderColor = "rgba(168, 85, 247, 0.55)";
     btn.style.background = "rgba(168, 85, 247, 0.18)";
     btn.style.color = "#e9d5ff";
-    btn.title = `ระบบแยก IP รายจอเปิดใช้งานอยู่ (1 IP ต่อ ${maxS} จอ · จับคู่แล้ว ${activeCount} จอ จาก ${poolCount} IP) — คลิกเพื่อตั้งค่าหรือเปิด/ปิด`;
+    btn.title = `ระบบแยก IP รายจอเปิดใช้งานอยู่ (1 IP ต่อ ${maxS} จอ · จับคู่แล้ว ${activeCount} จอ จาก ${poolCount} IP · รวมการสมัครไอดีผ่าน Proxy อัตโนมัติ) — คลิกเพื่อตั้งค่าหรือเปิด/ปิด`;
   } else {
     if (lbl) lbl.textContent = `แยก IP (1:${maxS}): ปิด`;
     btn.style.borderColor = "rgba(148, 163, 184, 0.3)";
     btn.style.background = "rgba(148, 163, 184, 0.08)";
     btn.style.color = "#94a3b8";
     btn.title = `ระบบแยก IP รายจอ (1 IP ต่อ ${maxS} จอ) ปิดอยู่ — คลิกเพื่อตั้งค่ารายการ IP หรือเปิดใช้งาน`;
+  }
+  if (typeof updateProxyRegisterToolbarBtn === "function") {
+    updateProxyRegisterToolbarBtn(currentProxyRegisterEnabled);
   }
 }
 window.updateScreenProxyToolbarBtn = updateScreenProxyToolbarBtn;

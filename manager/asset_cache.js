@@ -65,6 +65,10 @@ const CDP_ASSET_FETCH_PATTERNS = [
   '*://*.nightcamp.app/assets/*.css*',
   '*://nightcamp.app/assets/*.js*',
   '*://nightcamp.app/assets/*.css*',
+  '*://*.nightcamp.app/cas/*.js*',
+  '*://*.nightcamp.app/cas/*.css*',
+  '*://nightcamp.app/cas/*.js*',
+  '*://nightcamp.app/cas/*.css*',
   '*://cdnjs.cloudflare.com/ajax/libs/*.js*',
   '*://*.nightcamp.app/*.png*',
   '*://*.nightcamp.app/*.webp*',
@@ -135,7 +139,8 @@ function isCacheableAssetUrl(rawUrl) {
   if (ext === '.js' || ext === '.css') {
     const h = parsed.hostname.toLowerCase();
     if (h === 'cdnjs.cloudflare.com') return lowerPath.startsWith('/ajax/libs/');
-    // Only cache immutable hashed Vite bundles under /assets/ (never cache root bot.js or dynamic scripts)
+    // Only cache immutable hashed bundles under /assets/ or /cas/<hash>.js|css (never cache root bot.js or dynamic scripts)
+    if (lowerPath.startsWith('/cas/') && /^\/cas\/[a-f0-9]{10,}\.(js|css)$/i.test(lowerPath)) return true;
     return lowerPath.startsWith('/assets/') && /-[a-z0-9_]{6,}\.(js|css)$/i.test(lowerPath);
   }
   return true;
