@@ -14701,6 +14701,7 @@ public class PmFocus {
                   if (window.__sellConfig) localStorage.setItem('pelican_nc_sell_cfg', JSON.stringify(window.__sellConfig));
                   if (window.__cmarketAutoSellConfig) localStorage.setItem('pelican_nc_cmarket_autosell', JSON.stringify(window.__cmarketAutoSellConfig));
                   if (window.__potionConfig) localStorage.setItem('pelican_potion_cfg', JSON.stringify(window.__potionConfig));
+                  if (window.__gatherConfig) localStorage.setItem('pelican_nc_gather_cfg', JSON.stringify(window.__gatherConfig));
                   if (window.__ncPerfConfig) localStorage.setItem('pelican_nc_perf_cfg', JSON.stringify(window.__ncPerfConfig));
                 } catch (e) {}
                 return Object.assign({}, res, { effectiveTargetMap: window.__targetFarmMap || null });

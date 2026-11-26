@@ -7491,9 +7491,8 @@ window.switchMainTab = switchMainTab;
         const tPane = hEl.querySelector("#p-nc-pane-trainer");
         if (tBtn) tBtn.style.display = nextTrainerUnlocked ? "inline-block" : "none";
         if (tBar) {
-          tBar.style.gridTemplateColumns = nextTrainerUnlocked
-            ? "0.95fr 0.78fr 0.8fr 0.85fr 0.85fr 0.9fr"
-            : "1.05fr 0.85fr 0.88fr 0.92fr 0.92fr";
+          tBar.style.display = "flex";
+          tBar.style.flexWrap = "wrap";
         }
         if (!nextTrainerUnlocked && tPane && tPane.style.display !== "none") {
           hEl.querySelector("#p-nc-tab-bot")?.click();
@@ -9104,6 +9103,98 @@ function renderNightcampFarmMapOptionsHtml(selectedMap, filterText = '') {
     .join('');
 }
 
+const NC_GATHER_ORE_CATALOG = [
+  { key: 'copper', mat: 'lf_copper', name: 'แร่ทองแดง', lv: 1, tier: 1, where: 'เหมืองหิน 1–3 · ถ้ำค้างคาว · ลานหินฟาร์ม' },
+  { key: 'quartz', mat: 'lf_quartz', name: 'ควอตซ์', lv: 3, tier: 1, where: 'เหมืองหิน 1–3 · ถ้ำค้างคาว' },
+  { key: 'iron', mat: 'lf_iron', name: 'แร่เหล็ก', lv: 6, tier: 1, where: 'เหมืองหิน 1–3 · เหมืองมด B1–B3' },
+  { key: 'amber', mat: 'lf_amber', name: 'อำพัน', lv: 10, tier: 2, where: 'ปล่องเงิน B4 · เหมืองมด B1–B3' },
+  { key: 'silver', mat: 'lf_silver', name: 'แร่เงิน', lv: 13, tier: 2, where: 'ปล่องเงิน B4–B5 · เหมืองมด B2–B3 · สุสานใต้ดิน' },
+  { key: 'moonsilver', mat: 'lf_moonsilver', name: 'เงินจันทร์', lv: 16, tier: 2, where: 'ปล่องเงิน B4–B5 · สุสานใต้ดิน 1–2' },
+  { key: 'soul', mat: 'lf_soul', name: 'ผลึกวิญญาณ', lv: 18, tier: 3, where: 'ปล่องเงิน B4–B5 · สุสานใต้ดิน 1–2' },
+  { key: 'orange', mat: 'lf_orange', name: 'ผลึกส้ม', lv: 20, tier: 3, where: 'เหมืองร้างผลึกส้ม (ผาหินแดง)' },
+  { key: 'obsidian', mat: 'lf_obsidian', name: 'ออบซิเดียน', lv: 23, tier: 3, where: 'ปล่องดาวตก 1–3 · ปล่องภูเขาไฟ · ภูเขาไฟหลับ' },
+  { key: 'fire', mat: 'lf_fireore', name: 'แร่เพลิง', lv: 25, tier: 4, where: 'ปล่องดาวตก 1–7 · ปล่องภูเขาไฟ · ภูเขาไฟหลับ' },
+  { key: 'star', mat: 'lf_starore', name: 'แร่ดาวตก', lv: 28, tier: 4, where: 'ปล่องดาวตก 1–7 · ดันเจี้ยน Lv.85+' }
+];
+
+const NC_GATHER_WOOD_CATALOG = [
+  { key: 'birch', mat: 'lf_birch', name: 'ไม้เบิร์ช', lv: 1, tier: 1, where: 'ทุ่งหญ้าแสงจันทร์' },
+  { key: 'oak', mat: 'lf_oak', name: 'ไม้โอ๊ก', lv: 1, tier: 1, where: 'ฟาร์มหิ่งห้อย · ไร่ฟักทอง · ป่าเห็ด · สุสาน' },
+  { key: 'pine', mat: 'lf_pine', name: 'ไม้สน', lv: 5, tier: 1, where: 'ป่าเห็ดเรืองแสง · ทุ่งลมหวีด · ทะเลสาบหมอกเงา' },
+  { key: 'willow', mat: 'lf_willow', name: 'ไม้หลิว', lv: 9, tier: 2, where: 'บึงกบลำธารใส · หนองพิษ' },
+  { key: 'moon', mat: 'lf_moonwood', name: 'ไม้จันทร์ 🌙', lv: 12, tier: 2, night: true, where: 'บางต้นในทุกทุ่ง เฉพาะกลางคืน (เรืองแสงฟ้า)' },
+  { key: 'charcoal', mat: 'lf_charcoal', name: 'ถ่าน (ต้นไม้ไหม้)', lv: 13, tier: 2, where: 'ป่าไหม้ถ่านคุ · ภูเขาไฟหลับ' },
+  { key: 'acacia', mat: 'lf_acacia', name: 'ไม้อะคาเซีย', lv: 17, tier: 3, where: 'ผาหินแดง' },
+  { key: 'silverwood', mat: 'lf_silverwood', name: 'ไม้เงิน', lv: 21, tier: 3, where: 'เส้นทางขึ้นเหนือ · ทะเลสาบหมอกเงา' },
+  { key: 'ancient', mat: 'lf_ancient', name: 'ไม้โบราณ', lv: 25, tier: 4, where: 'ป่าดึกดำบรรพ์' }
+];
+
+const NC_GATHER_TIER_STYLES = {
+  1: { bg: 'rgba(148,163,184,0.18)', bd: 'rgba(148,163,184,0.45)', fg: '#e2e8f0' },
+  2: { bg: 'rgba(56,189,248,0.18)', bd: 'rgba(56,189,248,0.48)', fg: '#7dd3fc' },
+  3: { bg: 'rgba(168,85,247,0.2)', bd: 'rgba(192,132,252,0.52)', fg: '#e9d5ff' },
+  4: { bg: 'rgba(245,158,11,0.22)', bd: 'rgba(251,191,36,0.55)', fg: '#fde68a' }
+};
+
+function renderWebHudGatherChipsAndPicker(hudEl, gatherCfg, summary, isCentral, pickerState) {
+  if (!hudEl) return;
+  const gCfg = (gatherCfg && typeof gatherCfg === 'object') ? gatherCfg : { ores: [], woods: [] };
+  const sum = (summary && typeof summary === 'object') ? summary : {};
+  const mineLv = Number(sum.mineLv || 1);
+  const pickTier = Number(sum.pickTier || 1);
+  const woodLv = Number(sum.woodLv || 1);
+  const axeTier = Number(sum.axeTier || 1);
+
+  const renderCat = (catKey, catalog, selectedArr, haveLv, haveTier, toolLabel, chipsSel, pickerSel, countSel, isOpen) => {
+    const selList = Array.isArray(selectedArr) ? selectedArr : [];
+    const selSet = new Set(selList);
+    const cntEl = hudEl.querySelector(countSel);
+    if (cntEl) cntEl.textContent = String(selSet.size);
+    const sig = `${selList.join(',')}|${haveLv}|${haveTier}|${isCentral ? 1 : 0}`;
+    const chipsEl = hudEl.querySelector(chipsSel);
+    if (chipsEl && chipsEl.dataset.sig !== sig) {
+      chipsEl.dataset.sig = sig;
+      if (selSet.size === 0) {
+        chipsEl.innerHTML = `<span style="color:#64748b;font-size:9.5px;">ยังไม่ได้เลือก — กด "+ เพิ่ม" เพื่อเลือกรายการที่ต้องการเก็บ</span>`;
+      } else {
+        chipsEl.innerHTML = catalog.filter(x => selSet.has(x.key)).map(x => {
+          const st = NC_GATHER_TIER_STYLES[x.tier] || NC_GATHER_TIER_STYLES[1];
+          const ok = isCentral || (haveLv >= x.lv && haveTier >= x.tier);
+          return `<span style="display:inline-flex;align-items:center;gap:3px;padding:2px 6px;border-radius:999px;background:${st.bg};border:1px solid ${st.bd};color:${st.fg};font-size:9.5px;font-weight:700;" title="${escapeHTML(x.where)} (ต้องการ Lv.${x.lv} · ${toolLabel}ขั้น ${x.tier})">T${x.tier} ${escapeHTML(x.name)}${ok ? '' : ' 🔒'} <button type="button" data-wgrem="${catKey}:${x.key}" style="border:0;background:transparent;color:#fca5a5;cursor:pointer;padding:0 1px;font-size:10px;line-height:1;">✕</button></span>`;
+        }).join('');
+      }
+    }
+    const pickEl = hudEl.querySelector(pickerSel);
+    if (pickEl) {
+      pickEl.style.display = isOpen ? 'flex' : 'none';
+      if (isOpen && pickEl.dataset.sig !== sig) {
+        const prevScroll = pickEl.scrollTop;
+        pickEl.dataset.sig = sig;
+        const byTier = [1, 2, 3, 4].map(t => ({ t, items: catalog.filter(x => x.tier === t) })).filter(g => g.items.length > 0);
+        pickEl.innerHTML = byTier.map(g => {
+          const st = NC_GATHER_TIER_STYLES[g.t] || NC_GATHER_TIER_STYLES[1];
+          const rows = g.items.map(x => {
+            const on = selSet.has(x.key);
+            const ok = isCentral || (haveLv >= x.lv && haveTier >= x.tier);
+            return `<button type="button" data-wgtog="${catKey}:${x.key}" title="${escapeHTML(x.where)}" style="display:flex;align-items:center;justify-content:space-between;gap:4px;width:100%;padding:4px 6px;border-radius:4px;border:1px solid ${on ? st.bd : 'rgba(148,163,184,0.2)'};background:${on ? st.bg : 'rgba(15,23,42,0.72)'};color:${on ? '#fff' : '#cbd5e1'};font-size:9.5px;cursor:pointer;text-align:left;">
+              <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${on ? '✅' : '➕'} <b>${escapeHTML(x.name)}</b> <small style="color:#94a3b8;">(Lv.${x.lv})</small></span>
+              <span style="font-size:8.5px;color:${ok ? '#86efac' : '#f87171'};white-space:nowrap;">${isCentral ? `T${x.tier}` : (ok ? 'เก็บได้' : `🔒 Lv.${x.lv}/T${x.tier}`)}</span>
+            </button>`;
+          }).join('');
+          return `<div style="display:flex;flex-direction:column;gap:3px;">
+            <div style="font-size:9px;font-weight:800;color:${st.fg};border-bottom:1px solid ${st.bd};padding-bottom:1px;">ระดับ ${g.t} (${toolLabel}ขั้น ${g.t})</div>
+            ${rows}
+          </div>`;
+        }).join('');
+        pickEl.scrollTop = prevScroll;
+      }
+    }
+  };
+
+  renderCat('ores', NC_GATHER_ORE_CATALOG, gCfg.ores, mineLv, pickTier, 'อีเต้อ', '#p-nc-gather-ore-chips', '#p-nc-gather-ore-picker', '#p-nc-gather-ore-count', Boolean(pickerState?.oreOpen));
+  renderCat('woods', NC_GATHER_WOOD_CATALOG, gCfg.woods, woodLv, axeTier, 'ขวาน', '#p-nc-gather-wood-chips', '#p-nc-gather-wood-picker', '#p-nc-gather-wood-count', Boolean(pickerState?.woodOpen));
+}
+
 function getNightcampHudTemplate(profileId, clientData, profile) {
   const isCentral = (profileId === '__central__');
   const onlineCount = currentProfiles.filter(p => p.isRunning).length;
@@ -9113,6 +9204,9 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
   const auth = clientData?.authConfig || state?.authConfig || {};
   const pc = state?.potionConfig || {};
   const sc = state?.sellConfig || {};
+  const gtc = (state?.gatherConfig && typeof state.gatherConfig === 'object')
+    ? state.gatherConfig
+    : { enabled: false, mode: 'alongside', scanRadius: 650, defendOnAggro: true, ores: [], woods: [] };
   const pfc = state?.perfConfig || {
     dotMonsters: true,
     dotNpcs: true,
@@ -9177,14 +9271,15 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
   </div>
   ` : ''}
 
-  <!-- 5/6-Tab Bar matching in-game bot.js v2.1.2 (Trainer tab gated by secretAccess.trainer) -->
-  <div id="p-nc-tabbar" style="display:grid; grid-template-columns:${(window.__secretTrainerUnlocked || state?.trainerAccessUnlocked) ? 'minmax(0,0.95fr) minmax(0,0.78fr) minmax(0,0.8fr) minmax(0,0.85fr) minmax(0,0.85fr) minmax(0,0.95fr)' : 'minmax(0,1.05fr) minmax(0,0.85fr) minmax(0,0.88fr) minmax(0,0.92fr) minmax(0,0.92fr)'}; gap:3px; background:rgba(2, 6, 23, 0.72); border:1px solid rgba(148, 163, 184, 0.24); border-radius:7px; padding:3px;">
-    <button type="button" id="p-nc-tab-bot" style="padding:5px 3px; border:0; border-radius:5px; font-size:10px; font-weight:700; cursor:pointer; background:#0284c7; color:#fff; white-space:nowrap;">🚀 บอท</button>
-    <button type="button" id="p-nc-tab-potions" style="padding:5px 3px; border:0; border-radius:5px; font-size:10px; font-weight:700; cursor:pointer; background:transparent; color:#94a3b8; white-space:nowrap;">🧪 ยา</button>
-    <button type="button" id="p-nc-tab-sell" style="padding:5px 3px; border:0; border-radius:5px; font-size:10px; font-weight:700; cursor:pointer; background:transparent; color:#94a3b8; white-space:nowrap;">🛒 ขาย</button>
-    <button type="button" id="p-nc-tab-market" style="padding:5px 3px; border:0; border-radius:5px; font-size:10px; font-weight:700; cursor:pointer; background:transparent; color:#5eead4; white-space:nowrap;">🏪 ตลาด</button>
-    <button type="button" id="p-nc-tab-settings" style="padding:5px 3px; border:0; border-radius:5px; font-size:10px; font-weight:700; cursor:pointer; background:transparent; color:#94a3b8; white-space:nowrap;">⚙️ ตั้งค่า</button>
-    <button type="button" id="p-nc-tab-trainer" style="display:${(window.__secretTrainerUnlocked || state?.trainerAccessUnlocked) ? 'inline-block' : 'none'}; padding:5px 3px; border:0; border-radius:5px; font-size:10px; font-weight:700; cursor:pointer; background:transparent; color:#fda4af; white-space:nowrap;" title="ระบบพิเศษสำหรับผู้ได้รับอนุมัติ Access">🧲 Trainer</button>
+  <!-- 6/7-Tab Bar matching in-game bot.js v2.3.18 (Trainer tab gated by secretAccess.trainer) -->
+  <div id="p-nc-tabbar" style="display:flex; flex-wrap:wrap; gap:3px; background:rgba(2, 6, 23, 0.72); border:1px solid rgba(148, 163, 184, 0.24); border-radius:7px; padding:3px;">
+    <button type="button" id="p-nc-tab-bot" style="flex:1 1 auto; min-width:44px; padding:5px 3px; border:0; border-radius:5px; font-size:9.8px; font-weight:700; cursor:pointer; background:#0284c7; color:#fff; white-space:nowrap;">🚀 บอท</button>
+    <button type="button" id="p-nc-tab-potions" style="flex:1 1 auto; min-width:38px; padding:5px 3px; border:0; border-radius:5px; font-size:9.8px; font-weight:700; cursor:pointer; background:transparent; color:#94a3b8; white-space:nowrap;">🧪 ยา</button>
+    <button type="button" id="p-nc-tab-sell" style="flex:1 1 auto; min-width:42px; padding:5px 3px; border:0; border-radius:5px; font-size:9.8px; font-weight:700; cursor:pointer; background:transparent; color:#94a3b8; white-space:nowrap;">🛒 ขาย</button>
+    <button type="button" id="p-nc-tab-market" style="flex:1 1 auto; min-width:46px; padding:5px 3px; border:0; border-radius:5px; font-size:9.8px; font-weight:700; cursor:pointer; background:transparent; color:#5eead4; white-space:nowrap;">🏪 ตลาด</button>
+    <button type="button" id="p-nc-tab-gather" style="flex:1 1 auto; min-width:46px; padding:5px 3px; border:0; border-radius:5px; font-size:9.8px; font-weight:700; cursor:pointer; background:transparent; color:#fcd34d; white-space:nowrap;" title="ระบบเก็บเกี่ยวแร่และไม้อัตโนมัติ">⛏️ เก็บ</button>
+    <button type="button" id="p-nc-tab-settings" style="flex:1 1 auto; min-width:50px; padding:5px 3px; border:0; border-radius:5px; font-size:9.8px; font-weight:700; cursor:pointer; background:transparent; color:#94a3b8; white-space:nowrap;">⚙️ ตั้งค่า</button>
+    <button type="button" id="p-nc-tab-trainer" style="display:${(window.__secretTrainerUnlocked || state?.trainerAccessUnlocked) ? 'inline-block' : 'none'}; flex:1 1 auto; min-width:54px; padding:5px 3px; border:0; border-radius:5px; font-size:9.8px; font-weight:700; cursor:pointer; background:transparent; color:#fda4af; white-space:nowrap;" title="ระบบพิเศษสำหรับผู้ได้รับอนุมัติ Access">🧲 Trainer</button>
   </div>
 
   <!-- TAB 1: 🚀 บอท & เควส -->
@@ -9647,6 +9742,67 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
     <div id="p-nc-cm-rules-list" style="display:flex; flex-direction:column; gap:6px;"></div>
   </div>
 
+  <!-- TAB 4b: ⛏️ เก็บเกี่ยว (GATHERING — ORES & WOODS TIER 1–4) -->
+  <div id="p-nc-pane-gather" style="display:none; flex-direction:column; gap:7px; min-width:0;">
+    <div class="p-card" style="background:linear-gradient(145deg, rgba(120,53,15,0.38), rgba(6,78,59,0.34)); border:1px solid rgba(251,191,36,0.48); border-radius:8px; padding:8px; display:flex; flex-direction:column; gap:6px; font-size:10px;">
+      <label style="display:flex; align-items:center; gap:6px; font-size:11.5px; font-weight:800; color:#fde68a; cursor:pointer;">
+        <input type="checkbox" id="p-nc-gather-enabled" ${gtc.enabled ? 'checked' : ''} style="accent-color:#f59e0b; width:15px; height:15px;">
+        <span>⛏️ เปิดระบบ Gathering อัตโนมัติ</span>
+      </label>
+      <div style="display:flex; align-items:center; gap:6px; min-width:0;">
+        <span style="color:#cbd5e1; white-space:nowrap;">โหมด:</span>
+        <select id="p-nc-gather-mode" style="flex:1; min-width:0; max-width:100%; background:#090d16; border:1px solid rgba(251,191,36,0.45); color:#fef3c7; border-radius:4px; font-size:10px; font-weight:700; padding:3px 5px;">
+          <option value="alongside" ${(gtc.mode || 'alongside') === 'alongside' ? 'selected' : ''}>⚔️ ฟาร์มไปเก็บไป (เจอระหว่างทางค่อยแวะ)</option>
+          <option value="only" ${gtc.mode === 'only' ? 'selected' : ''}>⛏️ เดินเก็บเกี่ยวอย่างเดียว (โฟกัสแมพนี้)</option>
+        </select>
+      </div>
+      <div style="display:flex; align-items:center; gap:6px; min-width:0;">
+        <span style="color:#cbd5e1; white-space:nowrap;">📡 ระยะตรวจจับ:</span>
+        <select id="p-nc-gather-radius" style="flex:1; min-width:0; max-width:100%; background:#090d16; border:1px solid rgba(52,211,153,0.45); color:#a7f3d0; border-radius:4px; font-size:10px; font-weight:700; padding:3px 5px;">
+          <option value="350" ${Number(gtc.scanRadius ?? 650) === 350 ? 'selected' : ''}>ใกล้ตัว (350 px)</option>
+          <option value="650" ${Number(gtc.scanRadius ?? 650) === 650 ? 'selected' : ''}>รอบหน้าจอ (650 px · แนะนำ)</option>
+          <option value="1100" ${Number(gtc.scanRadius ?? 650) === 1100 ? 'selected' : ''}>ระยะกว้าง (1,100 px)</option>
+          <option value="0" ${Number(gtc.scanRadius ?? 650) === 0 ? 'selected' : ''}>ทั้งแมพ (เดินหาให้ทั่ว)</option>
+        </select>
+      </div>
+      <label style="display:flex; align-items:center; gap:5px; color:#fca5a5; cursor:pointer;">
+        <input type="checkbox" id="p-nc-gather-defend" ${gtc.defendOnAggro !== false ? 'checked' : ''} style="accent-color:#ef4444;">
+        <span>🛡️ สู้กลับอัตโนมัติเมื่อมอนโจมตีระหว่างเก็บเกี่ยว</span>
+      </label>
+      <div id="p-nc-gather-live-status" style="font-size:9.5px; color:#cbd5e1; background:rgba(2,6,23,0.68); border:1px solid rgba(255,255,255,0.1); border-radius:5px; padding:5px 7px; line-height:1.45;">
+        ${state?.gatherSummary?.html || '⏳ กำลังตรวจสอบเลเวลขุดแร่/ตัดไม้ และแหล่งในแมพนี้...'}
+      </div>
+    </div>
+
+    <!-- Category 1: ⛏️ แร่ (Mining) -->
+    <div class="p-card" style="background:rgba(30,41,59,0.58); border:1px solid rgba(96,165,250,0.42); border-radius:7px; padding:8px; display:flex; flex-direction:column; gap:6px; font-size:10px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:5px; min-width:0;">
+        <b style="color:#93c5fd; font-size:11px;">⛏️ แร่ (<span id="p-nc-gather-ore-count">0</span>/${NC_GATHER_ORE_CATALOG.length})</b>
+        <div style="display:flex; gap:4px; flex-wrap:wrap;">
+          <button type="button" id="p-btn-nc-gather-ore-fit" style="padding:2px 6px; border:1px solid rgba(52,211,153,0.45); border-radius:4px; background:rgba(16,185,129,0.18); color:#86efac; font-size:9.5px; font-weight:700; cursor:pointer;">${isCentral ? 'ทั้งหมด' : 'ที่ขุดได้'}</button>
+          <button type="button" id="p-btn-nc-gather-ore-clear" style="padding:2px 6px; border:1px solid rgba(248,113,113,0.4); border-radius:4px; background:rgba(239,68,68,0.14); color:#fca5a5; font-size:9.5px; font-weight:700; cursor:pointer;">ล้าง</button>
+          <button type="button" id="p-btn-nc-gather-ore-add" style="padding:2px 8px; border:1px solid #60a5fa; border-radius:4px; background:#2563eb; color:#fff; font-size:10px; font-weight:800; cursor:pointer;">+ เพิ่ม</button>
+        </div>
+      </div>
+      <div id="p-nc-gather-ore-chips" style="display:flex; flex-wrap:wrap; gap:4px;"></div>
+      <div id="p-nc-gather-ore-picker" style="display:none; flex-direction:column; gap:5px; background:rgba(2,6,23,0.8); border:1px solid rgba(96,165,250,0.35); border-radius:5px; padding:6px; max-height:220px; overflow-y:auto;"></div>
+    </div>
+
+    <!-- Category 2: 🪓 ไม้ (Woodcutting) -->
+    <div class="p-card" style="background:rgba(20,46,35,0.58); border:1px solid rgba(52,211,153,0.42); border-radius:7px; padding:8px; display:flex; flex-direction:column; gap:6px; font-size:10px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:5px; min-width:0;">
+        <b style="color:#86efac; font-size:11px;">🪓 ไม้ (<span id="p-nc-gather-wood-count">0</span>/${NC_GATHER_WOOD_CATALOG.length})</b>
+        <div style="display:flex; gap:4px; flex-wrap:wrap;">
+          <button type="button" id="p-btn-nc-gather-wood-fit" style="padding:2px 6px; border:1px solid rgba(52,211,153,0.45); border-radius:4px; background:rgba(16,185,129,0.18); color:#86efac; font-size:9.5px; font-weight:700; cursor:pointer;">${isCentral ? 'ทั้งหมด' : 'ที่ตัดได้'}</button>
+          <button type="button" id="p-btn-nc-gather-wood-clear" style="padding:2px 6px; border:1px solid rgba(248,113,113,0.4); border-radius:4px; background:rgba(239,68,68,0.14); color:#fca5a5; font-size:9.5px; font-weight:700; cursor:pointer;">ล้าง</button>
+          <button type="button" id="p-btn-nc-gather-wood-add" style="padding:2px 8px; border:1px solid #34d399; border-radius:4px; background:#059669; color:#fff; font-size:10px; font-weight:800; cursor:pointer;">+ เพิ่ม</button>
+        </div>
+      </div>
+      <div id="p-nc-gather-wood-chips" style="display:flex; flex-wrap:wrap; gap:4px;"></div>
+      <div id="p-nc-gather-wood-picker" style="display:none; flex-direction:column; gap:5px; background:rgba(2,6,23,0.8); border:1px solid rgba(52,211,153,0.35); border-radius:5px; padding:6px; max-height:220px; overflow-y:auto;"></div>
+    </div>
+  </div>
+
   <!-- TAB 4: ⚙️ ตั้งค่า -->
   <div id="p-nc-pane-settings" style="display:none; flex-direction:column; gap:8px;">
     <div class="p-card" style="background:rgba(16,185,129,0.1); border:1px solid rgba(52,211,153,0.45); border-radius:7px; padding:8px; display:flex; flex-direction:column; gap:5px;">
@@ -10032,25 +10188,44 @@ async function openWebBotHUD(profileId) {
   hudEl.innerHTML = getNightcampHudTemplate(profileId, clientData, profile);
   container.appendChild(hudEl);
 
+  const initGatherCfg = (() => {
+    const src = clientData?.state?.gatherConfig
+      || (isCentral ? currentProfiles.find(p => p.isRunning && p.liveState?.gatherConfig)?.liveState?.gatherConfig : profile?.liveState?.gatherConfig);
+    return {
+      enabled: Boolean(src?.enabled),
+      mode: src?.mode === 'only' ? 'only' : 'alongside',
+      scanRadius: Number.isFinite(Number(src?.scanRadius)) ? Number(src.scanRadius) : 650,
+      defendOnAggro: src?.defendOnAggro !== false,
+      ores: Array.isArray(src?.ores) ? [...src.ores] : [],
+      woods: Array.isArray(src?.woods) ? [...src.woods] : []
+    };
+  })();
+
   activeWebHuds[profileId] = {
     el: hudEl,
     activeTab: 'bot',
     data: clientData,
     profile: profile,
-    isCentral: isCentral
+    isCentral: isCentral,
+    gatherPickerState: { oreOpen: false, woodOpen: false },
+    gatherCfg: initGatherCfg,
+    gatherLocalDirtyUntil: 0,
+    gatherCentralTouched: false
   };
 
-  // 5/6-Tab switchers (🚀 บอท | 🧪 ยา | 🛒 ขาย | 🏪 ตลาด | ⚙️ ตั้งค่า | 🧲 Trainer)
+  // 6/7-Tab switchers (🚀 บอท | 🧪 ยา | 🛒 ขาย | 🏪 ตลาด | ⛏️ เก็บ | ⚙️ ตั้งค่า | 🧲 Trainer)
   const tabBotBtn = hudEl.querySelector('#p-nc-tab-bot');
   const tabPotBtn = hudEl.querySelector('#p-nc-tab-potions');
   const tabSellBtn = hudEl.querySelector('#p-nc-tab-sell');
   const tabMarketBtn = hudEl.querySelector('#p-nc-tab-market');
+  const tabGatherBtn = hudEl.querySelector('#p-nc-tab-gather');
   const tabSetBtn = hudEl.querySelector('#p-nc-tab-settings');
   const tabTrainerBtn = hudEl.querySelector('#p-nc-tab-trainer');
   const paneBot = hudEl.querySelector('#p-nc-pane-bot');
   const panePot = hudEl.querySelector('#p-nc-pane-potions');
   const paneSell = hudEl.querySelector('#p-nc-pane-sell');
   const paneMarket = hudEl.querySelector('#p-nc-pane-market');
+  const paneGather = hudEl.querySelector('#p-nc-pane-gather');
   const paneSet = hudEl.querySelector('#p-nc-pane-settings');
   const paneTrainer = hudEl.querySelector('#p-nc-pane-trainer');
   const switchTab = (tab) => {
@@ -10060,6 +10235,7 @@ async function openWebBotHUD(profileId) {
     if (panePot) panePot.style.display = tab === 'potions' ? 'flex' : 'none';
     if (paneSell) paneSell.style.display = tab === 'sell' ? 'flex' : 'none';
     if (paneMarket) paneMarket.style.display = tab === 'market' ? 'flex' : 'none';
+    if (paneGather) paneGather.style.display = tab === 'gather' ? 'flex' : 'none';
     if (paneSet) paneSet.style.display = tab === 'settings' ? 'flex' : 'none';
     if (paneTrainer) paneTrainer.style.display = tab === 'trainer' ? 'flex' : 'none';
     if (tabBotBtn) {
@@ -10078,6 +10254,10 @@ async function openWebBotHUD(profileId) {
       tabMarketBtn.style.background = tab === 'market' ? '#0d9488' : 'transparent';
       tabMarketBtn.style.color = tab === 'market' ? '#fff' : '#5eead4';
     }
+    if (tabGatherBtn) {
+      tabGatherBtn.style.background = tab === 'gather' ? '#ca8a04' : 'transparent';
+      tabGatherBtn.style.color = tab === 'gather' ? '#fff' : '#fcd34d';
+    }
     if (tabSetBtn) {
       tabSetBtn.style.background = tab === 'settings' ? '#7c3aed' : 'transparent';
       tabSetBtn.style.color = tab === 'settings' ? '#fff' : '#94a3b8';
@@ -10091,6 +10271,7 @@ async function openWebBotHUD(profileId) {
   if (tabPotBtn) tabPotBtn.onclick = () => switchTab('potions');
   if (tabSellBtn) tabSellBtn.onclick = () => switchTab('sell');
   if (tabMarketBtn) tabMarketBtn.onclick = () => switchTab('market');
+  if (tabGatherBtn) tabGatherBtn.onclick = () => switchTab('gather');
   if (tabSetBtn) tabSetBtn.onclick = () => switchTab('settings');
   if (tabTrainerBtn) tabTrainerBtn.onclick = () => switchTab('trainer');
 
@@ -10792,6 +10973,127 @@ async function openWebBotHUD(profileId) {
     };
   }
 
+  // Tab 4b: ⛏️ เก็บเกี่ยว (Gathering — Ores & Woods Tier 1–4)
+  const getCurrentGatherSummary = () => {
+    if (isCentral) {
+      return currentProfiles.find(p => p.isRunning && p.liveState?.gatherSummary)?.liveState?.gatherSummary || null;
+    }
+    const curProf = currentProfiles.find(p => p.id === profileId);
+    return curProf?.liveState?.gatherSummary || activeWebHuds[profileId]?.data?.state?.gatherSummary || null;
+  };
+  const refreshGatherView = () => {
+    const hObj = activeWebHuds[profileId];
+    if (!hObj) return;
+    renderWebHudGatherChipsAndPicker(hudEl, hObj.gatherCfg, getCurrentGatherSummary(), isCentral, hObj.gatherPickerState);
+  };
+  const sendGatherPatch = async (patch) => {
+    const hObj = activeWebHuds[profileId];
+    if (hObj) {
+      hObj.gatherCfg = Object.assign({}, hObj.gatherCfg, patch);
+      hObj.gatherLocalDirtyUntil = Date.now() + 3200;
+      if (isCentral && (Object.prototype.hasOwnProperty.call(patch, 'ores') || Object.prototype.hasOwnProperty.call(patch, 'woods'))) {
+        hObj.gatherCentralTouched = true;
+      }
+      refreshGatherView();
+    }
+    try {
+      await sendWebHudAction(profileId, {
+        type: 'eval',
+        code: `(typeof window.__setGatherConfig === 'function' ? window.__setGatherConfig(${JSON.stringify(patch)}) : null)`
+      });
+    } catch (_) {}
+  };
+  [
+    ['#p-nc-gather-enabled', 'enabled', 'bool'],
+    ['#p-nc-gather-mode', 'mode', 'str'],
+    ['#p-nc-gather-radius', 'scanRadius', 'num'],
+    ['#p-nc-gather-defend', 'defendOnAggro', 'bool']
+  ].forEach(([sel, key, kind]) => {
+    const el = hudEl.querySelector(sel);
+    if (!el) return;
+    el.onchange = () => {
+      if (el.tagName === 'SELECT' && el.value === '__MIXED__') return;
+      markCentralControlEdited(el);
+      const val = kind === 'bool'
+        ? Boolean(el.checked)
+        : (kind === 'num' ? Math.max(0, Number(el.value) || 0) : String(el.value || 'alongside'));
+      sendGatherPatch({ [key]: val });
+    };
+  });
+  const oreAddBtn = hudEl.querySelector('#p-btn-nc-gather-ore-add');
+  if (oreAddBtn) {
+    oreAddBtn.onclick = () => {
+      const hObj = activeWebHuds[profileId];
+      if (!hObj) return;
+      hObj.gatherPickerState.oreOpen = !hObj.gatherPickerState.oreOpen;
+      oreAddBtn.textContent = hObj.gatherPickerState.oreOpen ? '✕ ปิด' : '+ เพิ่ม';
+      refreshGatherView();
+    };
+  }
+  const woodAddBtn = hudEl.querySelector('#p-btn-nc-gather-wood-add');
+  if (woodAddBtn) {
+    woodAddBtn.onclick = () => {
+      const hObj = activeWebHuds[profileId];
+      if (!hObj) return;
+      hObj.gatherPickerState.woodOpen = !hObj.gatherPickerState.woodOpen;
+      woodAddBtn.textContent = hObj.gatherPickerState.woodOpen ? '✕ ปิด' : '+ เพิ่ม';
+      refreshGatherView();
+    };
+  }
+  const oreFitBtn = hudEl.querySelector('#p-btn-nc-gather-ore-fit');
+  if (oreFitBtn) {
+    oreFitBtn.onclick = () => {
+      if (isCentral) {
+        sendGatherPatch({ ores: NC_GATHER_ORE_CATALOG.map(x => x.key) });
+      } else {
+        const sum = getCurrentGatherSummary() || {};
+        const lv = Number(sum.mineLv || 1);
+        const tier = Number(sum.pickTier || 1);
+        sendGatherPatch({ ores: NC_GATHER_ORE_CATALOG.filter(x => lv >= x.lv && tier >= x.tier).map(x => x.key) });
+      }
+    };
+  }
+  const oreClrBtn = hudEl.querySelector('#p-btn-nc-gather-ore-clear');
+  if (oreClrBtn) oreClrBtn.onclick = () => sendGatherPatch({ ores: [] });
+  const woodFitBtn = hudEl.querySelector('#p-btn-nc-gather-wood-fit');
+  if (woodFitBtn) {
+    woodFitBtn.onclick = () => {
+      if (isCentral) {
+        sendGatherPatch({ woods: NC_GATHER_WOOD_CATALOG.map(x => x.key) });
+      } else {
+        const sum = getCurrentGatherSummary() || {};
+        const lv = Number(sum.woodLv || 1);
+        const tier = Number(sum.axeTier || 1);
+        sendGatherPatch({ woods: NC_GATHER_WOOD_CATALOG.filter(x => lv >= x.lv && tier >= x.tier).map(x => x.key) });
+      }
+    };
+  }
+  const woodClrBtn = hudEl.querySelector('#p-btn-nc-gather-wood-clear');
+  if (woodClrBtn) woodClrBtn.onclick = () => sendGatherPatch({ woods: [] });
+  if (paneGather) {
+    paneGather.onclick = (ev) => {
+      const remBtn = ev.target?.closest?.('[data-wgrem]');
+      if (remBtn) {
+        const [cat, key] = String(remBtn.getAttribute('data-wgrem') || '').split(':');
+        const hObj = activeWebHuds[profileId];
+        if (!hObj || (cat !== 'ores' && cat !== 'woods') || !key) return;
+        const nextList = (Array.isArray(hObj.gatherCfg[cat]) ? hObj.gatherCfg[cat] : []).filter(k => k !== key);
+        sendGatherPatch({ [cat]: nextList });
+        return;
+      }
+      const togBtn = ev.target?.closest?.('[data-wgtog]');
+      if (togBtn) {
+        const [cat, key] = String(togBtn.getAttribute('data-wgtog') || '').split(':');
+        const hObj = activeWebHuds[profileId];
+        if (!hObj || (cat !== 'ores' && cat !== 'woods') || !key) return;
+        const cur = Array.isArray(hObj.gatherCfg[cat]) ? hObj.gatherCfg[cat] : [];
+        const nextList = cur.includes(key) ? cur.filter(k => k !== key) : cur.concat([key]);
+        sendGatherPatch({ [cat]: nextList });
+      }
+    };
+  }
+  refreshGatherView();
+
   // Tab 4: ⚙️ ตั้งค่า — Lite Graphics (ลดกราฟิก & จุดสีประหยัดสเปค)
   const sendPerfPatch = async (patch) => {
     try {
@@ -11019,6 +11321,10 @@ const CENTRAL_HUD_FIELD_SPECS = [
   ['#p-nc-cm-keep-top-rune', 'select', st => String(Number(st.cmarketAutoSellConfig?.keepTopRuneQualityPct ?? 90))],
   ['#p-nc-cm-auto-claim', 'bool', st => st.cmarketAutoSellConfig?.autoClaimMail !== false],
   ['#p-nc-cm-auto-unlist', 'bool', st => st.cmarketAutoSellConfig?.autoUnlistExpired !== false],
+  ['#p-nc-gather-enabled', 'bool', st => Boolean(st.gatherConfig?.enabled)],
+  ['#p-nc-gather-mode', 'select', st => String(st.gatherConfig?.mode || 'alongside')],
+  ['#p-nc-gather-radius', 'select', st => String(st.gatherConfig?.scanRadius ?? 650)],
+  ['#p-nc-gather-defend', 'bool', st => st.gatherConfig?.defendOnAggro !== false],
   ['#p-nc-perf-dot-monsters', 'bool', st => st.perfConfig?.dotMonsters !== false],
   ['#p-nc-perf-dot-npcs', 'bool', st => st.perfConfig?.dotNpcs !== false],
   ['#p-nc-perf-dot-player', 'bool', st => Boolean(st.perfConfig?.dotPlayer)],
@@ -11129,6 +11435,22 @@ function populateWebHudData(profileId, data) {
       if (sellLiveEl && firstOnline.liveState.sellLiveHtml) {
         sellLiveEl.innerHTML = `<div style="font-size:9px;color:#fde68a;margin-bottom:2px;">📌 ตัวอย่างจากจอ: ${escapeHTML(firstOnline.liveState.charName || firstOnline.name)}</div>` + firstOnline.liveState.sellLiveHtml;
       }
+      const gatherLiveEl = hud.querySelector('#p-nc-gather-live-status');
+      if (gatherLiveEl && firstOnline.liveState.gatherSummary?.html) {
+        gatherLiveEl.innerHTML = `<div style="font-size:9px;color:#fde68a;margin-bottom:2px;">📌 ตัวอย่างจากจอ: ${escapeHTML(firstOnline.liveState.charName || firstOnline.name)}</div>` + firstOnline.liveState.gatherSummary.html;
+      }
+      if (!hudObj.gatherCentralTouched && Number(hudObj.gatherLocalDirtyUntil || 0) <= Date.now() && firstOnline.liveState.gatherConfig) {
+        const gc = firstOnline.liveState.gatherConfig;
+        hudObj.gatherCfg = {
+          enabled: Boolean(gc.enabled),
+          mode: gc.mode === 'only' ? 'only' : 'alongside',
+          scanRadius: Number.isFinite(Number(gc.scanRadius)) ? Number(gc.scanRadius) : 650,
+          defendOnAggro: gc.defendOnAggro !== false,
+          ores: Array.isArray(gc.ores) ? [...gc.ores] : [],
+          woods: Array.isArray(gc.woods) ? [...gc.woods] : []
+        };
+      }
+      renderWebHudGatherChipsAndPicker(hud, hudObj.gatherCfg, firstOnline.liveState.gatherSummary, true, hudObj.gatherPickerState);
     }
     syncCentralHudMixedStates(hud);
     return;
@@ -11315,6 +11637,25 @@ function populateWebHudData(profileId, data) {
       }
     }
   }
+
+  if (st.gatherConfig && typeof st.gatherConfig === 'object' && Number(hudObj.gatherLocalDirtyUntil || 0) <= Date.now()) {
+    const gc = st.gatherConfig;
+    setField('#p-nc-gather-enabled', Boolean(gc.enabled), true);
+    setField('#p-nc-gather-mode', gc.mode === 'only' ? 'only' : 'alongside', false);
+    setField('#p-nc-gather-radius', String(Number.isFinite(Number(gc.scanRadius)) ? Number(gc.scanRadius) : 650), false);
+    setField('#p-nc-gather-defend', gc.defendOnAggro !== false, true);
+    hudObj.gatherCfg = {
+      enabled: Boolean(gc.enabled),
+      mode: gc.mode === 'only' ? 'only' : 'alongside',
+      scanRadius: Number.isFinite(Number(gc.scanRadius)) ? Number(gc.scanRadius) : 650,
+      defendOnAggro: gc.defendOnAggro !== false,
+      ores: Array.isArray(gc.ores) ? [...gc.ores] : [],
+      woods: Array.isArray(gc.woods) ? [...gc.woods] : []
+    };
+  }
+  const gatherLiveEl = hud.querySelector('#p-nc-gather-live-status');
+  if (gatherLiveEl && st.gatherSummary?.html) gatherLiveEl.innerHTML = st.gatherSummary.html;
+  renderWebHudGatherChipsAndPicker(hud, hudObj.gatherCfg, st.gatherSummary, false, hudObj.gatherPickerState);
 
   if (st.perfConfig && typeof st.perfConfig === 'object') {
     const pfc = st.perfConfig;
