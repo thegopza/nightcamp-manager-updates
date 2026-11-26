@@ -630,14 +630,14 @@
             <button id="btn-open-presets-modal" class="btn btn-ghost btn-sm" title="ระบบ Save List จัดการการตั้งค่าส่วนกลาง (บันทึก/คัดลอก Config, Whitelist, List ตลาดกลาง — ไม่รวม ID/รหัส/ชื่อตัวละคร/เซิร์ฟเวอร์)">
               <span class="icon">💾</span> Save List
             </button>
-            <button id="btn-import-profile-global" class="btn btn-ghost btn-sm" title="นำเข้ารหัส ID / Password (.txt) หรือโปรไฟล์สำรอง (.json)">
-              <span class="icon">📥</span> Import รหัส
+            <button id="btn-import-profile-global" class="btn btn-ghost btn-sm" title="นำเข้าไฟล์สำรองโปรไฟล์เต็มรูปแบบ (.json — ครบ ID/รหัส + Server + Config) หรือไฟล์รหัส (.txt)">
+              <span class="icon">📥</span> Import โปรไฟล์ / รหัส
             </button>
             <button id="btn-export-profile-global" class="btn btn-ghost btn-sm nc-aetheria-only" title="ส่งออกโปรไฟล์ทั้งหมด (Export All Profiles)">
               <span class="icon">📤</span> Export
             </button>
-            <button id="btn-export-credentials-txt" class="btn btn-ghost btn-sm" title="ดาวน์โหลดรายการ ID / Password ของทุกโปรไฟล์เก็บเป็นไฟล์ .txt" style="border: 1px solid rgba(52, 211, 153, 0.45); background: rgba(16, 185, 129, 0.12); color: #6ee7b7; font-weight: 700;">
-              <span class="icon">🔑</span> Export รหัส (.txt)
+            <button id="btn-export-credentials-txt" class="btn btn-ghost btn-sm" title="ส่งออกโปรไฟล์เต็มรูปแบบ (.json — ครบ ID/รหัส + Server + Config บอททุกจอ) หรือรายการรหัส (.txt)" style="border: 1px solid rgba(52, 211, 153, 0.45); background: rgba(16, 185, 129, 0.12); color: #6ee7b7; font-weight: 700;">
+              <span class="icon">📦</span> Export โปรไฟล์ / รหัส
             </button>
           </div>
         </div>
@@ -1599,8 +1599,8 @@
     <div class="modal-card" style="max-width: 580px;">
       <div class="modal-header">
         <div>
-          <h3>📥 นำเข้ารหัส / โปรไฟล์สำรอง (.txt / .json)</h3>
-          <span style="font-size: 11px; color: #94a3b8;">รองรับไฟล์รหัส .txt (รูปแบบ ID / Password) หรือไฟล์สำรองโปรไฟล์ (.json) เพื่อกู้คืนและสร้างจอเกม</span>
+          <h3>📥 นำเข้าโปรไฟล์สำรอง / รหัส (.json / .txt)</h3>
+          <span style="font-size: 11px; color: #94a3b8;">รองรับไฟล์สำรองเต็มรูปแบบ (.json — ครบ ID/รหัส + เซิร์ฟเวอร์ + Config บอททุกจอ) หรือไฟล์รหัส (.txt) เพื่อย้ายเครื่องได้ทันที</span>
         </div>
         <button class="modal-close" id="import-modal-close-btn">&times;</button>
       </div>
@@ -2014,7 +2014,7 @@
   </div>
 
   <script src="image_board_solver.js?v=nc1.9.4"></script>
-  <script src="app.js?v=nc2.3.22"></script>
+  <script src="app.js?v=nc2.3.23"></script>
   <script src="builder_module.js?v=nc1.9.6"></script>
   <script src="gear_builder.js?v=nc2.3.19"></script>
   <script src="patcher_module.js?v=nc1.9.4"></script>
@@ -2027,7 +2027,7 @@
   <script src="fleet_dashboard.js?v=nc1.9.4"></script>
   <script src="support_chat.js?v=nc1.9.4"></script>
   <script src="announcements.js?v=nc1.9.4"></script>
-  <script src="update_log.js?v=nc2.3.22"></script>
+  <script src="update_log.js?v=nc2.3.23"></script>
   <!-- FLOATING IN-GAME BOT HUDS CONTAINER -->
   <div id="web-huds-container"></div>
 

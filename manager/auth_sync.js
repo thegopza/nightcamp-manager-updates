@@ -1217,6 +1217,15 @@ function createAuthSync({
       profile.autoLoginEnabled = Boolean(cur.enabled);
     }
 
+    // If user explicitly changed Server inside the in-game Bot HUD, adopt it into profile.serverName even while in-world
+    if (Number(cur.serverEditedAt) > (Number(profile.lastAuthSyncPushAt) || 0) && String(cur.serverName || '').trim() !== String(profile.serverName || '').trim()) {
+      const nextSrv = String(cur.serverName || '').trim();
+      const tsNow = Date.now();
+      updateProfile(profile.id, { serverName: nextSrv, lastAuthSyncPushAt: tsNow });
+      profile.serverName = nextSrv;
+      profile.lastAuthSyncPushAt = tsNow;
+    }
+
     // CRITICAL: If the client is already actively inside the game world (`cur.inWorld === true`) and Manager does NOT have an explicit user-triggered `loginSyncPending`,
     // NEVER push credential overwrites that could disrupt or log out an active in-game session!
     // (When on the Character Select screen, `!cur.inWorld` lets Manager push a newly chosen target `charName` without logging out.)

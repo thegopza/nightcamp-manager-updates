@@ -2027,6 +2027,21 @@ function recordDeletedProfileIds(ids) {
     deletedProfilesCacheCheckedAt = Date.now();
   } catch (_) {}
 }
+function clearDeletedProfileIds(ids) {
+  if (!Array.isArray(ids) || !ids.length) return;
+  try {
+    const set = new Set(loadDeletedProfileIds());
+    let changed = false;
+    for (const id of ids) {
+      if (id && set.delete(String(id))) changed = true;
+    }
+    if (!changed) return;
+    writeJsonAtomic(DELETED_PROFILES_FILE, Array.from(set));
+    deletedProfilesCacheSet = set;
+    deletedProfilesCacheMtimeMs = getDeletedProfilesMtimeMs();
+    deletedProfilesCacheCheckedAt = Date.now();
+  } catch (_) {}
+}
 
 function isPlaceholderCharName(name) {
   const s = String(name || "").trim();
@@ -8820,7 +8835,152 @@ setInterval(async () => {
 let centralProfileBackupTimer = null;
 let centralProfileBackupInFlight = false;
 
-function buildLocalProfileBackupPayload() {
+function normalizeNightcampServerName(raw) {
+  const s = String(raw || "").trim();
+  if (!s) return "";
+  const low = s.toLowerCase();
+  if (
+    low === "-" || low === "auto" || low === "อัตโนมัติ" || low === "aetheria-main" ||
+    low === "undefined" || low === "null" || low.startsWith("อัตโนมัติ")
+  ) return "";
+  if (low === "moonlight" || low === "s1" || low.includes("moonlight") || /^s1\b/.test(low)) return "Moonlight";
+  if (low === "stardust" || low === "s2" || low.includes("stardust") || /^s2\b/.test(low)) return "Stardust";
+  if (low === "nightfall" || low === "s3" || low.includes("nightfall") || /^s3\b/.test(low)) return "Nightfall";
+  if (low === "sunflare" || low === "s4" || low.includes("sunflare") || /^s4\b/.test(low)) return "Sunflare";
+  return s;
+}
+
+function isExcludedBackupStorageSuffix(suffix) {
+  const s = String(suffix || "").trim();
+  if (!s) return true;
+  if (
+    s === "aetheria_device" || s === "aetheria_machine" || s === "auth_cfg" ||
+    s === "bot_running" || s === "auto_loop" || s === "pm_import_stamp" ||
+    s === "icon_manifest" || s === "item_catalog" || s === "latest_inventory" ||
+    s === "packet_logs" || s === "last_weight" || s === "embedded_human_check_cfg" ||
+    s === "job_return_map" || s === "gohome_keep_farm" || s === "gear_trip" ||
+    s === "town_needs" || s === "override_farm_map" || s === "weight_topup"
+  ) return true;
+  if (s.startsWith("nc__nightcamp.") || s.startsWith("__ss:") || s.startsWith("webgame.chat.")) return true;
+  if (s.includes("gear_bought_") && s.endsWith("_pending")) return true;
+  return false;
+}
+
+function extractExportableBrowserStorage(profileId) {
+  const botStorage = {};
+  let bsAuthCfg = null;
+  if (!profileId) return { botStorage, bsAuthCfg };
+  try {
+    const bsFile = path.join(SESSIONS_DIR, "_browser_storage", `${profileId}.json`);
+    if (!fs.existsSync(bsFile)) return { botStorage, bsAuthCfg };
+    const raw = JSON.parse(fs.readFileSync(bsFile, "utf8"));
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return { botStorage, bsAuthCfg };
+    const pfx = `pelican_${profileId}__`;
+    const authRaw = raw[`${pfx}auth_cfg`];
+    if (typeof authRaw === "string" && authRaw.trim()) {
+      try {
+        const parsedAuth = JSON.parse(authRaw);
+        if (parsedAuth && typeof parsedAuth === "object") bsAuthCfg = parsedAuth;
+      } catch (_) {}
+    }
+    for (const [k, v] of Object.entries(raw)) {
+      if (typeof v !== "string") continue;
+      if (!k.startsWith(pfx)) continue;
+      const suffix = k.slice(pfx.length);
+      if (isExcludedBackupStorageSuffix(suffix)) continue;
+      botStorage[suffix] = v;
+    }
+  } catch (_) {}
+  return { botStorage, bsAuthCfg };
+}
+
+function syncProfileAuthToBrowserStorage(profileId, profile, password, { clearSession = false } = {}) {
+  if (!profileId || !profile) return;
+  try {
+    const bsDir = path.join(SESSIONS_DIR, "_browser_storage");
+    if (!fs.existsSync(bsDir)) fs.mkdirSync(bsDir, { recursive: true });
+    const bsFile = path.join(bsDir, `${profileId}.json`);
+    let bsData = {};
+    if (fs.existsSync(bsFile)) {
+      try { bsData = JSON.parse(fs.readFileSync(bsFile, "utf8")) || {}; } catch (_) { bsData = {}; }
+    }
+    if (clearSession) {
+      delete bsData["__ss:aetheria.session"];
+      delete bsData["pelican_auth_cfg"];
+      for (const bsKey of Object.keys(bsData)) {
+        if (
+          bsKey.startsWith(`pelican_${profileId}__nc__nightcamp.online.acct:`) ||
+          bsKey.startsWith(`pelican_${profileId}__nc__nightcamp.online.heroes:`) ||
+          bsKey === `pelican_${profileId}__nc__nightcamp.online.server` ||
+          bsKey === `pelican_${profileId}__nc__nightcamp.online.lastPlayed`
+        ) {
+          delete bsData[bsKey];
+        }
+      }
+    }
+    const authKey = `pelican_${profileId}__auth_cfg`;
+    let prevCfg = {};
+    try { prevCfg = JSON.parse(bsData[authKey] || "{}") || {}; } catch (_) { prevCfg = {}; }
+    const enabledVal = profile.autoLoginEnabled !== false;
+    bsData[authKey] = JSON.stringify({
+      ...prevCfg,
+      enabled: enabledVal,
+      userDisabledAutoLogin: !enabledVal,
+      username: String(profile.account || "").trim(),
+      password: String(password || ""),
+      serverName: normalizeNightcampServerName(profile.serverName || ""),
+      charName: String(profile.charName || "").trim(),
+      autoResumeBot: Boolean(profile.autoResumeBot),
+      register: Boolean(profile.autoRegister),
+      registerDone: false,
+      registerError: "",
+      autoCreateChar: true,
+      generatedUser: Boolean(profile.generatedAccount),
+      serverEditedAt: 0,
+      lastManagerPushAt: Date.now()
+    });
+    writeJsonAtomic(bsFile, bsData);
+  } catch (_) {}
+}
+
+function restoreProfileBrowserStorage(profileId, botStorage, finalProfile, password, { clearSession = true, stampImport = true } = {}) {
+  let restoredConfigKeys = 0;
+  if (!profileId || !finalProfile) return { restoredConfigKeys };
+  try {
+    const bsDir = path.join(SESSIONS_DIR, "_browser_storage");
+    if (!fs.existsSync(bsDir)) fs.mkdirSync(bsDir, { recursive: true });
+    const bsFile = path.join(bsDir, `${profileId}.json`);
+    let bsData = {};
+    if (fs.existsSync(bsFile)) {
+      try { bsData = JSON.parse(fs.readFileSync(bsFile, "utf8")) || {}; } catch (_) { bsData = {}; }
+    }
+    if (botStorage && typeof botStorage === "object" && !Array.isArray(botStorage)) {
+      const targetPfx = `pelican_${profileId}__`;
+      for (const [rawKey, rawVal] of Object.entries(botStorage)) {
+        if (typeof rawVal !== "string") continue;
+        let suffix = String(rawKey || "").trim();
+        if (!suffix) continue;
+        if (suffix.startsWith("pelican_")) {
+          const sepIdx = suffix.indexOf("__");
+          if (sepIdx !== -1) suffix = suffix.slice(sepIdx + 2);
+          else suffix = suffix.slice(8);
+        }
+        if (isExcludedBackupStorageSuffix(suffix)) continue;
+        bsData[`${targetPfx}${suffix}`] = rawVal;
+        restoredConfigKeys++;
+      }
+      if (stampImport && restoredConfigKeys > 0) {
+        bsData[`${targetPfx}pm_import_stamp`] = String(Date.now());
+      }
+      writeJsonAtomic(bsFile, bsData);
+    }
+  } catch (_) {}
+  syncProfileAuthToBrowserStorage(profileId, finalProfile, password, { clearSession });
+  return { restoredConfigKeys };
+}
+
+function buildLocalProfileBackupPayload(options = {}) {
+  const includeBotStorage = options.includeBotStorage !== false;
   const profiles = loadProfiles() || [];
   const deviceName = getEffectiveDeviceNickname();
   const hcSettings = humanCheckSolver.loadSettings() || {};
@@ -8840,31 +9000,63 @@ function buildLocalProfileBackupPayload() {
       continue;
     }
     if (uLower) seenBackupAccounts.add(uLower);
-    const characterName = String((p.liveState && p.liveState.charName) || p.lastCharName || "").trim();
+    const cached = p.debugPort ? clientStateCacheByPort.get(p.debugPort) : null;
+    const live = (cached && cached.state) || p.liveState || null;
+    const { botStorage, bsAuthCfg } = extractExportableBrowserStorage(p.id);
+    const configuredServer = normalizeNightcampServerName(p.serverName || (bsAuthCfg && bsAuthCfg.serverName) || "");
+    const detectedServer = normalizeNightcampServerName((live && live.serverName) || p.lastServerName || "");
+    const legacyServer = normalizeNightcampServerName(p.server || "");
+    const resolvedServerName = configuredServer || detectedServer || legacyServer;
+    const targetCharName = String(p.charName || (bsAuthCfg && bsAuthCfg.charName) || "").trim();
+    const characterName = String((live && live.charName) || p.lastCharName || targetCharName || "").trim();
+    const autoLoginEnabled = p.autoLoginEnabled !== undefined
+      ? Boolean(p.autoLoginEnabled)
+      : (bsAuthCfg && bsAuthCfg.enabled !== undefined ? Boolean(bsAuthCfg.enabled) : true);
+    const autoResumeBot = p.autoResumeBot !== undefined
+      ? Boolean(p.autoResumeBot)
+      : Boolean(bsAuthCfg && bsAuthCfg.autoResumeBot);
     const copy = { ...p };
     delete copy.liveState;
     delete copy.password;
+    delete copy.isRunning;
+    delete copy.windowState;
+    delete copy.processId;
     if (username) {
       copy.account = username;
       copy.username = username;
     }
     if (characterName) copy.lastCharName = characterName;
-    cleanProfiles.push({
+    copy.charName = targetCharName;
+    copy.serverName = resolvedServerName;
+    if (detectedServer || resolvedServerName) copy.lastServerName = detectedServer || resolvedServerName;
+    copy.autoLoginEnabled = autoLoginEnabled;
+    copy.autoResumeBot = autoResumeBot;
+    copy.autoRegister = password ? false : Boolean(p.autoRegister);
+    const entry = {
       id: p.id,
       name: p.name || p.id,
       characterName,
+      charName: targetCharName,
       username,
       account: username,
       password,
-      server: p.server || "aetheria-main",
+      serverName: resolvedServerName,
+      lastServerName: detectedServer || resolvedServerName,
+      server: resolvedServerName || p.server || "aetheria-main",
+      autoLoginEnabled,
+      autoResumeBot,
       profile: copy
-    });
+    };
+    if (includeBotStorage && Object.keys(botStorage).length > 0) {
+      entry.botStorage = botStorage;
+    }
+    cleanProfiles.push(entry);
     if (username || password) {
-      credsMap[p.id] = { username, password, updatedAt: Date.now() };
+      credsMap[p.id] = { username, password, serverName: resolvedServerName, updatedAt: Date.now() };
     }
   }
   return {
-    format: "pmhee-aetheria-profile-backup-v1",
+    format: "pmhee-nightcamp-profile-backup-v2",
     exportedAt: new Date().toISOString(),
     machineId,
     machineName: deviceName,
@@ -8875,55 +9067,190 @@ function buildLocalProfileBackupPayload() {
 }
 
 function applyProfileBackupPayload(data, options = {}) {
-  if (!data || typeof data !== "object") return { restoredProfiles: 0, restoredCredentials: 0 };
+  if (!data || typeof data !== "object") {
+    return { restoredProfiles: 0, restoredCredentials: 0, restoredServers: 0, restoredConfigs: 0, totalProfiles: 0 };
+  }
   const replaceExisting = Boolean(options && options.replaceExisting);
+  const explicitUserImport = Boolean(options && options.explicitUserImport);
   const rawList = Array.isArray(data.profiles) ? data.profiles : [];
-  if (rawList.length === 0) return { restoredProfiles: 0, restoredCredentials: 0 };
+  if (rawList.length === 0) {
+    return { restoredProfiles: 0, restoredCredentials: 0, restoredServers: 0, restoredConfigs: 0, totalProfiles: 0 };
+  }
   const existing = loadProfiles() || [];
+  const untouchedMock = isUntouchedDefaultMockProfiles(existing);
   const existingById = new Map(existing.map(p => [p.id, p]));
+  const existingByAccount = new Map();
+  if (!replaceExisting && !untouchedMock) {
+    for (const ep of existing) {
+      if (!ep || !ep.id || isSingleDefaultMockProfile(ep)) continue;
+      const accLow = String(ep.account || ep.username || "").trim().toLowerCase();
+      if (accLow && !existingByAccount.has(accLow)) existingByAccount.set(accLow, ep);
+    }
+  }
   const deletedIds = loadDeletedProfileIds();
   const merged = [];
   const seenIds = new Set();
+  const importedIdsToUndelete = [];
+  const usedPorts = new Set();
+  if (!replaceExisting && !untouchedMock) {
+    for (const ep of existing) {
+      if (ep && ep.debugPort && !deletedIds.has(ep.id)) usedPorts.add(Number(ep.debugPort));
+    }
+  }
+  const allocateFreePort = (preferredPort, ownPrevPort) => {
+    const pref = Number(preferredPort) || 0;
+    const own = Number(ownPrevPort) || 0;
+    if (own >= 48876 && (!usedPorts.has(own) || own === pref)) {
+      usedPorts.add(own);
+      return own;
+    }
+    if (pref >= 48876 && !usedPorts.has(pref)) {
+      usedPorts.add(pref);
+      return pref;
+    }
+    let candidate = 48876;
+    while (usedPorts.has(candidate)) candidate++;
+    usedPorts.add(candidate);
+    return candidate;
+  };
+
   let restoredCredentials = 0;
+  let restoredServers = 0;
+  let restoredConfigs = 0;
+  let impSeq = 1;
   const credsObj = (data.credentials && typeof data.credentials === "object") ? data.credentials : {};
 
   for (const item of rawList) {
     if (!item || typeof item !== "object") continue;
     const base = (item.profile && typeof item.profile === "object") ? { ...item.profile } : { ...item };
-    const id = String(base.id || item.id || item.profileId || "").trim();
-    if (!id || seenIds.has(id) || deletedIds.has(id)) continue;
-    const prev = replaceExisting ? {} : (existingById.get(id) || {});
-    const username = String(item.username || item.account || base.account || base.username || (credsObj[id] && credsObj[id].username) || prev.account || prev.username || "").trim();
-    const password = String(item.password || (credsObj[id] && credsObj[id].password) || "").trim();
-    const charName = String(item.characterName || base.lastCharName || prev.lastCharName || "").trim();
+    const origId = String(base.id || item.id || item.profileId || "").trim();
+    if (!origId) continue;
+    if (!explicitUserImport && deletedIds.has(origId)) continue;
+
+    const credEntry = credsObj[origId] || null;
+    let id = origId;
+    let prevRaw = (replaceExisting || untouchedMock) ? null : (existingById.get(id) || null);
+    if (prevRaw && isSingleDefaultMockProfile(prevRaw)) prevRaw = null;
+
+    const rawUsername = String(
+      item.username || item.account || base.account || base.username || (credEntry && credEntry.username) || ""
+    ).trim();
+    const rawUserLow = rawUsername.toLowerCase();
+
+    if (explicitUserImport && !replaceExisting && !untouchedMock) {
+      const prevAccLow = String((prevRaw && (prevRaw.account || prevRaw.username)) || "").trim().toLowerCase();
+      if (prevRaw && prevAccLow && rawUserLow && prevAccLow !== rawUserLow) {
+        // Different account already occupies this profile ID on destination PC -> do not clobber it!
+        const accMatch = existingByAccount.get(rawUserLow);
+        if (accMatch && !seenIds.has(accMatch.id)) {
+          id = accMatch.id;
+          prevRaw = accMatch;
+        } else {
+          do {
+            id = `profile_imp_${Date.now()}_${impSeq++}`;
+          } while (seenIds.has(id) || existingById.has(id));
+          prevRaw = null;
+        }
+      } else if (!prevRaw && rawUserLow) {
+        // Same account already exists on destination PC under a different ID (e.g. previous .txt import) -> merge cleanly!
+        const accMatch = existingByAccount.get(rawUserLow);
+        if (accMatch && !seenIds.has(accMatch.id)) {
+          id = accMatch.id;
+          prevRaw = accMatch;
+        }
+      }
+    }
+
+    if (seenIds.has(id)) continue;
+    const prev = prevRaw || {};
+    const username = rawUsername || String(prev.account || prev.username || "").trim();
+    const password = String(item.password || (credEntry && credEntry.password) || "").trim();
+    const charName = String(item.charName !== undefined ? item.charName : (base.charName !== undefined ? base.charName : (prev.charName || ""))).trim();
+    const lastCharName = String(item.characterName || base.lastCharName || charName || prev.lastCharName || "").trim();
     const finalName = String(item.name || base.name || prev.name || id).trim();
     // Skip blank unconfigured Client X shells when restoring from backup
-    if (!username && !charName && /^Client \d+$/i.test(finalName)) continue;
+    if (!username && !lastCharName && /^Client \d+$/i.test(finalName)) continue;
+
+    const resolvedServerName = normalizeNightcampServerName(
+      item.serverName || base.serverName || (credEntry && credEntry.serverName) ||
+      item.lastServerName || base.lastServerName ||
+      item.server || base.server ||
+      prev.serverName || prev.lastServerName || ""
+    );
+    const resolvedLastServer = normalizeNightcampServerName(
+      item.lastServerName || base.lastServerName || resolvedServerName || prev.lastServerName || ""
+    );
+    const autoLoginEnabled = item.autoLoginEnabled !== undefined
+      ? Boolean(item.autoLoginEnabled)
+      : (base.autoLoginEnabled !== undefined ? Boolean(base.autoLoginEnabled) : (prev.autoLoginEnabled !== undefined ? Boolean(prev.autoLoginEnabled) : true));
+    const autoResumeBot = item.autoResumeBot !== undefined
+      ? Boolean(item.autoResumeBot)
+      : (base.autoResumeBot !== undefined ? Boolean(base.autoResumeBot) : Boolean(prev.autoResumeBot));
+    const effectivePassword = password || (prev.id ? (credentials.getPassword(prev.id) || "") : "");
+    const nextAutoRegister = effectivePassword
+      ? false
+      : (base.autoRegister !== undefined ? Boolean(base.autoRegister) : (!username));
+
     seenIds.add(id);
+    if (explicitUserImport && deletedIds.has(id)) importedIdsToUndelete.push(id);
     delete base.password;
     delete base.liveState;
+    delete base.isRunning;
+    delete base.windowState;
+    delete base.processId;
+    delete base.botStorage;
+
+    const prevOwnPort = prev.debugPort ? Number(prev.debugPort) : 0;
+    if (prevOwnPort) usedPorts.delete(prevOwnPort);
+    const finalPort = allocateFreePort(base.debugPort || item.debugPort || prevOwnPort, prevOwnPort);
+    const nowTs = Date.now();
+
     const finalProfile = {
       ...prev,
       ...base,
       id,
       name: finalName,
-      server: String(item.server || base.server || prev.server || "aetheria-main").trim(),
+      debugPort: finalPort,
+      serverName: resolvedServerName,
+      ...(resolvedLastServer ? { lastServerName: resolvedLastServer } : {}),
+      server: resolvedServerName || String(item.server || base.server || prev.server || "aetheria-main").trim(),
+      charName,
+      autoLoginEnabled,
+      autoResumeBot,
+      autoRegister: nextAutoRegister,
+      lastAuthSyncPushAt: nowTs,
+      ...(explicitUserImport && username && effectivePassword ? { loginSyncPending: true, registerError: "" } : {}),
       ...(username ? { account: username, username } : {}),
-      ...(charName ? { lastCharName: charName } : {})
+      ...(lastCharName ? { lastCharName } : {})
     };
     merged.push(finalProfile);
+
     if (password) {
       credentials.setPassword(id, password);
       restoredCredentials++;
     }
+    if (resolvedServerName) restoredServers++;
+
+    const botStorage = (item.botStorage && typeof item.botStorage === "object")
+      ? item.botStorage
+      : ((item.profile && item.profile.botStorage && typeof item.profile.botStorage === "object") ? item.profile.botStorage : null);
+    const bsRes = restoreProfileBrowserStorage(id, botStorage, finalProfile, effectivePassword, {
+      clearSession: explicitUserImport,
+      stampImport: explicitUserImport
+    });
+    if (bsRes.restoredConfigKeys > 0) restoredConfigs++;
   }
 
   for (const [id, cred] of Object.entries(credsObj)) {
-    if (deletedIds.has(id)) continue;
+    if (!explicitUserImport && deletedIds.has(id)) continue;
     if (cred && cred.password && seenIds.has(id) && !credentials.getPassword(id)) {
       credentials.setPassword(id, String(cred.password));
       restoredCredentials++;
     }
+  }
+
+  if (importedIdsToUndelete.length > 0) {
+    clearDeletedProfileIds(importedIdsToUndelete);
   }
 
   if (replaceExisting) {
@@ -8936,7 +9263,7 @@ function applyProfileBackupPayload(data, options = {}) {
         } catch (_) {}
       }
     }
-  } else if (!isUntouchedDefaultMockProfiles(existing)) {
+  } else if (!untouchedMock) {
     // Keep any existing non-mock profiles that were not in the backup
     for (const p of existing) {
       if (p && p.id && !seenIds.has(p.id) && !deletedIds.has(p.id)) {
@@ -8948,7 +9275,13 @@ function applyProfileBackupPayload(data, options = {}) {
   if (merged.length > 0) {
     saveProfiles(merged);
   }
-  return { restoredProfiles: merged.length, restoredCredentials };
+  return {
+    restoredProfiles: seenIds.size,
+    totalProfiles: merged.length,
+    restoredCredentials,
+    restoredServers,
+    restoredConfigs
+  };
 }
 
 async function syncProfileBackupToCentral() {
@@ -8964,7 +9297,7 @@ async function syncProfileBackupToCentral() {
     const currentProfiles = loadProfiles() || [];
     const deletedProfileIds = Array.from(loadDeletedProfileIds());
     if ((currentProfiles.length === 0 || isUntouchedDefaultMockProfiles(currentProfiles)) && deletedProfileIds.length === 0) return null;
-    const payload = buildLocalProfileBackupPayload();
+    const payload = buildLocalProfileBackupPayload({ includeBotStorage: false });
     const res = await humanCheckSolver.serviceRequest('/v1/aetheria/pmheenc/machine/profile-backup', {
       machineId: payload.machineId,
       machineName: payload.machineName,
@@ -11027,23 +11360,31 @@ const server = http.createServer(async (req, res) => {
                   };
                 }
               }
-              // Sync explicit in-game Auto-Login / Auto-Resume toggle back to Manager profile so closing/reopening keeps it!
+              // Sync explicit in-game Auto-Login / Auto-Resume toggle and Server edits back to Manager profile so closing/reopening/exporting keeps them!
               const clientToggledAt = Number(ca.userToggledAt) || 0;
+              const clientServerEditedAt = Number(ca.serverEditedAt) || 0;
               const lastMgrAuthPush = Number(p.lastAuthSyncPushAt) || 0;
-              if (clientToggledAt > 0 && clientToggledAt > lastMgrAuthPush) {
-                const nextEn = ca.enabled !== undefined ? Boolean(ca.enabled) : undefined;
-                const nextRes = ca.autoResumeBot !== undefined ? Boolean(ca.autoResumeBot) : undefined;
+              const hasToggleEdit = clientToggledAt > 0 && clientToggledAt > lastMgrAuthPush;
+              const hasServerEdit = clientServerEditedAt > 0 && clientServerEditedAt > lastMgrAuthPush;
+              if (hasToggleEdit || hasServerEdit) {
+                const nextEn = hasToggleEdit && ca.enabled !== undefined ? Boolean(ca.enabled) : undefined;
+                const nextRes = hasToggleEdit && ca.autoResumeBot !== undefined ? Boolean(ca.autoResumeBot) : undefined;
+                const nextSrv = hasServerEdit && ca.serverName !== undefined ? normalizeNightcampServerName(ca.serverName) : undefined;
                 const toggleDiff =
                   (nextEn !== undefined && nextEn !== (p.autoLoginEnabled !== false)) ||
-                  (nextRes !== undefined && nextRes !== Boolean(p.autoResumeBot));
+                  (nextRes !== undefined && nextRes !== Boolean(p.autoResumeBot)) ||
+                  (nextSrv !== undefined && nextSrv !== normalizeNightcampServerName(p.serverName || ""));
                 if (toggleDiff) {
+                  const nextStamp = Math.max(clientToggledAt, clientServerEditedAt);
                   if (nextEn !== undefined) p.autoLoginEnabled = nextEn;
                   if (nextRes !== undefined) p.autoResumeBot = nextRes;
-                  p.lastAuthSyncPushAt = clientToggledAt;
+                  if (nextSrv !== undefined) p.serverName = nextSrv;
+                  p.lastAuthSyncPushAt = nextStamp;
                   adoptedAuthFromClient = Object.assign({}, adoptedAuthFromClient || {}, {
                     ...(nextEn !== undefined ? { autoLoginEnabled: nextEn } : {}),
                     ...(nextRes !== undefined ? { autoResumeBot: nextRes } : {}),
-                    lastAuthSyncPushAt: clientToggledAt
+                    ...(nextSrv !== undefined ? { serverName: nextSrv } : {}),
+                    lastAuthSyncPushAt: nextStamp
                   });
                   syncProfileAuthToBrowserStorage(p.id, p, credentials.getPassword(p.id) || "", { clearSession: false });
                 }
@@ -11747,7 +12088,7 @@ const server = http.createServer(async (req, res) => {
     return fs.createReadStream(file).pipe(res);
   }
 
-  // GET /api/profiles/export-credentials-txt (Download all or jailed profiles' ID/Password as a human-readable .txt file)
+  // GET /api/profiles/export-credentials-txt (Download all or jailed profiles' ID/Password + Server as a human-readable .txt file)
   if (req.method === "GET" && pathname === "/api/profiles/export-credentials-txt") {
     const allProfiles = (loadProfiles() || []).filter(p => p && p.id);
     const mode = String(parsedUrl.searchParams.get("mode") || "all").trim().toLowerCase();
@@ -11757,6 +12098,12 @@ const server = http.createServer(async (req, res) => {
     const getLiveForExport = (p) => {
       const cached = p.debugPort ? clientStateCacheByPort.get(p.debugPort) : null;
       return (cached && cached.state) || p.liveState || null;
+    };
+    const resolveExportServer = (p, live) => {
+      const { bsAuthCfg } = extractExportableBrowserStorage(p.id);
+      return normalizeNightcampServerName(
+        p.serverName || (bsAuthCfg && bsAuthCfg.serverName) || (live && live.serverName) || p.lastServerName || p.server || ""
+      );
     };
     const isProfileJailedForExport = (p) => {
       if (!p) return false;
@@ -11773,32 +12120,33 @@ const server = http.createServer(async (req, res) => {
     const deviceName = getEffectiveDeviceNickname() || os.hostname() || "PC";
     const nowStr = new Date().toLocaleString("th-TH", { timeZone: "Asia/Bangkok" });
     const titleLabel = isJailedOnly
-      ? `📋 รายการไอดีและรหัสผ่านบอท (เฉพาะตัวที่ติดคุก) PmheeAether — เครื่อง: ${deviceName}`
-      : `📋 รายการไอดีและรหัสผ่านบอท PmheeAether — เครื่อง: ${deviceName}`;
+      ? `📋 รายการไอดีและรหัสผ่านบอท (เฉพาะตัวที่ติดคุก) PmheeNightcamp — เครื่อง: ${deviceName}`
+      : `📋 รายการไอดีและรหัสผ่านบอท PmheeNightcamp — เครื่อง: ${deviceName}`;
     const countLabel = isJailedOnly
       ? `📅 ส่งออกเมื่อ: ${nowStr} (เฉพาะตัวที่ติดคุก ${profiles.length} / ทั้งหมด ${allProfiles.length} โปรไฟล์)`
       : `📅 ส่งออกเมื่อ: ${nowStr} (ทั้งหมด ${profiles.length} โปรไฟล์)`;
     const lines = [
-      "================================================================================",
+      "==============================================================================================",
       titleLabel,
       countLabel,
-      "================================================================================",
-      "ลำดับ | ชื่อโปรไฟล์ | ตัวละคร | อาชีพ | พอร์ต | ID (Username) | Password",
-      "--------------------------------------------------------------------------------"
+      "==============================================================================================",
+      "ลำดับ | ชื่อโปรไฟล์ | เซิร์ฟเวอร์ | ตัวละคร | อาชีพ | พอร์ต | ID (Username) | Password",
+      "----------------------------------------------------------------------------------------------"
     ];
     profiles.forEach((p, idx) => {
       if (!p || !p.id) return;
       const live = getLiveForExport(p);
       const num = String(idx + 1).padStart(2, "0");
       const name = String(p.name || p.id).trim();
-      const charName = String((live && live.charName) || p.lastCharName || "-").trim();
+      const srv = resolveExportServer(p, live) || "Auto";
+      const charName = String((live && live.charName) || p.lastCharName || p.charName || "-").trim();
       const cls = String((live && live.charClass) || p.lastCharClass || p.charClass || "-").trim();
       const port = p.debugPort || "-";
       const user = String(p.account || p.username || "").trim() || "(ยังไม่มี ID)";
       const pass = String(credentials.getPassword(p.id) || "").trim() || "(ยังไม่มีรหัส)";
-      lines.push(`${num} | ${name} | ${charName} | ${cls} | ${port} | ${user} | ${pass}`);
+      lines.push(`${num} | ${name} | ${srv} | ${charName} | ${cls} | ${port} | ${user} | ${pass}`);
     });
-    lines.push("--------------------------------------------------------------------------------");
+    lines.push("----------------------------------------------------------------------------------------------");
     lines.push("");
     lines.push("=== รูปแบบย่อ (ID:Password) สำหรับคัดลอกใช้งาน ===");
     profiles.forEach((p) => {
@@ -11806,63 +12154,23 @@ const server = http.createServer(async (req, res) => {
       const live = getLiveForExport(p);
       const user = String(p.account || p.username || "").trim();
       const pass = String(credentials.getPassword(p.id) || "").trim();
-      const charName = String((live && live.charName) || p.lastCharName || p.name || p.id).trim();
+      const charName = String((live && live.charName) || p.lastCharName || p.charName || p.name || p.id).trim();
+      const srv = resolveExportServer(p, live);
       if (user || pass) {
-        lines.push(`${user}:${pass}   # ${p.name || p.id} (${charName})`);
+        lines.push(`${user}:${pass}   # ${p.name || p.id} (${charName})${srv ? ` [Server: ${srv}]` : ""}`);
       }
     });
     lines.push("");
     const safeDev = String(deviceName).replace(/[^a-zA-Z0-9ก-๙_-]/g, "_") || "PC";
     const dateTag = new Date().toISOString().slice(0, 10);
     const filename = isJailedOnly
-      ? `PmheeAether_ID_Pass_JAILED_${safeDev}_${dateTag}.txt`
-      : `PmheeAether_ID_Pass_${safeDev}_${dateTag}.txt`;
+      ? `PmheeNightcamp_ID_Pass_JAILED_${safeDev}_${dateTag}.txt`
+      : `PmheeNightcamp_ID_Pass_${safeDev}_${dateTag}.txt`;
     res.writeHead(200, {
       "Content-Type": "text/plain; charset=utf-8",
       "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`
     });
     return res.end("\uFEFF" + lines.join("\r\n"));
-  }
-
-  function syncProfileAuthToBrowserStorage(profileId, profile, password, { clearSession = false } = {}) {
-    if (!profileId || !profile) return;
-    try {
-      const bsDir = path.join(SESSIONS_DIR, "_browser_storage");
-      if (!fs.existsSync(bsDir)) fs.mkdirSync(bsDir, { recursive: true });
-      const bsFile = path.join(bsDir, `${profileId}.json`);
-      let bsData = {};
-      if (fs.existsSync(bsFile)) {
-        try { bsData = JSON.parse(fs.readFileSync(bsFile, "utf8")) || {}; } catch (_) { bsData = {}; }
-      }
-      if (clearSession) {
-        delete bsData["__ss:aetheria.session"];
-        delete bsData["pelican_auth_cfg"];
-        for (const bsKey of Object.keys(bsData)) {
-          if (bsKey.startsWith(`pelican_${profileId}__nc__nightcamp.online.acct:`)) {
-            delete bsData[bsKey];
-          }
-        }
-      }
-      const authKey = `pelican_${profileId}__auth_cfg`;
-      let prevCfg = {};
-      try { prevCfg = JSON.parse(bsData[authKey] || "{}") || {}; } catch (_) { prevCfg = {}; }
-      bsData[authKey] = JSON.stringify({
-        ...prevCfg,
-        enabled: profile.autoLoginEnabled !== false,
-        username: String(profile.account || "").trim(),
-        password: String(password || ""),
-        serverName: String(profile.serverName || ""),
-        charName: String(profile.charName || ""),
-        autoResumeBot: Boolean(profile.autoResumeBot),
-        register: Boolean(profile.autoRegister),
-        registerDone: false,
-        registerError: "",
-        autoCreateChar: true,
-        generatedUser: Boolean(profile.generatedAccount),
-        lastManagerPushAt: Date.now()
-      });
-      writeJsonAtomic(bsFile, bsData);
-    } catch (_) {}
   }
 
   // 2. POST /api/profiles (Create)
@@ -12377,13 +12685,28 @@ const server = http.createServer(async (req, res) => {
     return sendJSON({ success: false, recoveredCount: 0, error: "ไม่พบข้อมูลโปรไฟล์สำรองในโฟลเดอร์นี้หรือบนเซิร์ฟเวอร์" }, 404);
   }
 
-  // GET /api/profiles/export-backup (Export all local profiles + credentials as JSON)
+  // GET /api/profiles/export-backup (Export all local profiles + credentials + Server + per-client Bot Configs as JSON)
   if (req.method === "GET" && pathname === "/api/profiles/export-backup") {
-    const payload = buildLocalProfileBackupPayload();
+    if (browserMode && typeof browserMode.flushAllClientStorage === "function") {
+      await browserMode.flushAllClientStorage(2500).catch(() => {});
+    }
+    const payload = buildLocalProfileBackupPayload({ includeBotStorage: true });
+    const isDownload = parsedUrl.searchParams.get("download") === "1" || parsedUrl.searchParams.get("download") === "true";
+    if (isDownload) {
+      const deviceName = getEffectiveDeviceNickname() || os.hostname() || "PC";
+      const safeDev = String(deviceName).replace(/[^a-zA-Z0-9ก-๙_-]/g, "_") || "PC";
+      const dateTag = new Date().toISOString().slice(0, 10);
+      const filename = `PmheeNightcamp_Backup_${safeDev}_${dateTag}.json`;
+      res.writeHead(200, {
+        "Content-Type": "application/json; charset=utf-8",
+        "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`
+      });
+      return res.end(JSON.stringify(payload, null, 2));
+    }
     return sendJSON({ success: true, backup: payload });
   }
 
-  // POST /api/profiles/import-backup (Import backup JSON exported from Admin Console or Manager)
+  // POST /api/profiles/import-backup (Import backup JSON exported from Admin Console or Manager, or parsed .txt)
   if (req.method === "POST" && pathname === "/api/profiles/import-backup") {
     let body = "";
     req.on("data", chunk => body += chunk);
@@ -12391,7 +12714,10 @@ const server = http.createServer(async (req, res) => {
       try {
         const parsed = JSON.parse(body || "{}");
         const target = (parsed && parsed.backup && typeof parsed.backup === "object") ? parsed.backup : parsed;
-        const result = applyProfileBackupPayload(target);
+        const result = applyProfileBackupPayload(target, {
+          explicitUserImport: true,
+          replaceExisting: Boolean(parsed && parsed.replaceExisting)
+        });
         if (result.restoredProfiles === 0) {
           return sendJSON({ success: false, error: "ไม่พบรายการโปรไฟล์ในไฟล์สำรองที่เลือก" }, 400);
         }
@@ -12399,7 +12725,10 @@ const server = http.createServer(async (req, res) => {
         return sendJSON({
           success: true,
           restoredProfiles: result.restoredProfiles,
+          totalProfiles: result.totalProfiles,
           restoredCredentials: result.restoredCredentials,
+          restoredServers: result.restoredServers,
+          restoredConfigs: result.restoredConfigs,
           profiles: loadProfiles()
         });
       } catch (err) {

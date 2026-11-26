@@ -15374,15 +15374,24 @@ async function handleImportProfileSubmit(e) {
   }
 
   try {
-    if (parsed && (parsed.format === 'pmhee-aetheria-profile-backup-v1' || (Array.isArray(parsed.profiles) && !parsed.presets))) {
+    const backupTarget = (parsed && parsed.backup && typeof parsed.backup === 'object') ? parsed.backup : parsed;
+    if (backupTarget && (
+      backupTarget.format === 'pmhee-nightcamp-profile-backup-v2' ||
+      backupTarget.format === 'pmhee-aetheria-profile-backup-v1' ||
+      (Array.isArray(backupTarget.profiles) && !backupTarget.presets)
+    )) {
       const resBackup = await fetch(`${API_BASE}/api/profiles/import-backup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(parsed)
+        body: JSON.stringify(backupTarget)
       });
       const resultBackup = await resBackup.json();
       if (resultBackup.success) {
-        alert(`🎉 กู้คืนโปรไฟล์สำเร็จ ${resultBackup.restoredProfiles || 0} จอ (พร้อม ID/Password ${resultBackup.restoredCredentials || 0} จอ) เรียบร้อยแล้ว!`);
+        const parts = [`กู้คืนโปรไฟล์สำเร็จ ${resultBackup.restoredProfiles || 0} จอ`];
+        if (resultBackup.restoredCredentials) parts.push(`ID/Password ${resultBackup.restoredCredentials} จอ`);
+        if (resultBackup.restoredServers) parts.push(`เซิร์ฟเวอร์ ${resultBackup.restoredServers} จอ`);
+        if (resultBackup.restoredConfigs) parts.push(`การตั้งค่าบอท ${resultBackup.restoredConfigs} จอ`);
+        alert(`🎉 ${parts.join(' · ')} เรียบร้อยแล้ว!`);
         closeImportProfileModal();
         if (typeof fetchProfiles === 'function') fetchProfiles();
       } else {
@@ -15538,6 +15547,10 @@ function downloadCredentialsTxtFile(mode = 'all', jailedIds = []) {
   window.location.href = `${API_BASE}/api/profiles/export-credentials-txt?${params.toString()}`;
 }
 
+function downloadFullProfileBackupJson() {
+  window.location.href = `${API_BASE}/api/profiles/export-backup?download=1`;
+}
+
 function closeExportCredentialsModal() {
   const modal = document.getElementById('modal-export-credentials-choice');
   if (modal) modal.style.display = 'none';
@@ -15550,25 +15563,36 @@ function exportCredentialsTxt() {
     modal.id = 'modal-export-credentials-choice';
     modal.style.cssText = 'display:none;position:fixed;inset:0;z-index:10000005;background:rgba(2,6,23,0.82);backdrop-filter:blur(6px);align-items:center;justify-content:center;padding:18px;';
     modal.innerHTML = `
-      <div style="width:100%;max-width:480px;background:linear-gradient(155deg,#0f172a 0%,#131c31 100%);border:1px solid rgba(52,211,153,0.45);border-radius:16px;padding:20px 22px;box-shadow:0 26px 64px rgba(0,0,0,0.88),0 0 32px rgba(16,185,129,0.16);color:#f8fafc;display:flex;flex-direction:column;gap:14px;">
+      <div style="width:100%;max-width:520px;background:linear-gradient(155deg,#0f172a 0%,#131c31 100%);border:1px solid rgba(56,189,248,0.45);border-radius:16px;padding:20px 22px;box-shadow:0 26px 64px rgba(0,0,0,0.88),0 0 32px rgba(56,189,248,0.16);color:#f8fafc;display:flex;flex-direction:column;gap:14px;">
         <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:10px;border-bottom:1px solid rgba(255,255,255,0.08);">
           <div style="display:flex;align-items:center;gap:10px;">
-            <div style="width:36px;height:36px;border-radius:10px;background:rgba(16,185,129,0.18);border:1px solid rgba(52,211,153,0.45);display:flex;align-items:center;justify-content:center;font-size:18px;">🔑</div>
+            <div style="width:36px;height:36px;border-radius:10px;background:rgba(56,189,248,0.18);border:1px solid rgba(56,189,248,0.45);display:flex;align-items:center;justify-content:center;font-size:18px;">📦</div>
             <div>
-              <div style="font-size:15.5px;font-weight:800;color:#f8fafc;">เลือกรูปแบบ Export รหัส (.txt)</div>
-              <div style="font-size:11.5px;color:#94a3b8;margin-top:1px;">เลือกว่าต้องการส่งออกไอดี/รหัสผ่านทั้งหมด หรือเฉพาะตัวที่ติดคุก</div>
+              <div style="font-size:15.5px;font-weight:800;color:#f8fafc;">เลือกรูปแบบ Export โปรไฟล์ / รหัส</div>
+              <div style="font-size:11.5px;color:#94a3b8;margin-top:1px;">ย้ายไปเครื่องอื่นแนะนำไฟล์เต็มรูปแบบ (.json) — ครบทั้ง ID/รหัส + เซิร์ฟเวอร์ + การตั้งค่าบอททุกจอ</div>
             </div>
           </div>
           <button type="button" id="btn-exp-cred-close" style="background:transparent;border:none;color:#94a3b8;font-size:18px;cursor:pointer;padding:4px 8px;">✕</button>
         </div>
 
         <div style="display:grid;gap:10px;">
+          <button type="button" id="btn-exp-full-backup-json" style="text-align:left;padding:14px 15px;border-radius:12px;background:linear-gradient(135deg,rgba(14,165,233,0.2),rgba(99,102,241,0.16));border:1px solid rgba(56,189,248,0.65);color:#f8fafc;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:12px;font-family:inherit;transition:all 0.15s ease;">
+            <div style="display:flex;flex-direction:column;gap:4px;min-width:0;">
+              <div style="font-size:14px;font-weight:800;color:#7dd3fc;display:flex;align-items:center;gap:7px;flex-wrap:wrap;">
+                <span>📦 Export โปรไฟล์เต็มรูปแบบ (.json)</span>
+                <span style="font-size:10px;padding:2px 7px;border-radius:999px;background:rgba(56,189,248,0.24);border:1px solid rgba(125,211,252,0.55);color:#e0f2fe;">แนะนำสำหรับย้ายเครื่อง</span>
+              </div>
+              <div style="font-size:11.5px;color:#cbd5e1;line-height:1.4;">ส่งออกครบทุกอย่าง: ID / รหัสผ่าน + เซิร์ฟเวอร์ + ชื่อตัวละคร + Config บอทของแต่ละจอ (ยา, ขายของ, ตลาดกลาง, Plan, กราฟิก, เก็บเกี่ยว)</div>
+            </div>
+            <span id="badge-exp-full-json" style="flex-shrink:0;padding:4px 11px;border-radius:999px;background:rgba(14,165,233,0.28);border:1px solid rgba(56,189,248,0.55);color:#bae6fd;font-size:12px;font-weight:800;">0 จอ</span>
+          </button>
+
           <button type="button" id="btn-exp-cred-all" style="text-align:left;padding:13px 15px;border-radius:12px;background:rgba(16,185,129,0.13);border:1px solid rgba(52,211,153,0.45);color:#f8fafc;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:12px;font-family:inherit;transition:all 0.15s ease;">
             <div style="display:flex;flex-direction:column;gap:3px;min-width:0;">
               <div style="font-size:14px;font-weight:800;color:#6ee7b7;display:flex;align-items:center;gap:7px;">
-                <span>📋 Export รหัสทั้งหมด</span>
+                <span>📋 Export รหัส + เซิร์ฟเวอร์ (.txt)</span>
               </div>
-              <div style="font-size:11.5px;color:#cbd5e1;">ส่งออกรายการ ID / Password ของทุกโปรไฟล์ในเครื่องนี้ทั้งหมด</div>
+              <div style="font-size:11.5px;color:#cbd5e1;">ส่งออกรายการ ID / Password + เซิร์ฟเวอร์ ของทุกโปรไฟล์ (อ่านง่าย / คัดลอกสะดวก · ไม่รวม Config บอท)</div>
             </div>
             <span id="badge-exp-cred-all" style="flex-shrink:0;padding:4px 11px;border-radius:999px;background:rgba(16,185,129,0.24);border:1px solid rgba(52,211,153,0.5);color:#a7f3d0;font-size:12px;font-weight:800;">0 จอ</span>
           </button>
@@ -15576,7 +15600,7 @@ function exportCredentialsTxt() {
           <button type="button" id="btn-exp-cred-jailed" style="text-align:left;padding:13px 15px;border-radius:12px;background:rgba(245,158,11,0.12);border:1px solid rgba(251,191,36,0.45);color:#f8fafc;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:12px;font-family:inherit;transition:all 0.15s ease;">
             <div style="display:flex;flex-direction:column;gap:3px;min-width:0;">
               <div style="font-size:14px;font-weight:800;color:#fde047;display:flex;align-items:center;gap:7px;">
-                <span>⛓️ Export เฉพาะตัวที่ติดคุก</span>
+                <span>⛓️ Export เฉพาะตัวที่ติดคุก (.txt)</span>
               </div>
               <div id="desc-exp-cred-jailed" style="font-size:11.5px;color:#cbd5e1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">ส่งออกเฉพาะรายการ ID / Password ของตัวละครที่ติดคุก</div>
             </div>
@@ -15601,12 +15625,15 @@ function exportCredentialsTxt() {
   const jailedList = list.filter(isProfileJailedForCredExport);
   const jailedIds = jailedList.map(p => String(p.id));
 
+  const badgeFullJson = document.getElementById('badge-exp-full-json');
   const badgeAll = document.getElementById('badge-exp-cred-all');
   const badgeJailed = document.getElementById('badge-exp-cred-jailed');
   const descJailed = document.getElementById('desc-exp-cred-jailed');
+  const btnFullJson = document.getElementById('btn-exp-full-backup-json');
   const btnAll = document.getElementById('btn-exp-cred-all');
   const btnJailed = document.getElementById('btn-exp-cred-jailed');
 
+  if (badgeFullJson) badgeFullJson.textContent = `${list.length} จอ`;
   if (badgeAll) badgeAll.textContent = `${list.length} จอ`;
   if (badgeJailed) {
     badgeJailed.textContent = `${jailedList.length} จอ`;
@@ -15629,6 +15656,12 @@ function exportCredentialsTxt() {
     btnJailed.style.borderColor = jailedList.length > 0 ? 'rgba(248,113,113,0.55)' : 'rgba(148,163,184,0.25)';
   }
 
+  if (btnFullJson) {
+    btnFullJson.onclick = () => {
+      closeExportCredentialsModal();
+      downloadFullProfileBackupJson();
+    };
+  }
   btnAll.onclick = () => {
     closeExportCredentialsModal();
     downloadCredentialsTxtFile('all');
@@ -15645,6 +15678,18 @@ function exportCredentialsTxt() {
   modal.style.display = 'flex';
 }
 
+function normalizeTxtServerName(raw) {
+  const s = String(raw || '').trim();
+  if (!s) return '';
+  const low = s.toLowerCase();
+  if (low === '-' || low === 'auto' || low === 'อัตโนมัติ' || low === 'aetheria-main' || low.startsWith('อัตโนมัติ')) return '';
+  if (low === 'moonlight' || low === 's1' || low.includes('moonlight') || /^s1\b/.test(low)) return 'Moonlight';
+  if (low === 'stardust' || low === 's2' || low.includes('stardust') || /^s2\b/.test(low)) return 'Stardust';
+  if (low === 'nightfall' || low === 's3' || low.includes('nightfall') || /^s3\b/.test(low)) return 'Nightfall';
+  if (low === 'sunflare' || low === 's4' || low.includes('sunflare') || /^s4\b/.test(low)) return 'Sunflare';
+  return s;
+}
+
 function parseCredentialsTxtToBackup(rawText) {
   if (!rawText || typeof rawText !== 'string') return null;
   const lines = rawText.replace(/^\uFEFF/, '').split(/\r?\n/);
@@ -15655,34 +15700,98 @@ function parseCredentialsTxtToBackup(rawText) {
     if (!t || t.startsWith('=') || t.startsWith('-') || t.startsWith('📋') || t.startsWith('📅') || t.startsWith('ลำดับ')) continue;
     const parts = t.split('|').map(s => s.trim());
     if (parts.length >= 7 && /^\d+$/.test(parts[0])) {
-      const [, profName, charName, charClass, portStr, userRaw, passRaw] = parts;
+      let profName = '', srvRaw = '', charName = '', charClass = '', portStr = '', userRaw = '', passRaw = '';
+      if (parts.length >= 8) {
+        [, profName, srvRaw, charName, charClass, portStr, userRaw, passRaw] = parts;
+      } else {
+        [, profName, charName, charClass, portStr, userRaw, passRaw] = parts;
+      }
       const username = userRaw === '(ยังไม่มี ID)' ? '' : userRaw;
       const password = passRaw === '(ยังไม่มีรหัส)' ? '' : passRaw;
+      const serverName = normalizeTxtServerName(srvRaw);
       const port = parseInt(portStr, 10) || 0;
-      const match = existingList.find(p => p && ((port && Number(p.debugPort) === port) || p.name === profName || (charName !== '-' && p.lastCharName === charName)));
+      const match = existingList.find(p => p && (
+        (username && p.account && String(p.account).trim().toLowerCase() === username.toLowerCase()) ||
+        (port && Number(p.debugPort) === port && (!username || !p.account || String(p.account).trim().toLowerCase() === username.toLowerCase())) ||
+        (p.name === profName && (!username || !p.account || String(p.account).trim().toLowerCase() === username.toLowerCase()))
+      ));
       const id = match ? match.id : `profile_txt_${port || (profiles.length + 1)}`;
+      const finalServer = serverName || normalizeTxtServerName(match?.serverName || match?.lastServerName || '');
       profiles.push({
         id,
         name: profName || id,
-        characterName: charName !== '-' ? charName : '',
+        characterName: charName && charName !== '-' ? charName : '',
         username,
         account: username,
         password,
+        serverName: finalServer,
+        lastServerName: finalServer,
+        autoLoginEnabled: true,
         profile: {
           ...(match || {}),
           id,
           name: profName || id,
           account: username,
-          lastCharName: charName !== '-' ? charName : (match?.lastCharName || ''),
-          charClass: charClass !== '-' ? charClass : (match?.charClass || 'Archer'),
+          serverName: finalServer,
+          ...(finalServer ? { lastServerName: finalServer } : {}),
+          autoLoginEnabled: true,
+          autoRegister: !password,
+          lastCharName: charName && charName !== '-' ? charName : (match?.lastCharName || ''),
+          charClass: charClass && charClass !== '-' ? charClass : (match?.charClass || 'Traveler'),
           ...(port ? { debugPort: port } : {})
+        }
+      });
+    }
+  }
+  // Fallback: parse short "ID:Password # Name (Char) [Server: Nightfall]" lines if no table rows found
+  if (profiles.length === 0) {
+    let idx = 0;
+    for (const line of lines) {
+      const t = line.trim();
+      if (!t || t.startsWith('=') || t.startsWith('-') || t.startsWith('#') || t.startsWith('📋') || t.startsWith('📅')) continue;
+      const m = t.match(/^([^\s:|]+):([^\s#]+)(?:\s+#\s*(.*))?$/);
+      if (!m) continue;
+      idx++;
+      const username = m[1].trim();
+      const password = m[2].trim();
+      const meta = String(m[3] || '').trim();
+      const srvMatch = meta.match(/\[Server:\s*([^\]]+)\]/i);
+      const serverName = normalizeTxtServerName(srvMatch ? srvMatch[1] : '');
+      const metaClean = meta.replace(/\[Server:\s*[^\]]+\]/i, '').trim();
+      const charMatch = metaClean.match(/^(.*?)\s*\(([^)]+)\)\s*$/);
+      const profName = (charMatch ? charMatch[1] : metaClean).trim() || `Client ${idx}`;
+      const charName = (charMatch ? charMatch[2] : '').trim();
+      const match = existingList.find(p => p && username && p.account && String(p.account).trim().toLowerCase() === username.toLowerCase());
+      const id = match ? match.id : `profile_txt_${idx}`;
+      const finalServer = serverName || normalizeTxtServerName(match?.serverName || match?.lastServerName || '');
+      profiles.push({
+        id,
+        name: profName,
+        characterName: charName,
+        username,
+        account: username,
+        password,
+        serverName: finalServer,
+        lastServerName: finalServer,
+        autoLoginEnabled: true,
+        profile: {
+          ...(match || {}),
+          id,
+          name: profName,
+          account: username,
+          serverName: finalServer,
+          ...(finalServer ? { lastServerName: finalServer } : {}),
+          autoLoginEnabled: true,
+          autoRegister: !password,
+          ...(charName ? { lastCharName: charName } : {}),
+          charClass: match?.charClass || 'Traveler'
         }
       });
     }
   }
   if (profiles.length === 0) return null;
   return {
-    format: 'pmhee-aetheria-profile-backup-v1',
+    format: 'pmhee-nightcamp-profile-backup-v2',
     profiles
   };
 }
@@ -15801,10 +15910,15 @@ function setupPresetsEventListeners() {
         if (textarea) textarea.value = text;
         try {
           const parsed = JSON.parse(text);
+          const backupTarget = (parsed && parsed.backup && typeof parsed.backup === 'object') ? parsed.backup : parsed;
           const nameInput = document.getElementById('import-preset-name');
           if (nameInput) {
-            if (parsed && (parsed.format === 'pmhee-aetheria-profile-backup-v1' || (Array.isArray(parsed.profiles) && !parsed.presets))) {
-              nameInput.value = `ไฟล์สำรองโปรไฟล์ + ID/Pass (${parsed.profiles.length} จอ)`;
+            if (backupTarget && (
+              backupTarget.format === 'pmhee-nightcamp-profile-backup-v2' ||
+              backupTarget.format === 'pmhee-aetheria-profile-backup-v1' ||
+              (Array.isArray(backupTarget.profiles) && !backupTarget.presets)
+            )) {
+              nameInput.value = `ไฟล์สำรองโปรไฟล์ + Server + Config (${backupTarget.profiles.length} จอ)`;
             } else if (Array.isArray(parsed) || parsed.presets) {
               nameInput.value = `ชุดโปรไฟล์นำเข้า (${(parsed.presets || parsed).length} รายการ)`;
             } else if (parsed.name) {

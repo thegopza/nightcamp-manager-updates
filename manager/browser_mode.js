@@ -663,7 +663,7 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
   }
   function isProtectedProfileStorageKey(k) {
     if (!k || typeof k !== 'string') return false;
-    return k.endsWith('__auth_cfg') || k.endsWith('__sell_cfg') || k.endsWith('__aetheria_device') || k.endsWith('__aetheria_machine') || k.indexOf('__nc__nightcamp.online.') !== -1 || k === '__ss:aetheria.session';
+    return k.endsWith('__auth_cfg') || k.endsWith('__sell_cfg') || k.endsWith('__nc_sell_cfg') || k.endsWith('__pm_import_stamp') || k.endsWith('__aetheria_device') || k.endsWith('__aetheria_machine') || k.indexOf('__nc__nightcamp.online.') !== -1 || k === '__ss:aetheria.session';
   }
   function saveProfileStorage(profileId, entries, opts = {}) {
     if (!storageDir || !profileId || !entries || typeof entries !== 'object') return;
@@ -2345,17 +2345,26 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
       try {
         const list = loadProfiles() || [];
         const self = list.find(p => p && p.id === profileId);
-        if (self && self.account && !self.autoRegister) {
+        if (self) {
           const authKey = `pelican_${profileId}__auth_cfg`;
           let parsedAuth = {};
           try { parsedAuth = JSON.parse(saved[authKey] || '{}') || {}; } catch (_) { parsedAuth = {}; }
-          parsedAuth.enabled = self.autoLoginEnabled !== false;
-          parsedAuth.username = String(self.account).trim();
-          if (self.serverName) parsedAuth.serverName = String(self.serverName).trim();
-          if (self.charName) parsedAuth.charName = String(self.charName).trim();
-          parsedAuth.register = false;
-          parsedAuth.generatedUser = Boolean(self.generatedAccount);
-          saved[authKey] = JSON.stringify(parsedAuth);
+          if (self.account && !self.autoRegister) {
+            parsedAuth.enabled = self.autoLoginEnabled !== false;
+            parsedAuth.username = String(self.account).trim();
+            if (self.serverName) parsedAuth.serverName = String(self.serverName).trim();
+            if (self.charName) parsedAuth.charName = String(self.charName).trim();
+            if (self.autoResumeBot !== undefined) parsedAuth.autoResumeBot = Boolean(self.autoResumeBot);
+            parsedAuth.register = false;
+            parsedAuth.generatedUser = Boolean(self.generatedAccount);
+            saved[authKey] = JSON.stringify(parsedAuth);
+          } else if (self.serverName) {
+            parsedAuth.serverName = String(self.serverName).trim();
+            if (self.charName) parsedAuth.charName = String(self.charName).trim();
+            if (self.autoLoginEnabled !== undefined) parsedAuth.enabled = self.autoLoginEnabled !== false;
+            if (self.autoResumeBot !== undefined) parsedAuth.autoResumeBot = Boolean(self.autoResumeBot);
+            saved[authKey] = JSON.stringify(parsedAuth);
+          }
         }
       } catch (_) {}
     }
@@ -2372,7 +2381,7 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
     }
     const hasSaved = Object.keys(orderedSaved).length > 0;
     const restoreJs = hasSaved
-      ? `try { const __s = ${JSON.stringify(orderedSaved)}; const __rawGet = (window.__pmRawStorage && window.__pmRawStorage.get) || Storage.prototype.getItem; const __rawSet = (window.__pmRawStorage && window.__pmRawStorage.set) || Storage.prototype.setItem; const __rawDel = (window.__pmRawStorage && window.__pmRawStorage.del) || Storage.prototype.removeItem; if (window.localStorage && window.__pmProfileId && __rawGet.call(window.localStorage, 'pelican_auth_cfg') !== null) { const __rm = []; for (let i = 0; i < window.localStorage.length; i++) { const lk = window.localStorage.key(i); if (lk && lk.startsWith('pelican_') && lk.indexOf('__') === -1 && lk !== 'pelican_icon_manifest' && lk !== 'pelican_item_catalog') __rm.push(lk); } for (const lk of __rm) { try { __rawDel.call(window.localStorage, lk); } catch (_) {} } } for (const [k, v] of Object.entries(__s)) { if (typeof v !== 'string' || k === 'aetheria.device' || k === 'aetheria.machine') continue; if (k.startsWith('__ss:')) { const sk = k.slice(5); if (window.sessionStorage && __rawGet.call(window.sessionStorage, sk) === null) { try { __rawSet.call(window.sessionStorage, sk, v); } catch (_) {} } } else if (window.localStorage) { const curV = __rawGet.call(window.localStorage, k); const isClobberedSell = (k.endsWith('__sell_cfg') || k === 'pelican_sell_cfg') && curV !== null && curV.indexOf('"weaponRarity"') === -1 && v.indexOf('"weaponRarity"') !== -1; if (k.endsWith('__aetheria_device') || k.endsWith('__aetheria_machine') || k.endsWith('__auth_cfg') || curV === null || isClobberedSell) { try { __rawSet.call(window.localStorage, k, v); } catch (_) { if (typeof __freeStorageQuota === 'function') __freeStorageQuota(window.localStorage, __rawDel); try { __rawSet.call(window.localStorage, k, v); } catch (__) {} } } } } window.__pmStorageRestored = true; if (typeof window.reloadBotConfigsFromLocalStorage === 'function') { try { window.reloadBotConfigsFromLocalStorage(); } catch (_) {} } } catch (_) { window.__pmStorageRestored = true; }`
+      ? `try { const __s = ${JSON.stringify(orderedSaved)}; const __rawGet = (window.__pmRawStorage && window.__pmRawStorage.get) || Storage.prototype.getItem; const __rawSet = (window.__pmRawStorage && window.__pmRawStorage.set) || Storage.prototype.setItem; const __rawDel = (window.__pmRawStorage && window.__pmRawStorage.del) || Storage.prototype.removeItem; if (window.localStorage && window.__pmProfileId && __rawGet.call(window.localStorage, 'pelican_auth_cfg') !== null) { const __rm = []; for (let i = 0; i < window.localStorage.length; i++) { const lk = window.localStorage.key(i); if (lk && lk.startsWith('pelican_') && lk.indexOf('__') === -1 && lk !== 'pelican_icon_manifest' && lk !== 'pelican_item_catalog') __rm.push(lk); } for (const lk of __rm) { try { __rawDel.call(window.localStorage, lk); } catch (_) {} } } const __impKey = window.__pmProfileId ? ('pelican_' + window.__pmProfileId + '__pm_import_stamp') : ''; const __forceImportRestore = Boolean(window.localStorage && __impKey && typeof __s[__impKey] === 'string' && __rawGet.call(window.localStorage, __impKey) !== __s[__impKey]); for (const [k, v] of Object.entries(__s)) { if (typeof v !== 'string' || k === 'aetheria.device' || k === 'aetheria.machine') continue; if (k.startsWith('__ss:')) { const sk = k.slice(5); if (window.sessionStorage && __rawGet.call(window.sessionStorage, sk) === null) { try { __rawSet.call(window.sessionStorage, sk, v); } catch (_) {} } } else if (window.localStorage) { const curV = __rawGet.call(window.localStorage, k); const isClobberedSell = (k.endsWith('__sell_cfg') || k === 'pelican_sell_cfg') && curV !== null && curV.indexOf('"weaponRarity"') === -1 && v.indexOf('"weaponRarity"') !== -1; if (__forceImportRestore || k.endsWith('__aetheria_device') || k.endsWith('__aetheria_machine') || k.endsWith('__auth_cfg') || curV === null || isClobberedSell) { try { __rawSet.call(window.localStorage, k, v); } catch (_) { if (typeof __freeStorageQuota === 'function') __freeStorageQuota(window.localStorage, __rawDel); try { __rawSet.call(window.localStorage, k, v); } catch (__) {} } } } } window.__pmStorageRestored = true; if (typeof window.reloadBotConfigsFromLocalStorage === 'function') { try { window.reloadBotConfigsFromLocalStorage(); } catch (_) {} } } catch (_) { window.__pmStorageRestored = true; }`
       : `window.__pmStorageRestored = true;`;
     // IMPORTANT: Do NOT use regex literals (/.../) inside this template string, because \/ unescapes to / and // becomes a JS line comment!
     const deviceHookJs = `try {
@@ -5690,7 +5699,18 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
 
   // ====================== END UNBAN MODE ======================
 
-  return { launch, stop, stopAll, isOpen, hasProxyContext, ensureProxyListening, evalByPort, rediscover, start, dispose, findBrowser, rebalanceDeviceGroups, ensureProfileDeviceId, ensureProfileMachineId, ensureProfileDeviceGroupIndex, ensureProfileDeviceSpec, resolveDeviceSpec, getDeviceGroupsSnapshot, rotateDeviceGroup, rotateProfileDeviceId, rotateAllDeviceIds, getCustomIpDeviceConfig, getProfileIpIsolationMeta, mutateCustomIpDevices, pruneDeletedProfilesFromCustomGroups, applyProxyModeToOpenWindows, syncAssetCacheToOpenWindows, harvestAllFromBrowserLevelDb, launchUnbanSession, stopUnbanSession, stopAllUnbanSessions, getUnbanStatus, setUnbanCallback, addProfilesToUnbanPool, removeProfileFromUnbanPool, rotateUnbanDevice, setUnbanProxyMode, loadUnbanConfig, saveUnbanConfig, status:()=>Object.fromEntries(diagnostics) };
+  async function flushAllClientStorage(timeoutMs = 2500) {
+    const activeClients = Array.from(clients.values()).filter(c => c && c.sessionId);
+    if (activeClients.length === 0) return { flushed: 0 };
+    const work = Promise.allSettled(activeClients.map(c => syncClientStorage(c, true)));
+    await Promise.race([
+      work,
+      new Promise(resolve => setTimeout(resolve, Math.max(400, Number(timeoutMs) || 2500)))
+    ]);
+    return { flushed: activeClients.length };
+  }
+
+  return { launch, stop, stopAll, isOpen, hasProxyContext, ensureProxyListening, evalByPort, rediscover, start, dispose, findBrowser, rebalanceDeviceGroups, ensureProfileDeviceId, ensureProfileMachineId, ensureProfileDeviceGroupIndex, ensureProfileDeviceSpec, resolveDeviceSpec, getDeviceGroupsSnapshot, rotateDeviceGroup, rotateProfileDeviceId, rotateAllDeviceIds, getCustomIpDeviceConfig, getProfileIpIsolationMeta, mutateCustomIpDevices, pruneDeletedProfilesFromCustomGroups, applyProxyModeToOpenWindows, syncAssetCacheToOpenWindows, harvestAllFromBrowserLevelDb, flushAllClientStorage, launchUnbanSession, stopUnbanSession, stopAllUnbanSessions, getUnbanStatus, setUnbanCallback, addProfilesToUnbanPool, removeProfileFromUnbanPool, rotateUnbanDevice, setUnbanProxyMode, loadUnbanConfig, saveUnbanConfig, status:()=>Object.fromEntries(diagnostics) };
 }
 
 module.exports = { createBrowserMode, findBrowser, HEALTH_JS, MAX_SCREENS_PER_DEVICE, resolveDeviceSpec, extractPelicanStorageFromLevelDb, mergeAuthConfigString, mergeSellConfigString };
