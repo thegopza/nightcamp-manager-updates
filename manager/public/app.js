@@ -17628,7 +17628,7 @@ function ensureNightcampCharacterModalDom() {
   modal.innerHTML = `
     <div id="nc-char-modal-card" style="width:1140px; max-width:97vw; height:88vh; max-height:840px; background:linear-gradient(155deg, #0b1325 0%, #111827 55%, #17132a 100%); border:1.5px solid rgba(56, 189, 248, 0.45); border-radius:16px; box-shadow:0 28px 75px rgba(0,0,0,0.9), 0 0 38px rgba(14, 165, 233, 0.18); display:flex; flex-direction:column; overflow:hidden;">
       <div id="nc-char-modal-header" style="padding:12px 18px; background:linear-gradient(135deg, rgba(14, 116, 144, 0.28), rgba(15, 23, 42, 0.92)); border-bottom:1px solid rgba(148, 163, 184, 0.18); display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; flex-shrink:0;"></div>
-      <div id="nc-char-modal-body" style="flex:1; min-height:0; display:grid; grid-template-columns:430px 1fr; overflow:hidden;"></div>
+      <div id="nc-char-modal-body" style="flex:1; min-height:0; display:grid; grid-template-columns:min(430px, 42%) minmax(0, 1fr); overflow:hidden;"></div>
     </div>
   `;
   modal.addEventListener('click', (e) => {
@@ -18509,23 +18509,23 @@ function renderNightcampEquipSlotCard(def, eqItem) {
     <div onclick="selectNightcampEquipSlotFilter('${def.key}')"
          ${mktAttrs}
          title="${eqItem ? '' : `ช่อง ${def.label} (คลิกเพื่อดูของในกระเป๋าที่ใส่ช่องนี้ได้)`}"
-         style="background:${bgCol}; border:1.5px solid ${borderCol}; border-radius:9px; padding:6px 7px; display:flex; align-items:center; gap:7px; cursor:pointer; transition:all 0.15s ease; min-height:46px; position:relative;">
+         style="background:${bgCol}; border:1.5px solid ${borderCol}; border-radius:9px; padding:6px 7px; display:flex; align-items:center; gap:7px; cursor:pointer; transition:all 0.15s ease; min-height:46px; min-width:0; width:100%; max-width:100%; box-sizing:border-box; overflow:hidden; position:relative;">
       <div style="width:36px; height:36px; border-radius:7px; background:#020617; border:1px solid ${eqItem ? st.border : 'rgba(148,163,184,0.2)'}; display:flex; align-items:center; justify-content:center; flex-shrink:0; overflow:hidden; position:relative;">
         ${eqItem?.icon
           ? `<img src="${escapeHTML(eqItem.icon)}" alt="" style="width:32px;height:32px;object-fit:contain;">`
           : `<span style="font-size:16px;opacity:0.45;">${def.icon}</span>`}
         ${eqItem?.grade ? `<span style="position:absolute;left:1px;top:1px;background:rgba(15,23,42,0.9);color:#fbbf24;font-size:8px;font-weight:800;padding:0 3px;border-radius:3px;">G${eqItem.grade}</span>` : ''}
       </div>
-      <div style="flex:1; min-width:0; overflow:hidden;">
-        <div style="display:flex; justify-content:space-between; align-items:center; gap:4px;">
-          <span style="font-size:9.5px; color:#94a3b8; font-weight:600;">${escapeHTML(def.label)}</span>
-          ${eqItem ? `<button type="button" onclick="event.stopPropagation(); runNightcampCharacterAction({ action: 'unequip_slot', slot: '${def.key}' })" title="ถอดอุปกรณ์ชิ้นนี้" style="background:rgba(239,68,68,0.18);border:1px solid rgba(248,113,113,0.45);color:#fca5a5;border-radius:4px;font-size:9px;font-weight:700;padding:1px 5px;cursor:pointer;">ถอด</button>` : ''}
+      <div style="flex:1; min-width:0; max-width:100%; overflow:hidden;">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:4px; min-width:0;">
+          <span style="font-size:9.5px; color:#94a3b8; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; flex:1;">${escapeHTML(def.label)}</span>
+          ${eqItem ? `<button type="button" onclick="event.stopPropagation(); runNightcampCharacterAction({ action: 'unequip_slot', slot: '${def.key}' })" title="ถอดอุปกรณ์ชิ้นนี้" style="background:rgba(239,68,68,0.18);border:1px solid rgba(248,113,113,0.45);color:#fca5a5;border-radius:4px;font-size:9px;font-weight:700;padding:1px 5px;cursor:pointer;flex-shrink:0;white-space:nowrap;line-height:1.2;">ถอด</button>` : ''}
         </div>
-        <div style="font-size:11px; font-weight:700; color:${eqItem ? st.color : '#64748b'}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+        <div style="font-size:11px; font-weight:700; color:${eqItem ? st.color : '#64748b'}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%;">
           ${eqItem ? escapeHTML(eqItem.name) : '— ว่าง —'}
         </div>
         ${eqItem && eqItem.options && eqItem.options.length > 0 ? `
-          <div style="font-size:9px; color:#86efac; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+          <div style="font-size:9px; color:#86efac; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%;">
             ${escapeHTML(eqItem.options.map(o => o.text).join(' · '))}
           </div>
         ` : ''}
@@ -19672,10 +19672,10 @@ function renderNightcampCharacterModal() {
   const tab = ncCharModalState.activeTab;
   bodyEl.innerHTML = `
     <!-- LEFT COLUMN: Character Paperdoll, 10 Equipment Slots & 6 Base Stats Allocation -->
-    <div style="border-right:1px solid rgba(148,163,184,0.16); padding:12px 14px; overflow-y:auto; display:flex; flex-direction:column; gap:10px; background:rgba(2,6,23,0.42);">
+    <div style="border-right:1px solid rgba(148,163,184,0.16); padding:12px 14px; overflow-y:auto; overflow-x:hidden; min-width:0; box-sizing:border-box; display:flex; flex-direction:column; gap:10px; background:rgba(2,6,23,0.42);">
       <!-- HP / SP Gauges -->
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; background:rgba(15,23,42,0.75); border:1px solid rgba(148,163,184,0.2); border-radius:9px; padding:7px 10px;">
-        <div>
+      <div style="display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 1fr); gap:8px; min-width:0; background:rgba(15,23,42,0.75); border:1px solid rgba(148,163,184,0.2); border-radius:9px; padding:7px 10px;">
+        <div style="min-width:0;">
           <div style="display:flex;justify-content:space-between;font-size:10.5px;font-weight:700;color:#fca5a5;margin-bottom:3px;">
             <span>❤️ HP</span><span>${d.hp.toLocaleString()} / ${d.hpMax.toLocaleString()}</span>
           </div>
@@ -19683,7 +19683,7 @@ function renderNightcampCharacterModal() {
             <div style="width:${hpPct}%;height:100%;background:linear-gradient(90deg,#ef4444,#f87171);"></div>
           </div>
         </div>
-        <div>
+        <div style="min-width:0;">
           <div style="display:flex;justify-content:space-between;font-size:10.5px;font-weight:700;color:#93c5fd;margin-bottom:3px;">
             <span>💙 SP</span><span>${d.sp.toLocaleString()} / ${d.spMax.toLocaleString()}</span>
           </div>
@@ -19694,62 +19694,62 @@ function renderNightcampCharacterModal() {
       </div>
 
       <!-- Equipment Paperdoll & Slots -->
-      <div style="background:rgba(15,23,42,0.68); border:1px solid rgba(56,189,248,0.25); border-radius:11px; padding:10px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:7px;">
-          <span style="font-size:11.5px; font-weight:800; color:#7dd3fc;">🛡️ อุปกรณ์สวมใส่ (คลิกช่องเพื่อกรองของเปลี่ยน)</span>
-          <span style="font-size:10px; color:#94a3b8;">ATK ${d.statSheet?.batk || 0} · DEF ${d.statSheet?.def || 0}</span>
+      <div style="background:rgba(15,23,42,0.68); border:1px solid rgba(56,189,248,0.25); border-radius:11px; padding:10px; min-width:0; max-width:100%; box-sizing:border-box; overflow:hidden;">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; margin-bottom:7px; min-width:0;">
+          <span style="font-size:11.5px; font-weight:800; color:#7dd3fc; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0;">🛡️ อุปกรณ์สวมใส่ (คลิกช่องเพื่อกรองของเปลี่ยน)</span>
+          <span style="font-size:10px; color:#94a3b8; flex-shrink:0; white-space:nowrap;">ATK ${d.statSheet?.batk || 0} · DEF ${d.statSheet?.def || 0}</span>
         </div>
 
         <!-- Center Paperdoll Preview -->
-        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; background:radial-gradient(circle at 50% 60%, rgba(14,165,233,0.18), rgba(2,6,23,0.85)); border:1px solid rgba(56,189,248,0.25); border-radius:10px; padding:8px 12px; margin-bottom:8px;">
-          <div style="display:flex; align-items:center; gap:10px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; background:radial-gradient(circle at 50% 60%, rgba(14,165,233,0.18), rgba(2,6,23,0.85)); border:1px solid rgba(56,189,248,0.25); border-radius:10px; padding:8px 12px; margin-bottom:8px; min-width:0; overflow:hidden;">
+          <div style="display:flex; align-items:center; gap:10px; min-width:0; flex:1;">
             <div style="width:74px; height:74px; border-radius:10px; background:rgba(2,6,23,0.7); border:1px solid rgba(56,189,248,0.35); display:flex; align-items:center; justify-content:center; overflow:hidden; flex-shrink:0;">
               ${d.heroPaperdollUrl ? `<img src="${escapeHTML(d.heroPaperdollUrl)}" alt="" style="width:70px;height:70px;object-fit:contain;">` : `<span style="font-size:30px;">🌙</span>`}
             </div>
-            <div>
-              <div style="font-size:13px; font-weight:800; color:#e0f2fe;">${escapeHTML(d.charName)}</div>
-              <div style="font-size:11px; color:#7dd3fc; font-weight:600;">${escapeHTML(d.jobName)} (Lv.${d.baseLv} / Job ${d.jobLv})</div>
+            <div style="min-width:0; overflow:hidden;">
+              <div style="font-size:13px; font-weight:800; color:#e0f2fe; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHTML(d.charName)}</div>
+              <div style="font-size:11px; color:#7dd3fc; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHTML(d.jobName)} (Lv.${d.baseLv} / Job ${d.jobLv})</div>
               <div style="font-size:10px; color:#94a3b8; margin-top:2px;">
                 ${d.nearShop ? '🟢 อยู่ใกล้ร้านลุงโกโก้ (ขาย/ฝากคลังได้ทันที)' : (d.nearForge ? '🟢 อยู่ใกล้เตาป๋าหมูหริ่ง (ตีบวก/ซ่อมได้ทันที)' : '🏕️ อยู่นอกจุดร้านค้า (สวมใส่/ถอด/ใช้ยาได้ทันที)')}
               </div>
             </div>
           </div>
-          <div style="display:flex; flex-direction:column; gap:4px;">
+          <div style="display:flex; flex-direction:column; gap:4px; flex-shrink:0;">
             <button type="button" onclick="runNightcampCharacterAction({ action: 'walk_to_coco' })" title="เดินไปหาลุงโกโก้ในค่ายเพื่อขายของหรือฝากคลัง" style="background:rgba(245,158,11,0.16);border:1px solid rgba(251,191,36,0.45);color:#fde68a;border-radius:6px;padding:3px 8px;font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap;">🛒 ไปหาลุงโกโก้</button>
             <button type="button" onclick="runNightcampCharacterAction({ action: 'walk_to_forge' })" title="เดินไปหาป๋าหมูหริ่งในค่ายเพื่อตีบวกหรือซ่อมของ" style="background:rgba(168,85,247,0.16);border:1px solid rgba(192,132,252,0.45);color:#e9d5ff;border-radius:6px;padding:3px 8px;font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap;">🔨 ไปเตาตีบวก</button>
           </div>
         </div>
 
         <!-- 2-Column Equipment Slots Grid -->
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
-          <div style="display:flex; flex-direction:column; gap:5px;">
+        <div style="display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 1fr); gap:6px; width:100%; min-width:0;">
+          <div style="display:flex; flex-direction:column; gap:5px; min-width:0; overflow:hidden;">
             ${NC_CHAR_SLOTS_LEFT.map(def => renderNightcampEquipSlotCard(def, d.equipment?.[def.key] || (def.key === 'top' ? d.equipment?.robe : null))).join('')}
           </div>
-          <div style="display:flex; flex-direction:column; gap:5px;">
+          <div style="display:flex; flex-direction:column; gap:5px; min-width:0; overflow:hidden;">
             ${NC_CHAR_SLOTS_RIGHT.map(def => renderNightcampEquipSlotCard(def, d.equipment?.[def.key] || (def.key === 'fhat' ? d.equipment?.frobe : null))).join('')}
           </div>
         </div>
       </div>
 
       <!-- 6 Base Stats Allocation Card (STR, AGI, VIT, INT, DEX, LUK) -->
-      <div style="background:rgba(15,23,42,0.75); border:1px solid rgba(250,204,21,0.32); border-radius:11px; padding:10px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:7px;">
+      <div style="background:rgba(15,23,42,0.75); border:1px solid rgba(250,204,21,0.32); border-radius:11px; padding:10px; min-width:0; max-width:100%; box-sizing:border-box; overflow:hidden;">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; margin-bottom:7px; min-width:0;">
           <span style="font-size:11.5px; font-weight:800; color:#fde047;">⚡ ค่าสเตตัสหลัก (Base Stats)</span>
-          <span style="font-size:11px; font-weight:700; color:${d.statPoints > 0 ? '#4ade80' : '#94a3b8'};">แต้มคงเหลือ: <b>${d.statPoints}</b> แต้ม</span>
+          <span style="font-size:11px; font-weight:700; color:${d.statPoints > 0 ? '#4ade80' : '#94a3b8'}; flex-shrink:0;">แต้มคงเหลือ: <b>${d.statPoints}</b> แต้ม</span>
         </div>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+        <div style="display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 1fr); gap:6px; min-width:0;">
           ${['str', 'agi', 'vit', 'int', 'dex', 'luk'].map(k => {
             const st = d.baseStats?.[k] || { label: k.toUpperCase(), th: k, base: 5, bonus: 0, total: 5, cost: 2, canRaise: false, desc: '' };
             return `
-              <div title="${escapeHTML(st.desc)}" style="background:rgba(2,6,23,0.65); border:1px solid rgba(148,163,184,0.22); border-radius:8px; padding:6px 8px; display:flex; align-items:center; justify-content:space-between; gap:4px;">
-                <div>
-                  <div style="font-size:11px; font-weight:800; color:#38bdf8;">${escapeHTML(st.label)} <span style="font-size:9.5px;color:#94a3b8;font-weight:500;">${escapeHTML(st.th)}</span></div>
+              <div title="${escapeHTML(st.desc)}" style="background:rgba(2,6,23,0.65); border:1px solid rgba(148,163,184,0.22); border-radius:8px; padding:6px 8px; display:flex; align-items:center; justify-content:space-between; gap:4px; min-width:0; box-sizing:border-box; overflow:hidden;">
+                <div style="min-width:0; overflow:hidden;">
+                  <div style="font-size:11px; font-weight:800; color:#38bdf8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHTML(st.label)} <span style="font-size:9.5px;color:#94a3b8;font-weight:500;">${escapeHTML(st.th)}</span></div>
                   <div style="font-size:12px; font-weight:800; color:#f8fafc; font-family:'JetBrains Mono',monospace;">
                     ${st.base}${st.bonus !== 0 ? ` <span style="color:#4ade80;font-size:10.5px;">(${st.bonus > 0 ? '+' : ''}${st.bonus})</span>` : ''}
                   </div>
                   <div style="font-size:8.5px; color:#64748b;">ใช้ ${st.cost} แต้ม/ขั้น</div>
                 </div>
-                <div style="display:flex; gap:3px;">
+                <div style="display:flex; gap:3px; flex-shrink:0;">
                   <button type="button" ${st.canRaise ? '' : 'disabled'} onclick="runNightcampCharacterAction({ action: 'stat_up', stat: '${k}', count: 1 })"
                           style="background:${st.canRaise ? '#059669' : '#1e293b'}; border:1px solid ${st.canRaise ? '#34d399' : '#334155'}; color:${st.canRaise ? '#fff' : '#64748b'}; border-radius:5px; padding:3px 7px; font-size:10.5px; font-weight:800; cursor:${st.canRaise ? 'pointer' : 'not-allowed'};">+1</button>
                   <button type="button" ${st.canRaise ? '' : 'disabled'} onclick="runNightcampCharacterAction({ action: 'stat_up', stat: '${k}', count: 5 })"
@@ -19763,7 +19763,7 @@ function renderNightcampCharacterModal() {
     </div>
 
     <!-- RIGHT COLUMN: Unified Bag (with in-game sub-categories), Camp Storage, Central Market & Detailed Combat Stats -->
-    <div style="display:flex; flex-direction:column; min-height:0; overflow:hidden;">
+    <div style="display:flex; flex-direction:column; min-height:0; min-width:0; overflow:hidden;">
       <!-- Right Navigation Main Tabs & Search Bar -->
       <div style="padding:10px 14px; background:rgba(2,6,23,0.65); border-bottom:1px solid rgba(148,163,184,0.16); display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; flex-shrink:0;">
         <div style="display:flex; gap:5px; flex-wrap:wrap;">
