@@ -6105,10 +6105,14 @@ function initDeviceNickname() {
   }
 
   function renderAccessLockOverlay() {
-    const hasUserSession = Boolean(currentIsUserAccount && currentUsername && !currentRequiresLogin);
-    const isLocked = !hasUserSession || currentAccessStatus !== "approved";
     const overlay = ensureAccessLockOverlay();
     if (!overlay) return;
+    if (!initialAccessHydrated) {
+      overlay.style.display = "none";
+      return;
+    }
+    const hasUserSession = Boolean(currentIsUserAccount && currentUsername && !currentRequiresLogin);
+    const isLocked = !hasUserSession || currentAccessStatus !== "approved";
     if (!isLocked) {
       overlay.style.display = "none";
       return;
@@ -6379,6 +6383,7 @@ function initDeviceNickname() {
   });
 
   loadNickname();
+  pollAccessStatusFromServer(false);
   setTimeout(() => pollAccessStatusFromServer(true), 1500);
   setInterval(() => {
     const needSync = currentRequiresLogin || currentAccessStatus === "pending" || currentAccessStatus === "revoked";

@@ -2776,9 +2776,9 @@ function createScreenProxyManager({ dataDir, solver, loadProfiles, assetCache: p
       ? data.poolText
       : (typeof data.rawText === 'string' ? data.rawText : null);
     let poolInfo = loadPool();
-    if (rawPoolText !== null) {
+    if (rawPoolText !== null && (updated.mode === 'local-pool' || rawPoolText.trim().length > 0)) {
       poolInfo = savePool(rawPoolText, updated.maxScreensPerIp);
-    } else if (prevSettings.maxScreensPerIp !== updated.maxScreensPerIp && typeof poolInfo.rawText === 'string') {
+    } else if (updated.mode === 'local-pool' && prevSettings.maxScreensPerIp !== updated.maxScreensPerIp && typeof poolInfo.rawText === 'string' && poolInfo.rawText.trim().length > 0) {
       poolInfo = savePool(poolInfo.rawText, updated.maxScreensPerIp);
     }
     if (prevSettings.maxScreensPerIp !== updated.maxScreensPerIp && activeLeases.size > 0) {

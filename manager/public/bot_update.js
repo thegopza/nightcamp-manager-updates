@@ -96,13 +96,23 @@
     const ch = document.getElementById('char-detail-modal');
     return Boolean(ch && ch.style.display && ch.style.display !== 'none');
   }
+  let reloadScheduled = false;
   function watchForNewBuild() {
     if (!firstSeen) { firstSeen = { webBuild: mgr.webBuild, serverStartedAt: mgr.serverStartedAt }; return; }
     if (mgr.webBuild === firstSeen.webBuild && mgr.serverStartedAt === firstSeen.serverStartedAt) return;
     reloadPending = true;
-    if (!userBusy()) {
-      document.body.insertAdjacentHTML('beforeend', '<div class="bu-reload-toast">♻️ Manager อัปเดตแล้ว — กำลังโหลดหน้าใหม่...</div>');
-      setTimeout(() => location.reload(), 1500);
+    if (!reloadScheduled && !userBusy()) {
+      reloadScheduled = true;
+      document.body.insertAdjacentHTML('beforeend', '<div class="bu-reload-toast">♻️ Manager อัปเดตแล้ว — กำลังโหลดหน้าใหม่ (จอเกมไม่ปิด)...</div>');
+      const tryReload = async (attempt = 0) => {
+        try {
+          const r = await fetch('/api/access/status', { cache: 'no-store' });
+          if (r && r.ok) { location.reload(); return; }
+        } catch (_) {}
+        if (attempt < 10) setTimeout(() => tryReload(attempt + 1), 600);
+        else location.reload();
+      };
+      setTimeout(() => tryReload(0), 1200);
     }
   }
 

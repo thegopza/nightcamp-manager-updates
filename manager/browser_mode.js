@@ -3398,10 +3398,10 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
 
   async function getCustomBrowserContexts() {
     try {
-      const r = await send('Target.getBrowserContexts', {}, undefined, 3000);
+      const r = await send('Target.getBrowserContexts', {}, undefined, 6000);
       return new Set(Array.isArray(r?.browserContextIds) ? r.browserContextIds : []);
     } catch (_) {
-      return new Set();
+      return null;
     }
   }
 
@@ -3417,7 +3417,7 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
     const customContexts = await getCustomBrowserContexts();
     const surviving=new Set(targetInfos.map(t=>t.targetId));
     for(const c of Array.from(clients.values())){
-      if(c.browserContextId && !customContexts.has(c.browserContextId)) c.browserContextId = null;
+      if(customContexts && c.browserContextId && !customContexts.has(c.browserContextId)) c.browserContextId = null;
       if(!surviving.has(c.targetId)){diagnostic(c,'closed');knownTargets.delete(c.profileId);saveKnownTargets();drop(c);}
     }
     const allProfiles = loadProfiles() || [];
@@ -3445,7 +3445,7 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
       await Promise.all(knownPages.map(async ({ t, knownMatch }) => {
         try {
           if (stoppedProfiles.has(knownMatch.id)) stoppedProfiles.delete(knownMatch.id);
-          const isCustomCtx = Boolean(t.browserContextId && customContexts.has(t.browserContextId));
+          const isCustomCtx = Boolean(t.browserContextId && (!customContexts || customContexts.has(t.browserContextId)));
           if (screenProxy && (screenProxy.isEnabled() || isCustomCtx)) {
             if (screenProxy.isEnabled()) screenProxy.acquireForProfile(knownMatch.id, { debugPort: knownMatch.debugPort }).catch(() => {});
             else if (typeof screenProxy.ensureProfileTunnel === 'function') screenProxy.ensureProfileTunnel(knownMatch.id, knownMatch.debugPort).catch(() => {});
@@ -3544,7 +3544,7 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
           stoppedProfiles.delete(identified);
         }
         const profile = identified && !stoppedProfiles.has(identified) && allProfiles.find(p => p.id === identified);
-        const isCustomCtx = Boolean(t.browserContextId && customContexts.has(t.browserContextId));
+        const isCustomCtx = Boolean(t.browserContextId && (!customContexts || customContexts.has(t.browserContextId)));
         if (profile) {
           if (screenProxy && (screenProxy.isEnabled() || isCustomCtx)) {
             const pTask = screenProxy.isEnabled()
@@ -4102,7 +4102,7 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
         ((allProfiles.length <= 1 && orphans.length === 1 && clients.size === 0) ? orphans[0] : null);
       if (matchedOrphan) {
         try {
-          const orphanCtx = (matchedOrphan.browserContextId && customContexts.has(matchedOrphan.browserContextId)) ? matchedOrphan.browserContextId : null;
+          const orphanCtx = (matchedOrphan.browserContextId && (!customContexts || customContexts.has(matchedOrphan.browserContextId))) ? matchedOrphan.browserContextId : null;
           existing = await attach(profile.id, matchedOrphan.targetId, true, orphanCtx);
         } catch (_) {}
       }
@@ -4286,6 +4286,7 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
     if (!screenProxy) return { switched: 0, updatedTunnels: 0, details: [] };
     await connect().catch(() => {});
     const customContexts = await getCustomBrowserContexts();
+    if (!customContexts) return { switched: 0, updatedTunnels: 0, details: [], skipped: 'cdp_contexts_unavailable' };
     const allProfiles = loadProfiles() || [];
     const filterSet = Array.isArray(onlyProfileIds) && onlyProfileIds.length > 0 ? new Set(onlyProfileIds) : null;
     let switched = 0;
@@ -4486,8 +4487,8 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
         if (p && p.id) ensureProfileDeviceId(p.id);
       }
     } catch (_) {}
-    // reconnect to a browser left open by a previous Manager run
-    setTimeout(() => {if(started)rediscover().catch(() => {});}, 3000);
+    // reconnect immediately to a browser left open by a previous Manager run (e.g. exit-75 self-update)
+    setTimeout(() => {if(started)rediscover().catch(() => {});}, 150);
     monitorTimer=setInterval(()=>{
       const now = Date.now();
       let syncedCount = 0;

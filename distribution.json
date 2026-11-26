@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "sourceCommit": "907803ffaee081357e3faf756109bcb5b64a483f",
+  "sourceCommit": "fde34def8c8fb8a7fb42f6d5736a120883e02113",
   "files": [
     {
       "path": "manager/asset_cache.js",
@@ -16,7 +16,7 @@
     },
     {
       "path": "manager/browser_mode.js",
-      "sha256": "ff2aeccaf5810aa84bc4a1d6cc2a692237ce2e2771d6c95f3a10b094f5f7c15c"
+      "sha256": "2464282b23920968a32eab0347aff042319df1c52246e2eabc8290aca367d68d"
     },
     {
       "path": "manager/captcha_stats.js",
@@ -144,7 +144,7 @@
     },
     {
       "path": "manager/public/app.js",
-      "sha256": "02dc4b423ca3250dcceee720ebe5dde365246273982186386e42e393468dc0ca"
+      "sha256": "bb52aa21a2094a305ab18ddfb0e41336cefe2920a27d63a5efd7380372c3b5ac"
     },
     {
       "path": "manager/public/assets/updates/ui_v212_bag_rightclick.jpg",
@@ -168,7 +168,7 @@
     },
     {
       "path": "manager/public/bot_update.js",
-      "sha256": "53e29586ac4f447e5238a3f700a3c98ebaa8642155e98562ba1efbb71448afe3"
+      "sha256": "f1891af70a3dd3e6bb920c025b7638c4b28c8fbf7abe11eb0d97dbb63227c2a2"
     },
     {
       "path": "manager/public/builder_module.js",
@@ -228,7 +228,7 @@
     },
     {
       "path": "manager/public/index.html",
-      "sha256": "d0f8d443297bf2008a54caea43ecfacd53aa6c57c61da5cc0f1016f3a9ccb66a"
+      "sha256": "3c03ac78ba7bb43fb045f08953f3479527497226e3f33513f0357c81b93ea220"
     },
     {
       "path": "manager/public/inventory_market.css",
@@ -308,7 +308,7 @@
     },
     {
       "path": "manager/public/update_log.js",
-      "sha256": "9622a14dad4bb80248ab58c252f165ff47e847dadfe72f98e607cb503e3415fa"
+      "sha256": "20a13f53d156bb6d174239ae42ee7d46027bbbc48b213e4675e2241e17cfcd30"
     },
     {
       "path": "manager/public/wiki/calc.js",
@@ -328,7 +328,7 @@
     },
     {
       "path": "manager/screen_proxy_manager.js",
-      "sha256": "ea550bb2352c3306ff5087aefbcbd6ea627d05e5581ef25c4d61ed181f57607e"
+      "sha256": "bd024f16f8bcefd5f73eba0e0537ab3268420441ff8027ae78f582318230d63b"
     },
     {
       "path": "manager/script_bootstrap.js",
