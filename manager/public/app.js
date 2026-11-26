@@ -9844,6 +9844,7 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
       <div style="display:flex; align-items:center; justify-content:space-between; gap:6px; border-top:1px solid rgba(255,255,255,0.08); padding-top:4px; min-width:0;">
         <span style="font-size:10px; color:#94a3b8; white-space:nowrap;">⏱️ จำกัดเฟรมเรต (FPS Cap):</span>
         <select id="p-nc-perf-fps-cap" style="flex:1; min-width:0; max-width:175px; background:#090d16; border:1px solid rgba(52,211,153,0.45); color:#6ee7b7; border-radius:4px; font-size:10px; font-weight:700; padding:2px 6px;">
+          <option value="5" ${Number(pfc.fpsCap ?? 30) === 5 ? 'selected' : ''}>5 FPS (ประหยัดสุดๆ · 30–50 จอ)</option>
           <option value="10" ${Number(pfc.fpsCap ?? 30) === 10 ? 'selected' : ''}>10 FPS (ประหยัดสุดขีด)</option>
           <option value="15" ${Number(pfc.fpsCap ?? 30) === 15 ? 'selected' : ''}>15 FPS (ประหยัดสุด)</option>
           <option value="20" ${Number(pfc.fpsCap ?? 30) === 20 ? 'selected' : ''}>20 FPS (ประหยัดมาก)</option>
@@ -11119,7 +11120,7 @@ async function openWebBotHUD(profileId) {
     el.onchange = () => {
       if (el.tagName === 'SELECT' && el.value === '__MIXED__') return;
       markCentralControlEdited(el);
-      const val = kind === 'bool' ? Boolean(el.checked) : Math.max(10, Number(el.value) || 30);
+      const val = kind === 'bool' ? Boolean(el.checked) : Math.max(5, Number(el.value) || 30);
       sendPerfPatch({ [key]: val });
     };
   });
