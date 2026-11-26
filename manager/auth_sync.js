@@ -262,15 +262,22 @@ const READ_JS = `(() => {
       (Array.isArray(window.NC?.OnlineLobby?.slots?.slots) && window.NC.OnlineLobby.slots.slots.some(s => s && !s.empty))
     )
   );
+  const isPlaceholderChar = v => {
+    const s = String(v || '').trim();
+    if (!s) return true;
+    const low = s.toLowerCase();
+    if (low === 'traveler' || low === 'guest' || low === 'player' || low === 'unnamed' || low === 'loading' || s === 'ผู้มาเยือน' || s === 'กำลังโหลด' || s === 'ไม่ทราบ') return true;
+    return /^[\\s.\\u2026\\-—–_•·?]+$/.test(s);
+  };
   let charName = '';
   try {
     if (isSignedInEmail && window.NC?.OnlineLobby?.entered === true) {
       const pName = String(window.NC?.game?.player?.name || '').trim();
       const ncName = (document.querySelector('#sq .hud [data-f="name"], #cname')?.textContent || '').trim();
-      const rawName = (pName && pName !== '…') ? pName : ((ncName && ncName !== '…') ? ncName : '');
+      const rawName = !isPlaceholderChar(pName) ? pName : (!isPlaceholderChar(ncName) ? ncName : '');
       charName = rawName;
     } else if (isSignedInEmail && Array.isArray(window.NC?.OnlineLobby?.slots?.slots)) {
-      const firstFilled = window.NC.OnlineLobby.slots.slots.find(s => s && !s.empty && s.name);
+      const firstFilled = window.NC.OnlineLobby.slots.slots.find(s => s && !s.empty && !isPlaceholderChar(s.name));
       if (firstFilled) charName = String(firstFilled.name).trim();
     }
   } catch (_) {}
@@ -407,6 +414,18 @@ const normalizeAccountId = u => {
   const s = String(u || '').trim().toLowerCase();
   if (!s) return '';
   return s.includes('@') ? s : (s + '@gmail.com');
+};
+
+const isPlaceholderCharName = name => {
+  const s = String(name || '').trim();
+  if (!s) return true;
+  const low = s.toLowerCase();
+  if (
+    low === 'traveler' || low === 'guest' || low === 'player' ||
+    low === 'unnamed' || low === 'loading' ||
+    s === 'ผู้มาเยือน' || s === 'กำลังโหลด' || s === 'ไม่ทราบ'
+  ) return true;
+  return /^[\s.\u2026\-—–_•·?]+$/.test(s);
 };
 
 const isSameAccountId = (a, b) => {
@@ -883,12 +902,13 @@ function createAuthSync({
 
     const proxyAvailable = false;
 
-    const r = profile.debugPort ? await evalProfilePort(profile.debugPort, READ_JS, 2500) : null;
+    const r = profile.debugPort ? await evalProfilePort(profile.debugPort, READ_JS, 4500) : null;
     const cur = r && r.success ? r.result : null;
     if (!cur) {
       // Allow Proxy registration recovery if a request was already in flight,
       // or offline Proxy registration (gated by wave queue) when requireOnlineWindowForQueue is false.
-      if (profile.autoRegister && !profile.lastCharName && !(profile.account && pw(profile))) {
+      const hasConfirmedChar = Boolean(profile.lastCharName && !isPlaceholderCharName(profile.lastCharName) && profile.account);
+      if (profile.autoRegister && !hasConfirmedChar && !(profile.account && pw(profile))) {
         if (proxyRegister?.hasPending?.(profile.id)) {
           await syncProxyRegistration(profile, { clientOnline: false });
         } else if (!requireOnlineWindowForQueue && proxyAvailable) {
@@ -923,7 +943,8 @@ function createAuthSync({
     const lastManagerPushAt = Number(profile.lastAuthSyncPushAt) || 0;
     const identityChangedAt = Number(profile.identityChangedAt) || 0;
     const staleClientCredsAfterReset = Boolean(profile.autoRegister && identityChangedAt > 0 && manualUserEditedAt <= identityChangedAt);
-    const hasClientCreds = Boolean(cur.username && cur.password && !cur.register && !cur.registerError);
+    const isUnverifiedGenClient = Boolean(cur.generatedUser && !cur.registerDone && !cur.verifiedLoginAt);
+    const hasClientCreds = Boolean(cur.username && cur.password && !cur.register && !cur.registerError && !isUnverifiedGenClient);
     const managerMissingCreds = !profile.account || !pw(profile);
     const managerHasExplicitUserCreds = Boolean(profile.account && pw(profile) && !profile.autoRegister && !profile.generatedAccount);
     const isSameGeneratedAccount = Boolean(profile.generatedAccount && profile.account && isSameAccountId(cur.username, profile.account));
@@ -948,13 +969,13 @@ function createAuthSync({
         updateProfile(profile.id, {
           account: cur.username,
           ...(shouldAdoptServer ? { serverName: cur.serverName } : {}),
-          ...(cur.charNameCfg ? { charName: cur.charNameCfg } : {}),
+          ...(cur.charNameCfg && !isPlaceholderCharName(cur.charNameCfg) ? { charName: cur.charNameCfg } : {}),
           autoRegister: false,
           generatedAccount: !!cur.generatedUser,
           registerError: '',
           loginSyncPending: false,
           lastAuthSyncPushAt: Date.now(),
-          ...(cur.charName && !profile.lastCharName ? { lastCharName: cur.charName } : {})
+          ...(cur.charName && !isPlaceholderCharName(cur.charName) && (!profile.lastCharName || isPlaceholderCharName(profile.lastCharName)) ? { lastCharName: cur.charName } : {})
         });
         pendingCreds.delete(profile.id);
         console.log(`[AuthSync] 🔄 ${profile.name}: ซิงค์ไอดี/รหัสจากเมนูบอทในเกม ("${cur.username}") เข้าโปรไฟล์ Manager อัตโนมัติ`);
@@ -979,24 +1000,34 @@ function createAuthSync({
           registerError: '',
           loginSyncPending: false,
           lastAuthSyncPushAt: Date.now(),
-          ...(cur.charName && !profile.lastCharName ? { lastCharName: cur.charName } : {})
+          ...(cur.charName && !isPlaceholderCharName(cur.charName) && (!profile.lastCharName || isPlaceholderCharName(profile.lastCharName)) ? { lastCharName: cur.charName } : {})
         });
         pendingCreds.delete(profile.id);
         console.log(`[AuthSync] 🔄 ${profile.name}: พบไอดี/รหัสเดิมในหน้าเกม ("${cur.username}") -> บันทึกเข้าโปรไฟล์โดยไม่สร้างไอดีบอททับ`);
         return;
       }
-      if (profile.lastCharName || (!staleClientCredsAfterReset && (cur.inGame || cur.charName) && !cur.registerDone)) {
+      const hasValidSavedChar = Boolean(profile.lastCharName && !isPlaceholderCharName(profile.lastCharName));
+      const hasValidLiveChar = Boolean(cur.charName && !isPlaceholderCharName(cur.charName));
+      const hasManagerAccount = Boolean(profile.account && String(profile.account).trim());
+      if (
+        (hasValidSavedChar && hasManagerAccount) ||
+        (!staleClientCredsAfterReset && (cur.inGame || hasValidLiveChar) && !cur.registerDone)
+      ) {
         if (cur.registerQueueWaiting) {
           await evalProfilePort(profile.debugPort, pushQueueOverlayJs(null), 2000);
           lastPushedQueueDigest.delete(profile.id);
         }
         updateProfile(profile.id, {
           autoRegister: false,
-          ...(cur.charName && !profile.lastCharName ? { lastCharName: cur.charName } : {})
+          ...(hasValidLiveChar && !hasValidSavedChar ? { lastCharName: cur.charName } : {})
         });
         pendingCreds.delete(profile.id);
-        console.log(`[AuthSync] 🛡️ ${profile.name}: พบตัวละครในเกมแล้ว ("${profile.lastCharName || cur.charName || 'in-game'}") -> ปิด Auto-Register เพื่อไม่ให้เปลี่ยนรหัสทับ`);
+        console.log(`[AuthSync] 🛡️ ${profile.name}: พบตัวละครในเกมแล้ว ("${(hasValidSavedChar && profile.lastCharName) || (hasValidLiveChar && cur.charName) || 'in-game'}") -> ปิด Auto-Register เพื่อไม่ให้เปลี่ยนรหัสทับ`);
         return;
+      }
+      if (profile.lastCharName && (!hasValidSavedChar || (!hasManagerAccount && !pw(profile) && !cur.inGame && !hasValidLiveChar))) {
+        updateProfile(profile.id, { lastCharName: '' });
+        profile.lastCharName = '';
       }
       if (proxyRegister?.hasPending?.(profile.id)) {
         await syncProxyRegistration(profile, { clientOnline: true });
@@ -1092,7 +1123,7 @@ function createAuthSync({
         serverName: profile.serverName || '', charName: profile.charName || cred.charName || '',
         register: true, registerDone: false, autoCreateChar: true, generatedUser: !!cred.generatedUser,
         ...(identityChangedAt > 0 ? { forceResetAuth: true } : {})
-      }), 3000);
+      }), 4500);
       if (pushRes?.success && pushRes.result?.abortedByUserCreds && pushRes.result.username && pushRes.result.password) {
         credentials.setPassword(profile.id, pushRes.result.password);
         updateProfile(profile.id, {
@@ -1107,11 +1138,13 @@ function createAuthSync({
         console.log(`[AuthSync] 🛡️ ${profile.name}: ยกเลิกการสร้างไอดีใหม่ เพราะพบไอดีผู้ใช้ "${pushRes.result.username}" ในเมนูบอท`);
         return;
       }
-      updateProfile(profile.id, {
-        ...(profile.registerError && profile.registerError.startsWith('🛡️') ? { registerError: '' } : {}),
-        lastAuthSyncPushAt: Date.now()
-      });
-      console.log(`[AuthSync] ${screenProxyRegisterIp ? '🛡️📝' : '📝'} ${profile.name}: ส่งคำสั่งสมัครบัญชี "${cred.username}" ไปที่จอ${screenProxyRegisterIp ? ` (ผ่าน Proxy แยกจอ ${screenProxyRegisterIp})` : ''}`);
+      if (pushRes?.success && pushRes.result?.success === true) {
+        updateProfile(profile.id, {
+          ...(profile.registerError && profile.registerError.startsWith('🛡️') ? { registerError: '' } : {}),
+          lastAuthSyncPushAt: Date.now()
+        });
+        console.log(`[AuthSync] ${screenProxyRegisterIp ? '🛡️📝' : '📝'} ${profile.name}: ส่งคำสั่งสมัครบัญชี "${cred.username}" ไปที่จอ${screenProxyRegisterIp ? ` (ผ่าน Proxy แยกจอ ${screenProxyRegisterIp})` : ''}`);
+      }
       return;
     }
 
@@ -1134,12 +1167,12 @@ function createAuthSync({
 
     // If Manager charName was left blank (or differs while already in-game on this account) and the client adopted a character name on this account, save lastCharName / charName
     if (profile.account && isSameAccountId(cur.username, profile.account) && (cur.charName || cur.charNameCfg)) {
-      const detectedChar = cur.charName || cur.charNameCfg;
+      const detectedChar = (!isPlaceholderCharName(cur.charName) ? cur.charName : '') || (!isPlaceholderCharName(cur.charNameCfg) ? cur.charNameCfg : '');
       if (detectedChar) {
         if (!profile.charName && profile.lastCharName !== detectedChar) {
           updateProfile(profile.id, { lastCharName: detectedChar });
           profile.lastCharName = detectedChar;
-        } else if (cur.inGame && profile.charName && cur.charName && cur.charName !== profile.charName) {
+        } else if (cur.inGame && profile.charName && cur.charName && !isPlaceholderCharName(cur.charName) && cur.charName !== profile.charName) {
           updateProfile(profile.id, { charName: cur.charName, lastCharName: cur.charName });
           profile.charName = cur.charName;
           profile.lastCharName = cur.charName;
@@ -1253,4 +1286,4 @@ function createAuthSync({
   return { start, tick, syncOne, resetProxyFallback, resetProfileRegistration, getRegisterQueueSnapshot };
 }
 
-module.exports = { createAuthSync, genUserId, genPassword, genCharName };
+module.exports = { createAuthSync, genUserId, genPassword, genCharName, isPlaceholderCharName };

@@ -1975,6 +1975,18 @@ function recordDeletedProfileIds(ids) {
   } catch (_) {}
 }
 
+function isPlaceholderCharName(name) {
+  const s = String(name || "").trim();
+  if (!s) return true;
+  const low = s.toLowerCase();
+  if (
+    low === "traveler" || low === "guest" || low === "player" ||
+    low === "unnamed" || low === "loading" ||
+    s === "ผู้มาเยือน" || s === "กำลังโหลด" || s === "ไม่ทราบ"
+  ) return true;
+  return /^[\s.\u2026\-—–_•·?]+$/.test(s);
+}
+
 function isVerifiedAuthConfig(auth) {
   if (!auth || typeof auth !== "object") return false;
   const u = String(auth.username || "").trim();
@@ -1982,7 +1994,7 @@ function isVerifiedAuthConfig(auth) {
   if (!u && !pw) return false;
   if (auth.register === true) return false;
   if (auth.registerError && String(auth.registerError).trim() && !auth.registerDone && !auth.verifiedLoginAt && !auth.userEditedAt) return false;
-  if (auth.generatedUser && !auth.registerDone && !auth.verifiedLoginAt && !auth.userEditedAt && !(auth.charName && String(auth.charName).trim())) return false;
+  if (auth.generatedUser && !auth.registerDone && !auth.verifiedLoginAt && !auth.userEditedAt) return false;
   return true;
 }
 
@@ -2110,7 +2122,7 @@ function recoverProfilesFromLocalEvidence() {
                   p.account = candUser;
                   p.hasRealEvidence = true;
                 }
-                if (!isDupUser && auth.charName && String(auth.charName).trim()) {
+                if (verified && !isDupUser && auth.charName && !isPlaceholderCharName(auth.charName)) {
                   p.lastCharName = String(auth.charName).trim();
                   p.hasRealEvidence = true;
                 }
@@ -3477,7 +3489,10 @@ async function mapWithConcurrency(items, limit, fn) {
 
 // Ultra-lightweight Nightcamp live-state probe (~2 KB vs 38 KB Aetheria DOM scraper) — keeps 30+ screen polling fast (<50ms) and fits browser_mode.js inFlightEvals deduplication (<4096 bytes)
 const NIGHTCAMP_LIVE_STATE_EVAL = `(() => {
-  let s = (typeof window.__getClientLiveState === 'function') ? window.__getClientLiveState() : null;
+  let s = null;
+  try {
+    s = (typeof window.__getClientLiveState === 'function') ? window.__getClientLiveState() : null;
+  } catch (_) { s = null; }
   if (!s || typeof s !== 'object') {
     s = { isBotRunning: false, autoLoop: false, screenPhase: 'loading', botStatus: '⏳ กำลังโหลดหน้าเกม...', map: 'ไม่ทราบแมพ', charName: '', charClass: 'Traveler', coords: '--', weight: '--', zeny: null };
   }
@@ -3576,6 +3591,20 @@ function queryClientState(port) {
     req.on("error", (err) => {
       const code = String((err && err.code) || '');
       if (code === 'ECONNREFUSED' || code === 'ECONNRESET' || code === 'EPIPE') {
+        if (typeof browserMode !== 'undefined' && browserMode && typeof browserMode.evalByPort === 'function') {
+          browserMode.evalByPort(port, evalCode, 8000).then(fb => {
+            if (fb && fb.success && fb.result) {
+              clientStateLastFailureByPort.delete(port);
+              return resolve(fb.result);
+            }
+            clientStateLastFailureByPort.set(port, { ts: Date.now(), reason: code });
+            resolve(null);
+          }).catch(() => {
+            clientStateLastFailureByPort.set(port, { ts: Date.now(), reason: code });
+            resolve(null);
+          });
+          return;
+        }
         clientStateLastFailureByPort.set(port, { ts: Date.now(), reason: code });
         return resolve(null);
       }
@@ -3813,6 +3842,10 @@ async function evalProfilePort(port, code, timeoutMs = 8000) {
   if (first && first.success !== false) return first;
   const errMsg = String((first && first.error) || '');
   const isProbe = typeof code === 'string' && code.includes('__getClientLiveState') && code.includes('grossZenyGained');
+  if (/ECONNREFUSED|ECONNRESET|socket hang up|EPIPE/i.test(errMsg) && typeof browserMode !== 'undefined' && browserMode && typeof browserMode.evalByPort === 'function') {
+    const direct = await browserMode.evalByPort(port, code, timeoutMs).catch(() => null);
+    if (direct && direct.success !== false) return direct;
+  }
   if (!isProbe && /timeout cooldown|queue timeout|queue busy|ECONNRESET|socket hang up/i.test(errMsg)) {
     await new Promise(r => setTimeout(r, 1200));
     return evalProfilePortOnce(port, code, timeoutMs);
@@ -9335,6 +9368,14 @@ async function recoverAndEnrichProfilesFromBrowserAndLocal() {
     let authChanged = false;
     for (const p of current) {
       if (!p || !p.id) continue;
+      if (!p.account && !credentials.getPassword(p.id) && p.lastCharName && isPlaceholderCharName(p.lastCharName)) {
+        p.lastCharName = "";
+        if (!p.autoRegister && !p.lastZeny && !p.lastPortrait) {
+          p.autoRegister = true;
+          authChanged = true;
+        }
+        changed = true;
+      }
       const f = path.join(bsDir, `${p.id}.json`);
       if (!fs.existsSync(f)) continue;
       try {
@@ -9372,10 +9413,21 @@ async function recoverAndEnrichProfilesFromBrowserAndLocal() {
                 authChanged = true;
               }
             }
-            if (!ownedByOtherProfile && auth.charName && String(auth.charName).trim() && !p.lastCharName) {
+            if (verified && !ownedByOtherProfile && auth.charName && !isPlaceholderCharName(auth.charName) && (!p.lastCharName || isPlaceholderCharName(p.lastCharName))) {
               p.lastCharName = String(auth.charName).trim();
               if (/^Client \d+$/.test(p.name || "")) p.name = p.lastCharName;
               changed = true;
+            }
+            if (!verified && !p.account && !credentials.getPassword(p.id) && !p.lastZeny && !p.lastPortrait) {
+              const leakedCandChar = Boolean(p.lastCharName && (isPlaceholderCharName(p.lastCharName) || (auth.charName && String(auth.charName).trim() === String(p.lastCharName).trim())));
+              if (leakedCandChar) {
+                p.lastCharName = "";
+                if (!p.autoRegister) {
+                  p.autoRegister = true;
+                  authChanged = true;
+                }
+                changed = true;
+              }
             }
             if (verified && !ownedByOtherProfile && auth.password && String(auth.password).trim() && (!credentials.getPassword(p.id) || isNewerUserCred)) {
               const nextPw = String(auth.password).trim();
@@ -10830,7 +10882,8 @@ const server = http.createServer(async (req, res) => {
               // Never expose plaintext password over GET /api/profiles
               delete liveState.authConfig.password;
               liveState.authConfig.hasPassword = Boolean(cPass);
-              const hasClientCreds = Boolean(cUser && cPass && !ca.register && !ca.registerError);
+              const isUnverifiedGenClient = Boolean(ca.generatedUser && !ca.registerDone && !ca.verifiedLoginAt);
+              const hasClientCreds = Boolean(cUser && cPass && !ca.register && !ca.registerError && !isUnverifiedGenClient);
               if (hasClientCreds) {
                 const curProfPass = credentials.getPassword(p.id);
                 const ownedByOtherProfile = Boolean(
@@ -10858,7 +10911,8 @@ const server = http.createServer(async (req, res) => {
                   p.registerError = '';
                   p.loginSyncPending = false;
                   p.lastAuthSyncPushAt = Date.now();
-                  if (cChar && !p.lastCharName) p.lastCharName = cChar;
+                  const validCChar = (cChar && !isPlaceholderCharName(cChar)) ? cChar : '';
+                  if (validCChar && (!p.lastCharName || isPlaceholderCharName(p.lastCharName))) p.lastCharName = validCChar;
                   adoptedAuthFromClient = {
                     account: cUser,
                     autoRegister: false,
@@ -10866,7 +10920,7 @@ const server = http.createServer(async (req, res) => {
                     registerError: '',
                     loginSyncPending: false,
                     lastAuthSyncPushAt: p.lastAuthSyncPushAt,
-                    ...(cChar && !p.lastCharName ? { lastCharName: cChar } : {})
+                    ...(validCChar && (!p.lastCharName || isPlaceholderCharName(p.lastCharName)) ? { lastCharName: validCChar } : {})
                   };
                 }
               }
@@ -11023,8 +11077,8 @@ const server = http.createServer(async (req, res) => {
       if (p._adoptedAuthFromClient) return true;
       const s = p.liveState;
       if (!s || s.error || s._syntheticLoading || s._cachedFallback) return false;
-      const hasChar = Boolean(s.charName);
       const inGamePhase = !s.screenPhase || s.screenPhase === 'in_game';
+      const hasChar = Boolean(s.charName && !isPlaceholderCharName(s.charName) && (inGamePhase || Boolean(p.account)));
       const portrait = hasChar && s.portrait && portraitPathFromSrc(s.portrait);
       const premChanged = (Number(s.premiumUntil) > 0 && Number(s.premiumUntil) !== Number(p.lastPremiumUntil || 0)) ||
                           (inGamePhase && hasChar && s.hasPremium === false && Number(p.lastPremiumUntil || 0) > Date.now());
@@ -11043,8 +11097,8 @@ const server = http.createServer(async (req, res) => {
           Object.assign(target, p._adoptedAuthFromClient);
         }
         if (p.liveState && !p.liveState.error) {
-          const hasChar = Boolean(p.liveState.charName);
           const inGamePhase = !p.liveState.screenPhase || p.liveState.screenPhase === 'in_game';
+          const hasChar = Boolean(p.liveState.charName && !isPlaceholderCharName(p.liveState.charName) && (inGamePhase || Boolean(target.account)));
           const liveCharLower = hasChar ? String(p.liveState.charName).trim().toLowerCase() : '';
           const liveAuthLower = (p.liveState.authConfig && p.liveState.authConfig.username) ? String(p.liveState.authConfig.username).trim().toLowerCase() : '';
           const charOrAuthOwnedByOther = fresh.some(o => {
@@ -13500,7 +13554,7 @@ public class PmFocus {
                   credentials.setPassword(p.id, String(liveState.authConfig.password).trim());
                 }
               }
-              if (liveState.charName && liveState.charName !== "Traveler" && liveState.charName !== p.lastCharName) {
+              if (liveState.charName && !isPlaceholderCharName(liveState.charName) && liveState.charName !== p.lastCharName) {
                 p.lastCharName = liveState.charName;
                 p.charName = liveState.charName;
                 p.name = p.isReceiver ? `👑 ตัวรับเงิน (${liveState.charName})` : `🌾 ฟาร์ม (${liveState.charName})`;
@@ -14832,7 +14886,7 @@ async function runAutoFarmOrchestratorTick() {
           credentials.setPassword(p.id, String(live.authConfig.password).trim());
         }
       }
-      if (live.charName && live.charName !== "Traveler" && live.charName !== p.lastCharName) {
+      if (live.charName && !isPlaceholderCharName(live.charName) && live.charName !== p.lastCharName) {
         p.lastCharName = live.charName;
         p.charName = live.charName;
         p.name = `🌾 ฟาร์ม (${live.charName})`;

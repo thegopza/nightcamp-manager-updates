@@ -1732,7 +1732,15 @@ function buildProfileCard(p) {
   const postSellStopDetail = state?.postSellStopDetail || p.postSellStopDetail || postSellStopReason;
 
   const rawSavedClass = (p.charClass === 'Hunter' && !p.lastCharClass) ? '' : (p.lastCharClass || p.charClass || '');
-  const charName = state?.charName || p.lastCharName || null;
+  const isCleanCharName = v => {
+    const s = String(v || '').trim();
+    if (!s) return false;
+    const low = s.toLowerCase();
+    if (low === 'traveler' || low === 'guest' || low === 'player' || low === 'unnamed' || low === 'loading' || s === 'ผู้มาเยือน' || s === 'กำลังโหลด' || s === 'ไม่ทราบ') return false;
+    return !/^[\s.\u2026\-—–_•·?]+$/.test(s);
+  };
+  const charName = (isCleanCharName(state?.charName) ? String(state.charName).trim() : null)
+    || (isCleanCharName(p.lastCharName) ? String(p.lastCharName).trim() : null);
   const curClass = (state?.charClass && state.charClass !== 'Novice') ? state.charClass : (rawSavedClass || state?.charClass || 'Traveler');
   const hue = getClassHue(curClass);
   const portraitSrc = getPortraitSrc(p, state);

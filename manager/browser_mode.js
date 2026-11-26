@@ -4007,15 +4007,65 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
         reply(500, { success: false, error: e.message });
       }
     });
-    c.server.on('error', e => console.warn(`[BrowserMode] port ${port}: ${e.message}`));
+    const srv = c.server;
+    c.serverListening = false;
+    c.proxyListenAttempts = 0;
+    const retryDelays = [250, 500, 900, 1500, 2500, 4000, 6000, 8000];
+    const tryListen = () => {
+      if (clients.get(c.profileId) !== c || c.server !== srv || srv.listening) return;
+      try { srv.listen(port, '127.0.0.1'); } catch (_) {}
+    };
+    srv.on('listening', () => {
+      c.serverListening = true;
+      c.proxyListenAttempts = 0;
+      if (c.proxyListenRetryTimer) {
+        clearTimeout(c.proxyListenRetryTimer);
+        c.proxyListenRetryTimer = null;
+      }
+    });
+    srv.on('error', e => {
+      c.serverListening = false;
+      console.warn(`[BrowserMode] port ${port}: ${e.message}`);
+      if (e && e.code === 'EADDRINUSE' && clients.get(c.profileId) === c && c.server === srv) {
+        const idx = c.proxyListenAttempts || 0;
+        if (idx < retryDelays.length) {
+          c.proxyListenAttempts = idx + 1;
+          const prev = portServers.get(port);
+          if (prev && prev !== srv) {
+            try { prev.closeIdleConnections && prev.closeIdleConnections(); prev.closeAllConnections && prev.closeAllConnections(); prev.close(); } catch (_) {}
+          }
+          if (c.proxyListenRetryTimer) clearTimeout(c.proxyListenRetryTimer);
+          c.proxyListenRetryTimer = setTimeout(() => {
+            c.proxyListenRetryTimer = null;
+            tryListen();
+          }, retryDelays[idx]);
+          c.proxyListenRetryTimer.unref?.();
+        }
+      }
+    });
     const old = portServers.get(port);
-    if (old) { try { old.close(); old.closeAllConnections && old.closeAllConnections(); } catch (e) {} }
-    portServers.set(port, c.server);
-    c.server.listen(port, '127.0.0.1');
+    if (old && old !== srv) {
+      try {
+        old.closeIdleConnections && old.closeIdleConnections();
+        old.closeAllConnections && old.closeAllConnections();
+        old.close();
+      } catch (e) {}
+    }
+    portServers.set(port, srv);
+    tryListen();
   }
   function stopProxy(c) {
+    if (c && c.proxyListenRetryTimer) {
+      clearTimeout(c.proxyListenRetryTimer);
+      c.proxyListenRetryTimer = null;
+    }
     if (c && c.server) {
-      try { c.server.close(); c.server.closeAllConnections && c.server.closeAllConnections(); } catch (e) {}
+      c.serverListening = false;
+      try {
+        c.server.closeIdleConnections && c.server.closeIdleConnections();
+        c.server.closeAllConnections && c.server.closeAllConnections();
+        c.server.close();
+      } catch (e) {}
       if (portServers.get(c.port) === c.server) portServers.delete(c.port);
       c.server = null;
     }
@@ -4187,6 +4237,50 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
     const c = clients.get(profileId);
     return Boolean(c && c.browserContextId);
   };
+  function findClientByPort(port) {
+    const numPort = Number(port) || 0;
+    if (!numPort) return null;
+    for (const c of clients.values()) {
+      if (c && Number(c.port) === numPort) return c;
+    }
+    const allProfiles = (typeof loadProfiles === 'function' ? loadProfiles() : []) || [];
+    const matched = allProfiles.find(p => p && Number(p.debugPort) === numPort);
+    return matched ? (clients.get(matched.id) || null) : null;
+  }
+  function ensureProxyListening(profileId, debugPort) {
+    const c = clients.get(profileId);
+    if (!c) return false;
+    const targetPort = Number(debugPort || c.port) || 0;
+    if (!targetPort) return false;
+    if (c.server && c.server.listening) return true;
+    if (c.server && !c.server.listening) {
+      stopProxy(c);
+    }
+    startProxy(c, targetPort);
+    return Boolean(c.server);
+  }
+  async function evalByPort(port, code, timeoutMs = 8000) {
+    const c = findClientByPort(port);
+    if (!c || !c.sessionId) return null;
+    const targetPort = Number(port || c.port) || 0;
+    if (targetPort && (!c.server || !c.server.listening)) {
+      ensureProxyListening(c.profileId, targetPort);
+    }
+    const isLiveStateProbe = typeof code === 'string' && code.includes('__getClientLiveState') && code.includes('grossZenyGained');
+    try {
+      const result = await evaluate(c, code, Number(timeoutMs) || 8000, !isLiveStateProbe);
+      if (isLiveStateProbe && result && typeof result === 'object') {
+        c.lastGoodState = result;
+        c.lastGoodStateAt = Date.now();
+        c.stateFailCount = 0;
+        c.firstStateFailAt = 0;
+      }
+      return { success: true, result };
+    } catch (e) {
+      if (isGoneError(e)) drop(c);
+      return { success: false, error: e.message || String(e) };
+    }
+  }
 
   async function applyProxyModeToOpenWindows({ onlyProfileIds } = {}) {
     if (!screenProxy) return { switched: 0, updatedTunnels: 0, details: [] };
@@ -4243,6 +4337,7 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
             const oldTargetId = c.targetId;
             const { targetId: newTargetId } = await send('Target.createTarget', { url: 'about:blank', newWindow: true, browserContextId });
             drop(c);
+            await new Promise(r => setTimeout(r, 80));
             const newClient = await attach(profile.id, newTargetId, false, browserContextId);
             startProxy(newClient, profile.debugPort);
             if (savedBounds) {
@@ -5385,7 +5480,7 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
 
   // ====================== END UNBAN MODE ======================
 
-  return { launch, stop, stopAll, isOpen, hasProxyContext, start, dispose, findBrowser, rebalanceDeviceGroups, ensureProfileDeviceId, ensureProfileMachineId, ensureProfileDeviceGroupIndex, ensureProfileDeviceSpec, resolveDeviceSpec, getDeviceGroupsSnapshot, rotateDeviceGroup, rotateProfileDeviceId, rotateAllDeviceIds, getCustomIpDeviceConfig, getProfileIpIsolationMeta, mutateCustomIpDevices, pruneDeletedProfilesFromCustomGroups, applyProxyModeToOpenWindows, syncAssetCacheToOpenWindows, harvestAllFromBrowserLevelDb, launchUnbanSession, stopUnbanSession, stopAllUnbanSessions, getUnbanStatus, setUnbanCallback, addProfilesToUnbanPool, removeProfileFromUnbanPool, rotateUnbanDevice, setUnbanProxyMode, loadUnbanConfig, saveUnbanConfig, status:()=>Object.fromEntries(diagnostics) };
+  return { launch, stop, stopAll, isOpen, hasProxyContext, ensureProxyListening, evalByPort, start, dispose, findBrowser, rebalanceDeviceGroups, ensureProfileDeviceId, ensureProfileMachineId, ensureProfileDeviceGroupIndex, ensureProfileDeviceSpec, resolveDeviceSpec, getDeviceGroupsSnapshot, rotateDeviceGroup, rotateProfileDeviceId, rotateAllDeviceIds, getCustomIpDeviceConfig, getProfileIpIsolationMeta, mutateCustomIpDevices, pruneDeletedProfilesFromCustomGroups, applyProxyModeToOpenWindows, syncAssetCacheToOpenWindows, harvestAllFromBrowserLevelDb, launchUnbanSession, stopUnbanSession, stopAllUnbanSessions, getUnbanStatus, setUnbanCallback, addProfilesToUnbanPool, removeProfileFromUnbanPool, rotateUnbanDevice, setUnbanProxyMode, loadUnbanConfig, saveUnbanConfig, status:()=>Object.fromEntries(diagnostics) };
 }
 
 module.exports = { createBrowserMode, findBrowser, HEALTH_JS, MAX_SCREENS_PER_DEVICE, resolveDeviceSpec, extractPelicanStorageFromLevelDb, mergeAuthConfigString, mergeSellConfigString };
