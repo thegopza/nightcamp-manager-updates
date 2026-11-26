@@ -3475,6 +3475,53 @@ async function mapWithConcurrency(items, limit, fn) {
   return results;
 }
 
+// Ultra-lightweight Nightcamp live-state probe (~2 KB vs 38 KB Aetheria DOM scraper) — keeps 30+ screen polling fast (<50ms) and fits browser_mode.js inFlightEvals deduplication (<4096 bytes)
+const NIGHTCAMP_LIVE_STATE_EVAL = `(() => {
+  let s = (typeof window.__getClientLiveState === 'function') ? window.__getClientLiveState() : null;
+  if (!s || typeof s !== 'object') {
+    s = { isBotRunning: false, autoLoop: false, screenPhase: 'loading', botStatus: '⏳ กำลังโหลดหน้าเกม...', map: 'ไม่ทราบแมพ', charName: '', charClass: 'Traveler', coords: '--', weight: '--', zeny: null };
+  }
+  try {
+    const ncp = window.NC && window.NC.game && window.NC.game.player;
+    if (ncp && typeof ncp.coins === 'number') {
+      s.zeny = ncp.coins;
+      s.coins = ncp.coins;
+      const freeG = (window.NC?.Bound && typeof window.NC.Bound.free === 'function') ? Math.max(0, window.NC.Bound.free(ncp, 'gold') | 0) : ncp.coins;
+      s.freeGold = freeG;
+      s.coinsOnHand = freeG;
+      s.boundCoins = Math.max(0, ncp.coins - freeG);
+    }
+    const vCoins = (window.NC?.PremiumOnline && typeof window.NC.PremiumOnline.state === 'function') ? (window.NC.PremiumOnline.state()?.vault?.coins) : window.__lastKnownVaultCoins;
+    if (typeof vCoins === 'number') { window.__lastKnownVaultCoins = vCoins; s.vaultCoins = vCoins; }
+    const vNum = (typeof s.vaultCoins === 'number') ? Math.max(0, s.vaultCoins | 0) : 0;
+    const fgNum = (typeof s.freeGold === 'number') ? s.freeGold : (typeof s.zeny === 'number' ? s.zeny : 0);
+    s.totalCoins = fgNum + vNum;
+    if (window.NC?.FreeTrade) {
+      const prem = Boolean(window.NC.FreeTrade.premium && window.NC.FreeTrade.premium());
+      const premDays = Number(window.NC?.PremiumOnline?.days?.() || 0);
+      const tlv = Number(window.NC.FreeTrade.tradeLevel ? window.NC.FreeTrade.tradeLevel() : 20) || 20;
+      s.hasPremium = prem;
+      if (prem) s.premiumUntil = Date.now() + Math.max(1, premDays || 1) * 86400000;
+      s.tradeLevel = tlv;
+      s.canFreeTrade = Boolean(prem && (Number(ncp?.lv || s.baseLv || 1) >= tlv));
+    }
+    const ncCh = Number(window.NC?.OnlineChannels?.current?.() || window.NC?.Online?.snap?.channelId || 0);
+    if (Number.isFinite(ncCh) && ncCh > 0) { s.channel = ncCh; s.channelText = 'CH ' + ncCh; }
+    if (window.NC?.game?.mapId) s.mapId = String(window.NC.game.mapId);
+    const curTotal = Number(s.totalCoins ?? s.zeny);
+    if (Number.isFinite(curTotal)) {
+      if (typeof window.__grossZenyGained !== 'number' || !Number.isFinite(window.__grossZenyGained)) window.__grossZenyGained = 0;
+      if (typeof window.__lastGrossZenySample === 'number' && curTotal > window.__lastGrossZenySample && (curTotal - window.__lastGrossZenySample) < 50000000) {
+        window.__grossZenyGained += (curTotal - window.__lastGrossZenySample);
+      }
+      window.__lastGrossZenySample = curTotal;
+    }
+    s.grossZenyGained = (typeof window.__grossZenyGained === 'number' && Number.isFinite(window.__grossZenyGained)) ? window.__grossZenyGained : null;
+    s.consolidationReceiverMode = Boolean(window.__consolidationReceiverMode || window.__isConsolidating);
+  } catch (_) {}
+  return s;
+})()`;
+
 function queryClientState(port) {
   if (!port) return Promise.resolve(null);
   const now = Date.now();
@@ -3483,17 +3530,16 @@ function queryClientState(port) {
     return Promise.resolve(cached.state);
   }
   const lastFail = clientStateLastFailureByPort.get(port);
-  if (lastFail && now - lastFail.ts < (lastFail.reason === 'ECONNREFUSED' ? 2500 : 3500)) {
+  if (lastFail && now - lastFail.ts < (lastFail.reason === 'ECONNREFUSED' ? 2500 : 1800)) {
     return Promise.resolve(null);
   }
   if (clientStateInFlightByPort.has(port)) {
     return clientStateInFlightByPort.get(port);
   }
   const promise = new Promise((resolve) => {
-    // 1. Try rich state via POST /api/eval (avoids HTTP URL/header overflow on large LIVE_STATE_EVAL)
     const accSt = typeof humanCheckSolver?.getAccessState === 'function' ? humanCheckSolver.getAccessState() : null;
     const trainerUnlocked = Boolean(accSt?.secretAccess?.trainer || accSt?.secretAccess?.features?.trainer);
-    const evalCode = `try { if (typeof window.__setTrainerAccessUnlocked === 'function') window.__setTrainerAccessUnlocked(${trainerUnlocked}); } catch (_) {}\n` + LIVE_STATE_EVAL;
+    const evalCode = `try { if (typeof window.__setTrainerAccessUnlocked === 'function') window.__setTrainerAccessUnlocked(${trainerUnlocked}); } catch (_) {}\n` + NIGHTCAMP_LIVE_STATE_EVAL;
     const payload = JSON.stringify({ code: evalCode });
     const req = http.request({
       hostname: '127.0.0.1',
@@ -3504,7 +3550,7 @@ function queryClientState(port) {
         'Content-Type': 'application/json',
         'Content-Length': Buffer.byteLength(payload)
       },
-      timeout: 4500
+      timeout: 9500
     }, (res) => {
       let data = "";
       res.setEncoding('utf8');
@@ -10693,7 +10739,7 @@ const server = http.createServer(async (req, res) => {
     const profiles = loadProfiles();
     const enriched = await mapWithConcurrency(
       profiles,
-      8,
+      12,
       async (p) => {
         const proc = runningProcesses[p.id];
         const isBrowserOpen = Boolean(browserMode && typeof browserMode.isOpen === 'function' && browserMode.isOpen(p.id));
@@ -10712,7 +10758,7 @@ const server = http.createServer(async (req, res) => {
           }
           if ((!liveState || liveState.error) && alive) {
             const recentCached = clientStateCacheByPort.get(p.debugPort);
-            if (recentCached && recentCached.state && (Date.now() - recentCached.ts < 180000)) {
+            if (recentCached && recentCached.state && (Date.now() - recentCached.ts < 300000)) {
               liveState = { ...JSON.parse(JSON.stringify(recentCached.state)), _cachedFallback: true };
             } else {
               liveState = {

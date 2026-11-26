@@ -168,6 +168,8 @@ const READ_JS = `(() => {
     pkChannel: Boolean(room.state.pk || (typeof window.isCurrentChannelPk === 'function' && window.isCurrentChannelPk())),
     targetMap: window.__targetFarmMap || (live && live.targetMap) || null,
     keptFarmMap: window.__keptFarmMap || null,
+    smartAutoQuestEnabled: Boolean(window.__smartAutoQuestEnabled),
+    isTraveling: Boolean(window.NC?.Travel?.on),
     botRunning: window.__isBotRunning === true,
     noLootMode: Boolean(window.__noLootMode || (live && live.noLootMode)),
     autoFarmMode: (typeof window.__getMemberAutoFarmMode === 'function' ? window.__getMemberAutoFarmMode().mode : (window.__memberAutoFarmMode || 'auto')),
@@ -357,6 +359,11 @@ const ACTIONS = {
 // ---------------------------------------------------------------- pure helpers (unit-tested)
 function isCityMapName(m) {
   return /เมืองหลวง|โซลเฮเวน|ตลาดคาราวาน|ค่ายกลางป่า|แปลงสวน|ห้องหุ่น|\b(camp|homefarm|puppetroom)\b/i.test(String(m || ''));
+}
+
+function isAutoMapToken(m) {
+  const s = String(m || '').trim();
+  return !s || /^auto$/i.test(s) || /^อัตโนมัติ/.test(s);
 }
 
 function isPriestClass(cls) {
@@ -955,7 +962,7 @@ function createPartyService(opts) {
         leaderId,
         memberIds,
         autoFill: false,
-        syncMap: true,
+        syncMap: false,
         priestFlow: false,
         expMode: S.party.expMode && EXP_MODES.includes(S.party.expMode) ? S.party.expMode : 'even-share',
         lootMode: S.party.lootMode && LOOT_MODES.includes(S.party.lootMode) ? S.party.lootMode : 'personal',
@@ -1210,18 +1217,42 @@ function createPartyService(opts) {
     }
 
     // Same map + same CH as the party (Priest is the Channel Anchor when present on the farm map; otherwise Leader)
+    // CRITICAL (v2.3.9): NEVER treat Nightcamp's 'auto' targetMap as a concrete map name, and require 12s dwell
+    // before adopting Leader's current mapId when Leader has no explicit targetMap (prevents transit-map yanking!).
     let leaderMap = null;
-    if (L.targetMap && !isCityMapName(L.targetMap)) leaderMap = L.targetMap;
-    else if (L.mapName && !isCityMapName(L.mapName)) leaderMap = L.mapName;
-    else if (L.keptFarmMap && !isCityMapName(L.keptFarmMap)) leaderMap = L.keptFarmMap;
-    else if (rt.lastLeaderFarmMap && !isCityMapName(rt.lastLeaderFarmMap)) leaderMap = rt.lastLeaderFarmMap;
-    else leaderMap = L.targetMap || L.mapName;
-    if (leaderMap && !isCityMapName(leaderMap)) rt.lastLeaderFarmMap = leaderMap;
+    let leaderMapId = null;
+    if (!isAutoMapToken(L.targetMap) && !isCityMapName(L.targetMap)) {
+      leaderMap = String(L.targetMap).trim();
+      if (/^[a-z0-9_]+$/i.test(leaderMap)) leaderMapId = leaderMap.toLowerCase();
+    } else if (L.mapId && !isCityMapName(L.mapId) && !isCityMapName(L.mapName)) {
+      const curLMap = String(L.mapId).trim();
+      if (!L.isTraveling) {
+        if (!rt.leaderMapDwell || rt.leaderMapDwell.mapId !== curLMap) {
+          rt.leaderMapDwell = { mapId: curLMap, since: now() };
+        }
+        const dwellMs = now() - (rt.leaderMapDwell.since || now());
+        if (dwellMs >= 12000 || rt.lastLeaderFarmMap === curLMap || opts.timing) {
+          leaderMap = curLMap;
+          leaderMapId = curLMap.toLowerCase();
+        }
+      }
+    }
+    if (!leaderMap && !isAutoMapToken(L.keptFarmMap) && !isCityMapName(L.keptFarmMap)) {
+      leaderMap = String(L.keptFarmMap).trim();
+      if (/^[a-z0-9_]+$/i.test(leaderMap)) leaderMapId = leaderMap.toLowerCase();
+    }
+    if (!leaderMap && !isAutoMapToken(rt.lastLeaderFarmMap) && !isCityMapName(rt.lastLeaderFarmMap)) {
+      leaderMap = String(rt.lastLeaderFarmMap).trim();
+      if (/^[a-z0-9_]+$/i.test(leaderMap)) leaderMapId = leaderMap.toLowerCase();
+    }
+    if (leaderMap && !isAutoMapToken(leaderMap) && !isCityMapName(leaderMap)) {
+      rt.lastLeaderFarmMap = leaderMap;
+    }
 
     let anchorId = party.leaderId;
     let anchorSnap = L;
     if (priest && priest.snap && priest.snap.ok && priest.snap.mapId && !isCityMapName(priest.snap.mapName)) {
-      const onFarmMap = !leaderMap || (priest.snap.mapName && priest.snap.mapName.includes(leaderMap)) || priest.snap.mapId === L.mapId;
+      const onFarmMap = !leaderMap || mapsMatch(priest.snap.mapId, priest.snap.mapName, leaderMapId, leaderMap) || priest.snap.mapId === L.mapId;
       if (onFarmMap) {
         anchorId = priest.id;
         anchorSnap = priest.snap;
@@ -1341,14 +1372,26 @@ function createPartyService(opts) {
           ? S.busy.filter(f => f !== '__isNavigating' && f !== '__isWalkingToMap')
           : [];
         if (nonNavBusy.length) continue;
-        const wrongTarget = Boolean(leaderMap && S.targetMap !== leaderMap && !isCityMapName(S.targetMap));
+        const hasConcreteLeaderMap = Boolean(leaderMap && !isAutoMapToken(leaderMap) && !isCityMapName(leaderMap));
+        const memberOnLeaderMap = Boolean(hasConcreteLeaderMap && mapsMatch(S.mapId, S.mapName, leaderMapId, leaderMap));
+        const memberTargetsLeaderMap = Boolean(
+          hasConcreteLeaderMap &&
+          !isAutoMapToken(S.targetMap) &&
+          mapsMatch(S.targetMap, S.targetMap, leaderMapId, leaderMap)
+        );
+        const wrongTarget = Boolean(
+          hasConcreteLeaderMap &&
+          !S.smartAutoQuestEnabled &&
+          !memberTargetsLeaderMap &&
+          !isCityMapName(S.targetMap)
+        );
         if (!wrongTarget && S.busy && S.busy.length) continue;
         const wrongCurrentMap = Boolean(
-          leaderMap &&
-          !isCityMapName(leaderMap) &&
+          hasConcreteLeaderMap &&
+          !S.smartAutoQuestEnabled &&
           S.botRunning &&
           S.mapName &&
-          !S.mapName.includes(leaderMap) &&
+          !memberOnLeaderMap &&
           !isCityMapName(S.mapName)
         );
         if ((wrongTarget || wrongCurrentMap) && S.helpers && S.helpers.setTargetFarmMap && now() - m.mapAt >= T.mapCooldownMs) {
@@ -1442,7 +1485,8 @@ function createPartyService(opts) {
         priestName: priest ? priest.name : null,
         isAnchorPriest: Boolean(priest && String(priest.id) === String(id)),
         followMode: effMode,
-        forcedMap: (party.syncMap && id !== party.leaderId && !planBlocked(S)) ? leaderMap : null,
+        syncMap: Boolean(party.syncMap),
+        forcedMap: (party.syncMap && id !== party.leaderId && !planBlocked(S) && leaderMap && !isAutoMapToken(leaderMap) && !isCityMapName(leaderMap)) ? leaderMap : null,
         partyMapId: (anchorSnap && anchorSnap.mapId) || rt.settledMapId || null,
         partyMapName: leaderMap || (anchorSnap && anchorSnap.mapName) || null,
         settledChannel: (rt.settledMapId && (!anchorSnap || rt.settledMapId === anchorSnap.mapId) && typeof rt.settledChannel === 'number') ? rt.settledChannel : null,

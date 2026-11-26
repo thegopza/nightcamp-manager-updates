@@ -2843,13 +2843,13 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
   const current=(c,token)=>clients.get(c.profileId)===c&&!stoppedProfiles.has(c.profileId)&&c.generation===token.generation&&c.sessionId===token.sessionId;
   function classify(c,h) {
     const devId = ensureProfileDeviceId(c.profileId);
-    if(h.version&&h.hud&&h.liveHook){
+    if(h.version&&h.liveHook&&(h.hud||isRealSession)){
       if (Date.now() - (c.lastCrashReloadAt || 0) > 120000) c.crashReloadCount=0;
       c.stateFailCount=0;c.firstStateFailAt=0;c.attempts=0;c.probeFailCount=0;c.evalTimeouts=0;c.evalCooldownUntil=0;c.initialHealthChecked=true;
       diagnostic(c,'ready',{version:h.version,documentId:h.documentId,deviceId:h.deviceId||devId,hud:h.hud,liveHook:h.liveHook});
       return true;
     }
-    if(h.version||h.hud||h.liveHook||(isRealSession ? h.payloadInitialized : (h.initialized&&h.bootstrapPhase!=='waiting'))){c.stateFailCount=0;c.firstStateFailAt=0;c.probeFailCount=0;diagnostic(c,'partial-runtime',{version:h.version,documentId:h.documentId,deviceId:h.deviceId||devId,hud:h.hud,liveHook:h.liveHook});return true;}
+    if(h.version||h.hud||h.liveHook||(isRealSession ? h.payloadInitialized : (h.initialized&&h.bootstrapPhase!=='waiting'))){c.stateFailCount=0;c.firstStateFailAt=0;c.probeFailCount=0;if(h.liveHook)c.initialHealthChecked=true;diagnostic(c,'partial-runtime',{version:h.version,documentId:h.documentId,deviceId:h.deviceId||devId,hud:h.hud,liveHook:h.liveHook});return true;}
     return false;
   }
 
@@ -3482,7 +3482,7 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
                 const cur = toCheck[idx++];
                 if (!cur || !cur.c || clients.get(cur.c.profileId) !== cur.c || stoppedProfiles.has(cur.c.profileId)) continue;
                 try {
-                  const h = await health(cur.c, 3000);
+                  const h = await health(cur.c, 6000);
                   if (h && h.profileId && h.profileId !== cur.c.profileId) {
                     if (knownTargets.get(cur.c.profileId) === cur.c.targetId) {
                       knownTargets.delete(cur.c.profileId);
@@ -3491,7 +3491,7 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
                     drop(cur.c);
                     continue;
                   }
-                  if (h && h.profileId === cur.c.profileId && h.version && h.hud && h.liveHook && classify(cur.c, h)) {
+                  if (h && h.profileId === cur.c.profileId && h.version && h.liveHook && classify(cur.c, h)) {
                     cur.c.initialHealthChecked = true;
                     readyTabs.push(cur.c);
                   } else {
@@ -3538,7 +3538,7 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
   let phase2Running = false;
 
   // ---------- per-profile HTTP API (same as the Electron loader's) ----------
-  const MAX_CONCURRENT_CDP_EVALS = 18;
+  const MAX_CONCURRENT_CDP_EVALS = 24;
   let activeCdpEvals = 0;
   const cdpEvalWaiters = [];
   function acquireCdpEvalSlot(timeoutMs = 10000) {
@@ -3736,12 +3736,14 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
           const isLiveStateProbe = code.includes('__getClientLiveState') && code.includes('grossZenyGained');
           const isBootstrapAccept = isRealSession && code.includes('__pmScriptBootstrap.accept(');
           const isReadyClient = diagnostics.get(c.profileId)?.state === 'ready';
-          if (isRealSession && !isBootstrapAccept && ((!c.initialHealthChecked && !isReadyClient) || (!isReadyClient && heavyInjectionInFlightCount > 0) || (isLiveStateProbe && c.evalCooldownUntil && Date.now() < c.evalCooldownUntil))) {
-            if (isLiveStateProbe && c.lastGoodState && (Date.now() - (c.lastGoodStateAt || 0) < 180000)) {
+          const thisClientInjecting = Boolean(c.injectionInFlight);
+          const inEvalCooldown = Boolean(isLiveStateProbe && c.evalCooldownUntil && Date.now() < c.evalCooldownUntil);
+          if (isRealSession && !isBootstrapAccept && (thisClientInjecting || inEvalCooldown)) {
+            if (isLiveStateProbe && c.lastGoodState && (Date.now() - (c.lastGoodStateAt || 0) < 300000)) {
               return reply(200, { success: true, result: c.lastGoodState, cached: true });
             }
             if (isLiveStateProbe) {
-              return reply(503, { success: false, error: !c.initialHealthChecked ? 'Client initializing' : 'Client in timeout cooldown' });
+              return reply(503, { success: false, error: thisClientInjecting ? 'Client injecting' : 'Client in timeout cooldown' });
             }
           }
           try {
@@ -3758,9 +3760,18 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
               evalRes = await c.liveStateEvalPromise;
               c.stateFailCount = 0;
               c.firstStateFailAt = 0;
+              c.evalCooldownUntil = 0;
               if (evalRes && typeof evalRes === 'object') {
                 c.lastGoodState = evalRes;
                 c.lastGoodStateAt = Date.now();
+                // Promote healthy live-state clients directly to 'ready' so slow startup tabs on 25-30+ screen PCs
+                // never stay stuck in 'initializing' / 'loading' once the bot is actively running in-game!
+                if (evalRes.version || evalRes.screenPhase === 'in_game' || evalRes.isBotRunning) {
+                  c.initialHealthChecked = true;
+                  if (!isReadyClient) {
+                    diagnostic(c, 'ready', { version: evalRes.version || null, liveHook: true, hud: true });
+                  }
+                }
                 ensureClientFramePacerHealed(c).catch(() => {});
                 if (Date.now() - (c.lastStorageSyncAt || 0) > 60000) {
                   c.lastStorageSyncAt = Date.now();
@@ -3807,7 +3818,7 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
               if (c.stateFailCount >= 30 && (now - c.firstStateFailAt) >= 240000) {
                 reloadCrashedClient(c, 'state-probe-timeout').catch(() => {});
               }
-              if (c.lastGoodState && (now - (c.lastGoodStateAt || 0)) < 180000) {
+              if (c.lastGoodState && (now - (c.lastGoodStateAt || 0)) < 300000) {
                 return reply(200, { success: true, result: c.lastGoodState, cached: true });
               }
             }
@@ -3815,12 +3826,12 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
           }
         }
         if (url.pathname === '/api/state') {
-          const isReadyStateClient = diagnostics.get(c.profileId)?.state === 'ready';
-          if (isRealSession && ((!c.initialHealthChecked && !isReadyStateClient) || (!isReadyStateClient && heavyInjectionInFlightCount > 0) || (c.evalCooldownUntil && Date.now() < c.evalCooldownUntil))) {
-            if (c.lastGoodState && (Date.now() - (c.lastGoodStateAt || 0) < 180000)) {
+          const thisStateInjecting = Boolean(c.injectionInFlight);
+          if (isRealSession && (thisStateInjecting || (c.evalCooldownUntil && Date.now() < c.evalCooldownUntil))) {
+            if (c.lastGoodState && (Date.now() - (c.lastGoodStateAt || 0) < 300000)) {
               return reply(200, c.lastGoodState);
             }
-            return reply(503, { success: false, error: !c.initialHealthChecked ? 'Client initializing' : 'Client in timeout cooldown' });
+            return reply(503, { success: false, error: thisStateInjecting ? 'Client injecting' : 'Client in timeout cooldown' });
           }
           try {
             if (isRealSession && c.lastGoodState && (Date.now() - (c.lastGoodStateAt || 0) < 1800)) {
