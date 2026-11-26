@@ -10676,6 +10676,9 @@ const server = http.createServer(async (req, res) => {
             await browserMode.applyProxyModeToOpenWindows({ onlyProfileIds: openChangedIds }).catch(() => {});
           }
         }
+        if (typeof browserMode.rebalanceDeviceGroups === "function") {
+          browserMode.rebalanceDeviceGroups(null, true);
+        }
         return sendJSON({
           ...rotRes,
           success: true,

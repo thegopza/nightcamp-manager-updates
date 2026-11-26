@@ -17,7 +17,7 @@ const { spawn, execFile } = require('child_process');
 const GAME_URL = 'https://play.nightcamp.app/';
 const BOT_URL = 'https://raw.githubusercontent.com/thegopza/nightcamp-bot/main/bot.js';
 const DEFAULT_CDP_PORT = 9500;
-const MAX_SCREENS_PER_DEVICE = 1;
+const MAX_SCREENS_PER_DEVICE = 2;
 const UUID_V4_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SHA256_HEX_RE = /^[0-9a-f]{64}$/i;
 function deriveMachineId(seed) {
@@ -800,7 +800,7 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
     try {
       if (storageDir && fs.existsSync(storageDir)) {
         const files = fs.readdirSync(storageDir)
-          .filter(f => f.endsWith('.json') && !f.endsWith('.tmp'))
+          .filter(f => f.endsWith('.json') && !f.endsWith('.tmp') && !f.startsWith('_'))
           .map(f => f.slice(0, -5))
           .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
         for (const pid of files) addId(pid);
@@ -827,28 +827,141 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
     return MAX_SCREENS_PER_DEVICE;
   }
 
+  function getActiveAutoProxyLease(pid) {
+    if (!pid || !screenProxy || typeof screenProxy.getProfileLeaseSnapshot !== 'function') return null;
+    try {
+      const snap = screenProxy.getProfileLeaseSnapshot(pid);
+      if (snap && snap.active && !snap.useHomeIp && (snap.proxyId || snap.ip)) {
+        const ipKey = String(snap.proxyId || snap.ip).trim();
+        if (!ipKey) return null;
+        return {
+          ipKey,
+          proxyId: snap.proxyId || null,
+          proxyIp: snap.ip || null,
+          proxyPort: snap.proxyPort || null
+        };
+      }
+    } catch (_) {}
+    return null;
+  }
+
   function buildDeviceGroupLayout(orderedIds, screensPerIp) {
     const list = Array.isArray(orderedIds) ? orderedIds : [];
     const perIp = Math.max(1, Math.min(20, Number(screensPerIp) || getScreensPerIp() || MAX_SCREENS_PER_DEVICE));
-    const devicesPerIp = Math.ceil(perIp / MAX_SCREENS_PER_DEVICE);
-    const deviceSubSizes = [];
-    for (let sub = 0; sub < devicesPerIp; sub++) {
-      deviceSubSizes.push(Math.min(MAX_SCREENS_PER_DEVICE, Math.max(1, perIp - sub * MAX_SCREENS_PER_DEVICE)));
+    if (list.length === 0) return [];
+
+    // Group strictly by IP first so a Device Group NEVER spans across two different Proxy IPs.
+    // Inside each IP Group, subdivide into Devices of at most MAX_SCREENS_PER_DEVICE (2) clients
+    // (e.g. 1 IP : 3 screens => 2 Devices: Device 1 = 2 clients, Device 2 = 1 client).
+    const proxyEnabled = Boolean(screenProxy && typeof screenProxy.isEnabled === 'function' && screenProxy.isEnabled());
+    const proxyMode = (() => {
+      try { return String(screenProxy?.loadSettings?.()?.mode || 'owner-queue'); } catch (_) { return 'owner-queue'; }
+    })();
+
+    const activeLeasesByPid = new Map();
+    if (proxyEnabled) {
+      for (const pid of list) {
+        const l = getActiveAutoProxyLease(pid);
+        if (l) activeLeasesByPid.set(pid, l);
+      }
     }
 
-    const totalIpBlocks = Math.ceil(list.length / perIp);
+    const ipBuckets = [];
+    if (activeLeasesByPid.size === 0) {
+      const totalIpBlocks = Math.ceil(list.length / perIp);
+      for (let ipIdx = 0; ipIdx < totalIpBlocks; ipIdx++) {
+        const ipSlice = list.slice(ipIdx * perIp, (ipIdx + 1) * perIp);
+        if (ipSlice.length > 0) {
+          ipBuckets.push({
+            ipKey: `block:${ipIdx + 1}`,
+            proxyId: null,
+            proxyIp: null,
+            proxyPort: null,
+            profileIds: ipSlice
+          });
+        }
+      }
+    } else {
+      const bucketByKey = new Map();
+      const orderIndexByPid = new Map();
+      const unleasedPids = [];
+
+      list.forEach((pid, idx) => {
+        orderIndexByPid.set(pid, idx);
+        const l = activeLeasesByPid.get(pid);
+        if (l) {
+          let bucket = bucketByKey.get(l.ipKey);
+          if (!bucket) {
+            bucket = {
+              ipKey: l.ipKey,
+              proxyId: l.proxyId,
+              proxyIp: l.proxyIp,
+              proxyPort: l.proxyPort,
+              blockHints: new Set(),
+              profileIds: []
+            };
+            bucketByKey.set(l.ipKey, bucket);
+            ipBuckets.push(bucket);
+          }
+          bucket.blockHints.add(Math.floor(idx / perIp));
+          bucket.profileIds.push(pid);
+        } else {
+          unleasedPids.push(pid);
+        }
+      });
+
+      const leftoverUnleased = [];
+      for (const pid of unleasedPids) {
+        const naturalBlock = Math.floor((orderIndexByPid.get(pid) || 0) / perIp);
+        let targetBucket = ipBuckets.find(b => b.profileIds.length < perIp && b.blockHints && b.blockHints.has(naturalBlock));
+        if (!targetBucket && proxyMode !== 'local-pool') {
+          targetBucket = ipBuckets.find(b => b.profileIds.length < perIp);
+        }
+        if (targetBucket) {
+          targetBucket.profileIds.push(pid);
+        } else {
+          leftoverUnleased.push(pid);
+        }
+      }
+
+      if (leftoverUnleased.length > 0) {
+        const extraBlocks = Math.ceil(leftoverUnleased.length / perIp);
+        for (let i = 0; i < extraBlocks; i++) {
+          const slice = leftoverUnleased.slice(i * perIp, (i + 1) * perIp);
+          if (slice.length > 0) {
+            ipBuckets.push({
+              ipKey: `pending:${i + 1}`,
+              proxyId: null,
+              proxyIp: null,
+              proxyPort: null,
+              profileIds: slice
+            });
+          }
+        }
+      }
+    }
+
     const layout = [];
     let globalGroupIdx = 0;
 
-    for (let ipIdx = 0; ipIdx < totalIpBlocks; ipIdx++) {
-      const ipSlice = list.slice(ipIdx * perIp, (ipIdx + 1) * perIp);
+    for (let ipIdx = 0; ipIdx < ipBuckets.length; ipIdx++) {
+      const bucket = ipBuckets[ipIdx];
+      const ipSlice = bucket.profileIds;
+      if (ipSlice.length === 0) continue;
+      const effectiveBlockCap = Math.max(perIp, ipSlice.length);
+      const devicesPerIp = Math.ceil(effectiveBlockCap / MAX_SCREENS_PER_DEVICE);
+      const deviceSubSizes = [];
+      for (let sub = 0; sub < devicesPerIp; sub++) {
+        deviceSubSizes.push(Math.min(MAX_SCREENS_PER_DEVICE, Math.max(1, effectiveBlockCap - sub * MAX_SCREENS_PER_DEVICE)));
+      }
+
       for (let sub = 0; sub < devicesPerIp; sub++) {
         const subStart = sub * MAX_SCREENS_PER_DEVICE;
-        const subEnd = Math.min(perIp, (sub + 1) * MAX_SCREENS_PER_DEVICE);
+        const subEnd = Math.min(effectiveBlockCap, (sub + 1) * MAX_SCREENS_PER_DEVICE);
         const groupPids = ipSlice.slice(subStart, subEnd);
         if (groupPids.length === 0) break;
         globalGroupIdx++;
-        const subMax = Math.min(MAX_SCREENS_PER_DEVICE, Math.max(1, perIp - subStart));
+        const subMax = deviceSubSizes[sub];
         layout.push({
           groupIndex: globalGroupIdx,
           ipIndex: ipIdx + 1,
@@ -860,7 +973,10 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
           maxScreensPerDevice: MAX_SCREENS_PER_DEVICE,
           ipSlotStart: subStart + 1,
           ipProfileIds: ipSlice,
-          profileIds: groupPids
+          profileIds: groupPids,
+          leaseProxyId: bucket.proxyId || null,
+          leaseProxyIp: bucket.proxyIp || null,
+          leaseProxyPort: bucket.proxyPort || null
         });
       }
     }
@@ -1487,10 +1603,17 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
       const customMap = buildCustomProfileMap(customCfg);
       const autoOrderedIds = orderedIds.filter(pid => !customMap.has(pid));
       const perIp = getScreensPerIp();
+      const proxyEnabled = Boolean(screenProxy && typeof screenProxy.isEnabled === 'function' && screenProxy.isEnabled());
+      const leaseSig = proxyEnabled
+        ? autoOrderedIds.map(pid => {
+            const l = getActiveAutoProxyLease(pid);
+            return l ? `${pid}@${l.ipKey}` : pid;
+          }).join(',')
+        : 'direct';
       const customSig = `${customCfg.defaultPlatformMode || 'pc'}::${JSON.stringify(customCfg.autoGroupPlatforms || {})}::` + customCfg.ipGroups
         .map(ig => `${ig.id}:${ig.deviceGroups.map(d => `${d.id}=${d.deviceId}:${d.platform || 'pc'}:${d.profileIds.join(',')}`).join(';')}`)
         .join('|');
-      const sig = `${perIp}::${orderedIds.join('|')}::${customSig}`;
+      const sig = `${perIp}::${orderedIds.join('|')}::${leaseSig}::${customSig}`;
       if (!forceRecheck && deviceIdsInitialized && sig === lastGroupedOrderSignature && (!extraProfileId || profileDeviceIds.has(extraProfileId))) {
         return;
       }
@@ -1716,8 +1839,10 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
       const machineId = firstPid ? ensureProfileMachineId(firstPid) : '';
       const platform = resolveAutoGroupPlatform(customCfg, grp.groupIndex, grp.deviceIndexInIp, grp.devicesPerIp);
       const spec = resolveDeviceSpec(deviceId, platform);
-      let activeSnap = null;
-      if (screenProxy && typeof screenProxy.getProfileLeaseSnapshot === 'function') {
+      let activeSnap = grp.leaseProxyIp
+        ? { proxyId: grp.leaseProxyId, ip: grp.leaseProxyIp, proxyPort: grp.leaseProxyPort }
+        : null;
+      if (!activeSnap && screenProxy && typeof screenProxy.getProfileLeaseSnapshot === 'function') {
         for (const pid of (grp.ipProfileIds || grp.profileIds || [])) {
           const snap = screenProxy.getProfileLeaseSnapshot(pid);
           if (snap && snap.active && snap.ip) {
@@ -1726,7 +1851,7 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
           }
         }
       }
-      const poolItem = poolItems[grp.ipIndex - 1] || null;
+      const poolItem = !activeSnap ? (poolItems[grp.ipIndex - 1] || null) : null;
       return {
         groupIndex: grp.groupIndex,
         ipIndex: grp.ipIndex,
@@ -3950,6 +4075,7 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
             }
           }
           await screenProxy.acquireForProfile(profile.id, { debugPort: profile.debugPort }).catch(() => {});
+          rebalanceDeviceGroups(profile.id, false);
         }
         startProxy(existing, profile.debugPort);
         let h = null, reloaded = false;
@@ -3998,6 +4124,8 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
       if (!browserContextId) {
         throw new Error('สร้าง BrowserContext สำหรับแยก Proxy IP ไม่สำเร็จ — บล็อคการเปิดจอผ่านเน็ตบ้านอัตโนมัติ');
       }
+      // Align this profile's Device ID strictly to the IP Group of its newly acquired Proxy IP
+      rebalanceDeviceGroups(profile.id, false);
     }
     if (tunnelInfo?.lease?.proxyHost || tunnelInfo?.lease?.ip) {
       await waitSameProxyIpLaunchStagger(tunnelInfo.lease.proxyHost || tunnelInfo.lease.ip);
@@ -4082,6 +4210,7 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
         continue;
       }
       const tunnelInfo = await screenProxy.acquireForProfile(c.profileId, { debugPort: profile.debugPort });
+      rebalanceDeviceGroups(c.profileId, false);
       if (c.browserContextId && customContexts.has(c.browserContextId)) {
         // Already running in a proxy-enabled BrowserContext pointing to 127.0.0.1:<tunnelPort>
         updatedTunnels++;
@@ -4144,6 +4273,7 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
         }
       }
     }
+    rebalanceDeviceGroups(null, false);
     return { switched, updatedTunnels, details };
   }
 

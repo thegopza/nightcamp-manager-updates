@@ -3,7 +3,7 @@
 // ============================================================
 // - Sits on the right edge directly below Jail (`#jl-tab`), with a gear icon (`⚙️`).
 // - Tab 1 ("จัดกลุ่มอัตโนมัติ"): Groups unisolated profiles by IP block (`screensPerIp`, default 6),
-//   subdivides each IP block into Device Spoof groups of at most 3 screens per Device,
+//   subdivides each IP block into Device Spoof groups of at most 2 screens per Device (never crossing IP blocks),
 //   and shows tiered merit surcharge rate relative to baseline (1 IP : 6 จอ = +0%).
 // - Tab 2 ("แยก IP / Device พิเศษ"): Lets users create dedicated Custom IP Groups
 //   (reserving 1 Proxy IP upfront), create flexible Custom Device Groups inside each IP
@@ -1570,7 +1570,8 @@
     const totalAutoGroups = groups.length;
     const totalAutoProfiles = autoProfiles.length;
     const totalAutoOnline = autoProfiles.filter(p => p && p.isRunning).length;
-    const totalAutoIps = Math.ceil(totalAutoProfiles / perIp);
+    const distinctIpIndices = new Set(groups.map(g => g.ipIndex || 1));
+    const totalAutoIps = distinctIpIndices.size > 0 ? distinctIpIndices.size : Math.ceil(totalAutoProfiles / perIp);
 
     const tabCount = document.getElementById('dv-tab-count');
     const sumIps = document.getElementById('dv-summary-ips');
@@ -1778,16 +1779,25 @@
       let activeProxyId = firstGrp.proxyId || null;
       const ipBlockProfileIds = [];
       for (const g of ipGroups) {
+        if (!activeProxyIp && g.proxyIp) activeProxyIp = g.proxyIp;
+        if (!activeProxyId && g.proxyId) activeProxyId = g.proxyId;
         for (const m of g.members) {
           if (m.profile && m.profile.id && !ipBlockProfileIds.includes(m.profile.id)) {
             ipBlockProfileIds.push(m.profile.id);
           }
-          if (m.profile && m.profile.screenProxy && m.profile.screenProxy.active && m.profile.screenProxy.ip) {
+          if (!activeProxyIp && m.profile && m.profile.screenProxy && m.profile.screenProxy.active && m.profile.screenProxy.ip) {
             activeProxyIp = m.profile.screenProxy.ip;
             if (m.profile.screenProxy.proxyId) activeProxyId = m.profile.screenProxy.proxyId;
           }
         }
       }
+      const proxyMetaNow = cachedScreenProxySummary || (typeof currentScreenProxySettings !== 'undefined' ? currentScreenProxySettings : null);
+      const isProxyOnNow = Boolean(proxyMetaNow && proxyMetaNow.enabled);
+      const ipAddrBadgeHtml = activeProxyIp
+        ? `<span class="dv-ip-addr-pill" title="Proxy IP ของวงนี้ (ทุก Device ในกรอบนี้ใช้ IP เดียวกัน ไม่ข้ามวง)">🛡️ ${esc(activeProxyIp)}</span>`
+        : (isProxyOnNow
+            ? `<span class="dv-ip-addr-pill" style="opacity:0.75;" title="รอเปิดจอเพื่อจอง Proxy IP ให้วงนี้">⏳ รอจอง IP</span>`
+            : `<span class="dv-ip-addr-pill" style="opacity:0.75;" title="ใช้ IP เน็ตบ้าน (ยังไม่เปิด Proxy แยกจอ)">🏠 IP บ้าน</span>`);
       const isReIpBusy = rotatingIpBlocks.has(ipIdx) || rotatingAllIps;
       const isIpJustRot = justRotatedIpBlocks.has(ipIdx);
 
@@ -1902,7 +1912,7 @@
               <span class="dv-ip-split-badge">${esc(ipSplitLabel)}</span>
             </div>
             <div class="dv-ip-block-right">
-              ${activeProxyIp ? `<span class="dv-ip-addr-pill" title="Proxy IP ของกลุ่มนี้">🛡️ ${esc(activeProxyIp)}</span>` : ''}
+              ${ipAddrBadgeHtml}
               ${ipOnlineCount > 0 ? `<span class="dv-group-online-badge">🟢 ${ipOnlineCount} จอ</span>` : ''}
               <button type="button" class="dv-reip-btn" data-reip-auto="${ipIdx}" data-reip-pids="${esc(ipBlockProfileIds.join(','))}" data-reip-cur-ip="${esc(activeProxyIp || '')}" data-reip-cur-id="${esc(activeProxyId || '')}" ${isReIpBusy ? 'disabled' : ''} title="หา IP ว่างตัวใหม่ในระบบมาเปลี่ยนให้ทุกจอในวง IP #${ipIdx} ทันที">
                 ${isReIpBusy ? '⏳ กำลังหา IP...' : '🔄 Re-IP'}
