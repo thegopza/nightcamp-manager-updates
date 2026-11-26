@@ -2678,8 +2678,38 @@ label {
 
 .pelican-hud-web {
     position: fixed;
-    width: 320px;
+    width: 356px;
+    max-width: calc(100vw - 24px);
     z-index: 100000;
+    box-sizing: border-box;
+}
+.pelican-hud-web *,
+.pelican-hud-web *::before,
+.pelican-hud-web *::after {
+    box-sizing: border-box;
+}
+.pelican-hud-web .p-body {
+    overflow-x: hidden !important;
+    overflow-y: auto;
+    min-width: 0;
+}
+.pelican-hud-web .p-card,
+.pelican-hud-web .p-body > div {
+    min-width: 0;
+    max-width: 100%;
+}
+.pelican-hud-web select,
+.pelican-hud-web input[type="text"],
+.pelican-hud-web input[type="password"] {
+    min-width: 0;
+    max-width: 100%;
+    text-overflow: ellipsis;
+}
+.pelican-hud-web label {
+    min-width: 0;
+}
+.pelican-hud-web label > input[type="checkbox"] {
+    flex-shrink: 0;
 }
 .pelican-hud-web .p-header {
     flex-direction: column;

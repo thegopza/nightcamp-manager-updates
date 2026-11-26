@@ -9170,7 +9170,7 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
   </div>
 </div>
 
-<div class="p-body" id="pelican-content" style="display:flex; flex-direction:column; gap:8px; padding:10px; max-height:78vh; overflow-y:auto;">
+<div class="p-body" id="pelican-content" style="display:flex; flex-direction:column; gap:8px; padding:10px; max-height:78vh; overflow-y:auto; overflow-x:hidden; box-sizing:border-box;">
   ${isCentral ? `
   <div style="background: rgba(250, 204, 21, 0.12); border: 1px solid rgba(250, 204, 21, 0.35); color: #fde68a; padding: 6px 8px; border-radius: 6px; font-size: 10px; line-height: 1.45;">
     💡 <b>โหมดเมนูส่วนกลาง (เหมือน Aetheria):</b> การเปิดหน้าต่างนี้หรือสลับแท็บจะไม่ทับค่าใดๆ ของแต่ละจอ จนกว่าคุณจะกดปุ่มหรือติ๊กปรับตัวเลือกตัวนั้น ระบบจึงจะส่งเฉพาะคำสั่งนั้นไปทุกจอที่ออนไลน์ทันที
@@ -9178,7 +9178,7 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
   ` : ''}
 
   <!-- 5/6-Tab Bar matching in-game bot.js v2.1.2 (Trainer tab gated by secretAccess.trainer) -->
-  <div id="p-nc-tabbar" style="display:grid; grid-template-columns:${(window.__secretTrainerUnlocked || state?.trainerAccessUnlocked) ? '0.95fr 0.78fr 0.8fr 0.85fr 0.85fr 0.9fr' : '1.05fr 0.85fr 0.88fr 0.92fr 0.92fr'}; gap:3px; background:rgba(2, 6, 23, 0.72); border:1px solid rgba(148, 163, 184, 0.24); border-radius:7px; padding:3px;">
+  <div id="p-nc-tabbar" style="display:grid; grid-template-columns:${(window.__secretTrainerUnlocked || state?.trainerAccessUnlocked) ? 'minmax(0,0.95fr) minmax(0,0.78fr) minmax(0,0.8fr) minmax(0,0.85fr) minmax(0,0.85fr) minmax(0,0.95fr)' : 'minmax(0,1.05fr) minmax(0,0.85fr) minmax(0,0.88fr) minmax(0,0.92fr) minmax(0,0.92fr)'}; gap:3px; background:rgba(2, 6, 23, 0.72); border:1px solid rgba(148, 163, 184, 0.24); border-radius:7px; padding:3px;">
     <button type="button" id="p-nc-tab-bot" style="padding:5px 3px; border:0; border-radius:5px; font-size:10px; font-weight:700; cursor:pointer; background:#0284c7; color:#fff; white-space:nowrap;">🚀 บอท</button>
     <button type="button" id="p-nc-tab-potions" style="padding:5px 3px; border:0; border-radius:5px; font-size:10px; font-weight:700; cursor:pointer; background:transparent; color:#94a3b8; white-space:nowrap;">🧪 ยา</button>
     <button type="button" id="p-nc-tab-sell" style="padding:5px 3px; border:0; border-radius:5px; font-size:10px; font-weight:700; cursor:pointer; background:transparent; color:#94a3b8; white-space:nowrap;">🛒 ขาย</button>
@@ -9359,21 +9359,21 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
       </div>
 
       <div style="background:rgba(2,6,23,0.5); border:1px solid rgba(248,113,113,0.3); border-radius:6px; padding:7px; display:flex; flex-direction:column; gap:5px;">
-        <div style="display:flex; align-items:center; justify-content:space-between; gap:5px;">
-          <label style="display:flex; align-items:center; gap:5px; font-size:11px; font-weight:700; color:#fca5a5; cursor:pointer;">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:5px; min-width:0;">
+          <label style="display:flex; align-items:center; gap:5px; font-size:11px; font-weight:700; color:#fca5a5; cursor:pointer; flex-shrink:0; white-space:nowrap;">
             <input type="checkbox" id="p-nc-pot-hp-en" ${pc.hpEnabled !== false ? 'checked' : ''} style="accent-color:#ef4444;">
             <span>❤️ HP (ยาแดง)</span>
           </label>
-          <select id="p-nc-pot-hp-size" style="background:#090d16; border:1px solid rgba(248,113,113,0.45); color:#fecaca; border-radius:4px; font-size:10px; padding:3px 6px;">
+          <select id="p-nc-pot-hp-size" style="flex:1; min-width:0; max-width:100%; background:#090d16; border:1px solid rgba(248,113,113,0.45); color:#fecaca; border-radius:4px; font-size:10px; padding:3px 6px;">
             <option value="red" ${(pc.hpSize || 'red') === 'red' ? 'selected' : ''}>ขวดเล็ก (HP+60 · ต้ม 75g / ซื้อ 150g)</option>
             <option value="red_m" ${pc.hpSize === 'red_m' ? 'selected' : ''}>ขวดกลาง (HP+220 · ต้ม 240g / ซื้อ 480g)</option>
             <option value="red_l" ${pc.hpSize === 'red_l' ? 'selected' : ''}>ขวดใหญ่ (HP+900 · ต้ม 725g / ซื้อ 1450g)</option>
             <option value="auto" ${pc.hpSize === 'auto' ? 'selected' : ''}>อัตโนมัติตามเลเวลตัวละคร</option>
           </select>
         </div>
-        <div style="display:flex; align-items:center; justify-content:space-between; font-size:10px; color:#fecaca; gap:6px;">
-          <span>🍹 ดื่มยาแดงเมื่อ HP ต่ำกว่า:</span>
-          <select id="p-nc-pot-hp-drink-pct" style="flex:1; background:#090d16; border:1px solid rgba(248,113,113,0.45); color:#fff; border-radius:4px; font-size:10.5px; font-weight:700; padding:2px 6px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; font-size:10px; color:#fecaca; gap:6px; min-width:0;">
+          <span style="white-space:nowrap;">🍹 ดื่มยาแดงเมื่อ HP ต่ำกว่า:</span>
+          <select id="p-nc-pot-hp-drink-pct" style="flex:1; min-width:0; max-width:100%; background:#090d16; border:1px solid rgba(248,113,113,0.45); color:#fff; border-radius:4px; font-size:10.5px; font-weight:700; padding:2px 6px;">
             ${[0, 20, 30, 40, 50, 60, 70, 75, 80, 85, 90, 95].map(pct => `<option value="${pct}" ${Number(pc.hpDrinkPct ?? 60) === pct ? 'selected' : ''}>${pct === 0 ? '❌ ไม่กดดื่มอัตโนมัติ' : pct + '%'}</option>`).join('')}
           </select>
         </div>
@@ -9386,21 +9386,21 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
       </div>
 
       <div style="background:rgba(2,6,23,0.5); border:1px solid rgba(96,165,250,0.3); border-radius:6px; padding:7px; display:flex; flex-direction:column; gap:5px;">
-        <div style="display:flex; align-items:center; justify-content:space-between; gap:5px;">
-          <label style="display:flex; align-items:center; gap:5px; font-size:11px; font-weight:700; color:#93c5fd; cursor:pointer;">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:5px; min-width:0;">
+          <label style="display:flex; align-items:center; gap:5px; font-size:11px; font-weight:700; color:#93c5fd; cursor:pointer; flex-shrink:0; white-space:nowrap;">
             <input type="checkbox" id="p-nc-pot-sp-en" ${pc.spEnabled !== false ? 'checked' : ''} style="accent-color:#3b82f6;">
             <span>💙 Mana (ยาฟ้า)</span>
           </label>
-          <select id="p-nc-pot-sp-size" style="background:#090d16; border:1px solid rgba(96,165,250,0.45); color:#bfdbfe; border-radius:4px; font-size:10px; padding:3px 6px;">
+          <select id="p-nc-pot-sp-size" style="flex:1; min-width:0; max-width:100%; background:#090d16; border:1px solid rgba(96,165,250,0.45); color:#bfdbfe; border-radius:4px; font-size:10px; padding:3px 6px;">
             <option value="blue" ${(pc.spSize || 'blue') === 'blue' ? 'selected' : ''}>ขวดเล็ก (SP+60 · ต้ม 150g / ซื้อ 300g)</option>
             <option value="blue_m" ${pc.spSize === 'blue_m' ? 'selected' : ''}>ขวดกลาง (SP+200 · ต้ม 425g / ซื้อ 850g)</option>
             <option value="blue_l" ${pc.spSize === 'blue_l' ? 'selected' : ''}>ขวดใหญ่ (SP+390 · ต้ม 1100g / ซื้อ 2200g)</option>
             <option value="auto" ${pc.spSize === 'auto' ? 'selected' : ''}>อัตโนมัติตามเลเวลตัวละคร</option>
           </select>
         </div>
-        <div style="display:flex; align-items:center; justify-content:space-between; font-size:10px; color:#bfdbfe; gap:6px;">
-          <span>🍹 ดื่มยาฟ้าเมื่อ Mana ต่ำกว่า:</span>
-          <select id="p-nc-pot-sp-drink-pct" style="flex:1; background:#090d16; border:1px solid rgba(96,165,250,0.45); color:#fff; border-radius:4px; font-size:10.5px; font-weight:700; padding:2px 6px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; font-size:10px; color:#bfdbfe; gap:6px; min-width:0;">
+          <span style="white-space:nowrap;">🍹 ดื่มยาฟ้าเมื่อ Mana ต่ำกว่า:</span>
+          <select id="p-nc-pot-sp-drink-pct" style="flex:1; min-width:0; max-width:100%; background:#090d16; border:1px solid rgba(96,165,250,0.45); color:#fff; border-radius:4px; font-size:10.5px; font-weight:700; padding:2px 6px;">
             ${[0, 20, 30, 40, 50, 60, 70, 75, 80, 85, 90, 95].map(pct => `<option value="${pct}" ${Number(pc.spDrinkPct ?? 40) === pct ? 'selected' : ''}>${pct === 0 ? '❌ ไม่กดดื่มอัตโนมัติ' : (pct === 80 || pct === 85 ? pct + '% (Archmage ร่ายไว)' : pct + '%')}</option>`).join('')}
           </select>
         </div>
@@ -9426,12 +9426,12 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
   <!-- TAB 3: 🛒 ซื้อ/ขาย -->
   <div id="p-nc-pane-sell" style="display:none; flex-direction:column; gap:7px;">
     <div class="p-card" style="background:rgba(245,158,11,0.1); border:1px solid rgba(251,191,36,0.4); border-radius:7px; padding:8px; display:flex; flex-direction:column; gap:6px;">
-      <div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
-        <label style="display:flex; align-items:center; gap:6px; font-size:11px; font-weight:700; color:#fde68a; cursor:pointer;">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; min-width:0;">
+        <label style="display:flex; align-items:center; gap:6px; font-size:11px; font-weight:700; color:#fde68a; cursor:pointer; flex-shrink:0;">
           <input type="checkbox" id="p-nc-autosell-enabled" ${sc.enabled !== false && state?.autoSellEnabled !== false ? 'checked' : ''} style="accent-color:#f59e0b;">
           <span>💰 เปิด Auto-Sell เมื่อนน.เกิน</span>
         </label>
-        <select id="p-nc-autosell-pct" style="background:#090d16; border:1px solid rgba(251,191,36,0.55); color:#fde68a; border-radius:4px; font-size:10.5px; font-weight:700; padding:2px 6px; cursor:pointer;">
+        <select id="p-nc-autosell-pct" style="min-width:0; max-width:130px; background:#090d16; border:1px solid rgba(251,191,36,0.55); color:#fde68a; border-radius:4px; font-size:10.5px; font-weight:700; padding:2px 6px; cursor:pointer;">
           ${[45, 50, 55, 60, 65, 70, 75, 80].map(pct => `<option value="${pct}" ${sellWeightThreshold === pct ? 'selected' : ''}>${pct}%</option>`).join('')}
         </select>
       </div>
@@ -9440,12 +9440,12 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
       </div>
     </div>
 
-    <div class="p-card" style="background:rgba(14,165,233,0.09); border:1px solid rgba(56,189,248,0.35); border-radius:7px; padding:8px; display:flex; flex-direction:column; gap:6px;">
+    <div class="p-card" style="background:rgba(14,165,233,0.09); border:1px solid rgba(56,189,248,0.35); border-radius:7px; padding:8px; display:flex; flex-direction:column; gap:6px; min-width:0;">
       <div style="font-size:10.5px; font-weight:700; color:#7dd3fc;">🗂️ แยกขายตามระดับและประเภท (ร้านลุงโกโก้):</div>
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:5px; font-size:10px;">
-        <div style="display:flex; flex-direction:column; gap:2px;">
+      <div style="display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:6px; font-size:10px; min-width:0;">
+        <div style="display:flex; flex-direction:column; gap:2px; min-width:0;">
           <span style="color:#cbd5e1;">⚔️ อาวุธ:</span>
-          <select id="p-nc-sell-weapon-grade" style="background:#090d16; border:1px solid rgba(56,189,248,0.4); color:#e2e8f0; border-radius:4px; font-size:10px; padding:3px 4px;">
+          <select id="p-nc-sell-weapon-grade" style="width:100%; min-width:0; max-width:100%; background:#090d16; border:1px solid rgba(56,189,248,0.4); color:#e2e8f0; border-radius:4px; font-size:10px; padding:3px 4px;">
             <option value="0" ${Number(sc.weaponMaxGrade ?? 1) === 0 ? 'selected' : ''}>❌ ไม่ขาย</option>
             <option value="1" ${Number(sc.weaponMaxGrade ?? 1) === 1 ? 'selected' : ''}>⚪ ธรรมดา (Common)</option>
             <option value="2" ${Number(sc.weaponMaxGrade ?? 1) === 2 ? 'selected' : ''}>🔵 หายาก (Rare) ลงไป</option>
@@ -9453,9 +9453,9 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
             <option value="4" ${Number(sc.weaponMaxGrade ?? 1) === 4 ? 'selected' : ''}>🟡 ตำนาน (Legend) ลงไป</option>
           </select>
         </div>
-        <div style="display:flex; flex-direction:column; gap:2px;">
+        <div style="display:flex; flex-direction:column; gap:2px; min-width:0;">
           <span style="color:#cbd5e1;">🛡️ ชุดเกราะ/หมวก/โล่:</span>
-          <select id="p-nc-sell-armor-grade" style="background:#090d16; border:1px solid rgba(56,189,248,0.4); color:#e2e8f0; border-radius:4px; font-size:10px; padding:3px 4px;">
+          <select id="p-nc-sell-armor-grade" style="width:100%; min-width:0; max-width:100%; background:#090d16; border:1px solid rgba(56,189,248,0.4); color:#e2e8f0; border-radius:4px; font-size:10px; padding:3px 4px;">
             <option value="0" ${Number(sc.armorMaxGrade ?? 1) === 0 ? 'selected' : ''}>❌ ไม่ขาย</option>
             <option value="1" ${Number(sc.armorMaxGrade ?? 1) === 1 ? 'selected' : ''}>⚪ ธรรมดา (Common)</option>
             <option value="2" ${Number(sc.armorMaxGrade ?? 1) === 2 ? 'selected' : ''}>🔵 หายาก (Rare) ลงไป</option>
@@ -9463,9 +9463,9 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
             <option value="4" ${Number(sc.armorMaxGrade ?? 1) === 4 ? 'selected' : ''}>🟡 ตำนาน (Legend) ลงไป</option>
           </select>
         </div>
-        <div style="display:flex; flex-direction:column; gap:2px;">
+        <div style="display:flex; flex-direction:column; gap:2px; min-width:0;">
           <span style="color:#cbd5e1;">💍 เครื่องประดับ:</span>
-          <select id="p-nc-sell-acc-grade" style="background:#090d16; border:1px solid rgba(56,189,248,0.4); color:#e2e8f0; border-radius:4px; font-size:10px; padding:3px 4px;">
+          <select id="p-nc-sell-acc-grade" style="width:100%; min-width:0; max-width:100%; background:#090d16; border:1px solid rgba(56,189,248,0.4); color:#e2e8f0; border-radius:4px; font-size:10px; padding:3px 4px;">
             <option value="0" ${Number(sc.accMaxGrade ?? 0) === 0 ? 'selected' : ''}>❌ ไม่ขาย</option>
             <option value="1" ${Number(sc.accMaxGrade ?? 0) === 1 ? 'selected' : ''}>⚪ ธรรมดา (Common)</option>
             <option value="2" ${Number(sc.accMaxGrade ?? 0) === 2 ? 'selected' : ''}>🔵 หายาก (Rare) ลงไป</option>
@@ -9473,9 +9473,9 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
             <option value="4" ${Number(sc.accMaxGrade ?? 0) === 4 ? 'selected' : ''}>🟡 ตำนาน (Legend) ลงไป</option>
           </select>
         </div>
-        <div style="display:flex; flex-direction:column; gap:2px;">
+        <div style="display:flex; flex-direction:column; gap:2px; min-width:0;">
           <span style="color:#cbd5e1;">🌿 ขยะมอน / วัตถุดิบ:</span>
-          <select id="p-nc-sell-mat-mode" style="background:#090d16; border:1px solid rgba(56,189,248,0.4); color:#e2e8f0; border-radius:4px; font-size:10px; padding:3px 4px;">
+          <select id="p-nc-sell-mat-mode" style="width:100%; min-width:0; max-width:100%; background:#090d16; border:1px solid rgba(56,189,248,0.4); color:#e2e8f0; border-radius:4px; font-size:10px; padding:3px 4px;">
             <option value="common" ${(sc.materialMode || 'common') === 'common' ? 'selected' : ''}>🧺 ขยะมอน+ของดี (เก็บแรร์บอส)</option>
             <option value="all" ${(sc.materialMode === 'all' || sc.materialMode === 'all_except_rare') ? 'selected' : ''}>🔥 ขายทั้งหมด (รวมแรร์/เว้นเควส)</option>
             <option value="plain_only" ${sc.materialMode === 'plain_only' ? 'selected' : ''}>📦 เก็บของดี (mat_vp) & แรร์ฝากคลัง</option>
@@ -9485,13 +9485,13 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
       </div>
     </div>
 
-    <div class="p-card" style="background:rgba(168,85,247,0.1); border:1px solid rgba(192,132,252,0.35); border-radius:7px; padding:8px; display:flex; flex-direction:column; gap:5px; font-size:10px;">
+    <div class="p-card" style="background:rgba(168,85,247,0.1); border:1px solid rgba(192,132,252,0.35); border-radius:7px; padding:8px; display:flex; flex-direction:column; gap:5px; font-size:10px; min-width:0;">
       <div style="font-size:10.5px; font-weight:700; color:#e9d5ff;">🔒 ล็อกความปลอดภัย & บริการในค่าย:</div>
       <label style="display:flex; align-items:center; gap:5px; color:#f1f5f9; cursor:pointer;" title="เก็บอุปกรณ์แต่ละช่องที่มีคะแนนสายอาชีพสูงสุดไว้เสมอ และไม่ขายของที่สวมใส่อยู่">
         <input type="checkbox" id="p-nc-sell-keep-best" ${sc.keepBestCopy !== false ? 'checked' : ''} style="accent-color:#a855f7;">
         <span>🏆 ล็อกของที่ดีกว่าที่ใส่อยู่ตามสายอาชีพ (Smart Lock)</span>
       </label>
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px;">
+      <div style="display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:4px; min-width:0;">
         <label style="display:flex; align-items:center; gap:5px; color:#f1f5f9; cursor:pointer;">
           <input type="checkbox" id="p-nc-sell-keep-refined" ${sc.keepRefined !== false ? 'checked' : ''} style="accent-color:#a855f7;">
           <span>🔨 ล็อกของตีบวก (+1↑)</span>
@@ -9541,14 +9541,14 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
           <span style="color:#94a3b8; font-size:9.5px;">เหรียญ</span>
         </div>
       </div>
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:5px; margin-top:2px;">
-        <div style="display:flex; flex-direction:column; gap:2px;">
+      <div style="display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:6px; margin-top:2px; min-width:0;">
+        <div style="display:flex; flex-direction:column; gap:2px; min-width:0;">
           <span style="color:#86efac;">🛡️ ห้ามขาย (Whitelist):</span>
-          <input type="text" id="p-nc-sell-whitelist" value="${escapeHTML(sc.whitelist || '')}" placeholder="เช่น ธนูล่าสัตว์, แร่ทอง" autocomplete="off" style="background:#090d16; border:1px solid rgba(52,211,153,0.4); color:#fff; border-radius:4px; font-size:9.5px; padding:3px 5px;">
+          <input type="text" id="p-nc-sell-whitelist" value="${escapeHTML(sc.whitelist || '')}" placeholder="เช่น ธนูล่าสัตว์, แร่ทอง" autocomplete="off" style="width:100%; min-width:0; background:#090d16; border:1px solid rgba(52,211,153,0.4); color:#fff; border-radius:4px; font-size:9.5px; padding:3px 5px;">
         </div>
-        <div style="display:flex; flex-direction:column; gap:2px;">
+        <div style="display:flex; flex-direction:column; gap:2px; min-width:0;">
           <span style="color:#fca5a5;">💰 บังคับขาย (Force Sell):</span>
-          <input type="text" id="p-nc-sell-forcesell" value="${escapeHTML(sc.forceSellList || '')}" placeholder="เช่น มีดสนิม, ขนหนู" autocomplete="off" style="background:#090d16; border:1px solid rgba(248,113,113,0.4); color:#fff; border-radius:4px; font-size:9.5px; padding:3px 5px;">
+          <input type="text" id="p-nc-sell-forcesell" value="${escapeHTML(sc.forceSellList || '')}" placeholder="เช่น มีดสนิม, ขนหนู" autocomplete="off" style="width:100%; min-width:0; background:#090d16; border:1px solid rgba(248,113,113,0.4); color:#fff; border-radius:4px; font-size:9.5px; padding:3px 5px;">
         </div>
       </div>
       ${!isCentral ? `
@@ -9582,14 +9582,14 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
         </select>
       </div>
 
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px; font-size:9.5px; color:#cbd5e1;">
+      <div style="display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:4px; font-size:9.5px; color:#cbd5e1; min-width:0;">
         <label style="display:flex; align-items:center; gap:4px; cursor:pointer;" title="รูนเทียบเฉพาะ % ใกล้เคียง/สูงกว่า · อุปกรณ์เทียบเฉพาะเกรด/ตีบวกเดียวกัน ไม่เอาของดีไปตัดราคาของต่ำ">
           <input type="checkbox" id="p-nc-cm-smart-quality" ${state?.cmarketAutoSellConfig?.smartQualityPricing !== false ? 'checked' : ''} style="accent-color:#f59e0b;">
           <span>🎯 เทียบตาม % รูน/เกรด</span>
         </label>
-        <div style="display:flex; align-items:center; gap:3px;" title="กันไม่ขายรูนท็อปอัตโนมัติถ้าคะแนนสุ่มถึงเกณฑ์ที่ตั้งไว้">
+        <div style="display:flex; align-items:center; gap:3px; min-width:0;" title="กันไม่ขายรูนท็อปอัตโนมัติถ้าคะแนนสุ่มถึงเกณฑ์ที่ตั้งไว้">
           <span style="white-space:nowrap;">🔒 รูนท็อป:</span>
-          <select id="p-nc-cm-keep-top-rune" style="flex:1; min-width:0; background:#090d16; border:1px solid rgba(251,191,36,0.45); color:#fde68a; border-radius:4px; font-size:9.5px; font-weight:700; padding:1px 3px;">
+          <select id="p-nc-cm-keep-top-rune" style="flex:1; min-width:0; max-width:100%; background:#090d16; border:1px solid rgba(251,191,36,0.45); color:#fde68a; border-radius:4px; font-size:9.5px; font-weight:700; padding:1px 3px;">
             <option value="0" ${Number(state?.cmarketAutoSellConfig?.keepTopRuneQualityPct ?? 90) === 0 ? 'selected' : ''}>ขายหมด</option>
             <option value="80" ${Number(state?.cmarketAutoSellConfig?.keepTopRuneQualityPct ?? 90) === 80 ? 'selected' : ''}>เก็บ ≥80%</option>
             <option value="85" ${Number(state?.cmarketAutoSellConfig?.keepTopRuneQualityPct ?? 90) === 85 ? 'selected' : ''}>เก็บ ≥85%</option>
@@ -9607,7 +9607,7 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
         </label>
       </div>
 
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:5px;">
+      <div style="display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:5px; min-width:0;">
         <button type="button" class="p-btn" id="p-btn-nc-cm-add-toggle" style="margin:0; background:linear-gradient(135deg,#059669,#10b981); border:1px solid #34d399; color:#fff; border-radius:6px; font-size:10.5px; font-weight:800; padding:6px; cursor:pointer;">
           ➕ เพิ่มรายการลงขาย
         </button>
@@ -9675,7 +9675,7 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
         <input type="checkbox" id="p-nc-perf-hide-players" ${pfc.hideOtherPlayers !== false ? 'checked' : ''} style="accent-color:#a855f7;">
         <span>👥 ซ่อนผู้เล่นคนอื่น & สัตว์เลี้ยงคนอื่นบนแมพ</span>
       </label>
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px; border-top:1px solid rgba(255,255,255,0.08); padding-top:4px;">
+      <div style="display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:4px; border-top:1px solid rgba(255,255,255,0.08); padding-top:4px; min-width:0;">
         <label style="display:flex; align-items:center; gap:5px; font-size:10px; color:#a7f3d0; cursor:pointer;" title="ปิดการสังเคราะห์และเล่นเสียงเอฟเฟกต์/เพลงทั้งหมดในเกม ลดภาระ CPU Audio Thread">
           <input type="checkbox" id="p-nc-perf-mute-audio" ${pfc.muteAudio !== false ? 'checked' : ''} style="accent-color:#10b981;">
           <span>🔇 ปิดเสียงเกมทั้งหมด</span>
@@ -9685,9 +9685,9 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
           <span>🧹 บีบอัด VRAM การ์ดจอ</span>
         </label>
       </div>
-      <div style="display:flex; align-items:center; justify-content:space-between; gap:6px; border-top:1px solid rgba(255,255,255,0.08); padding-top:4px;">
-        <span style="font-size:10px; color:#94a3b8;">⏱️ จำกัดเฟรมเรต (FPS Cap):</span>
-        <select id="p-nc-perf-fps-cap" style="background:#090d16; border:1px solid rgba(52,211,153,0.45); color:#6ee7b7; border-radius:4px; font-size:10px; font-weight:700; padding:2px 6px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:6px; border-top:1px solid rgba(255,255,255,0.08); padding-top:4px; min-width:0;">
+        <span style="font-size:10px; color:#94a3b8; white-space:nowrap;">⏱️ จำกัดเฟรมเรต (FPS Cap):</span>
+        <select id="p-nc-perf-fps-cap" style="flex:1; min-width:0; max-width:175px; background:#090d16; border:1px solid rgba(52,211,153,0.45); color:#6ee7b7; border-radius:4px; font-size:10px; font-weight:700; padding:2px 6px;">
           <option value="10" ${Number(pfc.fpsCap ?? 30) === 10 ? 'selected' : ''}>10 FPS (ประหยัดสุดขีด)</option>
           <option value="15" ${Number(pfc.fpsCap ?? 30) === 15 ? 'selected' : ''}>15 FPS (ประหยัดสุด)</option>
           <option value="20" ${Number(pfc.fpsCap ?? 30) === 20 ? 'selected' : ''}>20 FPS (ประหยัดมาก)</option>
@@ -11073,7 +11073,7 @@ function syncCentralHudMixedStates(hud) {
           mixOpt.disabled = true;
           el.insertBefore(mixOpt, el.firstChild);
         }
-        mixOpt.textContent = `⚡ หลายค่าต่างกัน (${distinct.size} แบบ · เลือกเพื่อตั้งทุกจอ)`;
+        mixOpt.textContent = `⚡ ต่างกัน (${distinct.size} แบบ)`;
         el.value = '__MIXED__';
         el.style.boxShadow = '0 0 0 1px rgba(251, 191, 36, 0.72)';
       } else {
