@@ -2059,7 +2059,15 @@ function buildProfileCard(p) {
           <span class="stat-lbl">🖥️ สถานะหน้าจอเกม${state?.autoRefreshInSec ? ` (รีเฟรชอัตโนมัติใน ${state.autoRefreshInSec} วิ)` : ''}</span>
           <span class="stat-val stat-map ${isErrorScreen ? 'is-screen-error' : 'is-screen-wait'}" title="${escapeHTML(state?.screenDetail || activityText)}">${escapeHTML(state?.screenDetail || activityText)}</span>
           ` : `
-          <span class="stat-lbl">🌙 สถานะ / โซน</span>
+          <span class="stat-lbl" style="display:flex; align-items:center; justify-content:space-between; gap:6px;">
+            <span>🌙 สถานะ / โซน</span>
+            ${(isOnline && state?.pendingChannelSpread && Number(state?.channelCooldownLeftMs) > 5000) ? (() => {
+              const sec = Math.ceil(Number(state.channelCooldownLeftMs) / 1000);
+              const mm = Math.floor(sec / 60);
+              const ss = String(sec % 60).padStart(2, '0');
+              return `<span style="font-size:9.5px; font-weight:700; color:#fde68a; background:rgba(245,158,11,0.16); border:1px solid rgba(251,191,36,0.4); border-radius:4px; padding:0 5px; white-space:nowrap;" title="ติดดีเลย์ย้าย CH 5 นาทีหลังรวมเงิน — เมื่อครบเวลาบอทจะกระจายแยกแนลอัตโนมัติ">⏳ แยก CH ใน ${mm}:${ss}</span>`;
+            })() : ''}
+          </span>
           <span class="stat-val stat-map" title="${escapeHTML(curMap)}">${escapeHTML(curMap || 'Nightcamp World')}</span>
           `}
         </div>
@@ -2206,14 +2214,14 @@ function setCardSortMode(sort) {
   renderProfiles();
 }
 
-let currentChannelCheckMode = 'all';
+let currentChannelCheckMode = 'no_overlap';
 try {
-  currentChannelCheckMode = localStorage.getItem('pelican_channel_check_mode') || 'all';
+  currentChannelCheckMode = localStorage.getItem('pelican_channel_check_mode') || 'no_overlap';
 } catch (_) {}
 
 function syncChannelCheckModeUI(mode) {
   const valid = ['no_overlap', 'always', 'all', 'party_only', 'solo_only', 'off'];
-  const norm = valid.includes(mode) ? mode : 'all';
+  const norm = valid.includes(mode) ? mode : 'no_overlap';
   currentChannelCheckMode = norm;
   try { localStorage.setItem('pelican_channel_check_mode', norm); } catch (_) {}
   const selMain = document.getElementById('channel-check-mode-select');
@@ -2224,7 +2232,7 @@ function syncChannelCheckModeUI(mode) {
 
 window.setChannelCheckMode = async function (mode) {
   const valid = ['no_overlap', 'always', 'all', 'party_only', 'solo_only', 'off'];
-  const norm = valid.includes(mode) ? mode : 'all';
+  const norm = valid.includes(mode) ? mode : 'no_overlap';
   syncChannelCheckModeUI(norm);
   const labels = {
     no_overlap: '🔀 แยก CH ไม่ทับกันเอง: โซโล่ไม่ทับจออื่น / ตี้ไม่ทับตี้อื่น (เลือก CH คนน้อยสุด)',

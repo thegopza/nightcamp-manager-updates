@@ -1030,6 +1030,16 @@ function createFleetZenyConsolidationService(deps = {}) {
         if (resumeBot) {
           await evalProfilePort(p.debugPort, START_BOT_JS, 5000).catch(() => {});
           if (restoreChannel && currentChannel && restoreChannel !== currentChannel) {
+            await evalProfilePort(p.debugPort, `(() => {
+              window.__ncPendingChannelSpread = {
+                reason: 'post_consolidation',
+                preferredChannel: ${restoreChannel},
+                avoidChannel: ${currentChannel},
+                setAt: Date.now()
+              };
+              window.__ncLeastChannelLockedCh = null;
+              return true;
+            })()`, 4000).catch(() => {});
             setTimeout(() => {
               evalProfilePort(p.debugPort, `(() => {
                 if (!window.__isConsolidating && typeof window.isInCapital === 'function' && !window.isInCapital() && typeof window.moveToChannel === 'function') {

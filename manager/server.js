@@ -6303,7 +6303,17 @@ async function runConsolidationWorkflow(receiverProfileId, senderProfileIds, kee
       restarted.add(s.id);
       logTask(`▶️ จอ ${s.name} เริ่มบอทเดินทางกลับไปฟาร์มทันที`, 'success');
       if (homeChannel && homeChannel !== targetChannel) {
-        // Non-blocking background channel restore if character stays in same map
+        await evalProfilePort(s.debugPort, `(() => {
+          window.__ncPendingChannelSpread = {
+            reason: 'post_consolidation',
+            preferredChannel: ${homeChannel},
+            avoidChannel: ${targetChannel},
+            setAt: Date.now()
+          };
+          window.__ncLeastChannelLockedCh = null;
+          return true;
+        })()`, 4000).catch(() => {});
+        // Non-blocking background channel restore if cooldown is already clear
         setTimeout(() => {
           evalProfilePort(s.debugPort, `(() => {
             if (!window.__isConsolidating && typeof window.isInCapital === 'function' && !window.isInCapital() && typeof window.moveToChannel === 'function') {
@@ -7601,11 +7611,11 @@ const VALID_CHANNEL_CHECK_MODES = ["no_overlap", "always", "all", "party_only", 
 function getEffectiveChannelCheckMode() {
   const st = installer.loadSettings() || {};
   const raw = typeof st.channelCheckMode === "string" ? st.channelCheckMode.trim() : "";
-  return VALID_CHANNEL_CHECK_MODES.includes(raw) ? raw : "all";
+  return VALID_CHANNEL_CHECK_MODES.includes(raw) ? raw : "no_overlap";
 }
 
 function saveChannelCheckMode(mode) {
-  const valid = VALID_CHANNEL_CHECK_MODES.includes(mode) ? mode : "all";
+  const valid = VALID_CHANNEL_CHECK_MODES.includes(mode) ? mode : "no_overlap";
   const st = installer.loadSettings() || {};
   st.channelCheckMode = valid;
   installer.saveSettings(st);

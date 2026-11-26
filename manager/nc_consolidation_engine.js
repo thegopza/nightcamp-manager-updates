@@ -45,6 +45,7 @@ async function runNightcampConsolidationWorkflow(ctx) {
   let groupTransferredItems = 0;
   let receiverCharName = receiverProfile.lastCharName || receiverProfile.name;
   const finishedProfileIds = new Set();
+  const movedSendersInfo = new Map(); // profileId -> { movedFromChannel, consolidatedOnChannel }
 
   const safeFinishProfile = async (prof, opts = {}) => {
     if (!prof || !prof.debugPort || finishedProfileIds.has(prof.id)) return;
@@ -174,6 +175,8 @@ async function runNightcampConsolidationWorkflow(ctx) {
         profile: sp,
         charName: sName,
         channel: pr.channel,
+        originChannel: Number(pr.channel) || null,
+        movedForConsolidation: false,
         transferCoins: finalTransferCoins
       });
     }
@@ -243,6 +246,8 @@ async function runNightcampConsolidationWorkflow(ctx) {
         continue;
       }
       logTask(`✅ ${s.charName} ย้ายมา CH ${targetCh} สำเร็จ!`, 'success');
+      s.movedForConsolidation = true;
+      movedSendersInfo.set(s.profile.id, { movedFromChannel: s.originChannel, consolidatedOnChannel: targetCh });
       chReadySenders.push(s);
       await sleep(350);
     }
@@ -297,8 +302,19 @@ async function runNightcampConsolidationWorkflow(ctx) {
       }
 
       // Immediately resume this sender back to its farm map while the next sender trades!
-      await safeFinishProfile(s.profile, { resumeBot: true });
-      logTask(`🚀 ส่ง ${s.charName} กลับไปฟาร์มต่อเรียบร้อย`, 'info');
+      // If this sender moved onto the receiver's CH, arm automatic post-consolidation channel spread
+      // so once Nightcamp's 5-min channel-move cooldown clears, it automatically separates off the train!
+      await safeFinishProfile(s.profile, {
+        resumeBot: true,
+        movedFromChannel: s.movedForConsolidation ? s.originChannel : null,
+        consolidatedOnChannel: s.movedForConsolidation ? targetCh : null
+      });
+      logTask(
+        s.movedForConsolidation
+          ? `🚀 ส่ง ${s.charName} กลับฟาร์มต่อแล้ว (⏳ ครบดีเลย์ย้าย CH 5 นาทีจะกระจายแยกแนลอัตโนมัติ)`
+          : `🚀 ส่ง ${s.charName} กลับไปฟาร์มต่อเรียบร้อย`,
+        'info'
+      );
       await sleep(400);
     }
 
@@ -328,7 +344,13 @@ async function runNightcampConsolidationWorkflow(ctx) {
   } catch (err) {
     // Ensure ALL unfinished screens cleanly exit consolidation mode & resume bots
     for (const p of [receiverProfile, ...senderProfiles]) {
-      await safeFinishProfile(p, { depositToVault: false, resumeBot: true });
+      const mvInfo = movedSendersInfo.get(p.id) || {};
+      await safeFinishProfile(p, {
+        depositToVault: false,
+        resumeBot: true,
+        movedFromChannel: mvInfo.movedFromChannel || null,
+        consolidatedOnChannel: mvInfo.consolidatedOnChannel || null
+      });
     }
     throw err;
   }

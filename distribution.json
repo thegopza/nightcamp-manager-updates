@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "sourceCommit": "b7910bf3fa8565ef418d0d7cf71b7fb94a15eeb0",
+  "sourceCommit": "7587713da970ff1e4d921bf05d2f7e8a149d2da4",
   "files": [
     {
       "path": "manager/asset_cache.js",
@@ -48,7 +48,7 @@
     },
     {
       "path": "manager/fleet_zeny_consolidation.js",
-      "sha256": "fab8371f035a220cf4fcf88518e2cfd2b7245dee3d02cff545b314a1372f2801"
+      "sha256": "6f95f1b5406008fedaa8f1f8a8722e960fc4b82d16f19b7e268fe52d9c5345fa"
     },
     {
       "path": "manager/game_loader/main.js",
@@ -96,7 +96,7 @@
     },
     {
       "path": "manager/nc_consolidation_engine.js",
-      "sha256": "0c8dc5c4bac2c6827baa3ff58332a2eb716bf34a9221d321adfa0946e81889ac"
+      "sha256": "39cafa1fdcb7b0d5a077322cd579d486f1762e6e5934a144ed5ca4ad864e23ea"
     },
     {
       "path": "manager/offline_coordinator.js",
@@ -116,7 +116,7 @@
     },
     {
       "path": "manager/party_api.js",
-      "sha256": "200081488e64633aff7a0a37d65696ef04ee61af8f7ba16d358a87628df3b064"
+      "sha256": "e2a522eb0269ce9a8cb11941b1583f4f5df4fe979769c4830a9ef8696d2029cd"
     },
     {
       "path": "manager/plan_sync.js",
@@ -144,7 +144,7 @@
     },
     {
       "path": "manager/public/app.js",
-      "sha256": "4918d5327f3b77b9444cc1d3533c0e16683a093c9196dedc0ea78d64cfa29ff6"
+      "sha256": "a26deb0a29f48f435d79ba4d2f07ed57d1f445330592d6e737a511874b7ea2c2"
     },
     {
       "path": "manager/public/assets/updates/ui_v212_bag_rightclick.jpg",
@@ -228,7 +228,7 @@
     },
     {
       "path": "manager/public/index.html",
-      "sha256": "5089372f96b5a63037d515e32ab94b74d1685e31333e6153feee04f51ce7fa71"
+      "sha256": "550e6bbc2fe4cf92043f414225bf4162029c346a8f1b167cbff5c978cadcc235"
     },
     {
       "path": "manager/public/inventory_market.css",
@@ -308,7 +308,7 @@
     },
     {
       "path": "manager/public/update_log.js",
-      "sha256": "e8bf4cc1e8074f6160d96164628d65df349da786930dbc8219bf00d346d82f65"
+      "sha256": "4000148398aef8d0b1e14d1bbc3b026c52948671bfb6881a84658a1f59ef4553"
     },
     {
       "path": "manager/public/wiki/calc.js",
@@ -352,7 +352,7 @@
     },
     {
       "path": "manager/server.js",
-      "sha256": "c8da6cb279169ad94c2d8b7157bc6961448dba2b8fa462d37da59b506d2155f5"
+      "sha256": "be2867374190a16a6cedea6fd9bf2d470a28cd58f3820324f2ac3f1a64f6900f"
     },
     {
       "path": "manager/test_isolation.js",

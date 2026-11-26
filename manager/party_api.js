@@ -159,7 +159,12 @@ const READ_JS = `(() => {
     classId: (me && me.classId) || (live && live.classId) || null,
     mapId: room.state.mapId || null,
     mapName: room.state.displayName || null,
+    serverName: (live && live.serverName) || null,
     channel: typeof room.state.channel === 'number' ? room.state.channel : null,
+    channelCooldownLeftMs: (typeof window.getChannelSwitchCooldownLeftMs === 'function'
+      ? window.getChannelSwitchCooldownLeftMs()
+      : Math.max(0, ((Number(window.NC?.Online?.snap?.self?.channelMoveAt) || 0) + 300000) - Date.now())),
+    pendingChannelSpread: window.__ncPendingChannelSpread || null,
     pkChannel: Boolean(room.state.pk || (typeof window.isCurrentChannelPk === 'function' && window.isCurrentChannelPk())),
     targetMap: window.__targetFarmMap || (live && live.targetMap) || null,
     keptFarmMap: window.__keptFarmMap || null,
@@ -171,7 +176,7 @@ const READ_JS = `(() => {
     returningToPriest: window.__returningToPriest === true,
     priestBuffingTarget: window.__priestBuffingTarget || null,
     lastPostSellChannelSwitch: window.__lastPostSellChannelSwitch || null,
-    channelCheckMode: window.__channelCheckMode || 'all',
+    channelCheckMode: window.__channelCheckMode || 'no_overlap',
     needsPriestBuff,
     buffStatus,
     busy,
@@ -306,18 +311,20 @@ const ACTIONS = {
     if (typeof window.moveToChannel !== 'function') return { success: false, error: 'บอทจอนี้ไม่มีระบบย้าย CH' };
     let r = null;
     try { r = await window.moveToChannel(${Number(ch)}, ${Number(waitMs)}); } catch (e) { r = { success: false, error: String(e && e.message || e) }; }
-    const fastFail = Boolean(r && (r.blockedBusy || r.blockedShut || r.noSuchChannel || r.blockedPk));
-    await new Promise(x => setTimeout(x, fastFail ? 250 : 1500));
+    const fastFail = Boolean(r && (r.blockedCooldown || r.blockedBusy || r.blockedShut || r.noSuchChannel || r.blockedPk));
+    await new Promise(x => setTimeout(x, fastFail ? 200 : 1200));
     const room = typeof window.getGameRoom === 'function' ? window.getGameRoom() : null;
     const cur = room && room.state && typeof room.state.channel === 'number' ? room.state.channel : (typeof window.getCurrentChannel === 'function' ? window.getCurrentChannel() : null);
     const nowPk = typeof window.isCurrentChannelPk === 'function' && window.isCurrentChannelPk();
-    const inCity = typeof isCharacterInCity === 'function' && isCharacterInCity();
+    const inCity = typeof window.isInCapital === 'function' ? window.isInCapital() : (typeof isCharacterInCity === 'function' && isCharacterInCity());
     if (!nowPk && !inCity && window.__isBotRunning && !window.__isShopping && !window.__isNavigating && !window.__isConsolidating) {
       setTimeout(() => { try { if (window.__isBotRunning && !window.__isShopping && !window.__isNavigating && typeof window.activateInGameAuto === 'function') window.activateInGameAuto(); } catch (_) {} }, 500);
     }
     return {
       success: cur === ${Number(ch)},
       channel: cur,
+      blockedCooldown: Boolean(r && r.blockedCooldown),
+      cooldownLeftMs: Number(r && r.cooldownLeftMs) || 0,
       blockedShut: Boolean(r && r.blockedShut),
       blockedBusy: Boolean(r && r.blockedBusy),
       noSuchChannel: Boolean(r && r.noSuchChannel),
@@ -535,7 +542,7 @@ function createPartyService(opts) {
   const { loadProfiles, evalProfilePort } = opts;
   const dataFile = opts.dataFile || path.join(__dirname, 'data', 'parties.json');
   const isBusy = opts.isBusy || (() => false);
-  const getChannelCheckMode = opts.getChannelCheckMode || (() => 'all');
+  const getChannelCheckMode = opts.getChannelCheckMode || (() => 'no_overlap');
   const now = opts.now || (() => Date.now());
   const sleep = opts.sleep || (ms => new Promise(r => setTimeout(r, ms)));
   const log = opts.log || ((...a) => console.log('[Party]', ...a));
@@ -580,12 +587,29 @@ function createPartyService(opts) {
     return soloRuntime.get(k);
   };
 
+  function normalizeServerKey(raw) {
+    const s = String(raw || '').trim().toLowerCase();
+    if (!s || s === 'auto') return '';
+    if (s.includes('moonlight') || /^s1\b/.test(s)) return 'moonlight';
+    if (s.includes('stardust') || /^s2\b/.test(s)) return 'stardust';
+    if (s.includes('nightfall') || /^s3\b/.test(s)) return 'nightfall';
+    if (s.includes('sunflare') || /^s4\b/.test(s)) return 'sunflare';
+    return s.replace(/[^a-z0-9_-]+/g, '_');
+  }
+
+  function sameServerKey(a, b) {
+    if (!a || !b) return true;
+    return a === b;
+  }
+
   function cleanMapLabel(m) {
     return String(m || '').replace(/\s*\(Lv\..*?\)/i, '').trim();
   }
 
   function mapsMatch(mapIdA, mapNameA, mapIdB, mapNameB) {
-    if (mapIdA && mapIdB) return mapIdA === mapIdB;
+    if (mapIdA && mapIdB) return String(mapIdA).toLowerCase() === String(mapIdB).toLowerCase();
+    if (mapIdA && mapNameB && String(mapIdA).toLowerCase() === String(mapNameB).trim().toLowerCase()) return true;
+    if (mapIdB && mapNameA && String(mapIdB).toLowerCase() === String(mapNameA).trim().toLowerCase()) return true;
     const ca = cleanMapLabel(mapNameA);
     const cb = cleanMapLabel(mapNameB);
     if (ca && cb) return ca === cb || ca.includes(cb) || cb.includes(ca);
@@ -593,11 +617,15 @@ function createPartyService(opts) {
   }
 
   function isSoloActivelyFarmingMap(S) {
-    if (!S || !S.ok || !S.mapId || isCityMapName(S.mapName)) return false;
+    if (!S || !S.ok || !S.mapId || isCityMapName(S.mapName) || isCityMapName(S.mapId)) return false;
     if (S.botRunning === false) return false;
-    // Ignore transit maps while travelling to a different non-city target map
-    if (S.targetMap && !isCityMapName(S.targetMap) && S.mapName && !mapsMatch(null, S.mapName, null, S.targetMap)) {
-      return false;
+    // Ignore transit maps ONLY when a specific non-auto, non-city targetMap is configured and does not match current mapId/mapName
+    const tm = String(S.targetMap || '').trim();
+    if (tm && tm.toLowerCase() !== 'auto' && !isCityMapName(tm)) {
+      const sameById = String(S.mapId || '').toLowerCase() === tm.toLowerCase();
+      if (!sameById && S.mapName && !mapsMatch(S.mapId, S.mapName, tm, tm)) {
+        return false;
+      }
     }
     return true;
   }
@@ -605,6 +633,8 @@ function createPartyService(opts) {
   function getSoloOccupiedInfo(profileId, profiles) {
     const S = states.get(profileId);
     if (!S || !S.ok || !S.name) return null;
+    const P = profiles ? profiles.get(profileId) : null;
+    const serverKey = normalizeServerKey(S.serverName || P?.serverName || P?.lastServerName || '');
     const rt = srt(profileId);
     const onFarm = isSoloActivelyFarmingMap(S);
     const mapId = onFarm ? S.mapId : null;
@@ -624,6 +654,7 @@ function createPartyService(opts) {
       unitType: 'solo',
       profileId: String(profileId),
       unitIndex: idx >= 0 ? idx : 9999,
+      serverKey,
       name: S.name,
       inGameLeader,
       mapId,
@@ -638,6 +669,7 @@ function createPartyService(opts) {
   function getPartyOccupiedInfo(p, profiles) {
     const rt = prt(p.id);
     const L = states.get(p.leaderId);
+    const LP = profiles ? profiles.get(p.leaderId) : null;
     const priest = findPartyPriest(p, profiles, states);
     let anchorSnap = null;
     if (priest && priest.snap && priest.snap.ok && priest.snap.botRunning !== false && priest.snap.mapId && !isCityMapName(priest.snap.mapName)) {
@@ -653,6 +685,7 @@ function createPartyService(opts) {
         }
       }
     }
+    const serverKey = normalizeServerKey((anchorSnap && anchorSnap.serverName) || (L && L.serverName) || LP?.serverName || LP?.lastServerName || '');
     const mapId = (anchorSnap && anchorSnap.mapId) || rt.settledMapId || null;
     const mapName = (anchorSnap && anchorSnap.mapName) || (L && !isCityMapName(L.targetMap) && L.targetMap) || rt.lastLeaderFarmMap || null;
     const cleanMapName = cleanMapLabel(mapName) || null;
@@ -668,6 +701,7 @@ function createPartyService(opts) {
       unitType: 'party',
       partyId: p.id,
       partyIndex: parties.indexOf(p),
+      serverKey,
       mapId,
       mapName,
       cleanMapName,
@@ -693,6 +727,7 @@ function createPartyService(opts) {
       if (!other || other.id === party.id) continue;
       const occ = getPartyOccupiedInfo(other, profiles);
       if (!occ.mapId && !occ.cleanMapName) continue;
+      if (!sameServerKey(myInfo.serverKey, occ.serverKey)) continue;
       const sameMapAsMe = mapsMatch(effMapId, effMapName, occ.mapId, occ.cleanMapName);
       for (const ch of occ.channels) {
         if (sameMapAsMe && myInfo.primaryChannel === ch && occ.primaryChannel === ch) {
@@ -707,14 +742,15 @@ function createPartyService(opts) {
       }
     }
 
-    // Also avoid channels occupied by our solo characters on the same map (if a solo character is on the party's current primaryChannel, the party has priority and stays while the solo character moves)
-    const chMode = typeof getChannelCheckMode === 'function' ? (getChannelCheckMode() || 'all') : 'all';
+    // Also avoid channels occupied by our solo characters on the same map & same server (if a solo character is on the party's current primaryChannel, the party has priority and stays while the solo character moves)
+    const chMode = typeof getChannelCheckMode === 'function' ? (getChannelCheckMode() || 'no_overlap') : 'no_overlap';
     if (chMode === 'no_overlap' || chMode === 'always' || chMode === 'all') {
       const taken = assignedIds(parties);
       for (const id of profiles.keys()) {
         if (taken.has(id)) continue;
         const occ = getSoloOccupiedInfo(id, profiles);
         if (!occ || (!occ.mapId && !occ.cleanMapName)) continue;
+        if (!sameServerKey(myInfo.serverKey, occ.serverKey)) continue;
         const sameMapAsMe = mapsMatch(effMapId, effMapName, occ.mapId, occ.cleanMapName);
         for (const ch of occ.channels) {
           if (sameMapAsMe && myInfo.primaryChannel === ch) continue;
@@ -744,11 +780,12 @@ function createPartyService(opts) {
     const effMapId = targetMapId || (myInfo && myInfo.mapId) || (S && !isCityMapName(S.mapName) && S.mapId) || null;
     const effMapName = cleanMapLabel(targetMapName || (myInfo && myInfo.cleanMapName) || (S && (!isCityMapName(S.mapName) ? S.mapName : S.targetMap)) || '');
 
-    // 1. Avoid all channels occupied by any Party on the same map
+    // 1. Avoid all channels occupied by any Party on the same map & same server
     for (const p of parties) {
       if (!p) continue;
       const occ = getPartyOccupiedInfo(p, profiles);
       if (!occ.mapId && !occ.cleanMapName) continue;
+      if (myInfo && !sameServerKey(myInfo.serverKey, occ.serverKey)) continue;
       const sameMapAsMe = mapsMatch(effMapId, effMapName, occ.mapId, occ.cleanMapName);
       for (const ch of occ.channels) {
         if (occ.mapId) addMapCh(occ.mapId, ch);
@@ -757,12 +794,13 @@ function createPartyService(opts) {
       }
     }
 
-    // 2. Avoid channels occupied by other Solo characters on the same map
+    // 2. Avoid channels occupied by other Solo characters on the same map & same server
     const taken = assignedIds(parties);
     for (const otherId of profiles.keys()) {
       if (String(otherId) === String(profileId) || taken.has(otherId)) continue;
       const occ = getSoloOccupiedInfo(otherId, profiles);
       if (!occ || (!occ.mapId && !occ.cleanMapName)) continue;
+      if (myInfo && !sameServerKey(myInfo.serverKey, occ.serverKey)) continue;
       if (myInfo && myInfo.inGameLeader && occ.inGameLeader && myInfo.inGameLeader === occ.inGameLeader) continue;
       const sameMapAsMe = mapsMatch(effMapId, effMapName, occ.mapId, occ.cleanMapName);
       for (const ch of occ.channels) {
@@ -1240,20 +1278,54 @@ function createPartyService(opts) {
 
       const anchorOnFarm = Boolean(anchorSnap && anchorSnap.botRunning !== false && anchorSnap.mapId && !isCityMapName(anchorSnap.mapName));
       const anchorInPk = Boolean(anchorOnFarm && anchorSnap && anchorSnap.pkChannel);
-      if (anchorOnFarm && !anchorInPk && typeof anchorSnap.channel === 'number' && rt.settledMapId !== anchorSnap.mapId) {
+      const anchorCooldownLeftMs = Number(anchorSnap && anchorSnap.channelCooldownLeftMs) || 0;
+      const anchorCoolingDown = anchorCooldownLeftMs > 12000;
+      const desiredCh = (anchorOnFarm && !anchorInPk && rt.settledMapId === anchorSnap.mapId && typeof rt.settledChannel === 'number')
+        ? rt.settledChannel
+        : (anchorSnap && !anchorSnap.pkChannel ? anchorSnap.channel : (!L.pkChannel ? L.channel : null));
+      const channelOverlapsOtherParty = Boolean(
+        partyChannelCheckEnabled &&
+        anchorOnFarm &&
+        !anchorInPk &&
+        typeof desiredCh === 'number' &&
+        avoidChannels.includes(desiredCh)
+      );
+      const anchorHasPendingSpread = Boolean(
+        partyChannelCheckEnabled &&
+        anchorOnFarm &&
+        anchorSnap &&
+        anchorSnap.pendingChannelSpread &&
+        Number(anchorSnap.pendingChannelSpread.avoidChannel) === Number(anchorSnap.channel)
+      );
+      const needsInitialChannelCheck = Boolean(
+        partyChannelCheckEnabled &&
+        anchorOnFarm &&
+        !anchorInPk &&
+        !anchorCoolingDown &&
+        anchorSnap.helpers &&
+        anchorSnap.helpers.moveToChannel &&
+        (anchorSnap.helpers.evaluateAnchorChannel || anchorSnap.helpers.findLeast) &&
+        (
+          channelOverlapsOtherParty ||
+          anchorHasPendingSpread ||
+          ((chMode === 'no_overlap' || chMode === 'always') && rt.settledMapId !== anchorSnap.mapId)
+        )
+      );
+
+      // Only mark settled automatically if NOT overlapping / NOT pending spread (otherwise keep unsettled until 5-min cooldown clears!)
+      if (anchorOnFarm && !anchorInPk && typeof anchorSnap.channel === 'number' && rt.settledMapId !== anchorSnap.mapId && !needsInitialChannelCheck && !channelOverlapsOtherParty && !anchorHasPendingSpread) {
         rt.settledMapId = anchorSnap.mapId;
         rt.settledChannel = anchorSnap.channel;
         rt.settledChannelAt = now();
       }
-      const desiredCh = (anchorOnFarm && !anchorInPk && rt.settledMapId === anchorSnap.mapId && typeof rt.settledChannel === 'number')
-        ? rt.settledChannel
-        : (anchorSnap && !anchorSnap.pkChannel ? anchorSnap.channel : (!L.pkChannel ? L.channel : null));
-      const channelOverlapsOtherParty = false;
-      const needsInitialChannelCheck = false;
+      if (anchorOnFarm && anchorCoolingDown && (channelOverlapsOtherParty || anchorHasPendingSpread)) {
+        const leftSec = Math.ceil(anchorCooldownLeftMs / 1000);
+        rt.channelNote = `⏳ รอคูลดาวน์ย้าย CH (${Math.floor(leftSec / 60)}:${String(leftSec % 60).padStart(2, '0')}) เพื่อแยกแนลไม่ทับตี้อื่น`;
+      }
 
       const movers = [];
-      // If Priest or another returning member is the Channel Anchor (or settledChannel is locked on this map) and the Leader is on a different CH on the same map, Leader moves too!
-      if (anchorOnFarm && !anchorInPk && L.botRunning !== false && L.mapId === anchorSnap.mapId && typeof desiredCh === 'number' && (L.channel !== desiredCh || L.pkChannel) && !(L.busy && L.busy.length) && L.helpers && L.helpers.moveToChannel) {
+      // If Priest or another returning member is the Channel Anchor (or settledChannel is locked on this map) and the Leader is on a different CH on the same map, Leader moves too (once 5-min cooldown is ready)!
+      if (anchorOnFarm && !anchorInPk && L.botRunning !== false && L.mapId === anchorSnap.mapId && typeof desiredCh === 'number' && (L.channel !== desiredCh || L.pkChannel) && (Number(L.channelCooldownLeftMs) || 0) <= 15000 && !(L.busy && L.busy.length) && L.helpers && L.helpers.moveToChannel) {
         if (anchorId !== party.leaderId || rt.settledMapId === anchorSnap.mapId || L.pkChannel) {
           movers.push(party.leaderId);
         }
@@ -1283,13 +1355,13 @@ function createPartyService(opts) {
           m.mapAt = now();
           await act(P, ACTIONS.setMap(leaderMap, S.botRunning), 'set-map');
         }
-        if (S.botRunning !== false && !(S.busy && S.busy.length) && anchorSnap && !anchorInPk && S.mapId && S.mapId === anchorSnap.mapId && typeof desiredCh === 'number' && (S.channel !== desiredCh || S.pkChannel) && S.helpers && S.helpers.moveToChannel) {
+        if (S.botRunning !== false && !(S.busy && S.busy.length) && anchorSnap && !anchorInPk && S.mapId && S.mapId === anchorSnap.mapId && typeof desiredCh === 'number' && (S.channel !== desiredCh || S.pkChannel) && (Number(S.channelCooldownLeftMs) || 0) <= 15000 && S.helpers && S.helpers.moveToChannel) {
           movers.push(id);
         }
       }
-      if ((needsInitialChannelCheck || movers.length) && !rt.gathering && (triggeredByPostSell || channelOverlapsOtherParty || now() - rt.gatherAt >= T.gatherCooldownMs) && !isBusy()) {
+      if ((needsInitialChannelCheck || movers.length) && !rt.gathering && (triggeredByPostSell || channelOverlapsOtherParty || anchorHasPendingSpread || now() - rt.gatherAt >= T.gatherCooldownMs) && !isBusy()) {
         gatherChannels(party, profiles, anchorId, anchorSnap, movers, needsInitialChannelCheck, allPartyNames, avoidChannels).catch(e => log('gather error', e.message));
-      } else if (!needsInitialChannelCheck && !movers.length && !rt.gathering && rt.channelNote) {
+      } else if (!needsInitialChannelCheck && !movers.length && !rt.gathering && rt.channelNote && !(anchorCoolingDown && (channelOverlapsOtherParty || anchorHasPendingSpread))) {
         rt.channelNote = null;
       }
       if (rt.gathering && rt.gatherNote) notes.push(rt.gatherNote);
@@ -1379,6 +1451,7 @@ function createPartyService(opts) {
         maxMemberLevel,
         avoidChannels: syncAvoidInfo.avoidChannels,
         otherPartyChannelsByMap: syncAvoidInfo.otherPartyChannelsByMap,
+        channelCheckMode: typeof getChannelCheckMode === 'function' ? (getChannelCheckMode() || 'no_overlap') : 'no_overlap',
         partyNames: allPartyNames,
         membersNeedingBuff,
         buffQueue
@@ -1580,6 +1653,8 @@ function createPartyService(opts) {
             ok: false,
             who: nm,
             whoId: id,
+            blockedCooldown: Boolean(r.result && r.result.blockedCooldown),
+            cooldownLeftMs: Number(r.result && r.result.cooldownLeftMs) || 0,
             blockedShut: Boolean(r.result && r.result.blockedShut),
             blockedBusy: Boolean(r.result && r.result.blockedBusy),
             noSuchChannel: Boolean(r.result && r.result.noSuchChannel),
@@ -1600,6 +1675,7 @@ function createPartyService(opts) {
         rt.gatherNote = anchorLabel + ' กำลังสแกนหา CH ที่คนน้อยสุด (และไม่ทับ CH ปาร์ตี้อื่น)';
         const localAvoid = avoidList.slice();
         const onlyForOverlap = Boolean(!anchorSnap.pkChannel && rt.settledMapId === anchorSnap.mapId);
+        let hitAnchorCooldown = false;
         for (let attempt = 0; attempt < 2; attempt++) {
           let wantCh = null;
           if (anchorSnap.helpers && anchorSnap.helpers.evaluateAnchorChannel) {
@@ -1625,6 +1701,11 @@ function createPartyService(opts) {
             targetCh = realCh;
             anchorSnap.channel = realCh;
             if (realCh === wantCh) anchorSnap.pkChannel = false;
+            if (am.result && am.result.blockedCooldown) {
+              hitAnchorCooldown = true;
+              rt.channelNote = anchorLabel + ' ' + (am.result.error || 'ติดคูลดาวน์ย้าย CH 5 นาที') + ' — จะย้ายอัตโนมัติเมื่อครบเวลา';
+              break;
+            }
             const moveBlocked = Boolean(am.result && (am.result.blockedBusy || am.result.blockedShut || am.result.noSuchChannel || am.result.blockedPk));
             if (realCh !== wantCh && moveBlocked) {
               if (!localAvoid.includes(wantCh)) localAvoid.push(wantCh);
@@ -1635,9 +1716,11 @@ function createPartyService(opts) {
           }
           break;
         }
-        rt.settledMapId = anchorSnap.mapId;
-        rt.settledChannel = targetCh;
-        rt.settledChannelAt = now();
+        if (!hitAnchorCooldown || !localAvoid.includes(targetCh)) {
+          rt.settledMapId = anchorSnap.mapId;
+          rt.settledChannel = targetCh;
+          rt.settledChannelAt = now();
+        }
       }
 
       // Recompute who needs to move to targetCh now
@@ -1662,6 +1745,10 @@ function createPartyService(opts) {
       const first = await moveAll(todoIds, targetCh);
       if (first.ok) { rt.channelNote = null; return; }
       if (first.aborted) return;
+      if (first.blockedCooldown) {
+        rt.channelNote = first.who + ' ' + (first.error || 'ติดคูลดาวน์ย้าย CH 5 นาที') + ' — จะย้ายตามอัตโนมัติเมื่อครบเวลา';
+        return;
+      }
       if (now() - rt.fallbackAt < T.fallbackCooldownMs) {
         rt.channelNote = first.who + ' เข้า CH ' + targetCh + ' ไม่ได้ — จะลองใหม่อีกครั้ง';
         return;
@@ -1722,8 +1809,13 @@ function createPartyService(opts) {
     rt.gatherAt = now();
     const avoidList = Array.isArray(avoidChannels) ? avoidChannels : [];
     const localAvoid = avoidList.slice();
-    const onlyForOverlap = Boolean(!S.pkChannel && rt.settledMapId === S.mapId);
+    const hasPendingSpread = Boolean(S.pendingChannelSpread && Number(S.pendingChannelSpread.avoidChannel) === Number(S.channel));
+    if (hasPendingSpread && typeof S.channel === 'number' && !localAvoid.includes(S.channel)) {
+      localAvoid.push(S.channel);
+    }
+    const onlyForOverlap = Boolean(!S.pkChannel && !hasPendingSpread && rt.settledMapId === S.mapId);
     const prevCh = S.channel;
+    let hitCooldown = false;
     try {
       for (let attempt = 0; attempt < 2; attempt++) {
         let wantCh = null;
@@ -1735,7 +1827,7 @@ function createPartyService(opts) {
             wantCh = ev.result.channel;
           }
         }
-        if (wantCh == null && !onlyForOverlap && (localAvoid.includes(S.channel) || S.pkChannel) && S.helpers && S.helpers.findLeast) {
+        if (wantCh == null && (!onlyForOverlap || hasPendingSpread) && (localAvoid.includes(S.channel) || S.pkChannel) && S.helpers && S.helpers.findLeast) {
           const least = await act(P, ACTIONS.leastChannel(localAvoid), 'least-ch-solo-avoid', 15000);
           const lch = least.ok && least.result ? least.result.channel : null;
           if (typeof lch === 'number' && (lch !== S.channel || S.pkChannel) && !localAvoid.includes(lch)) {
@@ -1747,7 +1839,16 @@ function createPartyService(opts) {
           const am = await act(P, ACTIONS.moveChannelWait(wantCh, T.leaderMoveWaitMs), 'solo-move-ch', T.leaderMoveWaitMs + 10000);
           const realCh = (am.result && typeof am.result.channel === 'number') ? am.result.channel : S.channel;
           S.channel = realCh;
-          if (realCh === wantCh) S.pkChannel = false;
+          if (realCh === wantCh) {
+            S.pkChannel = false;
+            S.pendingChannelSpread = null;
+            log('solo-ch-spread', S.name || id, 'CH', prevCh, '->', realCh, 'on', S.mapId);
+          }
+          if (am.result && am.result.blockedCooldown) {
+            hitCooldown = true;
+            S.channelCooldownLeftMs = Number(am.result.cooldownLeftMs) || 30000;
+            break;
+          }
           const moveBlocked = Boolean(am.result && (am.result.blockedBusy || am.result.blockedShut || am.result.noSuchChannel || am.result.blockedPk));
           if (realCh !== wantCh && moveBlocked) {
             if (!localAvoid.includes(wantCh)) localAvoid.push(wantCh);
@@ -1756,12 +1857,12 @@ function createPartyService(opts) {
         }
         break;
       }
-      if (S.mapId && typeof S.channel === 'number' && !S.pkChannel) {
+      if (!hitCooldown && S.mapId && typeof S.channel === 'number' && !S.pkChannel && !localAvoid.includes(S.channel)) {
         rt.settledMapId = S.mapId;
         rt.settledChannel = S.channel;
         rt.settledChannelAt = now();
       }
-      if (avoidList.includes(S.channel) && S.channel === prevCh) {
+      if (!hitCooldown && avoidList.includes(S.channel) && S.channel === prevCh) {
         rt.lastNoFreeChannelAt = now();
       } else {
         rt.lastNoFreeChannelAt = 0;
@@ -1774,26 +1875,121 @@ function createPartyService(opts) {
   }
 
   async function tickSoloProfiles(profiles) {
-    // Do not auto-switch channels for solo profiles that are not assigned to any party
-    return;
+    const chMode = typeof getChannelCheckMode === 'function' ? (getChannelCheckMode() || 'no_overlap') : 'no_overlap';
+    const taken = assignedIds(parties);
+    for (const [id, P] of profiles.entries()) {
+      if (taken.has(id)) continue;
+      const S = states.get(id);
+      if (!P || !S || !S.ok || !S.name) continue;
+      const rt = srt(id);
+      const onFarm = isSoloActivelyFarmingMap(S);
+      const cooldownLeftMs = Number(S.channelCooldownLeftMs) || 0;
+      const coolingDown = cooldownLeftMs > 12000;
+      const hasPendingSpread = Boolean(S.pendingChannelSpread && Number(S.pendingChannelSpread.avoidChannel) === Number(S.channel));
+
+      const syncAvoidInfo = getAvoidChannelsForSolo(
+        id,
+        profiles,
+        onFarm ? S.mapId : null,
+        onFarm ? S.mapName : S.targetMap
+      );
+      const isOverlapped = Boolean(onFarm && typeof S.channel === 'number' && syncAvoidInfo.avoidChannels.includes(S.channel));
+
+      if (!onFarm) {
+        if (!S.mapId || isCityMapName(S.mapName)) {
+          rt.settledMapId = null;
+          rt.settledChannel = null;
+          rt.settledChannelAt = 0;
+        }
+      } else if (!S.pkChannel && typeof S.channel === 'number') {
+        const sw = S.lastPostSellChannelSwitch;
+        const swAt = (sw && sw.channel === S.channel && (!sw.mapId || sw.mapId === S.mapId) && typeof sw.at === 'number') ? sw.at : 0;
+        if (swAt && swAt > (rt.lastSwitchSeenAt || 0)) {
+          rt.lastSwitchSeenAt = swAt;
+          if (!isOverlapped && !hasPendingSpread) {
+            rt.settledMapId = S.mapId;
+            rt.settledChannel = S.channel;
+            rt.settledChannelAt = swAt;
+          }
+        } else if (chMode !== 'no_overlap' && !hasPendingSpread && (rt.settledMapId !== S.mapId || rt.settledChannel !== S.channel)) {
+          rt.settledMapId = S.mapId;
+          rt.settledChannel = S.channel;
+          rt.settledChannelAt = swAt || now();
+        } else if (rt.settledMapId === S.mapId && rt.settledChannel !== S.channel && !rt.moving && !isOverlapped && !hasPendingSpread) {
+          rt.settledChannel = S.channel;
+          rt.settledChannelAt = swAt || now();
+        }
+      }
+
+      if (S.helpers && S.helpers.updateSoloAvoidState) {
+        const soloAvoidPayload = {
+          soloMapId: onFarm ? S.mapId : null,
+          soloMapName: (onFarm ? S.mapName : S.targetMap) || null,
+          avoidChannels: syncAvoidInfo.avoidChannels,
+          otherPartyChannelsByMap: syncAvoidInfo.otherPartyChannelsByMap,
+          channelCheckMode: chMode
+        };
+        const soloSig = !opts.timing ? JSON.stringify(soloAvoidPayload) : '';
+        if (opts.timing || rt.lastAvoidPushSig !== soloSig || S.channelCheckMode !== chMode || (now() - (rt.lastAvoidPushAt || 0) >= 25000)) {
+          const soloRes = await act(P, ACTIONS.syncSoloAvoidState(soloAvoidPayload), 'sync-solo-avoid');
+          if (soloRes && soloRes.ok) {
+            rt.lastAvoidPushSig = soloSig;
+            rt.lastAvoidPushAt = now();
+          }
+        }
+      }
+
+      if (chMode === 'off' || chMode === 'party_only') continue;
+
+      const shouldOrchestrateSolo = Boolean(
+        S.botRunning !== false &&
+        onFarm &&
+        !planBlocked(S) &&
+        !isBusy() &&
+        (chMode === 'no_overlap' || hasPendingSpread)
+      );
+      if (shouldOrchestrateSolo) {
+        const inOtherInGameParty = Boolean(S.party && Array.isArray(S.party.members) && S.party.members.length > 1 && S.party.leader && S.party.leader !== S.name);
+        const busyNow = Array.isArray(S.busy) && S.busy.length > 0;
+        if (!inOtherInGameParty && !busyNow && !rt.moving) {
+          // NEVER disturb combat while Nightcamp's 5-min channel-move cooldown is still active;
+          // leave unsettled so the very first tick after the 5-min cooldown expires immediately spreads!
+          if (coolingDown) {
+            continue;
+          }
+          const needsInitialCheck = chMode === 'no_overlap' && rt.settledMapId !== S.mapId && Boolean(S.helpers && S.helpers.evaluateAnchorChannel);
+          const noFreeCooldownOk = !rt.lastNoFreeChannelAt || (now() - rt.lastNoFreeChannelAt >= T.gatherCooldownMs);
+          if ((S.pkChannel || hasPendingSpread || (isOverlapped && noFreeCooldownOk) || needsInitialCheck) && (S.helpers && (S.helpers.evaluateAnchorChannel || S.helpers.findLeast)) && S.helpers.moveToChannel) {
+            if (S.pkChannel || hasPendingSpread || isOverlapped || now() - (rt.gatherAt || 0) >= T.gatherCooldownMs) {
+              await gatherSoloChannel(id, P, S, syncAvoidInfo.avoidChannels);
+            }
+          } else if (rt.settledMapId !== S.mapId && typeof S.channel === 'number' && !S.pkChannel && !isOverlapped && !hasPendingSpread) {
+            rt.settledMapId = S.mapId;
+            rt.settledChannel = S.channel;
+            rt.settledChannelAt = now();
+          }
+        }
+      }
+    }
   }
 
   const shouldAutoReconcile = opts.autoReconcileInGame !== false && !opts.timing;
 
   async function tick() {
     if (ticking) return;
-    if (!parties.length && !shouldAutoReconcile) return;
+    const chMode = typeof getChannelCheckMode === 'function' ? (getChannelCheckMode() || 'no_overlap') : 'no_overlap';
+    if (!parties.length && !shouldAutoReconcile && chMode === 'off') return;
     if (isBusy()) return;
     ticking = true;
     try {
       await refreshStates(true);
       const profiles = profileMap();
       if (shouldAutoReconcile) reconcileInGameParties(profiles);
-      if (!parties.length) return;
       for (const party of parties.slice()) {
         if (!parties.includes(party)) continue;
         try { await tickParty(party, profiles); } catch (e) { log('tick error', party.id, e.message); prt(party.id).notes = ['ผิดพลาด: ' + e.message]; }
       }
+      try { await tickSoloProfiles(profiles); } catch (e) { log('solo tick error', e.message); }
     } finally { ticking = false; }
   }
 
