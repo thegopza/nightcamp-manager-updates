@@ -828,7 +828,8 @@
 .nc-gb-class-name { font-size: 11px; font-weight: 800; color: #38bdf8; letter-spacing: 0.4px; }
 .nc-gb-lock-note { font-size: 10px; color: #94a3b8; line-height: 1.4; }
 .nc-gb-lock-note b { color: #4ade80; }
-.nc-gb-special-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.nc-gb-special-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+@media (max-width: 720px) { .nc-gb-special-row { grid-template-columns: 1fr; } }
 .nc-gb-mini-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 6px; }
 .nc-gb-mini-grid label { display: flex; flex-direction: column; gap: 3px; font-size: 10.5px; color: #cbd5e1; margin: 0; }
 .nc-gb-flex-form { display: flex; flex-direction: column; gap: 8px; padding: 4px 2px; }

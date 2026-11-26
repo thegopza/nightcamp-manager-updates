@@ -9921,7 +9921,7 @@ async function saveWebHudAuthSettings(profileId, hudEl, { triggerNow = false, si
   }
 }
 
-async function applyCentralAuthSettings(hudEl, { triggerNow = false, btn = null } = {}) {
+async function applyCentralAuthSettings(hudEl, { triggerNow = false, btn = null, patchOnly = null } = {}) {
   const online = currentProfiles.filter(p => p.isRunning);
   if (online.length === 0) {
     showToast('⚠️ ไม่มีจอเกมที่กำลังออนไลน์', 'warning');
@@ -9932,30 +9932,42 @@ async function applyCentralAuthSettings(hudEl, { triggerNow = false, btn = null 
   const keepEachServer = rawServerVal === '__KEEP__';
   const serverName = keepEachServer ? undefined : rawServerVal;
   const autoResumeBot = Boolean(hudEl.querySelector('#p-central-auth-resume')?.checked);
+
+  const clientPatch = patchOnly
+    ? Object.assign({}, patchOnly)
+    : Object.assign(
+        { enabled, autoResumeBot, triggerNow: Boolean(triggerNow) },
+        keepEachServer ? {} : { serverName }
+      );
+  const profUpdate = {};
+  if (clientPatch.enabled !== undefined) profUpdate.autoLoginEnabled = Boolean(clientPatch.enabled);
+  if (clientPatch.autoResumeBot !== undefined) profUpdate.autoResumeBot = Boolean(clientPatch.autoResumeBot);
+  if (clientPatch.serverName !== undefined) profUpdate.serverName = String(clientPatch.serverName);
+
   const origText = btn ? btn.innerText : '';
   if (btn) {
     btn.disabled = true;
     btn.innerText = triggerNow ? '⏳ กำลังสั่ง Login ทุกจอ...' : '⏳ กำลังส่งค่าทุกจอ...';
   }
   try {
+    online.forEach(p => {
+      Object.assign(p, profUpdate);
+      if (p.liveState && typeof p.liveState === 'object') {
+        if (!p.liveState.authConfig || typeof p.liveState.authConfig !== 'object') p.liveState.authConfig = {};
+        if (clientPatch.enabled !== undefined) p.liveState.authConfig.enabled = Boolean(clientPatch.enabled);
+        if (clientPatch.autoResumeBot !== undefined) p.liveState.authConfig.autoResumeBot = Boolean(clientPatch.autoResumeBot);
+        if (clientPatch.serverName !== undefined) p.liveState.authConfig.serverName = String(clientPatch.serverName);
+      }
+    });
+    // Send ONLY changed auth flags (NEVER send account/loginPassword/charName from Central Menu!)
     await Promise.allSettled(online.map(p => fetch(`${API_BASE}/api/profiles/${p.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: p.name,
-        account: p.account || '',
-        loginPassword: p.loginPassword || '',
-        ...(keepEachServer ? {} : { serverName }),
-        charName: p.charName || '',
-        autoLoginEnabled: enabled,
-        autoResumeBot,
-        debugPort: p.debugPort
-      })
+      body: JSON.stringify(profUpdate)
     })));
-    online.forEach(p => Object.assign(p, keepEachServer ? { autoLoginEnabled: enabled, autoResumeBot } : { serverName, autoLoginEnabled: enabled, autoResumeBot }));
     await sendWebHudAction('__central__', {
       type: 'update-auth',
-      config: { enabled, ...(keepEachServer ? {} : { serverName }), autoResumeBot, triggerNow: Boolean(triggerNow) }
+      config: clientPatch
     });
     if (typeof fetchProfiles === 'function') fetchProfiles();
   } catch (err) {
@@ -10092,6 +10104,24 @@ async function openWebBotHUD(profileId) {
   const centralZeroBtn = hudEl.querySelector('#p-btn-central-zero-render');
   if (centralZeroBtn && typeof toggleAllClientWindows === 'function') {
     centralZeroBtn.onclick = () => toggleAllClientWindows();
+  }
+
+  const centralAuthEnCb = hudEl.querySelector('#p-central-auth-enabled');
+  if (centralAuthEnCb) {
+    centralAuthEnCb.addEventListener('change', () => {
+      centralAuthEnCb.indeterminate = false;
+      centralAuthEnCb.dataset.ncCentralDirtyUntil = String(Date.now() + 3500);
+      applyCentralAuthSettings(hudEl, { patchOnly: { enabled: Boolean(centralAuthEnCb.checked) } });
+    });
+  }
+
+  const centralAuthResCb = hudEl.querySelector('#p-central-auth-resume');
+  if (centralAuthResCb) {
+    centralAuthResCb.addEventListener('change', () => {
+      centralAuthResCb.indeterminate = false;
+      centralAuthResCb.dataset.ncCentralDirtyUntil = String(Date.now() + 3500);
+      applyCentralAuthSettings(hudEl, { patchOnly: { autoResumeBot: Boolean(centralAuthResCb.checked) } });
+    });
   }
 
   const centralApplyBtn = hudEl.querySelector('#p-btn-central-apply-auth');
@@ -11002,7 +11032,9 @@ const CENTRAL_HUD_FIELD_SPECS = [
   ['#p-nc-trainer-pull-mob-radius', 'select', st => String(st.trainerConfig?.pullMobRadius || 1800)],
   ['#p-nc-trainer-pull-mob-aggro', 'bool', st => st.trainerConfig?.pullMobAggro !== false],
   ['#p-nc-trainer-pull-item', 'bool', st => Boolean(st.trainerConfig?.pullItemEnabled)],
-  ['#p-nc-trainer-pull-item-rush', 'bool', st => st.trainerConfig?.pullItemRush !== false]
+  ['#p-nc-trainer-pull-item-rush', 'bool', st => st.trainerConfig?.pullItemRush !== false],
+  ['#p-central-auth-enabled', 'bool', st => st.authConfig?.enabled !== false],
+  ['#p-central-auth-resume', 'bool', st => Boolean(st.authConfig?.autoResumeBot)]
 ];
 
 function syncCentralHudMixedStates(hud) {

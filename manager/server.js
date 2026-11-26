@@ -4361,11 +4361,21 @@ function buildClientActionEvalCode(payload) {
         try { window.__authConfig = JSON.parse(localStorage.getItem('pelican_auth_cfg') || '{}') || {}; } catch (_) { window.__authConfig = {}; }
       }
       const patch = ${JSON.stringify(cfg)};
-      if (patch.enabled !== undefined) {
+      if (patch.enabled === true) {
         window.__ncAllowEnableAutoLogin = true;
+        window.__ncUserDisabledAutoLogin = false;
+        window.__ncQueueCancelledOnDisable = false;
+      } else if (patch.enabled === false) {
+        window.__ncUserDisabledAutoLogin = true;
+        window.__ncQueueCancelledOnDisable = true;
       }
       try {
         Object.assign(window.__authConfig, patch);
+        if (patch.enabled === false) {
+          window.__authConfig.userDisabledAutoLogin = true;
+        } else if (patch.enabled === true) {
+          window.__authConfig.userDisabledAutoLogin = false;
+        }
       } finally {
         window.__ncAllowEnableAutoLogin = false;
       }
@@ -10996,6 +11006,27 @@ const server = http.createServer(async (req, res) => {
                   };
                 }
               }
+              // Sync explicit in-game Auto-Login / Auto-Resume toggle back to Manager profile so closing/reopening keeps it!
+              const clientToggledAt = Number(ca.userToggledAt) || 0;
+              const lastMgrAuthPush = Number(p.lastAuthSyncPushAt) || 0;
+              if (clientToggledAt > 0 && clientToggledAt > lastMgrAuthPush) {
+                const nextEn = ca.enabled !== undefined ? Boolean(ca.enabled) : undefined;
+                const nextRes = ca.autoResumeBot !== undefined ? Boolean(ca.autoResumeBot) : undefined;
+                const toggleDiff =
+                  (nextEn !== undefined && nextEn !== (p.autoLoginEnabled !== false)) ||
+                  (nextRes !== undefined && nextRes !== Boolean(p.autoResumeBot));
+                if (toggleDiff) {
+                  if (nextEn !== undefined) p.autoLoginEnabled = nextEn;
+                  if (nextRes !== undefined) p.autoResumeBot = nextRes;
+                  p.lastAuthSyncPushAt = clientToggledAt;
+                  adoptedAuthFromClient = Object.assign({}, adoptedAuthFromClient || {}, {
+                    ...(nextEn !== undefined ? { autoLoginEnabled: nextEn } : {}),
+                    ...(nextRes !== undefined ? { autoResumeBot: nextRes } : {}),
+                    lastAuthSyncPushAt: clientToggledAt
+                  });
+                  syncProfileAuthToBrowserStorage(p.id, p, credentials.getPassword(p.id) || "", { clearSession: false });
+                }
+              }
             }
           }
         }
@@ -11882,6 +11913,8 @@ const server = http.createServer(async (req, res) => {
         const accountChanged = data.account !== undefined && nextAccount !== (profiles[idx].account || "");
         const serverChanged = data.serverName !== undefined && String(data.serverName || "").trim() !== String(profiles[idx].serverName || "").trim();
         const charChanged = data.charName !== undefined && String(data.charName || "").trim() !== String(profiles[idx].charName || "").trim();
+        const enabledChanged = data.autoLoginEnabled !== undefined && Boolean(data.autoLoginEnabled) !== (profiles[idx].autoLoginEnabled !== false);
+        const resumeChanged = data.autoResumeBot !== undefined && Boolean(data.autoResumeBot) !== Boolean(profiles[idx].autoResumeBot);
         const wantsNewAutoRegister = data.autoRegister === true || (
           data.autoRegister !== false &&
           !nextPassword &&
@@ -11898,6 +11931,7 @@ const server = http.createServer(async (req, res) => {
           ? false
           : (wantsNewAutoRegister ? true : !!profiles[idx].autoRegister);
         const hasExplicitManualCreds = Boolean(!wantsNewAutoRegister && nextAccount && nextPassword);
+        const authFlagsChanged = Boolean(serverChanged || charChanged || enabledChanged || resumeChanged);
 
         profiles[idx] = {
           ...profiles[idx],
@@ -11909,10 +11943,10 @@ const server = http.createServer(async (req, res) => {
           autoResumeBot: data.autoResumeBot !== undefined ? Boolean(data.autoResumeBot) : Boolean(profiles[idx].autoResumeBot),
           autoRegister: nextAutoRegister,
           ...(wantsNewAutoRegister
-            ? { generatedAccount: false, registerError: "", loginSyncPending: false, proxyFallbackBrowser: undefined, proxyRegistrationState: undefined, ...((serverChanged || charChanged) ? { lastAuthSyncPushAt: Date.now() } : {}) }
+            ? { generatedAccount: false, registerError: "", loginSyncPending: false, proxyFallbackBrowser: undefined, proxyRegistrationState: undefined, ...(authFlagsChanged ? { lastAuthSyncPushAt: Date.now() } : {}) }
             : (hasExplicitManualCreds || accountChanged || passwordChanged
                 ? { generatedAccount: false, registerError: "", loginSyncPending: true, lastAuthSyncPushAt: Date.now() }
-                : ((serverChanged || charChanged) ? { lastAuthSyncPushAt: Date.now() } : {}))),
+                : (authFlagsChanged ? { lastAuthSyncPushAt: Date.now() } : {}))),
           charClass: data.charClass || profiles[idx].charClass,
           targetMap: data.targetMap !== undefined ? data.targetMap : profiles[idx].targetMap,
           debugPort: data.debugPort || profiles[idx].debugPort,
@@ -11920,7 +11954,7 @@ const server = http.createServer(async (req, res) => {
           notes: data.notes !== undefined ? data.notes : profiles[idx].notes,
           whitelist: data.whitelist !== undefined ? data.whitelist : profiles[idx].whitelist
         };
-        if (!wantsNewAutoRegister && (hasExplicitManualCreds || accountChanged || passwordChanged || serverChanged || charChanged)) {
+        if (!wantsNewAutoRegister && (hasExplicitManualCreds || accountChanged || passwordChanged || authFlagsChanged)) {
           if (typeof authSync?.resetProfileRegistration === "function") {
             authSync.resetProfileRegistration(id);
           }
@@ -11928,9 +11962,11 @@ const server = http.createServer(async (req, res) => {
             clearSession: Boolean(accountChanged || passwordChanged)
           });
         }
-        if ((serverChanged || charChanged) && profiles[idx].debugPort) {
+        if (authFlagsChanged && profiles[idx].debugPort) {
           const nextSrvStr = String(profiles[idx].serverName || "").trim();
           const nextCharStr = String(profiles[idx].charName || "").trim();
+          const nextEnVal = profiles[idx].autoLoginEnabled !== false;
+          const nextResVal = Boolean(profiles[idx].autoResumeBot);
           evalProfilePort(profiles[idx].debugPort, `(() => {
             try {
               const cfg = window.__authConfig || JSON.parse(localStorage.getItem('pelican_auth_cfg') || '{}') || {};
@@ -11942,6 +11978,26 @@ const server = http.createServer(async (req, res) => {
                 cfg.charName = ${JSON.stringify(nextCharStr)};
                 cfg.charEditedAt = 0;
               }
+              if (${Boolean(enabledChanged)}) {
+                if (${nextEnVal}) {
+                  window.__ncAllowEnableAutoLogin = true;
+                  window.__ncUserDisabledAutoLogin = false;
+                  window.__ncQueueCancelledOnDisable = false;
+                } else {
+                  window.__ncUserDisabledAutoLogin = true;
+                  window.__ncQueueCancelledOnDisable = true;
+                }
+                try {
+                  cfg.enabled = ${nextEnVal};
+                  cfg.userDisabledAutoLogin = ${!nextEnVal};
+                  cfg.userToggledAt = Date.now();
+                } finally {
+                  window.__ncAllowEnableAutoLogin = false;
+                }
+              }
+              if (${Boolean(resumeChanged)}) {
+                cfg.autoResumeBot = ${nextResVal};
+              }
               window.__authConfig = cfg;
               localStorage.setItem('pelican_auth_cfg', JSON.stringify(cfg));
               if (${Boolean(serverChanged)}) {
@@ -11951,6 +12007,14 @@ const server = http.createServer(async (req, res) => {
               if (${Boolean(charChanged)}) {
                 const chEl = document.getElementById('p-auth-char');
                 if (chEl) chEl.value = ${JSON.stringify(nextCharStr)};
+              }
+              if (${Boolean(enabledChanged)}) {
+                const enEl = document.getElementById('p-auth-enabled');
+                if (enEl) enEl.checked = ${nextEnVal};
+              }
+              if (${Boolean(resumeChanged)}) {
+                const resEl = document.getElementById('p-auth-resume');
+                if (resEl) resEl.checked = ${nextResVal};
               }
               if (typeof window.syncAllHudInputsFromConfig === 'function') window.syncAllHudInputsFromConfig();
             } catch (_) {}
@@ -13245,6 +13309,28 @@ public class PmFocus {
           if (targets.length === 0) {
             return sendJSON({ success: false, error: "ไม่มีจอเกมที่กำลังออนไลน์", updatedCount: 0, totalOnline: 0 }, 400);
           }
+          if (payload.type === 'update-auth' && payload.config && typeof payload.config === 'object') {
+            const cfg = payload.config;
+            const nextServer = cfg.serverName !== undefined ? String(cfg.serverName || '').trim() : undefined;
+            const nextEnabled = cfg.enabled !== undefined ? Boolean(cfg.enabled) : undefined;
+            const nextResume = cfg.autoResumeBot !== undefined ? Boolean(cfg.autoResumeBot) : undefined;
+            if (nextServer !== undefined || nextEnabled !== undefined || nextResume !== undefined) {
+              const fresh = loadProfiles();
+              const targetIdSet = new Set(targets.map(t => String(t.id)));
+              let touched = false;
+              const pushTs = Date.now();
+              for (const t of fresh) {
+                if (!targetIdSet.has(String(t.id))) continue;
+                if (nextServer !== undefined) t.serverName = nextServer;
+                if (nextEnabled !== undefined) t.autoLoginEnabled = nextEnabled;
+                if (nextResume !== undefined) t.autoResumeBot = nextResume;
+                t.lastAuthSyncPushAt = pushTs;
+                syncProfileAuthToBrowserStorage(t.id, t, credentials.getPassword(t.id) || "", { clearSession: false });
+                touched = true;
+              }
+              if (touched) saveProfiles(fresh);
+            }
+          }
           const results = await Promise.allSettled(targets.map(p =>
             enqueueProfileClientAction(p.id, () => evalProfilePort(p.debugPort, codeToRun, 15000))
           ));
@@ -13287,12 +13373,12 @@ public class PmFocus {
                 target.registerError = '';
                 target.loginSyncPending = false;
                 target.lastAuthSyncPushAt = Date.now();
-              } else if (nextServer !== undefined || nextChar !== undefined) {
+              } else if (nextServer !== undefined || nextChar !== undefined || nextEnabled !== undefined || nextResume !== undefined) {
                 target.lastAuthSyncPushAt = Date.now();
               }
               if (nextChar && !target.lastCharName) target.lastCharName = nextChar;
               saveProfiles(fresh);
-              if (nextServer !== undefined || nextChar !== undefined) {
+              if (nextServer !== undefined || nextChar !== undefined || nextEnabled !== undefined || nextResume !== undefined) {
                 syncProfileAuthToBrowserStorage(profile.id, target, credentials.getPassword(profile.id) || "", { clearSession: false });
               }
             }

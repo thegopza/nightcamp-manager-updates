@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "sourceCommit": "4747d5f01c903a3f62ad4c41631a57cf6ddf7c7b",
+  "sourceCommit": "987527a677a73f8016bd79004c747d4725a9ff1c",
   "files": [
     {
       "path": "manager/asset_cache.js",
@@ -144,7 +144,7 @@
     },
     {
       "path": "manager/public/app.js",
-      "sha256": "ff4df4b1758bfff9eda29e2e87be6c6556398755e9ae7925331ea7615edae5e3"
+      "sha256": "93dd7abd4834bd892b47d8bacb38e565397874f736707c2432ef63e3198984c2"
     },
     {
       "path": "manager/public/assets/updates/ui_v212_bag_rightclick.jpg",
@@ -212,7 +212,7 @@
     },
     {
       "path": "manager/public/gear_builder.js",
-      "sha256": "1b24e9c931377753448f44018fbae59bde8179ce4b272d5e14d3d5d598a8e47a"
+      "sha256": "94d5a42821a9b86461a267c00d7d6cf6a0fbd1074081a36c25bec1fad9513670"
     },
     {
       "path": "manager/public/guild_manager.css",
@@ -228,7 +228,7 @@
     },
     {
       "path": "manager/public/index.html",
-      "sha256": "efb2850e83aeb18b404b528abb7de23bba56ab8ce87348c6813a4d58e84c1e38"
+      "sha256": "5da69edbe793aad6ae860d3d448a546ad272e91630267d18c279b15bd4cdc698"
     },
     {
       "path": "manager/public/inventory_market.css",
@@ -272,7 +272,7 @@
     },
     {
       "path": "manager/public/plan_editor.css",
-      "sha256": "9fe327c5fa0421a62bd52eac072785779c510b7b097c7da159dfa712b49a21a4"
+      "sha256": "2a085d4562af1a9f2444c6789cb4f0e20727182c74dd1a141471e0ff60fec707"
     },
     {
       "path": "manager/public/premium_manager.css",
@@ -308,7 +308,7 @@
     },
     {
       "path": "manager/public/update_log.js",
-      "sha256": "4ad3fba886504d4f851cca4d5908b580e140680e50d2f79cc7edb202f13e2d75"
+      "sha256": "d2f7e53c4e8ef9e684150482a2128e2092bafd60673a580b61d58b74bbed8818"
     },
     {
       "path": "manager/public/wiki/calc.js",
@@ -352,7 +352,7 @@
     },
     {
       "path": "manager/server.js",
-      "sha256": "df2c99e12af86feeef6f239253167c7bb5436074c4205d90da25b5efba67d103"
+      "sha256": "7f8bf9008a60cf5cd40a20a4528b72e8a2a1680edad5a46d8c74821ff21f9188"
     },
     {
       "path": "manager/test_isolation.js",

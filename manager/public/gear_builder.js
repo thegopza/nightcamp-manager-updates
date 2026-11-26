@@ -140,15 +140,46 @@
   let catalogPromise = null;
   let modal = null;
   let snapshot = null;
-  let activePanel = 'weapon'; // slot key | 'runes' | 'cards'
+  let activePanel = 'weapon'; // slot key | 'basic_runes' | 'runes' | 'cards'
   let equipPickMode = 'exact'; // 'exact' | 'flex'
   let onlyClassFit = true;
   let searchQ = '';
+  let basicRuneTargetSlot = 0; // 0 (Lv.40) | 1 (Lv.70)
+  let basicRuneTargetTier = 1;
   let runeTargetSkillId = '';
   let runeTargetSlot = 0;
   let runeTargetTier = 1;
   let cardTargetMode = 'pas'; // 'pas' | 'act' | 'learn_only'
   let cardTargetSlot = 0;
+  let cardTargetLevel = 1; // 1..10
+
+  const DEFAULT_BASIC_UNIVERSAL_FITS = [
+    'arc', 'wildfire', 'frostbite', 'venom', 'shade', 'trap',
+    'spmeteor', 'spthunder', 'spfrost', 'spquake', 'spmagnus', 'spwhirl', 'splord', 'spshadow'
+  ];
+  const DEFAULT_BASIC_GUN_FITS = ['grenade', 'ricochet', 'hollow', 'duel', 'dragon', 'barrel', 'recoil'];
+  const DEFAULT_BASIC_FIRE_FITS = ['lavapool', 'flarejump', 'minimeteor', 'firefan'];
+  const DEFAULT_GUN_JOBS = ['gunslinger', 'outlaw'];
+  const DEFAULT_FIRE_JOBS = ['firemage', 'starcore'];
+
+  function getBasicRuneMeta(cat) {
+    const br = (cat && cat.basicRunes) || {};
+    const slotLvs = (Array.isArray(br.slotLvs) && br.slotLvs.length >= 2) ? br.slotLvs : [40, 70];
+    return {
+      id: br.id || 'bl_basic',
+      slot0Lv: Number(slotLvs[0]) || 40,
+      slot1Lv: Number(slotLvs[1]) || 70,
+      universalSet: new Set(Array.isArray(br.universalFits) && br.universalFits.length ? br.universalFits : DEFAULT_BASIC_UNIVERSAL_FITS),
+      gunSet: new Set(Array.isArray(br.gunFits) && br.gunFits.length ? br.gunFits : DEFAULT_BASIC_GUN_FITS),
+      fireSet: new Set(Array.isArray(br.fireFits) && br.fireFits.length ? br.fireFits : DEFAULT_BASIC_FIRE_FITS),
+      gunJobs: new Set(Array.isArray(br.gunJobs) && br.gunJobs.length ? br.gunJobs : DEFAULT_GUN_JOBS),
+      fireJobs: new Set(Array.isArray(br.fireJobs) && br.fireJobs.length ? br.fireJobs : DEFAULT_FIRE_JOBS)
+    };
+  }
+
+  function clampCardTargetLevel(v) {
+    return Math.max(1, Math.min(10, Math.floor(Number(v) || 1)));
+  }
 
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const uid = () => 'sg_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6);
@@ -169,7 +200,7 @@
   async function loadCatalog() {
     if (catalog) return catalog;
     if (!catalogPromise) {
-      catalogPromise = fetch('nightcamp_gear_catalog.json?v=nc2.2.0')
+      catalogPromise = fetch('nightcamp_gear_catalog.json?v=nc2.3.19')
         .then(r => r.ok ? r.json() : null)
         .catch(() => null)
         .then(data => {
@@ -370,9 +401,17 @@
       <div class="gb-col">${RIGHT_SLOTS.map(slotCardHtml).join('')}</div>
     `;
 
-    const runeCount = g.steps.filter(s => s && s.type === 'buy_rune').length;
+    const basicRuneCount = g.steps.filter(s => s && s.type === 'buy_rune' && s.skillId === 'bl_basic').length;
+    const runeCount = g.steps.filter(s => s && s.type === 'buy_rune' && s.skillId !== 'bl_basic').length;
     const cardCount = g.steps.filter(s => s && s.type === 'buy_card').length;
     special.innerHTML = `
+      <div class="gb-slot ${basicRuneCount > 0 ? 'filled' : ''} ${activePanel === 'basic_runes' ? 'active' : ''}" data-panel="basic_runes">
+        <div class="gb-slot-icon"><span style="font-size:18px;">⚔️</span></div>
+        <div class="gb-slot-text">
+          <small>รูนตีปกติ (Basic Attack)</small>
+          <b style="${basicRuneCount > 0 ? 'color:#7dd3fc;' : ''}">${basicRuneCount > 0 ? `ตั้งไว้ ${basicRuneCount}/2 รูน` : 'คลิกเพื่อเพิ่มรูนตีปกติ'}</b>
+        </div>
+      </div>
       <div class="gb-slot ${runeCount > 0 ? 'filled' : ''} ${activePanel === 'runes' ? 'active' : ''}" data-panel="runes">
         <div class="gb-slot-icon"><span style="font-size:18px;">🔮</span></div>
         <div class="gb-slot-text">
@@ -383,7 +422,7 @@
       <div class="gb-slot ${cardCount > 0 ? 'filled' : ''} ${activePanel === 'cards' ? 'active' : ''}" data-panel="cards">
         <div class="gb-slot-icon"><span style="font-size:18px;">🃏</span></div>
         <div class="gb-slot-text">
-          <small>การ์ดวิชามอน (Monster Arts)</small>
+          <small>การ์ดวิชามอน (Lv.1–10)</small>
           <b style="${cardCount > 0 ? 'color:#fde68a;' : ''}">${cardCount > 0 ? `ตั้งไว้ ${cardCount} การ์ด` : 'คลิกเพื่อเพิ่มการ์ดพาสซีฟ/วิชามอน'}</b>
         </div>
       </div>
@@ -413,8 +452,105 @@
     const cat = catalog || { items: [], runes: [], cards: [], wtypes: {}, skills: [] };
     const planClasses = getPlanTargetClassIds();
 
+    if (activePanel === 'basic_runes') {
+      const bm = getBasicRuneMeta(cat);
+      const planObj = plan() || {};
+      const hasPlanClasses = planClasses.length > 0;
+      const hasC2OrC3 = Boolean(planObj.class2Target || planObj.class3Target);
+      const showGun = !hasPlanClasses || planClasses.some(c => bm.gunJobs.has(c)) || (!hasC2OrC3 && planClasses.includes('archer'));
+      const showFire = !hasPlanClasses || planClasses.some(c => bm.fireJobs.has(c)) || (!hasC2OrC3 && planClasses.includes('mage'));
+      const qLow = searchQ.trim().toLowerCase();
+
+      const basicRunesList = (cat.runes || []).filter(r => {
+        if (!r || !r.k) return false;
+        const isUniv = bm.universalSet.has(r.k);
+        const isGun = bm.gunSet.has(r.k);
+        const isFire = bm.fireSet.has(r.k);
+        if (!isUniv && !(showGun && isGun) && !(showFire && isFire)) return false;
+        if (qLow && !(`${r.name} ${r.k} ${(r.t || []).join(' ')}`).toLowerCase().includes(qLow)) return false;
+        return true;
+      });
+
+      const badgeForBasicRune = (r) => {
+        if (bm.gunSet.has(r.k)) {
+          const wHint = r.gun === 'pistol' ? ' · ปืนพก' : (r.gun === 'shotgun' ? ' · ลูกซอง' : '');
+          return `<span style="font-size:10px;color:#fbbf24;background:rgba(245,158,11,0.16);border:1px solid rgba(245,158,11,0.35);border-radius:4px;padding:0 5px;margin-left:4px;">เฉพาะสายปืน${wHint}</span>`;
+        }
+        if (bm.fireSet.has(r.k)) {
+          const wHint = r.wield === 'staff' ? ' · คทา' : (r.wield === 'orb' ? ' · ออร์บ' : '');
+          return `<span style="font-size:10px;color:#fb923c;background:rgba(249,115,22,0.16);border:1px solid rgba(249,115,22,0.35);border-radius:4px;padding:0 5px;margin-left:4px;">เฉพาะจอมเวทไฟ${wHint}</span>`;
+        }
+        return `<span style="font-size:10px;color:#7dd3fc;background:rgba(14,165,233,0.14);border:1px solid rgba(56,189,248,0.3);border-radius:4px;padding:0 5px;margin-left:4px;">ทุกอาชีพ</span>`;
+      };
+
+      box.innerHTML = `
+        <div class="gb-picker-title"><b>⚔️ เพิ่มรูนตีปกติ (ซื้อตลาดกลาง + ฝังลงช่องตีปกติอัตโนมัติ)</b></div>
+        <div style="font-size:11px;color:#94a3b8;margin-bottom:6px;line-height:1.4;">
+          คัดกรองเฉพาะรูนที่ใส่ใน <b style="color:#7dd3fc;">รูนตีปกติ</b> ได้จริงเท่านั้น (ช่อง 1 ปลดที่ตัวละคร Lv.${bm.slot0Lv} · ช่อง 2 ปลดที่ Lv.${bm.slot1Lv})
+        </div>
+        <div class="nc-gb-mini-grid">
+          <label>ช่องรูนตีปกติ:
+            <select id="gb-basic-rune-slot" class="gb-search">
+              <option value="0" ${basicRuneTargetSlot === 0 ? 'selected' : ''}>ช่อง 1 (ปลด Lv.${bm.slot0Lv})</option>
+              <option value="1" ${basicRuneTargetSlot === 1 ? 'selected' : ''}>ช่อง 2 (ปลด Lv.${bm.slot1Lv})</option>
+            </select>
+          </label>
+          <label>ขั้นรูน:
+            <select id="gb-basic-rune-tier" class="gb-search">
+              <option value="1" ${basicRuneTargetTier === 1 ? 'selected' : ''}>ขั้น I+</option>
+              <option value="2" ${basicRuneTargetTier === 2 ? 'selected' : ''}>ขั้น II+</option>
+              <option value="3" ${basicRuneTargetTier === 3 ? 'selected' : ''}>ขั้น III</option>
+            </select>
+          </label>
+        </div>
+        <input type="text" id="gb-search-input" class="gb-search" placeholder="ค้นหารูนตีปกติ เช่น รูนสายฟ้าแตก, รูนไฟลาม, รูนเงาตีซ้ำ, รูนดาบพายุหมุน..." value="${esc(searchQ)}">
+        <div class="gb-list">
+          ${basicRunesList.length === 0 ? '<div class="gb-empty">ไม่พบรูนตีปกติที่ตรงกับคำค้นหา</div>' : basicRunesList.map(r => `
+            <div class="gb-item">
+              <div class="gb-item-icon">⚔️</div>
+              <div class="gb-item-body">
+                <b style="color:#bae6fd;">${esc(r.name)} <small style="color:#94a3b8;">(${esc(r.k)})</small>${badgeForBasicRune(r)}</b>
+                <small>${esc((r.t && r.t[Math.max(0, basicRuneTargetTier - 1)]) || '')}</small>
+              </div>
+              <button type="button" class="gb-pick" data-add-basic-rune="${esc(r.k)}">+ เพิ่ม</button>
+            </div>
+          `).join('')}
+        </div>
+      `;
+      box.querySelector('#gb-basic-rune-slot').onchange = e => { basicRuneTargetSlot = Math.max(0, Math.min(1, Number(e.target.value) || 0)); };
+      box.querySelector('#gb-basic-rune-tier').onchange = e => { basicRuneTargetTier = Math.max(1, Math.min(3, Number(e.target.value) || 1)); renderPicker(); };
+      box.querySelector('#gb-search-input').oninput = e => { searchQ = e.target.value; renderPicker(); };
+      box.querySelectorAll('[data-add-basic-rune]').forEach(btn => {
+        btn.onclick = () => {
+          const g = gp();
+          if (!g) return;
+          const rk = btn.dataset.addBasicRune;
+          const isAllowed = bm.universalSet.has(rk) || (showGun && bm.gunSet.has(rk)) || (showFire && bm.fireSet.has(rk));
+          if (!isAllowed) return;
+          const rMeta = (cat.runes || []).find(x => x.k === rk);
+          const unlockLv = basicRuneTargetSlot === 0 ? bm.slot0Lv : bm.slot1Lv;
+          g.steps.push({
+            id: uid(),
+            type: 'buy_rune',
+            runeKind: rk,
+            itemName: `${rMeta ? rMeta.name : rk} (ขั้น ${'I'.repeat(basicRuneTargetTier)})`,
+            tier: basicRuneTargetTier,
+            skillId: bm.id,
+            skillSlot: basicRuneTargetSlot,
+            minQualityPct: 0,
+            minLevel: unlockLv,
+            minCoins: 0,
+            maxBuyPrice: 12000
+          });
+          renderBoard();
+          renderSteps();
+        };
+      });
+      return;
+    }
+
     if (activePanel === 'runes') {
-      const classSkills = (cat.skills || []).filter(s => !planClasses.length || planClasses.includes(String(s.job || '').toLowerCase()) || !s.job);
+      const classSkills = (cat.skills || []).filter(s => s && s.id !== 'bl_basic' && !s.isBasic && (!planClasses.length || planClasses.includes(String(s.job || '').toLowerCase()) || !s.job));
       const activeSkills = classSkills.filter(s => s.fits && s.fits.length > 0);
       if (!runeTargetSkillId || !activeSkills.some(s => s.id === runeTargetSkillId)) {
         const pref = activeSkills.find(s => s.kind === 'active' && planClasses.includes(String(s.job || '').toLowerCase())) || activeSkills[0];
@@ -503,7 +639,7 @@
       }).slice(0, 60);
 
       box.innerHTML = `
-        <div class="gb-picker-title"><b>🃏 เพิ่มการ์ดวิชามอน (ซื้อตลาดกลาง + เรียนลงสมุด + ติดตั้งช่องอัตโนมัติ)</b></div>
+        <div class="gb-picker-title"><b>🃏 เพิ่มการ์ดวิชามอน (ซื้อตลาดกลาง + เรียน/อัปเลเวล 1–10 + ติดตั้งช่องอัตโนมัติ)</b></div>
         <div class="nc-gb-mini-grid">
           <label>วิธีติดตั้ง:
             <select id="gb-card-mode" class="gb-search">
@@ -519,6 +655,14 @@
               ${cardTargetMode === 'pas' ? `<option value="2" ${cardTargetSlot === 2 ? 'selected' : ''}>ช่อง #3</option>` : ''}
             </select>
           </label>
+          <label>จำกัดระดับ (Lv.1–10):
+            <select id="gb-card-target-lv" class="gb-search">
+              ${[1,2,3,4,5,6,7,8,9,10].map(lv => `<option value="${lv}" ${cardTargetLevel === lv ? 'selected' : ''}>Lv.${lv}${lv === 1 ? ' (1 ใบ)' : lv === 10 ? ' (ตัน)' : ''}</option>`).join('')}
+            </select>
+          </label>
+        </div>
+        <div style="font-size:10.5px;color:#94a3b8;margin-bottom:5px;">
+          💡 การ์ดใช้ซ้ำเพื่ออัปเลเวลได้สูงสุด <b style="color:#fde68a;">Lv.10 (ตัน)</b> · บอทจะซื้อและกดใช้ให้ครบตามเลเวลเป้าหมายแล้วหยุดซื้อให้อัตโนมัติ
         </div>
         <input type="text" id="gb-search-input" class="gb-search" placeholder="ค้นหาการ์ด หรือเอฟเฟกต์ เช่น ตีเบิ้ล, ดูดเลือด, คูลดาวน์, คริ, หุ่นร้อยเชือก..." value="${esc(searchQ)}">
         <div class="gb-list">
@@ -537,6 +681,7 @@
       `;
       box.querySelector('#gb-card-mode').onchange = e => { cardTargetMode = e.target.value; renderPicker(); };
       box.querySelector('#gb-card-slot').onchange = e => { cardTargetSlot = Number(e.target.value) || 0; };
+      box.querySelector('#gb-card-target-lv').onchange = e => { cardTargetLevel = clampCardTargetLevel(e.target.value); };
       box.querySelector('#gb-search-input').oninput = e => { searchQ = e.target.value; renderPicker(); };
       box.querySelectorAll('[data-add-card]').forEach(btn => {
         btn.onclick = () => {
@@ -551,6 +696,7 @@
             cardName: cMeta ? cMeta.name : `bl_card_${mon}`,
             equipMode: cardTargetMode,
             slotIndex: cardTargetSlot,
+            targetLevel: clampCardTargetLevel(cardTargetLevel),
             minLevel: 20,
             minCoins: 0,
             maxBuyPrice: 25000
@@ -718,8 +864,10 @@
     }
 
     const cat = catalog || { runes: [], skills: [], cards: [] };
+    const bm = getBasicRuneMeta(cat);
     listEl.innerHTML = g.steps.map((s, idx) => {
-      const icon = s.type === 'buy_equip' ? '⚔️' : s.type === 'buy_rune' ? '🔮' : s.type === 'buy_card' ? '🃏' : s.type === 'polish' ? '✨' : '🔨';
+      const isBasicRune = s.type === 'buy_rune' && (s.skillId === 'bl_basic' || s.skillId === bm.id);
+      const icon = s.type === 'buy_equip' ? '⚔️' : (isBasicRune ? '⚔️' : s.type === 'buy_rune' ? '🔮' : s.type === 'buy_card' ? '🃏' : s.type === 'polish' ? '✨' : '🔨');
       let title = '';
       let extraHtml = '';
 
@@ -742,18 +890,54 @@
         `;
       } else if (s.type === 'buy_rune') {
         const rName = (cat.runes || []).find(r => r.k === s.runeKind)?.name || s.runeKind;
-        const sName = (cat.skills || []).find(sk => sk.id === s.skillId)?.name || s.skillId;
-        title = `<b>รูน ${esc(rName)} ขั้น ${'I'.repeat(Math.max(1, Number(s.tier) || 1))}</b> ➔ ฝังสกิล <b>${esc(sName)}</b> (ช่อง ${(Number(s.skillSlot) || 0) + 1})`;
-        extraHtml = `
-          <div class="gb-step-opts">
-            <span>คุณภาพขั้นต่ำ:</span>
-            <input type="number" data-idx="${idx}" data-field="minQualityPct" min="0" max="100" value="${Number(s.minQualityPct) || 0}" style="width:52px;" class="gb-opt-type"> %
-          </div>
-        `;
+        const tierNum = Math.max(1, Math.min(3, Number(s.tier) || 1));
+        const slotIdx = Math.max(0, Math.min(1, Number(s.skillSlot) || 0));
+        if (isBasicRune) {
+          const unlockLv = slotIdx === 0 ? bm.slot0Lv : bm.slot1Lv;
+          title = `<span style="color:#7dd3fc;">[รูนตีปกติ]</span> <b>${esc(rName)} ขั้น ${'I'.repeat(tierNum)}</b> ➔ ช่อง ${slotIdx + 1} <small style="color:#94a3b8;">(ปลด Lv.${unlockLv})</small>`;
+          extraHtml = `
+            <div class="gb-step-opts">
+              <select data-idx="${idx}" data-field="skillSlot" class="gb-opt-type">
+                <option value="0" ${slotIdx === 0 ? 'selected' : ''}>ช่อง 1 (Lv.${bm.slot0Lv})</option>
+                <option value="1" ${slotIdx === 1 ? 'selected' : ''}>ช่อง 2 (Lv.${bm.slot1Lv})</option>
+              </select>
+              <select data-idx="${idx}" data-field="tier" class="gb-opt-type">
+                <option value="1" ${tierNum === 1 ? 'selected' : ''}>ขั้น I+</option>
+                <option value="2" ${tierNum === 2 ? 'selected' : ''}>ขั้น II+</option>
+                <option value="3" ${tierNum === 3 ? 'selected' : ''}>ขั้น III</option>
+              </select>
+              <span>คุณภาพขั้นต่ำ:</span>
+              <input type="number" data-idx="${idx}" data-field="minQualityPct" min="0" max="100" value="${Number(s.minQualityPct) || 0}" style="width:52px;" class="gb-opt-type"> %
+            </div>
+          `;
+        } else {
+          const sName = (cat.skills || []).find(sk => sk.id === s.skillId)?.name || s.skillId;
+          title = `<b>รูน ${esc(rName)} ขั้น ${'I'.repeat(tierNum)}</b> ➔ ฝังสกิล <b>${esc(sName)}</b> (ช่อง ${slotIdx + 1})`;
+          extraHtml = `
+            <div class="gb-step-opts">
+              <select data-idx="${idx}" data-field="tier" class="gb-opt-type">
+                <option value="1" ${tierNum === 1 ? 'selected' : ''}>ขั้น I+</option>
+                <option value="2" ${tierNum === 2 ? 'selected' : ''}>ขั้น II+</option>
+                <option value="3" ${tierNum === 3 ? 'selected' : ''}>ขั้น III</option>
+              </select>
+              <span>คุณภาพขั้นต่ำ:</span>
+              <input type="number" data-idx="${idx}" data-field="minQualityPct" min="0" max="100" value="${Number(s.minQualityPct) || 0}" style="width:52px;" class="gb-opt-type"> %
+            </div>
+          `;
+        }
       } else if (s.type === 'buy_card') {
         const cName = s.cardName || (cat.cards || []).find(c => c.mon === s.monType)?.name || s.monType;
         const modeTxt = s.equipMode === 'act' ? `วิชามอน #${(Number(s.slotIndex) || 0) + 1}` : (s.equipMode === 'learn_only' ? 'เรียนลงสมุด' : `พาสซีฟ #${(Number(s.slotIndex) || 0) + 1}`);
-        title = `<b>การ์ด ${esc(cName)}</b> ➔ ${esc(modeTxt)}`;
+        const targetLv = clampCardTargetLevel(s.targetLevel);
+        title = `<b>การ์ด ${esc(cName)}</b> ➔ ${esc(modeTxt)} <small style="color:#fde68a;">(เป้า Lv.${targetLv}${targetLv >= 10 ? ' ตัน' : ''})</small>`;
+        extraHtml = `
+          <div class="gb-step-opts">
+            <span>จำกัดระดับการ์ด:</span>
+            <select data-idx="${idx}" data-field="targetLevel" class="gb-opt-type">
+              ${[1,2,3,4,5,6,7,8,9,10].map(lv => `<option value="${lv}" ${targetLv === lv ? 'selected' : ''}>Lv.${lv}${lv === 1 ? ' (1 ใบ)' : lv === 10 ? ' (ตัน)' : ''}</option>`).join('')}
+            </select>
+          </div>
+        `;
       } else if (s.type === 'polish') {
         title = `<b>✨ ขัดเกรด ${esc(SLOT_LABEL[s.slot] || s.slot)}</b> ➔ เป้า G${Number(s.targetGrade) || 2}`;
         extraHtml = `
@@ -807,9 +991,20 @@
         const i = Number(el.dataset.idx);
         const f = el.dataset.field;
         if (!g.steps[i]) return;
-        const isNum = el.type === 'number' || ['minGrade', 'minRefine', 'targetGrade', 'targetRefine', 'minLevel', 'maxBuyPrice', 'maxSpend', 'minQualityPct'].includes(f);
-        g.steps[i][f] = isNum ? Math.max(0, Math.floor(Number(el.value) || 0)) : el.value;
+        const isNum = el.type === 'number' || ['minGrade', 'minRefine', 'targetGrade', 'targetRefine', 'minLevel', 'maxBuyPrice', 'maxSpend', 'minQualityPct', 'targetLevel', 'tier', 'skillSlot'].includes(f);
+        let val = isNum ? Math.max(0, Math.floor(Number(el.value) || 0)) : el.value;
+        if (f === 'targetLevel') val = clampCardTargetLevel(val);
+        else if (f === 'tier') val = Math.max(1, Math.min(3, val || 1));
+        else if (f === 'skillSlot') val = Math.max(0, Math.min(1, val || 0));
+        g.steps[i][f] = val;
+        if (f === 'skillSlot' && g.steps[i].type === 'buy_rune' && (g.steps[i].skillId === 'bl_basic' || g.steps[i].skillId === bm.id)) {
+          const reqUnlock = val === 0 ? bm.slot0Lv : bm.slot1Lv;
+          if ((Number(g.steps[i].minLevel) || 0) < reqUnlock) g.steps[i].minLevel = reqUnlock;
+        }
         renderBoard();
+        if (['targetLevel', 'tier', 'skillSlot', 'targetGrade', 'targetRefine'].includes(f)) {
+          renderSteps();
+        }
       };
     });
     listEl.querySelectorAll('[data-bool]').forEach(el => {
