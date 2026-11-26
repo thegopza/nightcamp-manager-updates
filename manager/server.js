@@ -4318,6 +4318,9 @@ function buildClientActionEvalCode(payload) {
       if (patch.enabled !== undefined) {
         window.__authConfig.userToggledAt = Date.now();
       }
+      if (patch.charName !== undefined) {
+        window.__authConfig.charEditedAt = 0;
+      }
       try { localStorage.setItem('pelican_auth_cfg', JSON.stringify(window.__authConfig)); } catch(e){}
       const authEn = document.getElementById('p-auth-enabled');
       if (authEn && patch.enabled !== undefined) authEn.checked = !!window.__authConfig.enabled;
@@ -11809,6 +11812,7 @@ const server = http.createServer(async (req, res) => {
         const passwordChanged = passwordProvided && nextPassword !== existingPassword;
         const accountChanged = data.account !== undefined && nextAccount !== (profiles[idx].account || "");
         const serverChanged = data.serverName !== undefined && String(data.serverName || "").trim() !== String(profiles[idx].serverName || "").trim();
+        const charChanged = data.charName !== undefined && String(data.charName || "").trim() !== String(profiles[idx].charName || "").trim();
         const wantsNewAutoRegister = data.autoRegister === true || (
           data.autoRegister !== false &&
           !nextPassword &&
@@ -11836,10 +11840,10 @@ const server = http.createServer(async (req, res) => {
           autoResumeBot: data.autoResumeBot !== undefined ? Boolean(data.autoResumeBot) : Boolean(profiles[idx].autoResumeBot),
           autoRegister: nextAutoRegister,
           ...(wantsNewAutoRegister
-            ? { generatedAccount: false, registerError: "", loginSyncPending: false, proxyFallbackBrowser: undefined, proxyRegistrationState: undefined, ...(serverChanged ? { lastAuthSyncPushAt: Date.now() } : {}) }
+            ? { generatedAccount: false, registerError: "", loginSyncPending: false, proxyFallbackBrowser: undefined, proxyRegistrationState: undefined, ...((serverChanged || charChanged) ? { lastAuthSyncPushAt: Date.now() } : {}) }
             : (hasExplicitManualCreds || accountChanged || passwordChanged
                 ? { generatedAccount: false, registerError: "", loginSyncPending: true, lastAuthSyncPushAt: Date.now() }
-                : (serverChanged ? { lastAuthSyncPushAt: Date.now() } : {}))),
+                : ((serverChanged || charChanged) ? { lastAuthSyncPushAt: Date.now() } : {}))),
           charClass: data.charClass || profiles[idx].charClass,
           targetMap: data.targetMap !== undefined ? data.targetMap : profiles[idx].targetMap,
           debugPort: data.debugPort || profiles[idx].debugPort,
@@ -11847,7 +11851,7 @@ const server = http.createServer(async (req, res) => {
           notes: data.notes !== undefined ? data.notes : profiles[idx].notes,
           whitelist: data.whitelist !== undefined ? data.whitelist : profiles[idx].whitelist
         };
-        if (!wantsNewAutoRegister && (hasExplicitManualCreds || accountChanged || passwordChanged || serverChanged)) {
+        if (!wantsNewAutoRegister && (hasExplicitManualCreds || accountChanged || passwordChanged || serverChanged || charChanged)) {
           if (typeof authSync?.resetProfileRegistration === "function") {
             authSync.resetProfileRegistration(id);
           }
@@ -11855,17 +11859,30 @@ const server = http.createServer(async (req, res) => {
             clearSession: Boolean(accountChanged || passwordChanged)
           });
         }
-        if (serverChanged && profiles[idx].debugPort) {
+        if ((serverChanged || charChanged) && profiles[idx].debugPort) {
           const nextSrvStr = String(profiles[idx].serverName || "").trim();
+          const nextCharStr = String(profiles[idx].charName || "").trim();
           evalProfilePort(profiles[idx].debugPort, `(() => {
             try {
               const cfg = window.__authConfig || JSON.parse(localStorage.getItem('pelican_auth_cfg') || '{}') || {};
-              cfg.serverName = ${JSON.stringify(nextSrvStr)};
-              cfg.serverEditedAt = 0;
+              if (${Boolean(serverChanged)}) {
+                cfg.serverName = ${JSON.stringify(nextSrvStr)};
+                cfg.serverEditedAt = 0;
+              }
+              if (${Boolean(charChanged)}) {
+                cfg.charName = ${JSON.stringify(nextCharStr)};
+                cfg.charEditedAt = 0;
+              }
               window.__authConfig = cfg;
               localStorage.setItem('pelican_auth_cfg', JSON.stringify(cfg));
-              const sel = document.getElementById('p-auth-server');
-              if (sel) sel.value = ${JSON.stringify(nextSrvStr)};
+              if (${Boolean(serverChanged)}) {
+                const sel = document.getElementById('p-auth-server');
+                if (sel) sel.value = ${JSON.stringify(nextSrvStr)};
+              }
+              if (${Boolean(charChanged)}) {
+                const chEl = document.getElementById('p-auth-char');
+                if (chEl) chEl.value = ${JSON.stringify(nextCharStr)};
+              }
               if (typeof window.syncAllHudInputsFromConfig === 'function') window.syncAllHudInputsFromConfig();
             } catch (_) {}
             return true;
@@ -13190,12 +13207,12 @@ public class PmFocus {
                 target.registerError = '';
                 target.loginSyncPending = false;
                 target.lastAuthSyncPushAt = Date.now();
-              } else if (nextServer !== undefined) {
+              } else if (nextServer !== undefined || nextChar !== undefined) {
                 target.lastAuthSyncPushAt = Date.now();
               }
               if (nextChar && !target.lastCharName) target.lastCharName = nextChar;
               saveProfiles(fresh);
-              if (nextServer !== undefined) {
+              if (nextServer !== undefined || nextChar !== undefined) {
                 syncProfileAuthToBrowserStorage(profile.id, target, credentials.getPassword(profile.id) || "", { clearSession: false });
               }
             }

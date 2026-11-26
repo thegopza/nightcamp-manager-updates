@@ -256,12 +256,9 @@ const READ_JS = `(() => {
     try { localStorage.setItem('pelican_auth_cfg', JSON.stringify(c)); } catch (_) {}
   }
   const isSignedInEmail = Boolean(window.NC?.Online?.account?.kind && window.NC.Online.account.kind !== 'device');
-  const inGame = Boolean(
-    isSignedInEmail && (
-      window.NC?.OnlineLobby?.entered === true ||
-      (Array.isArray(window.NC?.OnlineLobby?.slots?.slots) && window.NC.OnlineLobby.slots.slots.some(s => s && !s.empty))
-    )
-  );
+  const inWorld = Boolean(isSignedInEmail && window.NC?.OnlineLobby?.entered === true);
+  const hasFilledSlot = Boolean(isSignedInEmail && Array.isArray(window.NC?.OnlineLobby?.slots?.slots) && window.NC.OnlineLobby.slots.slots.some(s => s && !s.empty));
+  const inGame = Boolean(inWorld || hasFilledSlot);
   const isPlaceholderChar = v => {
     const s = String(v || '').trim();
     if (!s) return true;
@@ -271,13 +268,18 @@ const READ_JS = `(() => {
   };
   let charName = '';
   try {
-    if (isSignedInEmail && window.NC?.OnlineLobby?.entered === true) {
+    if (inWorld) {
       const pName = String(window.NC?.game?.player?.name || '').trim();
       const ncName = (document.querySelector('#sq .hud [data-f="name"], #cname')?.textContent || '').trim();
       const rawName = !isPlaceholderChar(pName) ? pName : (!isPlaceholderChar(ncName) ? ncName : '');
       charName = rawName;
-    } else if (isSignedInEmail && Array.isArray(window.NC?.OnlineLobby?.slots?.slots)) {
-      const firstFilled = window.NC.OnlineLobby.slots.slots.find(s => s && !s.empty && !isPlaceholderChar(s.name));
+    } else if (hasFilledSlot) {
+      const slotsArr = window.NC.OnlineLobby.slots.slots;
+      const activeIdx = Number(window.NC?.OnlineLobby?.slots?.active);
+      const activeSlot = (Number.isInteger(activeIdx) && slotsArr[activeIdx] && !slotsArr[activeIdx].empty && !isPlaceholderChar(slotsArr[activeIdx].name))
+        ? slotsArr[activeIdx]
+        : null;
+      const firstFilled = activeSlot || slotsArr.find(s => s && !s.empty && !isPlaceholderChar(s.name));
       if (firstFilled) charName = String(firstFilled.name).trim();
     }
   } catch (_) {}
@@ -303,9 +305,11 @@ const READ_JS = `(() => {
     generatedUser: !!c.generatedUser,
     userEditedAt: Number(c.userEditedAt) || 0,
     serverEditedAt: Number(c.serverEditedAt) || 0,
+    charEditedAt: Number(c.charEditedAt) || 0,
     verifiedLoginAt: Number(c.verifiedLoginAt) || 0,
     userToggledAt: Number(c.userToggledAt) || 0,
     inGame,
+    inWorld,
     charName,
     isEditingAuth,
     registerQueueWaiting: Boolean(window.__pmRegisterQueueState && window.__pmRegisterQueueState.waiting),
@@ -455,7 +459,8 @@ const pushJs = cfg => `(() => {
   const isEditingAuth = Boolean(
     activeEl && (
       activeEl.id === 'p-auth-user' ||
-      activeEl.id === 'p-auth-pass'
+      activeEl.id === 'p-auth-pass' ||
+      activeEl.id === 'p-auth-char'
     )
   );
   const normBase = u => String(u || '').trim().toLowerCase().replace(/@(gmail\\.com|users\\.nightcamp\\.invalid)$/, '');
@@ -964,18 +969,24 @@ function createAuthSync({
         cur.serverName &&
         (!profile.serverName || (Number(cur.serverEditedAt) > lastManagerPushAt))
       );
-      if (!isSameAccountId(cur.username, profile.account) || cur.username !== profile.account || cur.password !== pw(profile) || (shouldAdoptServer && cur.serverName !== (profile.serverName || '')) || (cur.charNameCfg && cur.charNameCfg !== (profile.charName || '')) || profile.autoRegister || (profile.generatedAccount && !cur.generatedUser)) {
+      const userEditedCharNewer = Boolean(Number(cur.charEditedAt) > lastManagerPushAt);
+      const shouldAdoptChar = Boolean(
+        (userEditedCharNewer && cur.charNameCfg !== (profile.charName || '')) ||
+        (!profile.charName && cur.charNameCfg && !isPlaceholderCharName(cur.charNameCfg))
+      );
+      if (!isSameAccountId(cur.username, profile.account) || cur.username !== profile.account || cur.password !== pw(profile) || (shouldAdoptServer && cur.serverName !== (profile.serverName || '')) || shouldAdoptChar || profile.autoRegister || (profile.generatedAccount && !cur.generatedUser)) {
         credentials.setPassword(profile.id, cur.password);
+        const nextCharVal = (!cur.charNameCfg || !isPlaceholderCharName(cur.charNameCfg)) ? cur.charNameCfg : '';
         updateProfile(profile.id, {
           account: cur.username,
           ...(shouldAdoptServer ? { serverName: cur.serverName } : {}),
-          ...(cur.charNameCfg && !isPlaceholderCharName(cur.charNameCfg) ? { charName: cur.charNameCfg } : {}),
+          ...(shouldAdoptChar ? { charName: nextCharVal } : {}),
           autoRegister: false,
           generatedAccount: !!cur.generatedUser,
           registerError: '',
           loginSyncPending: false,
           lastAuthSyncPushAt: Date.now(),
-          ...(cur.charName && !isPlaceholderCharName(cur.charName) && (!profile.lastCharName || isPlaceholderCharName(profile.lastCharName)) ? { lastCharName: cur.charName } : {})
+          ...(cur.inWorld && cur.charName && !isPlaceholderCharName(cur.charName) && (!profile.lastCharName || isPlaceholderCharName(profile.lastCharName)) ? { lastCharName: cur.charName } : {})
         });
         pendingCreds.delete(profile.id);
         console.log(`[AuthSync] 🔄 ${profile.name}: ซิงค์ไอดี/รหัสจากเมนูบอทในเกม ("${cur.username}") เข้าโปรไฟล์ Manager อัตโนมัติ`);
@@ -1165,18 +1176,19 @@ function createAuthSync({
       return;
     }
 
-    // If Manager charName was left blank (or differs while already in-game on this account) and the client adopted a character name on this account, save lastCharName / charName
-    if (profile.account && isSameAccountId(cur.username, profile.account) && (cur.charName || cur.charNameCfg)) {
-      const detectedChar = (!isPlaceholderCharName(cur.charName) ? cur.charName : '') || (!isPlaceholderCharName(cur.charNameCfg) ? cur.charNameCfg : '');
-      if (detectedChar) {
-        if (!profile.charName && profile.lastCharName !== detectedChar) {
-          updateProfile(profile.id, { lastCharName: detectedChar });
-          profile.lastCharName = detectedChar;
-        } else if (cur.inGame && profile.charName && cur.charName && !isPlaceholderCharName(cur.charName) && cur.charName !== profile.charName) {
-          updateProfile(profile.id, { charName: cur.charName, lastCharName: cur.charName });
-          profile.charName = cur.charName;
-          profile.lastCharName = cur.charName;
-        }
+    // If the user explicitly edited the target character name inside the in-game Bot HUD, adopt it into profile.charName!
+    // NEVER overwrite profile.charName with the currently logged-in character or Slot #1 (multi-char accounts must keep user's chosen charName!).
+    const clientCharEditedNewer = Number(cur.charEditedAt) > (Number(profile.lastAuthSyncPushAt) || 0);
+    if (profile.account && isSameAccountId(cur.username, profile.account)) {
+      if (clientCharEditedNewer && cur.charNameCfg !== (profile.charName || '')) {
+        const cleanCfgChar = (!cur.charNameCfg || !isPlaceholderCharName(cur.charNameCfg)) ? cur.charNameCfg : '';
+        updateProfile(profile.id, { charName: cleanCfgChar, lastAuthSyncPushAt: Date.now() });
+        profile.charName = cleanCfgChar;
+        profile.lastAuthSyncPushAt = Date.now();
+      }
+      if (cur.inWorld && cur.charName && !isPlaceholderCharName(cur.charName) && profile.lastCharName !== cur.charName) {
+        updateProfile(profile.id, { lastCharName: cur.charName });
+        profile.lastCharName = cur.charName;
       }
     }
 
@@ -1186,9 +1198,11 @@ function createAuthSync({
       profile.autoLoginEnabled = Boolean(cur.enabled);
     }
 
-    // CRITICAL: If the client is already actively in-game (`cur.inGame === true`) and Manager does NOT have an explicit user-triggered `loginSyncPending`,
+    // CRITICAL: If the client is already actively inside the game world (`cur.inWorld === true`) and Manager does NOT have an explicit user-triggered `loginSyncPending`,
     // NEVER push credential overwrites that could disrupt or log out an active in-game session!
-    if (cur.inGame && !profile.loginSyncPending && isSameAccountId(cur.username, profile.account)) {
+    // (When on the Character Select screen, `!cur.inWorld` lets Manager push a newly chosen target `charName` without logging out.)
+    const isActuallyInWorld = cur.inWorld !== undefined ? Boolean(cur.inWorld) : Boolean(cur.inGame);
+    if (isActuallyInWorld && !profile.loginSyncPending && isSameAccountId(cur.username, profile.account)) {
       return;
     }
 
@@ -1198,7 +1212,7 @@ function createAuthSync({
       !isSameAccountId(cur.username, profile.account) ||
       cur.password !== pw(profile) ||
       (profile.serverName !== undefined && cur.serverName !== (profile.serverName || '')) ||
-      (Boolean(profile.charName) && cur.charNameCfg !== profile.charName) ||
+      (!clientCharEditedNewer && profile.charName !== undefined && Boolean(profile.charName) && cur.charNameCfg !== profile.charName) ||
       (!cur.userToggledAt && profile.autoLoginEnabled !== undefined && cur.enabled !== (profile.autoLoginEnabled !== false)) ||
       (profile.autoResumeBot !== undefined && cur.autoResumeBot !== Boolean(profile.autoResumeBot))
     )) {
@@ -1216,7 +1230,7 @@ function createAuthSync({
         username: profile.account,
         password: pw(profile),
         serverName: profile.serverName || '',
-        ...(profile.charName ? { charName: profile.charName } : {}),
+        ...(!clientCharEditedNewer && profile.charName ? { charName: profile.charName, charEditedAt: 0 } : {}),
         autoResumeBot: profile.autoResumeBot !== false,
         register: false,
         generatedUser: !!profile.generatedAccount,
