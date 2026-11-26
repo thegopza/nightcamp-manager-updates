@@ -10039,11 +10039,26 @@ async function openWebBotHUD(profileId) {
   const openPlanBtn = hudEl.querySelector('#p-btn-nc-open-plan');
   if (openPlanBtn) openPlanBtn.onclick = () => openScriptPlanModal(isCentral ? (currentProfiles.find(p => p.isRunning)?.id || null) : profileId);
 
+  const markCentralControlEdited = (el) => {
+    if (!isCentral || !el) return;
+    try {
+      el.dataset.ncCentralDirtyUntil = String(Date.now() + 2600);
+      if (el.tagName === 'SELECT') {
+        const mixOpt = el.querySelector('option[value="__MIXED__"]');
+        if (mixOpt && el.value !== '__MIXED__') mixOpt.remove();
+        el.style.boxShadow = '';
+      } else if (el.type === 'checkbox') {
+        el.indeterminate = false;
+      }
+    } catch (_) {}
+  };
+
   // Tab 1: 🚀 บอท & เควส controls (works for both single window and เมนูส่วนกลาง __central__)
   const aqEnableCb = hudEl.querySelector('#p-nc-smart-autoquest-enabled');
   const mapHintEl = hudEl.querySelector('#p-nc-target-map-hint');
   if (aqEnableCb) {
     aqEnableCb.onchange = async () => {
+      markCentralControlEdited(aqEnableCb);
       const on = Boolean(aqEnableCb.checked);
       if (mapHintEl) {
         mapHintEl.textContent = on
@@ -10063,6 +10078,7 @@ async function openWebBotHUD(profileId) {
   const aiEnableCb = hudEl.querySelector('#p-nc-upgrade-ai-enabled');
   if (aiEnableCb) {
     aiEnableCb.onchange = async () => {
+      markCentralControlEdited(aiEnableCb);
       try {
         await sendWebHudAction(profileId, {
           type: 'eval',
@@ -10075,6 +10091,7 @@ async function openWebBotHUD(profileId) {
   const premItemsEnableCb = hudEl.querySelector('#p-nc-auto-use-premium-items');
   if (premItemsEnableCb) {
     premItemsEnableCb.onchange = async () => {
+      markCentralControlEdited(premItemsEnableCb);
       try {
         await sendWebHudAction(profileId, {
           type: 'eval',
@@ -10087,6 +10104,7 @@ async function openWebBotHUD(profileId) {
   const claimEvEnableCb = hudEl.querySelector('#p-nc-auto-claim-events');
   if (claimEvEnableCb) {
     claimEvEnableCb.onchange = async () => {
+      markCentralControlEdited(claimEvEnableCb);
       try {
         await sendWebHudAction(profileId, {
           type: 'eval',
@@ -10099,6 +10117,7 @@ async function openWebBotHUD(profileId) {
   const respEnableCb = hudEl.querySelector('#p-nc-autorespawn-enabled');
   if (respEnableCb) {
     respEnableCb.onchange = async () => {
+      markCentralControlEdited(respEnableCb);
       try {
         await sendWebHudAction(profileId, {
           type: 'eval',
@@ -10111,6 +10130,7 @@ async function openWebBotHUD(profileId) {
   const sgEnableCb = hudEl.querySelector('#p-nc-smartgear-enabled');
   if (sgEnableCb) {
     sgEnableCb.onchange = async () => {
+      markCentralControlEdited(sgEnableCb);
       try {
         await sendWebHudAction(profileId, {
           type: 'eval',
@@ -10122,6 +10142,8 @@ async function openWebBotHUD(profileId) {
   const sgWtypeSel = hudEl.querySelector('#p-nc-smartgear-wtype');
   if (sgWtypeSel) {
     sgWtypeSel.onchange = async () => {
+      if (sgWtypeSel.value === '__MIXED__') return;
+      markCentralControlEdited(sgWtypeSel);
       try {
         const wv = JSON.stringify(sgWtypeSel.value || 'auto');
         await sendWebHudAction(profileId, {
@@ -10135,23 +10157,39 @@ async function openWebBotHUD(profileId) {
   const autoRepairCb = hudEl.querySelector('#p-nc-auto-repair');
   const repairPctSel = hudEl.querySelector('#p-nc-repair-pct');
   const sellAutoRepairCb = hudEl.querySelector('#p-nc-sell-auto-repair');
-  const pushRepairCfg = async () => {
-    const en = Boolean(autoRepairCb ? autoRepairCb.checked : true);
-    const pct = Number(repairPctSel ? repairPctSel.value : 25);
-    if (sellAutoRepairCb) sellAutoRepairCb.checked = en;
-    try {
-      await sendWebHudAction(profileId, {
-        type: 'eval',
-        code: `(typeof window.__setAutoRepairConfig === 'function' ? window.__setAutoRepairConfig(${en}, ${pct}) : (typeof window.__setSellConfig === 'function' ? window.__setSellConfig({ autoRepair: ${en}, repairThresholdPct: ${pct} }) : null))`
-      });
-    } catch (_) {}
-  };
-  if (autoRepairCb) autoRepairCb.onchange = pushRepairCfg;
-  if (repairPctSel) repairPctSel.onchange = pushRepairCfg;
+  if (autoRepairCb) {
+    autoRepairCb.onchange = async () => {
+      markCentralControlEdited(autoRepairCb);
+      const en = Boolean(autoRepairCb.checked);
+      if (sellAutoRepairCb) {
+        sellAutoRepairCb.indeterminate = false;
+        sellAutoRepairCb.checked = en;
+        markCentralControlEdited(sellAutoRepairCb);
+      }
+      try {
+        await sendWebHudAction(profileId, {
+          type: 'eval',
+          code: `(typeof window.__setSellConfig === 'function' ? window.__setSellConfig({ autoRepair: ${en} }) : null)`
+        });
+      } catch (_) {}
+    };
+  }
+  if (repairPctSel) {
+    repairPctSel.onchange = async () => {
+      if (repairPctSel.value === '__MIXED__') return;
+      markCentralControlEdited(repairPctSel);
+      const pct = Number(repairPctSel.value) || 25;
+      try {
+        await sendWebHudAction(profileId, {
+          type: 'eval',
+          code: `(typeof window.__setSellConfig === 'function' ? window.__setSellConfig({ repairThresholdPct: ${pct} }) : null)`
+        });
+      } catch (_) {}
+    };
+  }
   const repairNowBtn = hudEl.querySelector('#p-btn-nc-repair-now');
   if (repairNowBtn) {
     repairNowBtn.onclick = async () => {
-      await pushRepairCfg();
       try {
         await sendWebHudAction(profileId, {
           type: 'eval',
@@ -10218,6 +10256,8 @@ async function openWebBotHUD(profileId) {
   }
   if (targetMapSel) {
     targetMapSel.onchange = async () => {
+      if (targetMapSel.value === '__MIXED__') return;
+      markCentralControlEdited(targetMapSel);
       try {
         if (targetMapSearch && targetMapSearch.value) {
           targetMapSearch.value = '';
@@ -10235,6 +10275,7 @@ async function openWebBotHUD(profileId) {
   const planEnableCb = hudEl.querySelector('#p-nc-plan-enabled');
   if (planEnableCb) {
     planEnableCb.onchange = async () => {
+      markCentralControlEdited(planEnableCb);
       const on = Boolean(planEnableCb.checked);
       try {
         if (isCentral) {
@@ -10288,9 +10329,16 @@ async function openWebBotHUD(profileId) {
     const el = hudEl.querySelector(sel);
     if (!el) return;
     el.onchange = () => {
+      if (el.tagName === 'SELECT' && el.value === '__MIXED__') return;
+      markCentralControlEdited(el);
       const val = kind === 'bool' ? Boolean(el.checked) : (kind === 'num' ? Math.max(0, Number(el.value) || 0) : String(el.value || ''));
       sendPotionPatch({ [key]: val });
     };
+    if (el.tagName === 'INPUT' && (el.type === 'number' || el.type === 'text')) {
+      el.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter') { ev.preventDefault(); el.blur(); }
+      });
+    }
   });
 
   const potRestockNowBtn = hudEl.querySelector('#p-btn-nc-pot-restock-now');
@@ -10338,9 +10386,21 @@ async function openWebBotHUD(profileId) {
     const el = hudEl.querySelector(sel);
     if (!el) return;
     el.onchange = () => {
+      if (el.tagName === 'SELECT' && el.value === '__MIXED__') return;
+      markCentralControlEdited(el);
       const val = kind === 'bool' ? Boolean(el.checked) : (kind === 'num' ? Math.max(0, Number(el.value) || 0) : String(el.value || ''));
+      if (key === 'autoRepair' && autoRepairCb) {
+        autoRepairCb.indeterminate = false;
+        autoRepairCb.checked = Boolean(val);
+        markCentralControlEdited(autoRepairCb);
+      }
       sendSellPatch({ [key]: val });
     };
+    if (el.tagName === 'INPUT' && (el.type === 'number' || el.type === 'text')) {
+      el.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter') { ev.preventDefault(); el.blur(); }
+      });
+    }
   });
 
   const sellTripNowBtn = hudEl.querySelector('#p-btn-nc-sell-trip-now');
@@ -10359,6 +10419,7 @@ async function openWebBotHUD(profileId) {
   const cmAutoCb = hudEl.querySelector('#p-nc-cm-autosell-enabled');
   if (cmAutoCb) {
     cmAutoCb.onchange = async () => {
+      markCentralControlEdited(cmAutoCb);
       try {
         await sendWebHudAction(profileId, {
           type: 'eval',
@@ -10371,6 +10432,8 @@ async function openWebBotHUD(profileId) {
   const cmStratSel = hudEl.querySelector('#p-nc-cm-price-strategy');
   if (cmStratSel) {
     cmStratSel.onchange = async () => {
+      if (cmStratSel.value === '__MIXED__') return;
+      markCentralControlEdited(cmStratSel);
       try {
         const strat = JSON.stringify(cmStratSel.value || 'undercut_1');
         await sendWebHudAction(profileId, {
@@ -10384,6 +10447,7 @@ async function openWebBotHUD(profileId) {
   const cmSmartQCb = hudEl.querySelector('#p-nc-cm-smart-quality');
   if (cmSmartQCb) {
     cmSmartQCb.onchange = async () => {
+      markCentralControlEdited(cmSmartQCb);
       try {
         await sendWebHudAction(profileId, {
           type: 'eval',
@@ -10396,6 +10460,8 @@ async function openWebBotHUD(profileId) {
   const cmKeepTopSel = hudEl.querySelector('#p-nc-cm-keep-top-rune');
   if (cmKeepTopSel) {
     cmKeepTopSel.onchange = async () => {
+      if (cmKeepTopSel.value === '__MIXED__') return;
+      markCentralControlEdited(cmKeepTopSel);
       try {
         const kv = Number(cmKeepTopSel.value) || 0;
         await sendWebHudAction(profileId, {
@@ -10409,6 +10475,7 @@ async function openWebBotHUD(profileId) {
   const cmClaimCb = hudEl.querySelector('#p-nc-cm-auto-claim');
   if (cmClaimCb) {
     cmClaimCb.onchange = async () => {
+      markCentralControlEdited(cmClaimCb);
       try {
         await sendWebHudAction(profileId, {
           type: 'eval',
@@ -10421,6 +10488,7 @@ async function openWebBotHUD(profileId) {
   const cmUnlistCb = hudEl.querySelector('#p-nc-cm-auto-unlist');
   if (cmUnlistCb) {
     cmUnlistCb.onchange = async () => {
+      markCentralControlEdited(cmUnlistCb);
       try {
         await sendWebHudAction(profileId, {
           type: 'eval',
@@ -10631,6 +10699,8 @@ async function openWebBotHUD(profileId) {
     const el = hudEl.querySelector(sel);
     if (!el) return;
     el.onchange = () => {
+      if (el.tagName === 'SELECT' && el.value === '__MIXED__') return;
+      markCentralControlEdited(el);
       const val = kind === 'bool' ? Boolean(el.checked) : Math.max(10, Number(el.value) || 30);
       sendPerfPatch({ [key]: val });
     };
@@ -10655,6 +10725,8 @@ async function openWebBotHUD(profileId) {
     const el = hudEl.querySelector(sel);
     if (!el) return;
     el.onchange = () => {
+      if (el.tagName === 'SELECT' && el.value === '__MIXED__') return;
+      markCentralControlEdited(el);
       const val = kind === 'bool' ? Boolean(el.checked) : Math.max(300, Number(el.value) || 1800);
       sendTrainerPatch({ [key]: val });
     };
@@ -10784,6 +10856,132 @@ function toggleWebHudCollapse(profileId) {
   }
 }
 
+const CENTRAL_HUD_FIELD_SPECS = [
+  ['#p-nc-smart-autoquest-enabled', 'bool', st => st.smartAutoQuestEnabled !== false],
+  ['#p-nc-upgrade-ai-enabled', 'bool', st => Boolean(st.upgradeBotAiEnabled)],
+  ['#p-nc-auto-use-premium-items', 'bool', st => st.autoUsePremiumItemsEnabled !== false],
+  ['#p-nc-auto-claim-events', 'bool', st => st.autoClaimEventsEnabled !== false],
+  ['#p-nc-autorespawn-enabled', 'bool', st => Boolean(st.autoRespawnEnabled)],
+  ['#p-nc-smartgear-enabled', 'bool', st => Boolean(st.smartGearEnabled)],
+  ['#p-nc-smartgear-wtype', 'select', st => String(st.smartGearWeaponType || 'auto')],
+  ['#p-nc-auto-repair', 'bool', st => st.sellConfig?.autoRepair !== false && st.autoRepairEnabled !== false],
+  ['#p-nc-repair-pct', 'select', st => String(st.sellConfig?.repairThresholdPct ?? st.repairThresholdPct ?? 25)],
+  ['#p-nc-target-farm-map', 'select', st => String(st.targetFarmMap || 'auto')],
+  ['#p-nc-plan-enabled', 'bool', st => Boolean(st.planScriptEnabled)],
+  ['#p-nc-pot-hp-en', 'bool', st => st.potionConfig?.hpEnabled !== false],
+  ['#p-nc-pot-hp-size', 'select', st => String(st.potionConfig?.hpSize || 'red')],
+  ['#p-nc-pot-hp-drink-pct', 'select', st => String(st.potionConfig?.hpDrinkPct ?? 60)],
+  ['#p-nc-pot-hp-min', 'text', st => String(st.potionConfig?.hpMin ?? 15)],
+  ['#p-nc-pot-hp-target', 'text', st => String(st.potionConfig?.hpTarget ?? 100)],
+  ['#p-nc-pot-sp-en', 'bool', st => st.potionConfig?.spEnabled !== false],
+  ['#p-nc-pot-sp-size', 'select', st => String(st.potionConfig?.spSize || 'blue')],
+  ['#p-nc-pot-sp-drink-pct', 'select', st => String(st.potionConfig?.spDrinkPct ?? 40)],
+  ['#p-nc-pot-sp-min', 'text', st => String(st.potionConfig?.spMin ?? 10)],
+  ['#p-nc-pot-sp-target', 'text', st => String(st.potionConfig?.spTarget ?? 60)],
+  ['#p-nc-pot-prefer-craft', 'bool', st => st.potionConfig?.preferCraft !== false],
+  ['#p-nc-autosell-enabled', 'bool', st => st.sellConfig?.enabled !== false && st.autoSellEnabled !== false],
+  ['#p-nc-autosell-pct', 'select', st => String(st.sellConfig?.weightThreshold || st.autoSellWeightPct || 65)],
+  ['#p-nc-sell-weapon-grade', 'select', st => String(st.sellConfig?.weaponMaxGrade ?? 1)],
+  ['#p-nc-sell-armor-grade', 'select', st => String(st.sellConfig?.armorMaxGrade ?? 1)],
+  ['#p-nc-sell-acc-grade', 'select', st => String(st.sellConfig?.accMaxGrade ?? 0)],
+  ['#p-nc-sell-mat-mode', 'select', st => String(st.sellConfig?.materialMode || 'common')],
+  ['#p-nc-sell-keep-best', 'bool', st => st.sellConfig?.keepBestCopy !== false],
+  ['#p-nc-sell-keep-refined', 'bool', st => st.sellConfig?.keepRefined !== false],
+  ['#p-nc-sell-keep-special', 'bool', st => st.sellConfig?.keepSpecial !== false],
+  ['#p-nc-sell-keep-polish', 'select', st => String(st.sellConfig?.keepPolishMinGrade ?? 3)],
+  ['#p-nc-sell-keep-boss', 'bool', st => st.sellConfig?.keepBossGear !== false],
+  ['#p-nc-sell-auto-repair', 'bool', st => st.sellConfig?.autoRepair !== false],
+  ['#p-nc-sell-store-mats', 'bool', st => st.sellConfig?.storeMats !== false],
+  ['#p-nc-sell-store-gear', 'bool', st => Boolean(st.sellConfig?.storeGear)],
+  ['#p-nc-sell-store-coins', 'bool', st => Boolean(st.sellConfig?.storeCoinsEnabled)],
+  ['#p-nc-sell-keep-coins', 'text', st => String(st.sellConfig?.keepCoinsOnHand ?? 1000)],
+  ['#p-nc-sell-whitelist', 'text', st => String(st.sellConfig?.whitelist || '')],
+  ['#p-nc-sell-forcesell', 'text', st => String(st.sellConfig?.forceSellList || '')],
+  ['#p-nc-cm-autosell-enabled', 'bool', st => Boolean(st.cmarketAutoSellConfig?.enabled)],
+  ['#p-nc-cm-price-strategy', 'select', st => String(st.cmarketAutoSellConfig?.priceStrategy || 'undercut_1')],
+  ['#p-nc-cm-smart-quality', 'bool', st => st.cmarketAutoSellConfig?.smartQualityPricing !== false],
+  ['#p-nc-cm-keep-top-rune', 'select', st => String(Number(st.cmarketAutoSellConfig?.keepTopRuneQualityPct ?? 90))],
+  ['#p-nc-cm-auto-claim', 'bool', st => st.cmarketAutoSellConfig?.autoClaimMail !== false],
+  ['#p-nc-cm-auto-unlist', 'bool', st => st.cmarketAutoSellConfig?.autoUnlistExpired !== false],
+  ['#p-nc-perf-dot-monsters', 'bool', st => st.perfConfig?.dotMonsters !== false],
+  ['#p-nc-perf-dot-npcs', 'bool', st => st.perfConfig?.dotNpcs !== false],
+  ['#p-nc-perf-dot-player', 'bool', st => Boolean(st.perfConfig?.dotPlayer)],
+  ['#p-nc-perf-hide-map', 'bool', st => st.perfConfig?.hideMapBg !== false],
+  ['#p-nc-perf-hide-fx', 'bool', st => st.perfConfig?.hideEffects !== false],
+  ['#p-nc-perf-hide-players', 'bool', st => st.perfConfig?.hideOtherPlayers !== false],
+  ['#p-nc-perf-mute-audio', 'bool', st => st.perfConfig?.muteAudio !== false],
+  ['#p-nc-perf-trim-vram', 'bool', st => st.perfConfig?.trimVram !== false],
+  ['#p-nc-perf-fps-cap', 'select', st => String(st.perfConfig?.fpsCap ?? 30)],
+  ['#p-nc-trainer-pull-mob', 'bool', st => Boolean(st.trainerConfig?.pullMobEnabled)],
+  ['#p-nc-trainer-pull-mob-radius', 'select', st => String(st.trainerConfig?.pullMobRadius || 1800)],
+  ['#p-nc-trainer-pull-mob-aggro', 'bool', st => st.trainerConfig?.pullMobAggro !== false],
+  ['#p-nc-trainer-pull-item', 'bool', st => Boolean(st.trainerConfig?.pullItemEnabled)],
+  ['#p-nc-trainer-pull-item-rush', 'bool', st => st.trainerConfig?.pullItemRush !== false]
+];
+
+function syncCentralHudMixedStates(hud) {
+  if (!hud) return;
+  const onlineStates = currentProfiles
+    .filter(p => p && p.isRunning && p.liveState && typeof p.liveState === 'object')
+    .map(p => p.liveState);
+  if (onlineStates.length === 0) return;
+
+  const nowMs = Date.now();
+  for (const [sel, kind, getter] of CENTRAL_HUD_FIELD_SPECS) {
+    const el = hud.querySelector(sel);
+    if (!el || document.activeElement === el) continue;
+    const dirtyUntil = Number(el.dataset.ncCentralDirtyUntil || 0);
+    if (dirtyUntil > nowMs) continue;
+
+    const vals = [];
+    for (const st of onlineStates) {
+      try { vals.push(getter(st)); } catch (_) {}
+    }
+    if (vals.length === 0) continue;
+
+    if (kind === 'bool') {
+      const first = Boolean(vals[0]);
+      const allSame = vals.every(v => Boolean(v) === first);
+      el.indeterminate = !allSame;
+      if (allSame) el.checked = first;
+    } else if (kind === 'select') {
+      const first = String(vals[0]);
+      const distinct = new Set(vals.map(v => String(v)));
+      let mixOpt = el.querySelector('option[value="__MIXED__"]');
+      if (distinct.size > 1) {
+        if (!mixOpt) {
+          mixOpt = document.createElement('option');
+          mixOpt.value = '__MIXED__';
+          mixOpt.disabled = true;
+          el.insertBefore(mixOpt, el.firstChild);
+        }
+        mixOpt.textContent = `⚡ หลายค่าต่างกัน (${distinct.size} แบบ · เลือกเพื่อตั้งทุกจอ)`;
+        el.value = '__MIXED__';
+        el.style.boxShadow = '0 0 0 1px rgba(251, 191, 36, 0.72)';
+      } else {
+        if (mixOpt) mixOpt.remove();
+        if (Array.from(el.options).some(o => o.value === first)) {
+          el.value = first;
+        }
+        el.style.boxShadow = '';
+      }
+    } else if (kind === 'text') {
+      const first = String(vals[0]);
+      const allSame = vals.every(v => String(v) === first);
+      if (!el.dataset.ncOrigPlaceholder) {
+        el.dataset.ncOrigPlaceholder = el.placeholder || '';
+      }
+      if (allSame) {
+        el.value = first;
+        el.placeholder = el.dataset.ncOrigPlaceholder;
+      } else {
+        el.value = '';
+        el.placeholder = '⚡ หลายค่าต่างกัน (พิมพ์แล้ว Enter ตั้งทุกจอ)';
+      }
+    }
+  }
+}
+
 function populateWebHudData(profileId, data) {
   if (!data) return;
   const hudObj = activeWebHuds[profileId];
@@ -10814,6 +11012,7 @@ function populateWebHudData(profileId, data) {
         sellLiveEl.innerHTML = `<div style="font-size:9px;color:#fde68a;margin-bottom:2px;">📌 ตัวอย่างจากจอ: ${escapeHTML(firstOnline.liveState.charName || firstOnline.name)}</div>` + firstOnline.liveState.sellLiveHtml;
       }
     }
+    syncCentralHudMixedStates(hud);
     return;
   }
 
@@ -11087,7 +11286,10 @@ async function sendWebHudAction(profileId, payload) {
         const okCount = j.updatedCount;
         const total = j.totalOnline || online.length;
         showToast(`🎛️ เมนูส่วนกลาง: อัปเดตไปยัง ${okCount}/${total} จอเรียบร้อย`, okCount > 0 ? 'success' : 'error');
-        setTimeout(() => { updateActiveWebHuds(); }, 250);
+        setTimeout(() => {
+          if (typeof fetchProfiles === 'function') fetchProfiles();
+          updateActiveWebHuds();
+        }, 300);
         return { success: okCount > 0, updatedCount: okCount, totalOnline: total };
       }
       return { success: false, error: j.error || 'สั่งงานไม่สำเร็จ' };
