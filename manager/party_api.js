@@ -184,9 +184,13 @@ const READ_JS = `(() => {
     busy,
     plan,
     partyKnown: !!g.party,
+    hasPmPartySync: Boolean(window.__pmPartySync || window.__ncPendingPartyLeader),
     follow: follow || null,
     party: party ? {
-      leader: party.leader, expMode: party.expMode, lootMode: party.lootMode, groupMode: party.groupMode || 'g',
+      leader: party.leader,
+      isLeader: typeof party.isLeader === 'boolean' ? party.isLeader : (party.leader === ((me && me.name) || (live && live.charName) || null)),
+      partyPid: party.partyPid || null,
+      expMode: party.expMode, lootMode: party.lootMode, groupMode: party.groupMode || 'g',
       lastInGameRuleChangeAt: Number(party.lastInGameRuleChangeAt) || 0,
       evenShareAllowed: party.evenShareAllowed !== false, levelRange: party.levelRange, maxMembers: party.maxMembers || 6,
       members: (party.members || []).map(m => ({ name: m.name, online: m.online !== false, classId: m.classId || null, mapId: m.mapId, mapName: m.mapName, channel: m.channel, level: m.level, buffs: Array.isArray(m.buffs) ? m.buffs.map(b => ({ skillId: b.skillId, endsAt: b.endsAt })) : undefined }))
@@ -526,11 +530,14 @@ function normalizeStates(states) {
   const byName = new Map();
   for (const s of states.values()) if (s && s.ok && s.name) byName.set(s.name, s);
   for (const s of states.values()) {
-    if (!s || !s.ok || !s.party || s.party.leader === s.name) continue;
+    if (!s || !s.ok || !s.party) continue;
+    const selfLeads = typeof s.party.isLeader === 'boolean' ? s.party.isLeader : (s.party.leader === s.name);
+    if (selfLeads) continue;
     const lead = byName.get(s.party.leader);
     if (!lead) continue; // leader not one of ours — can't verify
-    const leads = lead.party && lead.party.leader === lead.name;
-    if (!leads || !lead.party.members.some(m => m.name === s.name)) { s.party = null; s.partyStale = true; }
+    const leads = lead.party && (typeof lead.party.isLeader === 'boolean' ? lead.party.isLeader : (lead.party.leader === lead.name));
+    const samePid = Boolean(s.party.partyPid && lead.party && lead.party.partyPid && s.party.partyPid === lead.party.partyPid);
+    if (!leads || (!samePid && !lead.party.members.some(m => m.name === s.name))) { s.party = null; s.partyStale = true; }
   }
   return states;
 }
@@ -558,7 +565,12 @@ function createPartyService(opts) {
   let parties = [];
   try {
     const raw = JSON.parse(fs.readFileSync(dataFile, 'utf8'));
-    parties = (Array.isArray(raw) ? raw : raw.parties || []).map(sanitizeParty);
+    const loaded = (Array.isArray(raw) ? raw : raw.parties || []).map(sanitizeParty);
+    // Drop legacy auto-discovered `party_ig_*` records so manually formed in-game parties are never auto-invited/kicked!
+    parties = loaded.filter(p => !String(p.id || '').startsWith('party_ig_'));
+    if (parties.length !== loaded.length) {
+      setImmediate(() => { try { save(); } catch (_) {} });
+    }
   } catch (e) { parties = []; }
 
   const runtime = new Map();     // partyId -> { status, notes, lastTickAt, fallbackAt, ... }
@@ -655,6 +667,9 @@ function createPartyService(opts) {
     const inGameLeader = (S.party && Array.isArray(S.party.members) && S.party.members.length > 1 && S.party.leader)
       ? String(S.party.leader)
       : null;
+    const inGamePartyPid = (S.party && Array.isArray(S.party.members) && S.party.members.length > 1 && S.party.partyPid)
+      ? String(S.party.partyPid)
+      : null;
     const orderedIds = profiles ? [...profiles.keys()].map(String) : [];
     const idx = orderedIds.indexOf(String(profileId));
     return {
@@ -664,6 +679,7 @@ function createPartyService(opts) {
       serverKey,
       name: S.name,
       inGameLeader,
+      inGamePartyPid,
       mapId,
       mapName,
       cleanMapName,
@@ -808,6 +824,7 @@ function createPartyService(opts) {
       const occ = getSoloOccupiedInfo(otherId, profiles);
       if (!occ || (!occ.mapId && !occ.cleanMapName)) continue;
       if (myInfo && !sameServerKey(myInfo.serverKey, occ.serverKey)) continue;
+      if (myInfo && myInfo.inGamePartyPid && occ.inGamePartyPid && myInfo.inGamePartyPid === occ.inGamePartyPid) continue;
       if (myInfo && myInfo.inGameLeader && occ.inGameLeader && myInfo.inGameLeader === occ.inGameLeader) continue;
       const sameMapAsMe = mapsMatch(effMapId, effMapName, occ.mapId, occ.cleanMapName);
       for (const ch of occ.channels) {
@@ -890,11 +907,24 @@ function createPartyService(opts) {
 
     const taken = assignedIds(parties);
 
-    // 1. Reconcile existing Manager parties with in-game party members & rule changes
+    // 1. Reconcile ONLY explicit Manager-created parties with in-game rule changes & newly invited managed members.
+    //    NEVER silently auto-create `party_ig_*` Manager parties from manually formed in-game parties —
+    //    manual in-game parties are displayed read-only via `detectInGameManualParties()` without auto-inviting/kicking!
     for (const party of parties.slice()) {
+      if (String(party.id || '').startsWith('party_ig_')) {
+        parties = parties.filter(x => x !== party);
+        runtime.delete(party.id);
+        changed = true;
+        continue;
+      }
       const L = states.get(party.leaderId);
       const rt = prt(party.id);
-      if (L && L.ok && L.name && L.party && L.party.leader === L.name && Array.isArray(L.party.members)) {
+      const leaderLeadsInGame = Boolean(
+        L && L.ok && L.name && L.party &&
+        (typeof L.party.isLeader === 'boolean' ? L.party.isLeader : (L.party.leader === L.name)) &&
+        Array.isArray(L.party.members)
+      );
+      if (leaderLeadsInGame) {
         rt.everFormedInGame = true;
         // Adopt rule changes made in-game when newer than last manager change
         const igRuleAt = Number(L.party.lastInGameRuleChangeAt || 0);
@@ -926,61 +956,152 @@ function createPartyService(opts) {
           taken.add(mid);
           changed = true;
         }
-      } else if (
-        String(party.id || '').startsWith('party_ig_') &&
-        rt.everFormedInGame &&
-        L && L.ok && L.name &&
-        (!L.party || !Array.isArray(L.party.members) || L.party.members.length <= 1)
-      ) {
-        // Auto-discovered in-game party was disbanded inside the game
-        parties = parties.filter(x => x !== party);
-        runtime.delete(party.id);
-        changed = true;
       }
-    }
-
-    // 2. Auto-discover new parties created directly in-game (leader is an unassigned Manager profile with >= 2 members)
-    for (const [leaderId] of profiles) {
-      if (taken.has(leaderId)) continue;
-      if (now() - (recentlyDisbandedAt.get(leaderId) || 0) < 25000) continue;
-      const S = states.get(leaderId);
-      if (!S || !S.ok || !S.name || !S.party) continue;
-      if (S.party.leader !== S.name) continue;
-      if (!Array.isArray(S.party.members) || S.party.members.length < 2) continue;
-
-      const memberIds = [];
-      for (const gm of S.party.members) {
-        if (!gm || !gm.name || gm.name === S.name) continue;
-        const mid = nameToProfileId.get(String(gm.name).trim().toLowerCase());
-        if (mid && mid !== leaderId && !taken.has(mid) && !memberIds.includes(mid) && memberIds.length < MAX_MEMBERS - 1) {
-          memberIds.push(mid);
-        }
-      }
-
-      const newParty = sanitizeParty({
-        id: 'party_ig_' + leaderId + '_' + now().toString(36),
-        leaderId,
-        memberIds,
-        autoFill: false,
-        syncMap: false,
-        priestFlow: false,
-        expMode: S.party.expMode && EXP_MODES.includes(S.party.expMode) ? S.party.expMode : 'even-share',
-        lootMode: S.party.lootMode && LOOT_MODES.includes(S.party.lootMode) ? S.party.lootMode : 'personal',
-        groupMode: S.party.groupMode && GROUP_MODES.includes(S.party.groupMode) ? S.party.groupMode : 'g',
-        createdAt: now()
-      });
-      const rt = prt(newParty.id);
-      rt.everFormedInGame = true;
-      rt.lastAdoptedRuleAt = Number(S.party.lastInGameRuleChangeAt || now());
-      parties.push(newParty);
-      taken.add(leaderId);
-      for (const mid of memberIds) taken.add(mid);
-      changed = true;
-      log('auto-discovered in-game party led by', S.name, 'members:', memberIds.length);
     }
 
     if (changed) save();
     return changed;
+  }
+
+  // Detect live in-game parties formed manually by the player (NOT managed by Manager).
+  // Returned read-only in view() so the user sees them in Manager without the bot ever auto-inviting/kicking/splitting them.
+  function detectInGameManualParties(profiles) {
+    if (!profiles || !profiles.size) return [];
+    const taken = assignedIds(parties);
+    const nameToProfileId = new Map();
+    for (const [id, p] of profiles) {
+      const s = states.get(id);
+      const cname = (s && s.ok && s.name) || (p && p.lastCharName) || '';
+      if (cname) nameToProfileId.set(String(cname).trim().toLowerCase(), id);
+    }
+
+    // Collect active Manager party identifiers so we never duplicate an explicit Manager party
+    const managedPids = new Set();
+    const managedLeaderNamesLow = new Set();
+    for (const p of parties) {
+      const L = states.get(p.leaderId);
+      const LP = profiles.get(p.leaderId);
+      const lname = (L && L.ok && L.name) || (LP && LP.lastCharName) || '';
+      if (lname) managedLeaderNamesLow.add(String(lname).trim().toLowerCase());
+      if (L && L.ok && L.party && L.party.partyPid) managedPids.add(String(L.party.partyPid));
+    }
+
+    const groups = new Map(); // groupKey -> { key, partyPid, snapshots: [{ id, P, S }] }
+    for (const [id, P] of profiles) {
+      if (taken.has(id)) continue;
+      const S = states.get(id);
+      if (!S || !S.ok || !S.name || !S.party) continue;
+      if (!Array.isArray(S.party.members) || S.party.members.length < 2) continue;
+      const pidStr = S.party.partyPid ? String(S.party.partyPid) : '';
+      const leadLow = String(S.party.leader || '').trim().toLowerCase();
+      if (pidStr && managedPids.has(pidStr)) continue;
+      if (leadLow && managedLeaderNamesLow.has(leadLow)) continue;
+      const srvKey = normalizeServerKey(S.serverName || (P && P.serverName) || '');
+      const key = pidStr
+        ? ('pid:' + pidStr)
+        : ('lead:' + srvKey + ':' + (leadLow || S.name.toLowerCase()));
+      if (!groups.has(key)) groups.set(key, { key, partyPid: pidStr || null, entries: [] });
+      groups.get(key).entries.push({ id, P, S });
+    }
+
+    const result = [];
+    for (const grp of groups.values()) {
+      // Pick the most authoritative snapshot (actual leader first, else highest member count)
+      const sortedEntries = grp.entries.slice().sort((a, b) => {
+        const aLead = typeof a.S.party.isLeader === 'boolean' ? a.S.party.isLeader : (a.S.party.leader === a.S.name);
+        const bLead = typeof b.S.party.isLeader === 'boolean' ? b.S.party.isLeader : (b.S.party.leader === b.S.name);
+        if (aLead !== bLead) return aLead ? -1 : 1;
+        return (b.S.party.members.length || 0) - (a.S.party.members.length || 0);
+      });
+      const best = sortedEntries[0];
+      const rawParty = best.S.party;
+      const leaderEntry = sortedEntries.find(e => (typeof e.S.party.isLeader === 'boolean' ? e.S.party.isLeader : (e.S.party.leader === e.S.name))) || null;
+      const leaderName = (leaderEntry && leaderEntry.S.name) || String(rawParty.leader || '').trim() || 'หัวตี้';
+      const leaderLow = leaderName.toLowerCase();
+      const matchedLeaderId = leaderEntry ? leaderEntry.id : (nameToProfileId.get(leaderLow) || null);
+      const leaderProfileId = (matchedLeaderId && !taken.has(matchedLeaderId)) ? matchedLeaderId : null;
+
+      const entryByNameLow = new Map();
+      for (const e of sortedEntries) {
+        if (e.S && e.S.name) entryByNameLow.set(String(e.S.name).trim().toLowerCase(), e);
+      }
+
+      const buildSlot = (gm, isLeadSlot) => {
+        const gmName = String((gm && gm.name) || '').trim();
+        const gmLow = gmName.toLowerCase();
+        const entry = entryByNameLow.get(gmLow) || null;
+        const profId = entry ? entry.id : (gmLow ? (nameToProfileId.get(gmLow) || null) : null);
+        const isManagedSlot = Boolean(profId && profiles.has(profId) && !taken.has(profId));
+        const P = isManagedSlot ? profiles.get(profId) : null;
+        const S = isManagedSlot ? states.get(profId) : null;
+        return {
+          id: isManagedSlot ? profId : null,
+          external: !isManagedSlot,
+          profileName: P ? P.name : (isLeadSlot ? 'ผู้เล่นภายนอก' : 'ผู้เล่นในเกม'),
+          charName: (S && S.name) || gmName || (isLeadSlot ? leaderName : 'ผู้เล่น'),
+          charClass: (S && S.classId) || (gm && gm.classId) || (P && P.lastCharClass) || null,
+          level: (S && typeof S.level === 'number') ? S.level : (gm && typeof gm.level === 'number' ? gm.level : null),
+          mapName: (S && S.mapName) || (gm && gm.mapName) || null,
+          channel: (S && typeof S.channel === 'number') ? S.channel : (gm && typeof gm.channel === 'number' ? gm.channel : null),
+          online: S ? Boolean(S.ok) : (gm ? gm.online !== false : true),
+          status: isLeadSlot ? 'leader' : (isManagedSlot ? 'joined' : 'external'),
+          statusText: isLeadSlot
+            ? (isManagedSlot ? 'หัวตี้ (ตั้งเองในเกม)' : 'หัวตี้ (ผู้เล่นภายนอก)')
+            : (isManagedSlot ? 'อยู่ด้วยกัน (ตั้งเองในเกม)' : 'ผู้เล่นภายนอก')
+        };
+      };
+
+      let leaderSlot = null;
+      const memberSlots = [];
+      const seenNames = new Set();
+      for (const gm of (rawParty.members || [])) {
+        if (!gm || !gm.name) continue;
+        const low = String(gm.name).trim().toLowerCase();
+        if (seenNames.has(low)) continue;
+        seenNames.add(low);
+        const isLeadGm = Boolean(low === leaderLow || (leaderEntry && low === leaderEntry.S.name.toLowerCase()));
+        if (isLeadGm && !leaderSlot) {
+          leaderSlot = buildSlot(gm, true);
+        } else {
+          memberSlots.push(buildSlot(gm, false));
+        }
+      }
+      if (!leaderSlot) {
+        leaderSlot = buildSlot({ name: leaderName }, true);
+      }
+
+      const managedProfileIds = [];
+      if (leaderSlot.id) managedProfileIds.push(leaderSlot.id);
+      for (const ms of memberSlots) {
+        if (ms.id && !managedProfileIds.includes(ms.id)) managedProfileIds.push(ms.id);
+      }
+      for (const e of sortedEntries) {
+        if (!managedProfileIds.includes(e.id)) managedProfileIds.push(e.id);
+      }
+
+      result.push({
+        id: 'ig_' + grp.key,
+        partyPid: grp.partyPid,
+        inGameOnly: true,
+        leaderProfileId,
+        leaderName: leaderSlot.charName || leaderName,
+        leaderIsManaged: Boolean(leaderProfileId),
+        canAdopt: Boolean(leaderProfileId && !taken.has(leaderProfileId)),
+        managedProfileIds,
+        managedCount: managedProfileIds.length,
+        expMode: EXP_MODES.includes(rawParty.expMode) ? rawParty.expMode : 'even-share',
+        lootMode: LOOT_MODES.includes(rawParty.lootMode) ? rawParty.lootMode : 'personal',
+        groupMode: GROUP_MODES.includes(rawParty.groupMode) ? rawParty.groupMode : 'g',
+        leader: leaderSlot,
+        members: memberSlots,
+        count: 1 + memberSlots.length,
+        max: rawParty.maxMembers || MAX_MEMBERS
+      });
+    }
+
+    result.sort((a, b) => (b.managedCount - a.managedCount) || String(a.leaderName).localeCompare(String(b.leaderName)));
+    result.forEach((p, idx) => { p.index = idx + 1; });
+    return result;
   }
 
   async function tickParty(party, profiles) {
@@ -1480,6 +1601,7 @@ function createPartyService(opts) {
       }
       const syncPayload = {
         partyId: party.id,
+        managed: true,
         leaderName: L.name,
         priestFlow: priestFlowEnabled,
         priestName: priest ? priest.name : null,
@@ -1925,6 +2047,12 @@ function createPartyService(opts) {
       if (taken.has(id)) continue;
       const S = states.get(id);
       if (!P || !S || !S.ok || !S.name) continue;
+      // CRITICAL: If this profile is NOT assigned to any Manager party, clear any stale client `__pmPartySync` / `__ncPendingPartyLeader`
+      // so the bot NEVER hallucinates a phantom Manager party or sends unrequested invites!
+      if (S.hasPmPartySync && S.helpers && S.helpers.updatePartySyncState) {
+        const clr = await act(P, ACTIONS.syncClientPartyState(null), 'clear-stale-party-sync');
+        if (clr && clr.ok) S.hasPmPartySync = false;
+      }
       const rt = srt(id);
       const onFarm = isSoloActivelyFarmingMap(S);
       const cooldownLeftMs = Number(S.channelCooldownLeftMs) || 0;
@@ -1993,9 +2121,10 @@ function createPartyService(opts) {
         (chMode === 'no_overlap' || hasPendingSpread)
       );
       if (shouldOrchestrateSolo) {
-        const inOtherInGameParty = Boolean(S.party && Array.isArray(S.party.members) && S.party.members.length > 1 && S.party.leader && S.party.leader !== S.name);
+        // Respect ANY manual in-game party (leader OR member): never channel-hop away from your manual in-game teammates!
+        const inManualInGameParty = Boolean(S.party && Array.isArray(S.party.members) && S.party.members.length > 1);
         const busyNow = Array.isArray(S.busy) && S.busy.length > 0;
-        if (!inOtherInGameParty && !busyNow && !rt.moving) {
+        if ((!inManualInGameParty || S.pkChannel) && !busyNow && !rt.moving) {
           // NEVER disturb combat while Nightcamp's 5-min channel-move cooldown is still active;
           // leave unsettled so the very first tick after the 5-min cooldown expires immediately spreads!
           if (coolingDown) {
@@ -2109,16 +2238,20 @@ function createPartyService(opts) {
         notes: rt.notes || [], lastTickAt: rt.lastTickAt
       };
     });
+    const inGameParties = detectInGameManualParties(profiles);
     const clients = [...profiles.values()].map(p => {
       const S = states.get(p.id);
       return { id: p.id, name: p.name, charName: (S && S.name) || p.lastCharName || null, charClass: (S && S.classId) || p.lastCharClass || null,
-        level: S && S.ok ? S.level : null, online: !!(S && S.ok && S.name), inGameParty: !!(S && S.party), assigned: taken.has(p.id),
+        level: S && S.ok ? S.level : null, online: !!(S && S.ok && S.name), inGameParty: !!(S && S.party),
+        inGamePartyLeader: (S && S.party && S.party.leader) || null,
+        inGamePartySize: (S && S.party && Array.isArray(S.party.members)) ? S.party.members.length : 0,
+        assigned: taken.has(p.id),
         noLoot: Boolean(S && S.noLootMode),
         planPending: planBlocked(S) ? S.plan.levelPending[0] : null,
         mapName: S && S.mapName, channel: S && S.channel };
     });
     const channelCheckMode = typeof getChannelCheckMode === 'function' ? (getChannelCheckMode() || 'all') : 'all';
-    return { success: true, parties: list, clients, statesAt, maxMembers: MAX_MEMBERS, channelCheckMode };
+    return { success: true, parties: list, inGameParties, clients, statesAt, maxMembers: MAX_MEMBERS, channelCheckMode };
   }
 
   async function disband(party) {
@@ -2191,6 +2324,55 @@ function createPartyService(opts) {
       const r = await applyProfileNoLoot(body.profileId, body.noLoot);
       if (!r.ok) { sendJSON({ success: false, error: r.error || 'สลับโหมดเก็บของไม่สำเร็จ' }, 400); return true; }
       sendJSON(Object.assign(view(), { noLootResult: r }));
+      return true;
+    }
+    if (pathname === '/api/parties/adopt-ingame' && req.method === 'POST') {
+      const body = (await readBody(req)) || {};
+      const leaderId = body && String(body.leaderId || '');
+      const profiles = profileMap();
+      const taken = assignedIds(parties);
+      if (!leaderId || !profiles.has(leaderId)) { sendJSON({ success: false, error: 'ไม่พบจอหัวตี้ที่เลือก' }, 400); return true; }
+      if (taken.has(leaderId)) { sendJSON({ success: false, error: 'จอนี้อยู่ในปาร์ตี้ของ Manager แล้ว' }, 409); return true; }
+      const rawMembers = Array.isArray(body.memberIds) ? body.memberIds.map(String) : [];
+      const memberIds = rawMembers.filter(id => id && id !== leaderId && profiles.has(id) && !taken.has(id)).slice(0, MAX_MEMBERS - 1);
+      const party = sanitizeParty({
+        id: 'party_' + now().toString(36) + Math.random().toString(36).slice(2, 6),
+        leaderId,
+        memberIds,
+        autoFill: false,
+        syncMap: body.syncMap === true,
+        priestFlow: false,
+        expMode: body.expMode,
+        lootMode: body.lootMode,
+        groupMode: body.groupMode,
+        createdAt: now()
+      });
+      parties.push(party);
+      save();
+      setTimeout(() => tick().catch(() => {}), 50);
+      sendJSON(Object.assign(view(), { adopted: party.id }));
+      return true;
+    }
+    if (pathname === '/api/parties/leave-ingame' && req.method === 'POST') {
+      const body = (await readBody(req)) || {};
+      const ids = Array.isArray(body.profileIds) ? body.profileIds.map(String).filter(Boolean) : [];
+      const profiles = profileMap();
+      // Leave members first, then leader last so the party disbands cleanly
+      const ordered = ids.slice().sort((a, b) => {
+        const sa = states.get(a), sb = states.get(b);
+        const aLead = Boolean(sa && sa.party && (typeof sa.party.isLeader === 'boolean' ? sa.party.isLeader : (sa.party.leader === sa.name)));
+        const bLead = Boolean(sb && sb.party && (typeof sb.party.isLeader === 'boolean' ? sb.party.isLeader : (sb.party.leader === sb.name)));
+        return (aLead ? 1 : 0) - (bLead ? 1 : 0);
+      });
+      for (const id of ordered) {
+        const P = profiles.get(id);
+        if (!P || !P.debugPort) continue;
+        await act(P, ACTIONS.syncClientPartyState(null), 'leave-ig-clear-sync');
+        await act(P, ACTIONS.leave(), 'leave-ig');
+        await sleep(400);
+      }
+      await refreshStates(true);
+      sendJSON(Object.assign(view(), { leftCount: ordered.length }));
       return true;
     }
     if (pathname === '/api/parties' && req.method === 'POST') {

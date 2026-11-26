@@ -525,9 +525,12 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
   let startupPages = [];                // the empty window Chrome opens on start — closed once a game window exists
   const portServers = new Map();        // port -> proxy server (one per port, even if a client object went stale)
   let rediscovering = null;
+  let lastRediscoverSuccessAt = 0;
   let started = false, reconnectTimer = null, reconnectDelay = 1000, monitorTimer = null;
-  const stoppedProfiles = new Set(), knownTargets = new Map(), diagnostics = new Map();
+  const stoppedProfiles = new Set(), knownTargets = new Map(), knownProxyContexts = new Map(), diagnostics = new Map();
+  const migratingProxyProfiles = new Set();
   const knownTargetsFile = (sessionsDir && sessionsDir !== 'fake') ? path.join(sessionsDir, '_browser_targets.json') : null;
+  const knownProxyContextsFile = (sessionsDir && sessionsDir !== 'fake') ? path.join(sessionsDir, '_browser_proxy_contexts.json') : null;
   const wsUrlFile = (sessionsDir && sessionsDir !== 'fake') ? path.join(sessionsDir, '_browser_ws.json') : null;
   const customIpFile = (sessionsDir && sessionsDir !== 'fake') ? path.join(sessionsDir, '_custom_ip_device_groups.json') : null;
   const isRealSession = Boolean(sessionsDir && sessionsDir !== 'fake');
@@ -585,6 +588,7 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
           } catch (_) {}
         }
         try { if (knownTargetsFile && fs.existsSync(knownTargetsFile)) fs.unlinkSync(knownTargetsFile); } catch (_) {}
+        try { if (knownProxyContextsFile && fs.existsSync(knownProxyContextsFile)) fs.unlinkSync(knownProxyContextsFile); } catch (_) {}
         try { if (wsUrlFile && fs.existsSync(wsUrlFile)) fs.unlinkSync(wsUrlFile); } catch (_) {}
       }
       if (!savedOwner || savedOwner.machineHwid !== currentHwId) {
@@ -775,45 +779,54 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
   }
 
   let orderedProfileIdsCache = null;
+  let orderedProfileIdsCacheSet = null;
   let orderedProfileIdsCacheAt = 0;
+  let orderedProfileIdsLiveSig = '';
   function getOrderedProfileIds(extraProfileId) {
     const now = Date.now();
-    if (!extraProfileId && orderedProfileIdsCache && (now - orderedProfileIdsCacheAt < 5000)) {
-      return orderedProfileIdsCache;
-    }
-    const seen = new Set();
-    const ordered = [];
-    const addId = (pid) => {
-      const id = typeof pid === 'string' ? pid.trim() : '';
-      if (!id || seen.has(id)) return;
-      seen.add(id);
-      ordered.push(id);
-    };
+    let liveList = [];
+    let liveSig = '';
     try {
       if (typeof loadProfiles === 'function') {
-        const list = loadProfiles() || [];
-        for (const p of list) {
-          if (p && p.id) addId(p.id);
+        liveList = loadProfiles() || [];
+        liveSig = liveList.map(p => (p && p.id) || '').join('|');
+      }
+    } catch (_) {}
+    if (!orderedProfileIdsCache || liveSig !== orderedProfileIdsLiveSig || (now - orderedProfileIdsCacheAt >= 15000)) {
+      const seen = new Set();
+      const ordered = [];
+      const addId = (pid) => {
+        const id = typeof pid === 'string' ? pid.trim() : '';
+        if (!id || id.startsWith('_') || seen.has(id)) return;
+        seen.add(id);
+        ordered.push(id);
+      };
+      for (const p of liveList) {
+        if (p && p.id) addId(p.id);
+      }
+      try {
+        if (storageDir && fs.existsSync(storageDir)) {
+          const files = fs.readdirSync(storageDir)
+            .filter(f => f.endsWith('.json') && !f.endsWith('.tmp') && !f.startsWith('_'))
+            .map(f => f.slice(0, -5))
+            .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+          for (const pid of files) addId(pid);
         }
-      }
-    } catch (_) {}
-    try {
-      if (storageDir && fs.existsSync(storageDir)) {
-        const files = fs.readdirSync(storageDir)
-          .filter(f => f.endsWith('.json') && !f.endsWith('.tmp') && !f.startsWith('_'))
-          .map(f => f.slice(0, -5))
-          .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-        for (const pid of files) addId(pid);
-      }
-    } catch (_) {}
-    for (const pid of profileDeviceIds.keys()) addId(pid);
-    if (!extraProfileId) {
+      } catch (_) {}
+      for (const pid of profileDeviceIds.keys()) addId(pid);
       orderedProfileIdsCache = ordered;
+      orderedProfileIdsCacheSet = seen;
       orderedProfileIdsCacheAt = now;
-      return ordered;
+      orderedProfileIdsLiveSig = liveSig;
     }
-    addId(extraProfileId);
-    return ordered;
+    if (!extraProfileId) {
+      return orderedProfileIdsCache;
+    }
+    const extra = typeof extraProfileId === 'string' ? extraProfileId.trim() : '';
+    if (!extra || extra.startsWith('_') || (orderedProfileIdsCacheSet && orderedProfileIdsCacheSet.has(extra))) {
+      return orderedProfileIdsCache;
+    }
+    return [...orderedProfileIdsCache, extra];
   }
 
   function getScreensPerIp() {
@@ -1747,6 +1760,10 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
   function ensureProfileDeviceId(profileId) {
     initDeviceIdsFromStorage();
     if (!profileId) return mintUniqueDeviceId();
+    if (profileDeviceIds.has(profileId)) {
+      rebalanceDeviceGroups(null, false);
+      if (profileDeviceIds.has(profileId)) return profileDeviceIds.get(profileId);
+    }
     rebalanceDeviceGroups(profileId, false);
     if (profileDeviceIds.has(profileId)) return profileDeviceIds.get(profileId);
     rebalanceDeviceGroups(profileId, true);
@@ -2012,7 +2029,32 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
       fs.writeFileSync(knownTargetsFile, JSON.stringify(Object.fromEntries(knownTargets), null, 2), 'utf8');
     } catch (_) {}
   }
+  function loadKnownProxyContexts() {
+    if (!knownProxyContextsFile) return;
+    try {
+      if (!fs.existsSync(knownProxyContextsFile)) return;
+      const raw = JSON.parse(fs.readFileSync(knownProxyContextsFile, 'utf8'));
+      if (raw && typeof raw === 'object') {
+        for (const [k, v] of Object.entries(raw)) if (typeof k === 'string' && typeof v === 'string') knownProxyContexts.set(k, v);
+      }
+    } catch (_) {}
+  }
+  function saveKnownProxyContexts() {
+    if (!knownProxyContextsFile) return;
+    try {
+      if (!fs.existsSync(sessionsDir)) return;
+      fs.writeFileSync(knownProxyContextsFile, JSON.stringify(Object.fromEntries(knownProxyContexts), null, 2), 'utf8');
+    } catch (_) {}
+  }
+  function isKnownProxyTargetContext(t, customContexts) {
+    if (!t || !t.browserContextId) return false;
+    if (customContexts && customContexts.has(t.browserContextId)) return true;
+    if (knownProxyContexts.get(t.targetId) === t.browserContextId) return true;
+    if (!customContexts) return true;
+    return false;
+  }
   loadKnownTargets();
+  loadKnownProxyContexts();
   const retryDelays = [1000, 3000, 10000];
   function scheduleReconnect() {
     if(!started || reconnectTimer) return;
@@ -2157,7 +2199,7 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
     if (!forceClean && await browserAlive()) {
       try {
         await connect();
-        const tRes = await send('Target.getTargets', {}, undefined, 4000);
+        const tRes = await send('Target.getTargets', {}, undefined, isRealSession ? 15000 : 4000);
         if (isRealSession && clients.size === 0) {
           const hasGamePage = (tRes?.targetInfos || []).some(t => t.type === 'page' && typeof t.url === 'string' && t.url.includes('nightcamp.app'));
           if (!hasGamePage) {
@@ -2170,8 +2212,21 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
         }
         if (!forceClean) return;
       } catch (e) {
-        if (ws) { try { ws.close(); } catch (_) {} ws = null; }
         if (clients.size > 0) throw e;
+        if (ws) { try { ws.close(); } catch (_) {} ws = null; }
+        // Before killing any running browser processes, verify whether CDP HTTP is actually dead
+        // (a busy Edge/Chrome with 20-30 proxy windows can momentarily lag on Target.getTargets!)
+        let stillAliveHttp = false;
+        try {
+          await getText(`http://127.0.0.1:${CDP_PORT}/json/version`, 5000);
+          stillAliveHttp = true;
+        } catch (_) {}
+        if (stillAliveHttp) {
+          await new Promise(r => setTimeout(r, 600));
+          await connect();
+          await send('Target.getTargets', {}, undefined, 15000);
+          return;
+        }
         forceClean = true;
       }
     }
@@ -2224,14 +2279,14 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
       if (await browserAlive()) {
         try {
           await connect();
-          const tRes = await send('Target.getTargets', {}, undefined, 4000);
+          const tRes = await send('Target.getTargets', {}, undefined, 10000);
           startupPages = (tRes?.targetInfos || []).filter(t => t.type === 'page').map(t => t.targetId);
           return;
         } catch (e) {
           if (ws) { try { ws.close(); } catch (_) {} ws = null; }
         }
       }
-      if (i === 10 && !cleanedMidWait && clients.size === 0) {
+      if (i === 25 && !cleanedMidWait && clients.size === 0 && !(await browserAlive())) {
         cleanedMidWait = true;
         await killStuckBrowserProcesses();
         browserProc = spawn(exe, args, { detached: true, stdio: 'ignore' });
@@ -3325,10 +3380,11 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
     const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true }, undefined, 15000);
     try {
     const initScript = profileInitScript(profileId);
+    const hookTimeout = isRealSession ? 8000 : 3500;
     const resInit = await Promise.all([
-      send('Page.enable', {}, sessionId, 3500).catch(() => {}),
+      send('Page.enable', {}, sessionId, hookTimeout).catch(() => {}),
       configureSessionAssetCache(sessionId),
-      send('Page.addScriptToEvaluateOnNewDocument', { source: initScript }, sessionId, 3500).catch(() => null)
+      send('Page.addScriptToEvaluateOnNewDocument', { source: initScript }, sessionId, hookTimeout).catch(() => null)
     ]);
     const addedInit = resInit[2];
     if (!fastRediscover && !skipIdentityProbe) {
@@ -3339,14 +3395,19 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
       } catch (probeErr) {
         if (probeErr && probeErr.message === 'PROFILE_ID_CONFLICT') throw probeErr;
       }
-    } else {
+    } else if (!fastRediscover) {
       evaluate({ sessionId }, initScript, 4000).catch(() => {});
     }
     if(stoppedProfiles.has(profileId))throw Error('PROFILE_STOPPED');
     const initScriptId = (addedInit && addedInit.identifier) ? addedInit.identifier : null;
-    const c = { profileId, targetId, sessionId, browserContextId: browserContextId || null, generation:0,documentId:null,attempts:0,injectionInFlight:null,injectionInFlightPromise:null,retryTimer:null,crashReloadCount:0,lastCrashReloadAt:0,crashReloadInFlight:false,stateFailCount:0,firstStateFailAt:0,lastStorageSyncAt:0,initScriptId,initScriptIds:initScriptId?[initScriptId]:[],stateEvalPromise:null,inFlightEvals:new Map(),lastGoodState:null,lastGoodStateAt:0,initialHealthChecked:!fastRediscover,evalInFlightCount:0,evalWaiters:[],evalTimeouts:0,evalCooldownUntil:0,probeFailCount:0 };
+    const c = { profileId, targetId, sessionId, browserContextId: browserContextId || null, createdAt: Date.now(), generation:0,documentId:null,attempts:0,injectionInFlight:null,injectionInFlightPromise:null,retryTimer:null,crashReloadCount:0,lastCrashReloadAt:0,crashReloadInFlight:false,stateFailCount:0,firstStateFailAt:0,lastStorageSyncAt:0,initScriptId,initScriptIds:initScriptId?[initScriptId]:[],stateEvalPromise:null,inFlightEvals:new Map(),lastGoodState:null,lastGoodStateAt:0,initialHealthChecked:!fastRediscover,evalInFlightCount:0,evalWaiters:[],evalTimeouts:0,evalCooldownUntil:0,probeFailCount:0 };
     clients.set(profileId, c);
-    knownTargets.set(profileId,targetId);saveKnownTargets();diagnostic(c,'document-pending');
+    knownTargets.set(profileId,targetId);saveKnownTargets();
+    if (browserContextId) {
+      knownProxyContexts.set(targetId, browserContextId);
+      saveKnownProxyContexts();
+    }
+    diagnostic(c,'document-pending');
     return c;
     } catch(e) {await send('Target.detachFromTarget',{sessionId}, undefined, 3000).catch(()=>{});throw e;}
   }
@@ -3413,11 +3474,18 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
   async function rediscoverOnce() {
     if (!(await browserAlive())) throw Error('CDP not available');
     await connect();
-    const { targetInfos } = await send('Target.getTargets');
+    const { targetInfos } = await send('Target.getTargets', {}, undefined, isRealSession ? 15000 : 30000);
     const customContexts = await getCustomBrowserContexts();
     const surviving=new Set(targetInfos.map(t=>t.targetId));
+    let proxyCtxPruned = false;
+    for (const tid of Array.from(knownProxyContexts.keys())) {
+      if (!surviving.has(tid)) { knownProxyContexts.delete(tid); proxyCtxPruned = true; }
+    }
+    if (proxyCtxPruned) saveKnownProxyContexts();
     for(const c of Array.from(clients.values())){
-      if(customContexts && c.browserContextId && !customContexts.has(c.browserContextId)) c.browserContextId = null;
+      if(customContexts && customContexts.size > 0 && c.browserContextId && !customContexts.has(c.browserContextId) && knownProxyContexts.get(c.targetId) !== c.browserContextId) {
+        c.browserContextId = null;
+      }
       if(!surviving.has(c.targetId)){diagnostic(c,'closed');knownTargets.delete(c.profileId);saveKnownTargets();drop(c);}
     }
     const allProfiles = loadProfiles() || [];
@@ -3442,123 +3510,187 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
       if (screenProxy && screenProxy.isEnabled() && typeof screenProxy.acquireLeasesForProfiles === 'function') {
         await screenProxy.acquireLeasesForProfiles(knownPages.map(x => x.knownMatch.id)).catch(() => {});
       }
-      await Promise.all(knownPages.map(async ({ t, knownMatch }) => {
-        try {
-          if (stoppedProfiles.has(knownMatch.id)) stoppedProfiles.delete(knownMatch.id);
-          const isCustomCtx = Boolean(t.browserContextId && (!customContexts || customContexts.has(t.browserContextId)));
-          if (screenProxy && (screenProxy.isEnabled() || isCustomCtx)) {
-            if (screenProxy.isEnabled()) screenProxy.acquireForProfile(knownMatch.id, { debugPort: knownMatch.debugPort }).catch(() => {});
-            else if (typeof screenProxy.ensureProfileTunnel === 'function') screenProxy.ensureProfileTunnel(knownMatch.id, knownMatch.debugPort).catch(() => {});
-          }
-          const c = await attach(knownMatch.id, t.targetId, true, isCustomCtx ? t.browserContextId : null, true);
-          startProxy(c, knownMatch.debugPort);
-          newlyAttached.push({ c, fast: true });
-        } catch (_) {}
-      }));
+      // Attach in bounded batches of 6 so 30 open Chrome/Edge windows never flood CDP simultaneously
+      let kIdx = 0;
+      const attachKnownWorker = async () => {
+        while (kIdx < knownPages.length) {
+          const item = knownPages[kIdx++];
+          if (!item) continue;
+          const { t, knownMatch } = item;
+          try {
+            if (stoppedProfiles.has(knownMatch.id)) stoppedProfiles.delete(knownMatch.id);
+            const isCustomCtx = isKnownProxyTargetContext(t, customContexts);
+            if (screenProxy && (screenProxy.isEnabled() || isCustomCtx)) {
+              if (typeof screenProxy.ensureProfileTunnel === 'function') {
+                screenProxy.ensureProfileTunnel(knownMatch.id, knownMatch.debugPort).catch(() => {});
+              } else if (screenProxy.isEnabled()) {
+                screenProxy.acquireForProfile(knownMatch.id, { debugPort: knownMatch.debugPort }).catch(() => {});
+              }
+            }
+            const c = await attach(knownMatch.id, t.targetId, true, isCustomCtx ? t.browserContextId : null, true);
+            startProxy(c, knownMatch.debugPort);
+            newlyAttached.push({ c, fast: true });
+          } catch (_) {}
+        }
+      };
+      const knownConcurrency = Math.min(6, knownPages.length);
+      await Promise.all(Array.from({ length: knownConcurrency }, () => attachKnownWorker()));
     }
     const hasUnclaimedProfile = allProfiles.some(p => !clients.has(p.id));
-    if (hasUnclaimedProfile) {
-    for (const t of unknownPages) {
-      try {
-        const knownMatch = null;
-        let identified = null;
-        let probeFailed = false;
-        let pid = null, charName = null, sessionUserId = null, authUser = null, bodyText = '';
-        if (!identified) {
-          const { sessionId } = await send('Target.attachToTarget', { targetId: t.targetId, flatten: true }, undefined, isRealSession ? 4000 : 10000);
+    if (hasUnclaimedProfile && unknownPages.length > 0) {
+      let uIdx = 0;
+      const probeUnknownWorker = async () => {
+        while (uIdx < unknownPages.length) {
+          const t = unknownPages[uIdx++];
+          if (!t) continue;
           try {
-            const r = await send('Runtime.evaluate', {
-              expression: `(() => {
-                let sUser = null;
-                try {
-                  const tok = typeof sessionStorage !== 'undefined' && sessionStorage.getItem ? sessionStorage.getItem('aetheria.session') : null;
-                  if (tok && tok.split('.').length >= 2) {
-                    const p = JSON.parse(atob(tok.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
-                    if (p && typeof p.userId === 'string') sUser = p.userId.trim();
-                  }
-                } catch (_) {}
-                return {
-                  pid: window.__pmProfileId || (typeof sessionStorage !== 'undefined' && sessionStorage.getItem && sessionStorage.getItem('__pmProfileId')) || null,
-                  charName: (typeof window.getLiveCharacterData === 'function' && window.getLiveCharacterData() && window.getLiveCharacterData().name) || window.__charName || null,
-                  sessionUserId: sUser,
-                  authUser: (window.__authConfig && typeof window.__authConfig.username === 'string' && window.__authConfig.username.trim()) || null,
-                  bodyText: (typeof document !== 'undefined' && document.body && typeof document.body.innerText === 'string') ? document.body.innerText.slice(0, 1500) : ''
+            const knownMatch = null;
+            let identified = null;
+            let probeFailed = false;
+            let pid = null, charName = null, sessionUserId = null, authUser = null, bodyText = '';
+            if (!identified) {
+              const { sessionId } = await send('Target.attachToTarget', { targetId: t.targetId, flatten: true }, undefined, isRealSession ? 5000 : 10000);
+              try {
+                const r = await send('Runtime.evaluate', {
+                  expression: `(() => {
+                    let sUser = null;
+                    let lsPid = null;
+                    let lsAuthUser = null;
+                    try {
+                      const tok = typeof sessionStorage !== 'undefined' && sessionStorage.getItem ? sessionStorage.getItem('aetheria.session') : null;
+                      if (tok && tok.split('.').length >= 2) {
+                        const p = JSON.parse(atob(tok.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+                        if (p && typeof p.userId === 'string') sUser = p.userId.trim();
+                      }
+                    } catch (_) {}
+                    try {
+                      if (typeof localStorage !== 'undefined') {
+                        const foundPids = new Set();
+                        for (let i = 0; i < localStorage.length; i++) {
+                          const k = localStorage.key(i);
+                          if (!k) continue;
+                          const m = k.match(/^pelican_((?:profile|af)_[a-zA-Z0-9_]+)__/);
+                          if (m && m[1]) {
+                            foundPids.add(m[1]);
+                            if (!lsAuthUser && k.endsWith('__auth_cfg')) {
+                              try {
+                                const parsed = JSON.parse(localStorage.getItem(k) || '{}');
+                                if (parsed && typeof parsed.username === 'string' && parsed.username.trim()) lsAuthUser = parsed.username.trim();
+                              } catch (_) {}
+                            }
+                            if (!lsAuthUser && k.indexOf('__nc__nightcamp.online.acct:') !== -1) {
+                              try {
+                                const parsed = JSON.parse(localStorage.getItem(k) || '{}');
+                                const u = parsed && (parsed.email || parsed.username || parsed.userId);
+                                if (typeof u === 'string' && u.trim()) lsAuthUser = u.trim();
+                              } catch (_) {}
+                            }
+                          }
+                        }
+                        if (foundPids.size === 1) lsPid = Array.from(foundPids)[0];
+                      }
+                    } catch (_) {}
+                    let liveChar = null;
+                    try {
+                      if (typeof window.__getClientLiveState === 'function') {
+                        const ls = window.__getClientLiveState();
+                        if (ls && typeof ls.charName === 'string' && ls.charName.trim()) liveChar = ls.charName.trim();
+                      }
+                    } catch (_) {}
+                    if (!liveChar) {
+                      try {
+                        liveChar = (window.NC && window.NC.game && window.NC.game.player && window.NC.game.player.name)
+                          || (typeof window.getLiveCharacterData === 'function' && window.getLiveCharacterData() && window.getLiveCharacterData().name)
+                          || window.__charName
+                          || null;
+                      } catch (_) {}
+                    }
+                    return {
+                      pid: window.__pmProfileId || (typeof sessionStorage !== 'undefined' && sessionStorage.getItem && sessionStorage.getItem('__pmProfileId')) || lsPid || null,
+                      charName: liveChar,
+                      sessionUserId: sUser,
+                      authUser: (window.__authConfig && typeof window.__authConfig.username === 'string' && window.__authConfig.username.trim()) || lsAuthUser || null,
+                      bodyText: (typeof document !== 'undefined' && document.body && typeof document.body.innerText === 'string') ? document.body.innerText.slice(0, 1500) : ''
+                    };
+                  })()`,
+                  returnByValue: true
+                }, sessionId, isRealSession ? 3500 : 6000);
+                if(r.exceptionDetails)throw Error('PROFILE_PROBE_FAILED');
+                crashedTargetFailCount.delete(t.targetId);
+                const val = r && r.result && r.result.value;
+                if (val && typeof val === 'object') {
+                  pid = val.pid || null;
+                  charName = val.charName || null;
+                  sessionUserId = val.sessionUserId || null;
+                  authUser = val.authUser || null;
+                  bodyText = String(val.bodyText || '');
+                } else if (typeof val === 'string') {
+                  pid = val;
+                }
+              } catch (_) {
+                probeFailed = true;
+              } finally {
+                await send('Target.detachFromTarget', { sessionId }).catch(() => {});
+              }
+              if (pid && clients.has(pid)) {
+                continue;
+              }
+              identified = pid || allProfiles.find(p => !clients.has(p.id) && knownTargets.get(p.id) === t.targetId)?.id || null;
+            }
+            if (!identified) {
+              const unclaimed = allProfiles.filter(p => !clients.has(p.id) && (!knownTargets.get(p.id) || !surviving.has(knownTargets.get(p.id))));
+              const effectiveUser = String(sessionUserId || authUser || '').trim().toLowerCase();
+              if (effectiveUser) {
+                const allByUser = allProfiles.filter(p => String(p.account || '').trim().toLowerCase() === effectiveUser);
+                const byUser = unclaimed.filter(p => String(p.account || '').trim().toLowerCase() === effectiveUser);
+                if (byUser.length === 1) {
+                  identified = byUser[0].id;
+                } else if (allByUser.length > 0) {
+                  continue;
+                }
+              }
+              if (!identified && (charName || bodyText)) {
+                const tokens = new Set(bodyText.split(/[\r\n\s·•]+/).filter(Boolean));
+                const matchesChar = p => {
+                  const cn = String(p.lastCharName || '').trim();
+                  if (!cn) return false;
+                  return charName === cn || tokens.has(cn) || bodyText.includes(cn) || bodyText.includes('เข้าเกมด้วย ' + cn);
                 };
-              })()`,
-              returnByValue: true
-            }, sessionId, isRealSession ? 3000 : 6000);
-            if(r.exceptionDetails)throw Error('PROFILE_PROBE_FAILED');
-            crashedTargetFailCount.delete(t.targetId);
-            const val = r && r.result && r.result.value;
-            if (val && typeof val === 'object') {
-              pid = val.pid || null;
-              charName = val.charName || null;
-              sessionUserId = val.sessionUserId || null;
-              authUser = val.authUser || null;
-              bodyText = String(val.bodyText || '');
-            } else if (typeof val === 'string') {
-              pid = val;
+                const allByChar = allProfiles.filter(matchesChar);
+                const byChar = unclaimed.filter(matchesChar);
+                if (byChar.length === 1) {
+                  identified = byChar[0].id;
+                } else if (allByChar.length > 0) {
+                  continue;
+                }
+              }
+              if (!identified && allProfiles.length <= 1 && unattachedPages.length === 1 && unclaimed.length === 1) {
+                identified = unclaimed[0].id;
+              }
             }
-          } catch (_) {
-            probeFailed = true;
-          } finally {
-            await send('Target.detachFromTarget', { sessionId }).catch(() => {});
-          }
-          if (pid && clients.has(pid)) {
-            continue;
-          }
-          identified = pid || allProfiles.find(p => !clients.has(p.id) && knownTargets.get(p.id) === t.targetId)?.id || null;
-        }
-        if (!identified) {
-          const unclaimed = allProfiles.filter(p => !clients.has(p.id) && (!knownTargets.get(p.id) || !surviving.has(knownTargets.get(p.id))));
-          const effectiveUser = String(sessionUserId || authUser || '').trim().toLowerCase();
-          if (effectiveUser) {
-            const allByUser = allProfiles.filter(p => String(p.account || '').trim().toLowerCase() === effectiveUser);
-            const byUser = unclaimed.filter(p => String(p.account || '').trim().toLowerCase() === effectiveUser);
-            if (byUser.length === 1) {
-              identified = byUser[0].id;
-            } else if (allByUser.length > 0) {
-              continue;
+            if (identified && stoppedProfiles.has(identified) && (knownMatch || sessionUserId || charName || pid)) {
+              stoppedProfiles.delete(identified);
             }
-          }
-          if (!identified && (charName || bodyText)) {
-            const tokens = new Set(bodyText.split(/[\r\n\s·•]+/).filter(Boolean));
-            const matchesChar = p => {
-              const cn = String(p.lastCharName || '').trim();
-              if (!cn) return false;
-              return charName === cn || tokens.has(cn) || bodyText.includes(cn) || bodyText.includes('เข้าเกมด้วย ' + cn);
-            };
-            const allByChar = allProfiles.filter(matchesChar);
-            const byChar = unclaimed.filter(matchesChar);
-            if (byChar.length === 1) {
-              identified = byChar[0].id;
-            } else if (allByChar.length > 0) {
-              continue;
+            const profile = identified && !stoppedProfiles.has(identified) && allProfiles.find(p => p.id === identified);
+            const isCustomCtx = isKnownProxyTargetContext(t, customContexts);
+            if (profile && !clients.has(profile.id)) {
+              if (screenProxy && (screenProxy.isEnabled() || isCustomCtx)) {
+                const pTask = screenProxy.isEnabled()
+                  ? screenProxy.acquireForProfile(profile.id, { debugPort: profile.debugPort }).catch(() => {})
+                  : (typeof screenProxy.ensureProfileTunnel === 'function' ? screenProxy.ensureProfileTunnel(profile.id, profile.debugPort).catch(() => {}) : Promise.resolve());
+                if (!knownMatch) await pTask;
+              }
+              const c = await attach(profile.id, t.targetId, Boolean(knownMatch || probeFailed), isCustomCtx ? t.browserContextId : null, Boolean(knownMatch));
+              startProxy(c, profile.debugPort);
+              newlyAttached.push({ c, fast: Boolean(knownMatch) });
             }
-          }
-          if (!identified && allProfiles.length <= 1 && unattachedPages.length === 1 && unclaimed.length === 1) {
-            identified = unclaimed[0].id;
-          }
+          } catch (e) {}
         }
-        if (identified && stoppedProfiles.has(identified) && (knownMatch || sessionUserId || charName || pid)) {
-          stoppedProfiles.delete(identified);
-        }
-        const profile = identified && !stoppedProfiles.has(identified) && allProfiles.find(p => p.id === identified);
-        const isCustomCtx = Boolean(t.browserContextId && (!customContexts || customContexts.has(t.browserContextId)));
-        if (profile) {
-          if (screenProxy && (screenProxy.isEnabled() || isCustomCtx)) {
-            const pTask = screenProxy.isEnabled()
-              ? screenProxy.acquireForProfile(profile.id, { debugPort: profile.debugPort }).catch(() => {})
-              : (typeof screenProxy.ensureProfileTunnel === 'function' ? screenProxy.ensureProfileTunnel(profile.id, profile.debugPort).catch(() => {}) : Promise.resolve());
-            if (!knownMatch) await pTask;
-          }
-          const c = await attach(profile.id, t.targetId, Boolean(knownMatch || probeFailed), isCustomCtx ? t.browserContextId : null, Boolean(knownMatch));
-          startProxy(c, profile.debugPort);
-          newlyAttached.push({ c, fast: Boolean(knownMatch) });
-        }
-      } catch (e) {}
+      };
+      const unknownConcurrency = Math.min(5, unknownPages.length);
+      await Promise.all(Array.from({ length: unknownConcurrency }, () => probeUnknownWorker()));
     }
-    }
+    lastRediscoverSuccessAt = Date.now();
     // Phase 2: initialize session hooks & bot health in small batches AFTER all proxy ports are open
     const toCheck = [];
     for (const item of newlyAttached) {
@@ -4072,27 +4204,48 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
   }
 
   // ---------- public ----------
-  async function launch(profile) {
+  async function launch(profile, opts = {}) {
     try {
-      return await launchOnce(profile, false);
+      return await launchOnce(profile, false, opts);
     } catch (e) {
-      if (isGoneError(e) || /CDP connect|CDP timeout|CDP not available|เปิดเบราว์เซอร์ไม่สำเร็จ/i.test(String(e && e.message || e))) {
-        if (ws) { try { ws.close(); } catch (_) {} ws = null; }
+      const msg = String(e && e.message || e);
+      const isTransportDead = /CDP closed|CDP not connected|CDP connect|CDP not available|เปิดเบราว์เซอร์ไม่สำเร็จ/i.test(msg);
+      const isTargetGone = isGoneError(e);
+      if (isTransportDead) {
+        // NEVER kill a healthy shared CDP WebSocket if other windows are connected and ws is still OPEN
+        if (ws && ws.readyState !== 1) {
+          try { ws.close(); } catch (_) {}
+          ws = null;
+        } else if (ws && clients.size === 0) {
+          try { ws.close(); } catch (_) {}
+          ws = null;
+        }
         await new Promise(r => setTimeout(r, 400));
-        return await launchOnce(profile, clients.size === 0);
+        const aliveNow = clients.size > 0 || await browserAlive();
+        return await launchOnce(profile, !aliveNow && clients.size === 0, opts);
+      }
+      if (isTargetGone) {
+        await new Promise(r => setTimeout(r, 250));
+        return await launchOnce(profile, false, { ...opts, skipRediscover: false });
       }
       throw e;
     }
   }
 
-  async function launchOnce(profile, forceCleanBrowser = false) {
+  async function launchOnce(profile, forceCleanBrowser = false, opts = {}) {
     stoppedProfiles.delete(profile.id);
     await ensureBrowser(forceCleanBrowser);
     const wasReady = diagnostics.get(profile.id)?.botReady === true;
-    await rediscover();
+    const canSkipRediscover = Boolean(
+      (opts && opts.skipRediscover) ||
+      (ws && ws.readyState === 1 && lastRediscoverSuccessAt > 0 && (Date.now() - lastRediscoverSuccessAt < 4000) && !knownTargets.has(profile.id))
+    );
+    if (!canSkipRediscover) {
+      await rediscover();
+    }
     let existing = clients.get(profile.id);
     if (!existing) {
-      const { targetInfos } = await send('Target.getTargets');
+      const { targetInfos } = await send('Target.getTargets', {}, undefined, isRealSession ? 15000 : 30000);
       const customContexts = await getCustomBrowserContexts();
       const allProfiles = (typeof loadProfiles === 'function' ? loadProfiles() : []) || [];
       const knownTargetId = knownTargets.get(profile.id);
@@ -4102,16 +4255,20 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
         ((allProfiles.length <= 1 && orphans.length === 1 && clients.size === 0) ? orphans[0] : null);
       if (matchedOrphan) {
         try {
-          const orphanCtx = (matchedOrphan.browserContextId && (!customContexts || customContexts.has(matchedOrphan.browserContextId))) ? matchedOrphan.browserContextId : null;
+          const orphanCtx = isKnownProxyTargetContext(matchedOrphan, customContexts) ? matchedOrphan.browserContextId : null;
           existing = await attach(profile.id, matchedOrphan.targetId, true, orphanCtx);
         } catch (_) {}
       }
     }
     if (existing) {
-      const { targetInfos } = await send('Target.getTargets');
+      const { targetInfos } = await send('Target.getTargets', {}, undefined, isRealSession ? 15000 : 30000);
       if (targetInfos.some(t => t.targetId === existing.targetId)) {
         if (screenProxy && screenProxy.isEnabled()) {
-          if (isRealSession && !existing.browserContextId) {
+          const leaseSnap = typeof screenProxy.getProfileLeaseSnapshot === 'function'
+            ? screenProxy.getProfileLeaseSnapshot(profile.id)
+            : null;
+          const isHomeIpLease = Boolean(leaseSnap && (leaseSnap.useHomeIp || leaseSnap.directHomeIp));
+          if (isRealSession && !existing.browserContextId && !isHomeIpLease && !knownProxyContexts.has(existing.targetId)) {
             await applyProxyModeToOpenWindows({ onlyProfileIds: [profile.id] }).catch(() => {});
             const migrated = clients.get(profile.id);
             if (migrated && migrated.browserContextId) {
@@ -4125,12 +4282,12 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
             }
           }
           await screenProxy.acquireForProfile(profile.id, { debugPort: profile.debugPort }).catch(() => {});
-          rebalanceDeviceGroups(profile.id, false);
+          rebalanceDeviceGroups(profile.id, true);
         }
         startProxy(existing, profile.debugPort);
         let h = null, reloaded = false;
         try { h = await health(existing); } catch (_) {}
-        if (!h) {
+        if (!h && ((existing.stateFailCount || 0) >= 3 || (!existing.lastGoodState && (Date.now() - (existing.createdAt || 0) > 45000)))) {
           reloaded = await reloadCrashedClient(existing, 'launch-recover', true);
           try { h = await health(existing); } catch (_) {}
         }
@@ -4175,7 +4332,7 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
         throw new Error('สร้าง BrowserContext สำหรับแยก Proxy IP ไม่สำเร็จ — บล็อคการเปิดจอผ่านเน็ตบ้านอัตโนมัติ');
       }
       // Align this profile's Device ID strictly to the IP Group of its newly acquired Proxy IP
-      rebalanceDeviceGroups(profile.id, false);
+      rebalanceDeviceGroups(profile.id, true);
     }
     if (tunnelInfo?.lease?.proxyHost || tunnelInfo?.lease?.ip) {
       await waitSameProxyIpLaunchStagger(tunnelInfo.lease.proxyHost || tunnelInfo.lease.ip);
@@ -4187,7 +4344,18 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
     const c = await attach(profile.id, targetId, true, browserContextId);
     c.initialHealthChecked = true;
     startProxy(c, profile.debugPort);
-    await send('Page.navigate', { url: gameUrl }, c.sessionId);
+    if (isRealSession) {
+      // Do NOT let a slow upstream proxy stall the 30-screen launch loop or trigger CDP ws.close()
+      const navPromise = send('Page.navigate', { url: gameUrl }, c.sessionId, 25000).catch(err => {
+        console.warn(`[BrowserMode] Page.navigate delayed/warn (${profile.id}): ${err && err.message || err}`);
+      });
+      await Promise.race([
+        navPromise,
+        new Promise(r => setTimeout(r, opts && opts.fastNavigate ? 900 : 2500))
+      ]);
+    } else {
+      await send('Page.navigate', { url: gameUrl }, c.sessionId);
+    }
     for (const targetId of startupPages.splice(0)) await send('Target.closeTarget', { targetId }).catch(() => {});
     const proxyTag = tunnelInfo?.lease?.proxyHost
       ? ` (IP: ${tunnelInfo.lease.ip || tunnelInfo.lease.proxyHost} [${tunnelInfo.lease.slotNo || tunnelInfo.lease.slot || 1}/${tunnelInfo.lease.maxScreens || tunnelInfo.lease.maxSlots || 6}])`
@@ -4199,6 +4367,7 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
     const c = clients.get(profileId);
     if (c) await syncClientStorage(c).catch(() => {});
     const targetId=c?.targetId||knownTargets.get(profileId);knownTargets.delete(profileId);saveKnownTargets();
+    if (targetId && knownProxyContexts.delete(targetId)) saveKnownProxyContexts();
     const oldCtxId = c?.browserContextId || null;
     diagnostics.set(profileId,{gameAlive:null,botReady:false,state:'explicitly-stopped'});
     if (screenProxy) await screenProxy.releaseProfile(profileId, 'stopped').catch(() => {});
@@ -4221,6 +4390,8 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
     }
     knownTargets.clear();
     saveKnownTargets();
+    knownProxyContexts.clear();
+    saveKnownProxyContexts();
     await connect().then(async () => {
       const res = await send('Target.getTargets').catch(() => null);
       const infos = Array.isArray(res?.targetInfos) ? res.targetInfos : [];
@@ -4235,7 +4406,7 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
   const isOpen = profileId => clients.has(profileId);
   const hasProxyContext = profileId => {
     const c = clients.get(profileId);
-    return Boolean(c && c.browserContextId);
+    return Boolean(c && (c.browserContextId || knownProxyContexts.has(c.targetId)));
   };
   function findClientByPort(port) {
     const numPort = Number(port) || 0;
@@ -4295,81 +4466,113 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
 
     for (const c of Array.from(clients.values())) {
       if (filterSet && !filterSet.has(c.profileId)) continue;
-      if (c.browserContextId && !customContexts.has(c.browserContextId)) c.browserContextId = null;
+      if (migratingProxyProfiles.has(c.profileId)) continue;
+      if (customContexts.size > 0 && c.browserContextId && !customContexts.has(c.browserContextId) && knownProxyContexts.get(c.targetId) !== c.browserContextId) {
+        c.browserContextId = null;
+      }
       const profile = allProfiles.find(p => p.id === c.profileId) || { id: c.profileId, debugPort: c.port };
-      await syncClientStorage(c).catch(() => {});
-      if (!screenProxy.isEnabled()) {
-        await screenProxy.releaseProfile(c.profileId, 'disabled').catch(() => {});
-        updatedTunnels++;
-        details.push({ profileId: c.profileId, action: 'direct-tunnel' });
-        continue;
-      }
-      const tunnelInfo = await screenProxy.acquireForProfile(c.profileId, { debugPort: profile.debugPort });
-      rebalanceDeviceGroups(c.profileId, false);
-      if (c.browserContextId && customContexts.has(c.browserContextId)) {
-        // Already running in a proxy-enabled BrowserContext pointing to 127.0.0.1:<tunnelPort>
-        updatedTunnels++;
-        details.push({ profileId: c.profileId, action: 'tunnel-updated', proxyHost: tunnelInfo?.lease?.proxyHost || null });
-        continue;
-      }
-      // Migrate from default context to isolated proxy BrowserContext while preserving window bounds
-      if (tunnelInfo && tunnelInfo.proxyServerUrl) {
-        try {
-          let savedBounds = null;
-          let savedCookies = [];
-          try {
-            const winInfo = await send('Browser.getWindowForTarget', { targetId: c.targetId });
-            if (winInfo && winInfo.bounds) savedBounds = winInfo.bounds;
-          } catch (_) {}
-          try {
-            const cookieRes = await send('Network.getCookies', { urls: [gameUrl] }, c.sessionId, 3000);
-            if (Array.isArray(cookieRes?.cookies)) savedCookies = cookieRes.cookies;
-          } catch (_) {}
-          const ctxRes = await send('Target.createBrowserContext', {
-            disposeOnDetach: false,
-            proxyServer: tunnelInfo.proxyServerUrl,
-            proxyBypassList: 'localhost,127.0.0.1'
-          });
-          const browserContextId = ctxRes?.browserContextId || null;
-          if (browserContextId) {
-            if (savedCookies.length > 0) {
-              await send('Storage.setCookies', { cookies: savedCookies, browserContextId }, undefined, 3000).catch(() => {});
-            }
-            const oldTargetId = c.targetId;
-            const { targetId: newTargetId } = await send('Target.createTarget', { url: 'about:blank', newWindow: true, browserContextId });
-            drop(c);
-            await new Promise(r => setTimeout(r, 80));
-            const newClient = await attach(profile.id, newTargetId, false, browserContextId);
-            startProxy(newClient, profile.debugPort);
-            if (savedBounds) {
-              try {
-                const { windowId: newWinId } = await send('Browser.getWindowForTarget', { targetId: newTargetId });
-                await send('Browser.setWindowBounds', { windowId: newWinId, bounds: { windowState: 'normal' } }).catch(() => {});
-                await send('Browser.setWindowBounds', {
-                  windowId: newWinId,
-                  bounds: {
-                    left: savedBounds.left,
-                    top: savedBounds.top,
-                    width: savedBounds.width,
-                    height: savedBounds.height
-                  }
-                }).catch(() => {});
-              } catch (_) {}
-            }
-            if (tunnelInfo?.lease?.proxyHost || tunnelInfo?.lease?.ip) {
-              await waitSameProxyIpLaunchStagger(tunnelInfo.lease.proxyHost || tunnelInfo.lease.ip);
-            }
-            await send('Page.navigate', { url: gameUrl }, newClient.sessionId);
-            await send('Target.closeTarget', { targetId: oldTargetId }).catch(() => {});
-            switched++;
-            details.push({ profileId: c.profileId, action: 'recreated-with-proxy', proxyHost: tunnelInfo?.lease?.proxyHost || null });
-          }
-        } catch (e) {
-          details.push({ profileId: c.profileId, action: 'error', error: e.message });
+      migratingProxyProfiles.add(c.profileId);
+      try {
+        await syncClientStorage(c).catch(() => {});
+        if (!screenProxy.isEnabled()) {
+          await screenProxy.releaseProfile(c.profileId, 'disabled').catch(() => {});
+          updatedTunnels++;
+          details.push({ profileId: c.profileId, action: 'direct-tunnel' });
+          continue;
         }
+        const tunnelInfo = await screenProxy.acquireForProfile(c.profileId, { debugPort: profile.debugPort });
+        rebalanceDeviceGroups(c.profileId, true);
+        if (tunnelInfo?.lease?.useHomeIp || tunnelInfo?.lease?.directHomeIp) {
+          updatedTunnels++;
+          details.push({ profileId: c.profileId, action: 'home-ip-direct' });
+          continue;
+        }
+        if (c.browserContextId && (customContexts.has(c.browserContextId) || knownProxyContexts.get(c.targetId) === c.browserContextId)) {
+          // Already running in a proxy-enabled BrowserContext pointing to 127.0.0.1:<tunnelPort>
+          updatedTunnels++;
+          details.push({ profileId: c.profileId, action: 'tunnel-updated', proxyHost: tunnelInfo?.lease?.proxyHost || null });
+          continue;
+        }
+        // Migrate from default context to isolated proxy BrowserContext while preserving window bounds
+        if (tunnelInfo && tunnelInfo.proxyServerUrl) {
+          let newTargetId = null;
+          let browserContextId = null;
+          try {
+            let savedBounds = null;
+            let savedCookies = [];
+            try {
+              const winInfo = await send('Browser.getWindowForTarget', { targetId: c.targetId });
+              if (winInfo && winInfo.bounds) savedBounds = winInfo.bounds;
+            } catch (_) {}
+            try {
+              const cookieRes = await send('Network.getCookies', { urls: [gameUrl] }, c.sessionId, 3000);
+              if (Array.isArray(cookieRes?.cookies)) savedCookies = cookieRes.cookies;
+            } catch (_) {}
+            const ctxRes = await send('Target.createBrowserContext', {
+              disposeOnDetach: false,
+              proxyServer: tunnelInfo.proxyServerUrl,
+              proxyBypassList: 'localhost,127.0.0.1'
+            });
+            browserContextId = ctxRes?.browserContextId || null;
+            if (browserContextId) {
+              if (savedCookies.length > 0) {
+                await send('Storage.setCookies', { cookies: savedCookies, browserContextId }, undefined, 3000).catch(() => {});
+              }
+              const oldTargetId = c.targetId;
+              const created = await send('Target.createTarget', { url: 'about:blank', newWindow: true, browserContextId });
+              newTargetId = created?.targetId || null;
+              if (!newTargetId) throw new Error('CREATE_TARGET_FAILED');
+              // Only drop the old client AFTER the new target exists and attaches cleanly
+              stopProxy(c);
+              await new Promise(r => setTimeout(r, 80));
+              const newClient = await attach(profile.id, newTargetId, false, browserContextId);
+              // Clean up old client timers/state without deleting the newly attached clients.get(profile.id)
+              c.generation++; clearTimeout(c.retryTimer); c.retryTimer = null;
+              startProxy(newClient, profile.debugPort);
+              if (savedBounds) {
+                try {
+                  const { windowId: newWinId } = await send('Browser.getWindowForTarget', { targetId: newTargetId });
+                  await send('Browser.setWindowBounds', { windowId: newWinId, bounds: { windowState: 'normal' } }).catch(() => {});
+                  await send('Browser.setWindowBounds', {
+                    windowId: newWinId,
+                    bounds: {
+                      left: savedBounds.left,
+                      top: savedBounds.top,
+                      width: savedBounds.width,
+                      height: savedBounds.height
+                    }
+                  }).catch(() => {});
+                } catch (_) {}
+              }
+              if (tunnelInfo?.lease?.proxyHost || tunnelInfo?.lease?.ip) {
+                await waitSameProxyIpLaunchStagger(tunnelInfo.lease.proxyHost || tunnelInfo.lease.ip);
+              }
+              if (isRealSession) {
+                const navPromise = send('Page.navigate', { url: gameUrl }, newClient.sessionId, 25000).catch(() => {});
+                await Promise.race([navPromise, new Promise(r => setTimeout(r, 2000))]);
+              } else {
+                await send('Page.navigate', { url: gameUrl }, newClient.sessionId);
+              }
+              if (oldTargetId && knownProxyContexts.delete(oldTargetId)) saveKnownProxyContexts();
+              await send('Target.closeTarget', { targetId: oldTargetId }).catch(() => {});
+              switched++;
+              details.push({ profileId: c.profileId, action: 'recreated-with-proxy', proxyHost: tunnelInfo?.lease?.proxyHost || null });
+            }
+          } catch (e) {
+            if (newTargetId) await send('Target.closeTarget', { targetId: newTargetId }).catch(() => {});
+            if (browserContextId) await send('Target.disposeBrowserContext', { browserContextId }).catch(() => {});
+            // Restore HTTP proxy on the surviving original window if migration failed mid-way
+            if (clients.get(c.profileId) === c && !c.server) {
+              startProxy(c, profile.debugPort);
+            }
+            details.push({ profileId: c.profileId, action: 'error', error: e.message });
+          }
+        }
+      } finally {
+        migratingProxyProfiles.delete(c.profileId);
       }
     }
-    rebalanceDeviceGroups(null, false);
+    rebalanceDeviceGroups(null, true);
     return { switched, updatedTunnels, details };
   }
 
@@ -4472,10 +4675,10 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
     const nowMs = Date.now();
     const prevReadyAt = nextNavigateAtByProxyIp.get(key) || 0;
     const waitMs = Math.max(0, prevReadyAt - nowMs);
-    const gapMs = 6800 + Math.floor(Math.random() * 2400);
+    const gapMs = 2200 + Math.floor(Math.random() * 1000);
     nextNavigateAtByProxyIp.set(key, Math.max(nowMs, prevReadyAt) + gapMs);
     if (waitMs > 0) {
-      await new Promise(r => setTimeout(r, Math.min(waitMs, 60000)));
+      await new Promise(r => setTimeout(r, Math.min(waitMs, 15000)));
     }
   }
   function start() {
@@ -4502,10 +4705,16 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
       if (isRealSession && screenProxy && screenProxy.isEnabled() && !phase2Running && !proxyMigrationInFlight) {
         const unproxiedIds = [];
         for (const c of clients.values()) {
-          if (c && c.profileId && !c.browserContextId && !stoppedProfiles.has(c.profileId)) {
-            unproxiedIds.push(c.profileId);
-            if (unproxiedIds.length >= 4) break;
-          }
+          if (!c || !c.profileId || c.browserContextId || stoppedProfiles.has(c.profileId)) continue;
+          if (migratingProxyProfiles.has(c.profileId)) continue;
+          if (knownProxyContexts.has(c.targetId)) continue;
+          if (c.createdAt && (now - c.createdAt < 20000)) continue;
+          const snap = typeof screenProxy.getProfileLeaseSnapshot === 'function'
+            ? screenProxy.getProfileLeaseSnapshot(c.profileId)
+            : null;
+          if (snap && (snap.useHomeIp || snap.directHomeIp)) continue;
+          unproxiedIds.push(c.profileId);
+          if (unproxiedIds.length >= 4) break;
         }
         if (unproxiedIds.length > 0) {
           proxyMigrationInFlight = true;
@@ -5481,7 +5690,7 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
 
   // ====================== END UNBAN MODE ======================
 
-  return { launch, stop, stopAll, isOpen, hasProxyContext, ensureProxyListening, evalByPort, start, dispose, findBrowser, rebalanceDeviceGroups, ensureProfileDeviceId, ensureProfileMachineId, ensureProfileDeviceGroupIndex, ensureProfileDeviceSpec, resolveDeviceSpec, getDeviceGroupsSnapshot, rotateDeviceGroup, rotateProfileDeviceId, rotateAllDeviceIds, getCustomIpDeviceConfig, getProfileIpIsolationMeta, mutateCustomIpDevices, pruneDeletedProfilesFromCustomGroups, applyProxyModeToOpenWindows, syncAssetCacheToOpenWindows, harvestAllFromBrowserLevelDb, launchUnbanSession, stopUnbanSession, stopAllUnbanSessions, getUnbanStatus, setUnbanCallback, addProfilesToUnbanPool, removeProfileFromUnbanPool, rotateUnbanDevice, setUnbanProxyMode, loadUnbanConfig, saveUnbanConfig, status:()=>Object.fromEntries(diagnostics) };
+  return { launch, stop, stopAll, isOpen, hasProxyContext, ensureProxyListening, evalByPort, rediscover, start, dispose, findBrowser, rebalanceDeviceGroups, ensureProfileDeviceId, ensureProfileMachineId, ensureProfileDeviceGroupIndex, ensureProfileDeviceSpec, resolveDeviceSpec, getDeviceGroupsSnapshot, rotateDeviceGroup, rotateProfileDeviceId, rotateAllDeviceIds, getCustomIpDeviceConfig, getProfileIpIsolationMeta, mutateCustomIpDevices, pruneDeletedProfilesFromCustomGroups, applyProxyModeToOpenWindows, syncAssetCacheToOpenWindows, harvestAllFromBrowserLevelDb, launchUnbanSession, stopUnbanSession, stopAllUnbanSessions, getUnbanStatus, setUnbanCallback, addProfilesToUnbanPool, removeProfileFromUnbanPool, rotateUnbanDevice, setUnbanProxyMode, loadUnbanConfig, saveUnbanConfig, status:()=>Object.fromEntries(diagnostics) };
 }
 
 module.exports = { createBrowserMode, findBrowser, HEALTH_JS, MAX_SCREENS_PER_DEVICE, resolveDeviceSpec, extractPelicanStorageFromLevelDb, mergeAuthConfigString, mergeSellConfigString };

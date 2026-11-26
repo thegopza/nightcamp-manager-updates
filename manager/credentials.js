@@ -7,6 +7,16 @@ const path = require('path');
 const FILE = path.join(__dirname, 'data', 'credentials.json');
 const BACKUP_FILE = path.join(__dirname, 'data', 'credentials.backup.json');
 let memCache = null;
+let memCacheMtimeMs = -1;
+let memCacheCheckedAt = 0;
+
+function getFileMtimeMs(filePath) {
+  try {
+    return fs.statSync(filePath).mtimeMs;
+  } catch (_) {
+    return -1;
+  }
+}
 
 function writeAtomic(filePath, obj) {
   const dir = path.dirname(filePath);
@@ -32,9 +42,20 @@ function readJsonObj(filePath) {
 }
 
 function loadAll() {
+  const now = Date.now();
+  if (memCache !== null && (now - memCacheCheckedAt < 3000)) {
+    return { ...memCache };
+  }
+  const mtime = getFileMtimeMs(FILE);
+  if (memCache !== null && mtime >= 0 && mtime === memCacheMtimeMs) {
+    memCacheCheckedAt = now;
+    return { ...memCache };
+  }
   const primary = readJsonObj(FILE);
   if (primary && Object.keys(primary).length > 0) {
-    memCache = primary;
+    memCache = { ...primary };
+    memCacheMtimeMs = mtime >= 0 ? mtime : getFileMtimeMs(FILE);
+    memCacheCheckedAt = now;
     if (!fs.existsSync(BACKUP_FILE)) {
       try { writeAtomic(BACKUP_FILE, primary); } catch (_) {}
     }
@@ -42,20 +63,32 @@ function loadAll() {
   }
   const backup = readJsonObj(BACKUP_FILE);
   if (backup && Object.keys(backup).length > 0) {
-    memCache = backup;
+    memCache = { ...backup };
     try { writeAtomic(FILE, backup); } catch (_) {}
+    memCacheMtimeMs = getFileMtimeMs(FILE);
+    memCacheCheckedAt = now;
     return { ...backup };
   }
   if (memCache && Object.keys(memCache).length > 0) {
+    memCacheCheckedAt = now;
     return { ...memCache };
   }
-  return primary || {};
+  if (primary !== null) {
+    memCache = { ...primary };
+    memCacheMtimeMs = mtime >= 0 ? mtime : getFileMtimeMs(FILE);
+    memCacheCheckedAt = now;
+    return { ...primary };
+  }
+  memCacheCheckedAt = now;
+  return {};
 }
 
 function saveAll(all) {
   const safe = (all && typeof all === 'object' && !Array.isArray(all)) ? all : {};
   memCache = { ...safe };
   writeAtomic(FILE, safe);
+  memCacheMtimeMs = getFileMtimeMs(FILE);
+  memCacheCheckedAt = Date.now();
   if (Object.keys(safe).length > 0) {
     try { writeAtomic(BACKUP_FILE, safe); } catch (_) {}
   }

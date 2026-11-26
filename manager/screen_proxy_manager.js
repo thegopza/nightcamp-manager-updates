@@ -608,7 +608,26 @@ function createScreenProxyManager({ dataDir, solver, loadProfiles, assetCache: p
     return false;
   }
 
+  let blockedCacheRev = 1;
+  let cachedSettings = null;
+  let cachedSettingsMtimeMs = -1;
+  let cachedSettingsCheckedAt = 0;
+  let cachedPool = null;
+  let cachedPoolMtimeMs = -1;
+  let cachedPoolCheckedAt = 0;
+  let cachedPoolMaxPerIp = 0;
+  let cachedPoolBlockedRev = 0;
+
+  function statMtimeMs(file) {
+    try {
+      return fs.statSync(file).mtimeMs;
+    } catch (_) {
+      return -1;
+    }
+  }
+
   function saveBlockedProxies() {
+    blockedCacheRev++;
     try {
       writeJson(blockedFile, {
         updatedAt: now(),
@@ -1270,6 +1289,15 @@ function createScreenProxyManager({ dataDir, solver, loadProfiles, assetCache: p
   }
 
   function loadSettings() {
+    const t = now();
+    if (cachedSettings && (t - cachedSettingsCheckedAt < 3000)) {
+      return { ...cachedSettings };
+    }
+    const mtime = statMtimeMs(settingsFile);
+    if (cachedSettings && mtime === cachedSettingsMtimeMs) {
+      cachedSettingsCheckedAt = t;
+      return { ...cachedSettings };
+    }
     const raw = readJson(settingsFile, {});
     if (raw && typeof raw === 'object' && raw.enabled !== true && Number(raw.maxScreensPerIp) === 3 && !raw.default6Migrated) {
       raw.maxScreensPerIp = 6;
@@ -1279,7 +1307,7 @@ function createScreenProxyManager({ dataDir, solver, loadProfiles, assetCache: p
     const maxScreensPerIp = Math.max(1, Math.min(20, parseInt(raw.maxScreensPerIp, 10) || DEFAULT_MAX_SCREENS_PER_IP));
     const mode = raw.mode === 'local-pool' ? 'local-pool' : 'owner-queue';
     const localAssetCache = raw.localAssetCache !== false;
-    return {
+    cachedSettings = {
       enabled: raw.enabled === true,
       mode,
       maxScreensPerIp,
@@ -1291,6 +1319,9 @@ function createScreenProxyManager({ dataDir, solver, loadProfiles, assetCache: p
       lastTestedAt: raw.lastTestedAt || null,
       updatedAt: raw.updatedAt || null
     };
+    cachedSettingsMtimeMs = statMtimeMs(settingsFile);
+    cachedSettingsCheckedAt = t;
+    return { ...cachedSettings };
   }
 
   function saveSettings(patch = {}) {
@@ -1309,6 +1340,9 @@ function createScreenProxyManager({ dataDir, solver, loadProfiles, assetCache: p
       updatedAt: now()
     };
     writeJson(settingsFile, next);
+    cachedSettings = null;
+    cachedSettingsMtimeMs = -1;
+    cachedSettingsCheckedAt = 0;
     if (assetCache && typeof assetCache.setEnabled === 'function') {
       assetCache.setEnabled(next.localAssetCache !== false);
     }
@@ -1326,6 +1360,25 @@ function createScreenProxyManager({ dataDir, solver, loadProfiles, assetCache: p
 
   function loadPool() {
     const settings = loadSettings();
+    const t = now();
+    if (
+      cachedPool &&
+      cachedPoolMaxPerIp === settings.maxScreensPerIp &&
+      cachedPoolBlockedRev === blockedCacheRev &&
+      (t - cachedPoolCheckedAt < 5000)
+    ) {
+      return cachedPool;
+    }
+    const mtime = statMtimeMs(poolFile);
+    if (
+      cachedPool &&
+      cachedPoolMaxPerIp === settings.maxScreensPerIp &&
+      cachedPoolBlockedRev === blockedCacheRev &&
+      mtime === cachedPoolMtimeMs
+    ) {
+      cachedPoolCheckedAt = t;
+      return cachedPool;
+    }
     const raw = readJson(poolFile, { rawText: '', proxies: [] });
     const rawText = typeof raw.rawText === 'string' ? raw.rawText : '';
     const parsed = parseProxyPoolText(rawText || raw.proxies || [], settings.maxScreensPerIp);
@@ -1337,7 +1390,12 @@ function createScreenProxyManager({ dataDir, solver, loadProfiles, assetCache: p
         blockInfo: blockInfo || null
       };
     });
-    return { rawText, proxies };
+    cachedPool = { rawText, proxies };
+    cachedPoolMtimeMs = mtime;
+    cachedPoolCheckedAt = t;
+    cachedPoolMaxPerIp = settings.maxScreensPerIp;
+    cachedPoolBlockedRev = blockedCacheRev;
+    return cachedPool;
   }
 
   function savePool(rawText, maxScreensPerIp) {
@@ -1359,7 +1417,12 @@ function createScreenProxyManager({ dataDir, solver, loadProfiles, assetCache: p
       rawText: text,
       proxies
     });
-    return { rawText: text, proxies };
+    cachedPool = { rawText: text, proxies };
+    cachedPoolMtimeMs = statMtimeMs(poolFile);
+    cachedPoolCheckedAt = now();
+    cachedPoolMaxPerIp = s.maxScreensPerIp;
+    cachedPoolBlockedRev = blockedCacheRev;
+    return cachedPool;
   }
 
   function getBlockedProxies() {
@@ -2097,14 +2160,19 @@ function createScreenProxyManager({ dataDir, solver, loadProfiles, assetCache: p
   }
 
   const EXPECTED_DAEMON_VERSION = 4;
+  let daemonVerifiedAt = 0;
 
-  async function ensureDaemonRunning() {
+  async function ensureDaemonRunning(forcePing = false) {
     if (!usePersistentDaemon) return false;
+    if (!forcePing && daemonVerifiedAt > 0 && (now() - daemonVerifiedAt < 5000)) {
+      return true;
+    }
     let prevTunnelsToRestore = [];
     try {
       const ping = await daemonRequest('GET', '/ping', null, 1200);
       if (ping && ping.ok) {
         if ((Number(ping.version) || 1) >= EXPECTED_DAEMON_VERSION) {
+          daemonVerifiedAt = now();
           if (Array.isArray(ping.tunnels)) {
             for (const dt of ping.tunnels) {
               if (dt && dt.profileId && dt.port && !tunnels.has(dt.profileId)) {
@@ -2122,11 +2190,14 @@ function createScreenProxyManager({ dataDir, solver, loadProfiles, assetCache: p
           return true;
         }
         // Outdated daemon (e.g. v1 fail-open) -> gracefully upgrade to v2 fail-closed and restore tunnel ports
+        daemonVerifiedAt = 0;
         prevTunnelsToRestore = Array.isArray(ping.tunnels) ? ping.tunnels : [];
         await daemonRequest('POST', '/shutdown', {}, 1200).catch(() => {});
         await new Promise(r => setTimeout(r, 220));
       }
-    } catch (_) {}
+    } catch (_) {
+      daemonVerifiedAt = 0;
+    }
 
     if (daemonSpawnPromise) return daemonSpawnPromise;
     daemonSpawnPromise = (async () => {
@@ -2150,6 +2221,7 @@ function createScreenProxyManager({ dataDir, solver, loadProfiles, assetCache: p
           try {
             const ping = await daemonRequest('GET', '/ping', null, 1000);
             if (ping && ping.ok) {
+              daemonVerifiedAt = now();
               await daemonRequest('POST', '/sync', buildDaemonSyncPayload(), 2000).catch(() => {});
               for (const dt of prevTunnelsToRestore) {
                 if (dt && dt.profileId && dt.port) {
@@ -2183,6 +2255,7 @@ function createScreenProxyManager({ dataDir, solver, loadProfiles, assetCache: p
       await daemonRequest('POST', '/sync', buildDaemonSyncPayload(), 2000);
       return true;
     } catch (_) {
+      daemonVerifiedAt = 0;
       return false;
     }
   }
@@ -2380,7 +2453,9 @@ function createScreenProxyManager({ dataDir, solver, loadProfiles, assetCache: p
             return entry;
           }
         }
-      } catch (_) {}
+      } catch (_) {
+        daemonVerifiedAt = 0;
+      }
     }
 
     const existing = tunnels.get(profileId);
@@ -3572,6 +3647,8 @@ function createScreenProxyManager({ dataDir, solver, loadProfiles, assetCache: p
       activeOnIp: l.activeOnIp || 1,
       scheme: l.scheme || 'http',
       ipGroupKey: l.ipGroupKey || 'auto',
+      useHomeIp: Boolean(l.useHomeIp || l.directHomeIp),
+      directHomeIp: Boolean(l.directHomeIp || l.useHomeIp),
       isCustomIp: Boolean(l.isCustomIp || (l.ipGroupKey && String(l.ipGroupKey).startsWith('custom:'))),
       proxyTotalBytes: (pTraffic.proxyRxBytes || 0) + (pTraffic.proxyTxBytes || 0)
     };

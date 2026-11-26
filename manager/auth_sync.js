@@ -318,15 +318,18 @@ const READ_JS = `(() => {
 })()`;
 
 const QUEUE_OVERLAY_HELPER_JS = `
-  if (typeof window.__setPmRegisterQueueOverlay !== 'function') {
+  if (window.__pmRegisterQueueOverlayVer !== 2 || typeof window.__setPmRegisterQueueOverlay !== 'function') {
+    window.__pmRegisterQueueOverlayVer = 2;
     window.__setPmRegisterQueueOverlay = function(q) {
       const fmtRemain = (targetMs) => {
         const sec = Math.max(0, Math.ceil(((Number(targetMs) || 0) - Date.now()) / 1000));
+        if (sec <= 0) return 'กำลังเริ่ม...';
         const m = Math.floor(sec / 60);
         const s = sec % 60;
         return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
       };
-      if (!q || !q.waiting || (window.__pmRegisterQueueDismissedUntil && Date.now() < window.__pmRegisterQueueDismissedUntil)) {
+      const isSignedInNow = Boolean(window.NC?.Online?.account?.kind && window.NC.Online.account.kind !== 'device');
+      if (!q || !q.waiting || isSignedInNow || (window.__pmRegisterQueueDismissedUntil && Date.now() < window.__pmRegisterQueueDismissedUntil)) {
         window.__pmRegisterQueueState = null;
         if (window.__pmRegisterQueueTimer) {
           clearInterval(window.__pmRegisterQueueTimer);
@@ -344,12 +347,12 @@ const QUEUE_OVERLAY_HELPER_JS = `
       if (!root) {
         root = document.createElement('div');
         root.id = 'pm-register-queue-overlay';
-        root.style.cssText = 'position:fixed;inset:0;z-index:99985;background:rgba(6,10,22,0.82);backdrop-filter:blur(5px);display:flex;align-items:center;justify-content:center;padding:10px;box-sizing:border-box;font-family:"IBM Plex Sans Thai","Plus Jakarta Sans",sans-serif;color:#f8fafc;user-select:none;';
+        root.style.cssText = 'position:fixed;inset:0;z-index:2147483600;background:rgba(6,10,22,0.82);backdrop-filter:blur(5px);display:flex;align-items:center;justify-content:center;padding:10px;box-sizing:border-box;font-family:"IBM Plex Sans Thai","Plus Jakarta Sans",sans-serif;color:#f8fafc;user-select:none;';
         root.innerHTML = [
           '<div style="width:100%;max-width:360px;background:linear-gradient(155deg,rgba(15,23,42,0.97) 0%,rgba(30,20,45,0.97) 100%);border:1.5px solid rgba(245,158,11,0.6);border-radius:14px;padding:14px 16px;box-shadow:0 20px 50px rgba(0,0,0,0.8),0 0 28px rgba(245,158,11,0.18);text-align:center;">',
           '  <div data-rq="badge" style="display:inline-flex;align-items:center;gap:6px;background:rgba(245,158,11,0.16);border:1px solid rgba(251,191,36,0.5);color:#fde68a;border-radius:999px;padding:4px 12px;font-size:13px;font-weight:800;letter-spacing:0.2px;margin-bottom:8px;">⏳ กำลังรอคิวสมัคร</div>',
           '  <div data-rq="title" style="font-size:15px;font-weight:800;color:#fff;margin-bottom:4px;">กำลังรอคิวสมัครไอดีอัตโนมัติ</div>',
-          '  <div data-rq="sub" style="font-size:11.5px;line-height:1.45;color:#cbd5e1;margin-bottom:10px;">ระบบทยอยสมัครทีละ 1–3 จอ แล้วเว้นช่วง 10–20 นาที เพื่อลดความเสี่ยงโดนแบนยกชุด</div>',
+          '  <div data-rq="sub" style="font-size:11.5px;line-height:1.45;color:#cbd5e1;margin-bottom:10px;">ระบบทยอยสมัครทีละ 1–3 จอ แล้วสุ่มหน่วงเวลา 1–30 นาที เพื่อลดความเสี่ยงโดนแบนยกชุด</div>',
           '  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">',
           '    <div style="background:rgba(2,6,23,0.72);border:1px solid rgba(148,163,184,0.22);border-radius:10px;padding:8px 6px;">',
           '      <div style="font-size:10px;color:#94a3b8;margin-bottom:2px;" data-rq="pos-lbl">ลำดับคิวรอ</div>',
@@ -374,7 +377,11 @@ const QUEUE_OVERLAY_HELPER_JS = `
       }
       const updateUi = () => {
         const st = window.__pmRegisterQueueState;
-        if (!st || !st.waiting) return;
+        const signedInTick = Boolean(window.NC?.Online?.account?.kind && window.NC.Online.account.kind !== 'device');
+        if (!st || !st.waiting || signedInTick) {
+          if (signedInTick) window.__setPmRegisterQueueOverlay(null);
+          return;
+        }
         const badge = root.querySelector('[data-rq="badge"]');
         const title = root.querySelector('[data-rq="title"]');
         const sub = root.querySelector('[data-rq="sub"]');
@@ -382,10 +389,16 @@ const QUEUE_OVERLAY_HELPER_JS = `
         const posEl = root.querySelector('[data-rq="pos"]');
         const timerLbl = root.querySelector('[data-rq="timer-lbl"]');
         const timerEl = root.querySelector('[data-rq="timer"]');
+        const minB = Number(st.minBatchSize) || 1;
+        const maxB = Number(st.maxBatchSize) || 3;
+        const minM = Number(st.minCooldownMin) || 1;
+        const maxM = Number(st.maxCooldownMin) || 30;
+        const batchRangeTxt = minB === maxB ? (minB + ' จอ') : (minB + '–' + maxB + ' จอ');
+        const coolRangeTxt = minM === maxM ? (minM + ' นาที') : (minM + '–' + maxM + ' นาที');
         if (st.startingSoon) {
           if (badge) badge.textContent = '⚡ ถึงคิวสมัครรอบนี้แล้ว';
           if (title) title.textContent = 'กำลังเตรียมสมัครไอดีให้จอนี้...';
-          if (sub) sub.textContent = 'เว้นจังหวะห่างกันเล็กน้อยภายในกลุ่ม 1–3 จอ เพื่อความเป็นธรรมชาติ';
+          if (sub) sub.textContent = 'เว้นจังหวะห่างกันเล็กน้อยภายในกลุ่ม ' + batchRangeTxt + ' เพื่อความเป็นธรรมชาติ';
           if (posLbl) posLbl.textContent = 'ลำดับในรอบนี้';
           if (posEl) posEl.textContent = (st.waveSlot || 1) + ' / ' + (st.waveTargetSize || 1);
           if (timerLbl) timerLbl.textContent = 'เริ่มสมัครในอีก';
@@ -393,7 +406,7 @@ const QUEUE_OVERLAY_HELPER_JS = `
         } else {
           if (badge) badge.textContent = '⏳ กำลังรอคิวสมัคร';
           if (title) title.textContent = 'กำลังรอคิวสมัครไอดีอัตโนมัติ';
-          if (sub) sub.textContent = 'ระบบทยอยสมัครทีละ 1–3 จอ แล้วเว้นช่วง 10–20 นาที เพื่อลดความเสี่ยงโดนแบนยกชุด';
+          if (sub) sub.textContent = 'ระบบทยอยสมัครทีละ ' + batchRangeTxt + ' แล้วสุ่มหน่วงเวลา ' + coolRangeTxt + ' เพื่อลดความเสี่ยงโดนแบนยกชุด';
           if (posLbl) posLbl.textContent = 'ลำดับคิวรอ';
           if (posEl) posEl.textContent = '#' + (st.position || 1) + (st.totalWaiting ? ' / ' + st.totalWaiting : '');
           if (timerLbl) timerLbl.textContent = 'ชุดถัดไปในอีก';
@@ -545,18 +558,20 @@ function createAuthSync({
   const pw = p => credentials.getPassword(p.id);
   const pendingCreds = new Map(); // profileId -> { username, password, generatedUser }
 
-  // Staggered Auto-Register Wave Queue (1–3 accounts per wave, 10–20 min cooldown between waves)
+  // Staggered Auto-Register Wave Queue (1–3 accounts per wave, random 1–30 min cooldown between waves)
   const nowFn = typeof waveOptions.now === 'function' ? waveOptions.now : () => Date.now();
   const randIntFn = typeof waveOptions.randInt === 'function' ? waveOptions.randInt : rInt;
   const minBatchSize = Math.max(1, Number(waveOptions.minBatchSize ?? 1));
   const maxBatchSize = Math.max(minBatchSize, Number(waveOptions.maxBatchSize ?? 3));
-  const minCooldownMs = Math.max(0, Number(waveOptions.minCooldownMs ?? 10 * 60 * 1000));
-  const maxCooldownMs = Math.max(minCooldownMs, Number(waveOptions.maxCooldownMs ?? 20 * 60 * 1000));
+  const minCooldownMs = Math.max(0, Number(waveOptions.minCooldownMs ?? 1 * 60 * 1000));
+  const maxCooldownMs = Math.max(minCooldownMs, Number(waveOptions.maxCooldownMs ?? 30 * 60 * 1000));
   const admissionWindowMs = Math.max(0, Number(waveOptions.admissionWindowMs ?? 90 * 1000));
-  const intraWaveStaggerMinMs = Math.max(0, Number(waveOptions.intraWaveStaggerMinMs ?? 6000));
-  const intraWaveStaggerMaxMs = Math.max(intraWaveStaggerMinMs, Number(waveOptions.intraWaveStaggerMaxMs ?? 15000));
+  const intraWaveStaggerMinMs = Math.max(0, Number(waveOptions.intraWaveStaggerMinMs ?? waveOptions.minStaggerMs ?? 6000));
+  const intraWaveStaggerMaxMs = Math.max(intraWaveStaggerMinMs, Number(waveOptions.intraWaveStaggerMaxMs ?? waveOptions.maxStaggerMs ?? 15000));
   const slotMaxActiveMs = Math.max(1000, Number(waveOptions.slotMaxActiveMs ?? 5 * 60 * 1000));
   const scheduleTimers = waveOptions.disableTimers !== true;
+
+  const hasConfirmedProfileChar = p => Boolean(p && p.account && p.lastCharName && !isPlaceholderCharName(p.lastCharName));
 
   const lastClientOnlineAt = new Map(); // profileId -> timestamp
   const lastPushedQueueDigest = new Map(); // profileId -> digest string
@@ -589,8 +604,9 @@ function createAuthSync({
     for (const [pid, slot] of waveState.admitted.entries()) {
       if (slot.completedAt || slot.timedOut) continue;
       const p = byId.get(pid);
-      const creatingCharGrace = Boolean(p && !p.lastCharName && p.registeredAt && (now - p.registeredAt < 60000));
-      const finished = !p || Boolean(p.lastCharName) || (!p.autoRegister && !p.loginSyncPending && !creatingCharGrace);
+      const confirmedChar = hasConfirmedProfileChar(p);
+      const creatingCharGrace = Boolean(p && !confirmedChar && p.registeredAt && (now - p.registeredAt < 60000));
+      const finished = !p || confirmedChar || (!p.autoRegister && !p.loginSyncPending && !creatingCharGrace);
       const clientGone = requireOnlineWindowForQueue && ((now - (lastClientOnlineAt.get(pid) || 0)) > 45000);
       if (finished) {
         slot.completedAt = now;
@@ -610,7 +626,7 @@ function createAuthSync({
     waveState.queueOrder = waveState.queueOrder.filter(pid => {
       if (waveState.admitted.has(pid)) return false;
       const p = byId.get(pid);
-      if (!p || !p.autoRegister || p.lastCharName) return false;
+      if (!p || !p.autoRegister || hasConfirmedProfileChar(p)) return false;
       if (requireOnlineWindowForQueue) {
         const seenAt = lastClientOnlineAt.get(pid) || 0;
         if (!seenAt || (now - seenAt > 45000)) return false;
@@ -636,9 +652,6 @@ function createAuthSync({
   }
 
   function requestRegisterWaveAccess(profile, allProfiles) {
-    return { allowed: true, waveId: 1 };
-  }
-  function _legacyRequestRegisterWaveAccess(profile, allProfiles) {
     const now = nowFn();
     reconcileWaveState(allProfiles);
     const pid = profile.id;
@@ -698,7 +711,9 @@ function createAuthSync({
       for (const nextPid of toAdmit) {
         admitIntoCurrentWave(nextPid, now);
       }
-      console.log(`[AuthSync] 🌊 เริ่มรอบคิวสมัครชุดที่ #${waveState.waveId}: อนุญาต ${waveState.admitted.size}/${targetSize} จอ (พักรอรอบถัดไป ${Math.round(rolledCooldownMs / 60000)} นาที)`);
+      const coolSec = Math.round(rolledCooldownMs / 1000);
+      const coolDesc = coolSec >= 60 ? `${Math.floor(coolSec / 60)} นาที ${coolSec % 60} วิ` : `${coolSec} วิ`;
+      console.log(`[AuthSync] 🌊 เริ่มรอบคิวสมัครชุดที่ #${waveState.waveId}: อนุญาต ${waveState.admitted.size}/${targetSize} จอ (สุ่มพักรอรอบถัดไป ${coolDesc})`);
 
       if (waveState.admitted.has(pid)) {
         const slot = waveState.admitted.get(pid);
@@ -719,7 +734,7 @@ function createAuthSync({
     }
     const position = waveState.queueOrder.indexOf(pid) + 1;
     const allEligibleWaiting = (allProfiles || []).filter(x => {
-      if (!x || !x.autoRegister || x.lastCharName || waveState.admitted.has(x.id)) return false;
+      if (!x || !x.autoRegister || hasConfirmedProfileChar(x) || waveState.admitted.has(x.id)) return false;
       if (requireOnlineWindowForQueue) {
         const seen = lastClientOnlineAt.get(x.id) || 0;
         return x.id === pid || (seen > 0 && (now - seen <= 45000));
@@ -1073,7 +1088,7 @@ function createAuthSync({
         return;
       }
 
-      // Gate both Proxy and Direct Browser Auto-Register through the 1–3 / 10–20m Wave Queue
+      // Gate both Proxy and Direct Browser Auto-Register through the staggered Wave Queue (1–3 / random 1–30m)
       const access = requestRegisterWaveAccess(profile, allProfiles);
       if (!access.allowed) {
         const overlayPayload = {
@@ -1084,7 +1099,11 @@ function createAuthSync({
           waveSlot: access.waveSlot || 1,
           waveTargetSize: access.waveTargetSize || 1,
           readyAt: access.readyAt || 0,
-          nextWaveAt: access.nextWaveAt || 0
+          nextWaveAt: access.nextWaveAt || 0,
+          minBatchSize,
+          maxBatchSize,
+          minCooldownMin: Math.max(1, Math.round(minCooldownMs / 60000)),
+          maxCooldownMin: Math.max(1, Math.round(maxCooldownMs / 60000))
         };
         const digest = JSON.stringify(overlayPayload);
         if (!cur.registerQueueWaiting || lastPushedQueueDigest.get(profile.id) !== digest) {

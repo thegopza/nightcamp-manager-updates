@@ -2293,6 +2293,7 @@ function getPartyRoleMap() {
   const map = new Map();
   const pData = window.__partyManagerData;
   const parties = (pData && Array.isArray(pData.parties)) ? pData.parties : [];
+  const inGameParties = (pData && Array.isArray(pData.inGameParties)) ? pData.inGameParties : [];
   const profileById = new Map(currentProfiles.map(p => [p.id, p]));
 
   parties.forEach((party, idx) => {
@@ -2314,11 +2315,32 @@ function getPartyRoleMap() {
       map.set(slot.id, {
         partyId: party.id,
         partyIndex: pIndex,
+        inGameOnly: false,
         isLeader,
         isAnchorPriest,
         followMode: slot.followMode || 'none',
         status: slot.status || '',
         statusText: slot.statusText || ''
+      });
+    });
+  });
+
+  inGameParties.forEach((ig, idx) => {
+    const pIndex = ig.index || (idx + 1);
+    const allSlots = [ig.leader, ...(Array.isArray(ig.members) ? ig.members : [])].filter(Boolean);
+    allSlots.forEach((slot) => {
+      if (!slot || !slot.id || map.has(slot.id)) return;
+      const isLeader = Boolean(ig.leaderProfileId && slot.id === ig.leaderProfileId);
+      map.set(slot.id, {
+        partyId: ig.id,
+        partyIndex: pIndex,
+        inGameOnly: true,
+        isLeader,
+        isAnchorPriest: false,
+        leaderName: ig.leaderName || '',
+        followMode: 'none',
+        status: slot.status || (isLeader ? 'leader' : 'joined'),
+        statusText: slot.statusText || 'ตี้ตั้งเองในเกม'
       });
     });
   });
@@ -2328,6 +2350,11 @@ function getPartyRoleMap() {
 function buildPartyRoleChip(profileId) {
   const info = getPartyRoleMap().get(profileId);
   if (!info) return '';
+  if (info.inGameOnly) {
+    const label = info.isLeader ? `🎮 หัวตี้ในเกม #${info.partyIndex}` : `🎮 ตี้ในเกม #${info.partyIndex}`;
+    const tip = `ปาร์ตี้ที่ตั้งเองในเกม (หัวตี้: ${escapeHTML(info.leaderName || '-')}) · โหมดดูสถานะ บอทไม่ชวน/ไม่เตะอัตโนมัติ`;
+    return `<span class="party-role-chip role-ingame" onclick="if(window.openPartyDrawer)window.openPartyDrawer()" title="${tip}" style="background:rgba(14,165,233,0.18);border-color:rgba(56,189,248,0.5);color:#7dd3fc;">${label}</span>`;
+  }
   if (info.isLeader && info.isAnchorPriest) {
     return `<span class="party-role-chip role-priest-leader" onclick="if(window.openPartyDrawer)window.openPartyDrawer()" title="หัวตี้ + พระหลักศูนย์กลางของปาร์ตี้ #${info.partyIndex}">👑✨ หัวตี้·พระ #${info.partyIndex}</span>`;
   }
@@ -2549,6 +2576,50 @@ function buildPartyGroupSection(party, idx, profileById, roleMap, soloAvgGpm) {
         <div class="pg-head-right" onclick="event.stopPropagation()">
           <div class="pg-head-actions">
             <button type="button" class="btn btn-ghost btn-sm pg-action-btn" onclick="if(window.openPartyDrawer)window.openPartyDrawer()" title="ตั้งค่าปาร์ตี้นี้">⚙️ ตั้งค่าตี้</button>
+          </div>
+        </div>
+      </header>
+      ${isCollapsed ? '' : `
+      <div class="profile-group-grid profiles-grid">
+        ${partyProfiles.map(buildProfileCard).join('')}
+      </div>`}
+    </section>`;
+}
+
+function buildInGamePartyGroupSection(ig, idx, profileById) {
+  const pIndex = ig.index || (idx + 1);
+  const groupKey = `igparty:${ig.id}`;
+  const isCollapsed = collapsedCardGroups.has(groupKey);
+  const managedIds = Array.isArray(ig.managedProfileIds) ? ig.managedProfileIds : [];
+  const partyProfiles = managedIds.map(id => profileById.get(id)).filter(Boolean);
+  const stats = summarizeGroupStats(partyProfiles);
+  const externalCount = Math.max(0, (Number(ig.count) || partyProfiles.length) - partyProfiles.length);
+  const firstOnline = partyProfiles.find(p => p.isRunning && p.liveState && p.liveState.map);
+  const mapLabel = (firstOnline?.liveState?.map) || ig.leader?.mapName || 'ไม่ทราบแมพ';
+  const chVal = (firstOnline?.liveState?.channel) || ig.leader?.channel || null;
+  const chLabel = chVal ? `CH ${chVal}` : '';
+  const expLabel = ig.expMode === 'individual' ? '⚔️ ต่างคนต่างได้' : '⚖️ แบ่ง EXP เท่ากัน';
+  return `
+    <section class="profile-group-section is-party-group is-ingame-party-group ${isCollapsed ? 'is-collapsed' : ''}" data-group-id="group-igparty-${escapeHTML(ig.id)}" style="border-color:rgba(56,189,248,0.38);">
+      <header class="profile-group-header" onclick="toggleCardGroupCollapse('${escapeHTML(groupKey)}', event)">
+        <div class="pg-head-left">
+          <button type="button" class="pg-collapse-btn" title="${isCollapsed ? 'คลิกเพื่อขยายดูการ์ดในตี้นี้' : 'คลิกเพื่อพับเก็บการ์ดในตี้นี้'}">${isCollapsed ? '▶' : '▼'}</button>
+          <span class="pg-group-badge party" style="background:rgba(14,165,233,0.22);border-color:rgba(56,189,248,0.55);color:#7dd3fc;">🎮 ตี้ตั้งเองในเกม #${pIndex}</span>
+          <div class="pg-title-block">
+            <div class="pg-title-main">
+              <span>หัวตี้: <b>${escapeHTML(ig.leaderName || 'หัวตี้')}</b>${ig.leaderIsManaged ? '' : ' <span style="font-size:11px;color:#94a3b8;">(ผู้เล่นภายนอก)</span>'}</span>
+              <span class="pg-meta-chip" style="background:rgba(56,189,248,0.12);border-color:rgba(56,189,248,0.32);color:#bae6fd;">👀 โหมดดูสถานะ · บอทไม่ชวน/ไม่เตะ</span>
+            </div>
+            <div class="pg-meta-pills">
+              <span class="pg-meta-chip">👥 ทั้งหมด <b>${ig.count || partyProfiles.length}</b>/${ig.max || 5} (จอเรา <b>${partyProfiles.length}</b>${externalCount > 0 ? ` · คนนอก <b>${externalCount}</b>` : ''}) · ออนไลน์ <b>${stats.onlineCount}</b></span>
+              <span class="pg-meta-chip map">📍 ${escapeHTML(mapLabel)}${chLabel ? ` · <b>${escapeHTML(chLabel)}</b>` : ''}</span>
+              <span class="pg-meta-chip">${escapeHTML(expLabel)}</span>
+            </div>
+          </div>
+        </div>
+        <div class="pg-head-right" onclick="event.stopPropagation()">
+          <div class="pg-head-actions">
+            <button type="button" class="btn btn-ghost btn-sm pg-action-btn" onclick="if(window.openPartyDrawer)window.openPartyDrawer()" title="เปิดดูรายละเอียดหรือย้ายให้ Manager ดูแล">👀 ดูในหน้าตี้</button>
           </div>
         </div>
       </header>
@@ -2871,6 +2942,7 @@ function renderProfiles() {
     gridEl.classList.add('grouped-mode');
     const pData = window.__partyManagerData;
     const parties = (pData && Array.isArray(pData.parties)) ? pData.parties : [];
+    const inGameParties = (pData && Array.isArray(pData.inGameParties)) ? pData.inGameParties : [];
     const profileById = new Map(currentProfiles.map(p => [p.id, p]));
     const roleMap = getPartyRoleMap();
 
@@ -2881,8 +2953,8 @@ function renderProfiles() {
     const partyStats = summarizeGroupStats(partyProfilesAll);
     const soloStats = summarizeGroupStats(soloProfilesAll);
 
-    let html = buildPartyVsSoloBanner(parties.length, partyStats, soloStats);
-    if (parties.length === 0) {
+    let html = buildPartyVsSoloBanner(parties.length + inGameParties.length, partyStats, soloStats);
+    if (parties.length === 0 && inGameParties.length === 0) {
       html += `
         <section class="profile-group-section is-party-group" data-group-id="group-no-party">
           <div class="pg-empty-party-notice">
@@ -2895,6 +2967,7 @@ function renderProfiles() {
         </section>`;
     } else {
       html += parties.map((party, idx) => buildPartyGroupSection(party, idx, profileById, roleMap, soloStats.avgGpm)).join('');
+      html += inGameParties.map((ig, idx) => buildInGamePartyGroupSection(ig, idx, profileById)).join('');
     }
     html += buildProblemGroupSection(problemProfilesAll);
     html += buildStoppedGroupSection(stoppedProfilesAll);

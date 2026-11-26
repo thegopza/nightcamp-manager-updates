@@ -35,7 +35,7 @@
   const setText = (el, txt) => { if (el && el.textContent !== String(txt)) el.textContent = String(txt); };
   const setHtml = (el, html) => { if (el && el.innerHTML !== html) el.innerHTML = html; };
 
-  let data = { parties: [], clients: [], maxMembers: 5 };
+  let data = { parties: [], inGameParties: [], clients: [], maxMembers: 5 };
   let open = false, pollTimer = null, busy = false, pointerDown = false, pendingRender = false;
   const collapsedParties = new Set();
   let pickerState = { mode: 'leader', partyId: null };
@@ -517,14 +517,72 @@
     }
   }
 
+  function buildInGamePartyCardHtml(ig) {
+    const effMax = Math.min(5, Number(ig.max) || 5);
+    const allSlots = [Object.assign({}, ig.leader, { _isLeader: true })].concat((ig.members || []).map(m => Object.assign({}, m, { _isLeader: false }))).filter(Boolean);
+    const rowsHtml = allSlots.map(slot => {
+      const displayName = slot.charName || slot.profileName || '?';
+      const subParts = [
+        slot.external ? 'ผู้เล่นภายนอก' : slot.profileName,
+        slot.mapName ? (slot.mapName + (slot.channel ? ' · CH ' + slot.channel : '')) : null
+      ].filter(Boolean);
+      const portraitUrl = slot.id ? resolveMemberAvatarUrl(slot.id) : '';
+      const h = String(hue(displayName));
+      const avaInner = portraitUrl
+        ? `<img src="${esc(portraitUrl)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block;">${slot._isLeader ? '<span style="position:absolute;right:-1px;bottom:-1px;background:#38bdf8;color:#0f172a;border-radius:999px;width:13px;height:13px;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:900;">👑</span>' : ''}`
+        : (slot._isLeader ? CROWN_SM : esc(initial(displayName)));
+      const inspectAttrs = slot.id ? `data-act="inspect-char" data-id="${esc(slot.id)}" style="cursor:pointer;" title="คลิกเพื่อดูข้อมูลตัวละคร"` : '';
+      const statusCls = slot.external ? 'other' : (slot._isLeader ? 'leader' : 'joined');
+      return `
+        <div class="pt-row${slot._isLeader ? ' leader' : ''}">
+          <div class="pt-row-top">
+            <div class="pt-ava" ${inspectAttrs} style="--pt-h:${h};position:relative;overflow:hidden;${slot.id ? 'cursor:pointer;' : ''}">${avaInner}</div>
+            <div class="pt-who" ${inspectAttrs}>
+              <div class="pt-name"><span class="pt-name-txt">${esc(displayName)}</span>${slot.level ? `<span class="pt-lv">Lv.${esc(slot.level)}</span>` : ''}${slot.external ? `<span style="margin-left:4px;font-size:9.5px;padding:1px 5px;border-radius:999px;background:rgba(148,163,184,0.18);color:#cbd5e1;font-weight:600;">คนนอก</span>` : ''}</div>
+              <div class="pt-sub">${esc(subParts.join(' · '))}</div>
+            </div>
+            <span class="pt-status ${statusCls}">${esc(slot.statusText || (slot._isLeader ? 'หัวตี้' : 'ในตี้'))}</span>
+          </div>
+        </div>`;
+    }).join('');
+
+    const lootTxt = LOOT[ig.lootMode] || LOOT.personal;
+    const expTxt = EXP[ig.expMode] || EXP['even-share'];
+    const grpTxt = GROUP[ig.groupMode] || GROUP.g;
+    const adoptBtn = ig.canAdopt
+      ? `<button type="button" data-act="adopt-ingame" data-ig-id="${esc(ig.id)}" style="flex:1;padding:7px 10px;border:1px solid rgba(251,191,36,0.55);border-radius:8px;background:rgba(245,158,11,0.18);color:#fde68a;font-size:11.5px;font-weight:700;cursor:pointer;">👑 ให้ Manager ดูแลตี้นี้</button>`
+      : '';
+    const leaveBtn = (Array.isArray(ig.managedProfileIds) && ig.managedProfileIds.length > 0)
+      ? `<button type="button" data-act="leave-ingame" data-ig-id="${esc(ig.id)}" style="padding:7px 10px;border:1px solid rgba(248,113,113,0.45);border-radius:8px;background:rgba(239,68,68,0.14);color:#fca5a5;font-size:11.5px;font-weight:700;cursor:pointer;white-space:nowrap;">🚪 ออกจากตี้ (จอของเรา)</button>`
+      : '';
+
+    return `
+      <article class="pt-card pt-ingame-card" data-ingame-party="${esc(ig.id)}" style="border-color:rgba(56,189,248,0.42);background:linear-gradient(160deg,rgba(14,116,144,0.14),rgba(15,23,42,0.88));">
+        <div class="pt-card-top">
+          <span class="pt-card-title" style="color:#7dd3fc;">🎮 ตี้ตั้งเองในเกม #${esc(ig.index || 1)}</span>
+          <span class="pt-count${ig.count >= effMax ? ' full' : ''}">${esc(ig.count)}/${esc(effMax)}</span>
+        </div>
+        <div style="margin:6px 0 8px;padding:6px 9px;border-radius:7px;background:rgba(56,189,248,0.10);border:1px solid rgba(56,189,248,0.32);color:#bae6fd;font-size:10.5px;line-height:1.45;">
+          👀 <b>โหมดดูสถานะ</b> · ปาร์ตี้นี้ตั้งเองในเกม (บอทจะไม่ชวนคนเพิ่ม ไม่เตะ และไม่ย้าย CH หนีเพื่อนอัตโนมัติ)
+        </div>
+        <div class="pt-members">${rowsHtml}</div>
+        <div style="margin-top:8px;padding:6px 8px;border-radius:7px;background:rgba(15,23,42,0.55);border:1px solid rgba(148,163,184,0.16);font-size:10.5px;color:#cbd5e1;display:flex;flex-wrap:wrap;gap:6px;">
+          <span>${esc(lootTxt)}</span><span>·</span><span>${esc(expTxt)}</span><span>·</span><span>${esc(grpTxt)}</span>
+        </div>
+        ${(adoptBtn || leaveBtn) ? `<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">${adoptBtn}${leaveBtn}</div>` : ''}
+      </article>`;
+  }
+
   function render() {
+    const inGameList = Array.isArray(data.inGameParties) ? data.inGameParties : [];
+    const totalBadge = data.parties.length + inGameList.length;
     const badge = document.getElementById('pt-tab-badge');
-    if (badge) setText(badge, data.parties.length ? String(data.parties.length) : '');
+    if (badge) setText(badge, totalBadge ? String(totalBadge) : '');
     const body = document.getElementById('pt-body');
     if (!body) return;
 
-    if (!data.parties.length) {
-      if (!body.querySelector('.pt-empty')) {
+    if (!data.parties.length && !inGameList.length) {
+      if (!body.querySelector('.pt-empty') || body.querySelector('.pt-card') || body.querySelector('.pt-ingame-wrap')) {
         body.innerHTML = `<div class="pt-empty">ยังไม่มีปาร์ตี้<br>กด <b>➕ เพิ่มตี้ (สูงสุด 5 คน)</b> ด้านล่างเพื่อเลือกหัวตี้</div>`;
       }
     } else {
@@ -532,7 +590,7 @@
       if (emptyEl) emptyEl.remove();
 
       const existingCards = new Map();
-      Array.from(body.querySelectorAll('.pt-card')).forEach(el => {
+      Array.from(body.querySelectorAll('.pt-card:not(.pt-ingame-card)')).forEach(el => {
         existingCards.set(el.dataset.party, el);
       });
 
@@ -552,6 +610,23 @@
       nextCards.forEach((cardEl, idx) => {
         if (body.children[idx] !== cardEl) body.insertBefore(cardEl, body.children[idx] || null);
       });
+
+      let igWrap = body.querySelector('.pt-ingame-wrap');
+      if (inGameList.length > 0) {
+        if (!igWrap) {
+          igWrap = document.createElement('div');
+          igWrap.className = 'pt-ingame-wrap';
+          igWrap.style.cssText = 'display:flex;flex-direction:column;gap:10px;margin-top:4px;';
+          body.appendChild(igWrap);
+        }
+        const igHtml = (data.parties.length > 0
+          ? `<div style="font-size:11px;font-weight:700;color:#7dd3fc;letter-spacing:0.02em;padding:4px 2px 0;border-top:1px dashed rgba(56,189,248,0.28);">🎮 ปาร์ตี้ที่ตั้งเองในเกม (${inGameList.length})</div>`
+          : '') + inGameList.map(buildInGamePartyCardHtml).join('');
+        setHtml(igWrap, igHtml);
+        if (body.lastElementChild !== igWrap) body.appendChild(igWrap);
+      } else if (igWrap) {
+        igWrap.remove();
+      }
     }
 
     const free = data.clients.filter(c => !c.assigned);
@@ -787,6 +862,46 @@
     if (b.dataset.act === 'pick-member') {
       collapsedParties.delete(rawPid);
       openPicker({ mode: 'member', partyId: rawPid });
+      return;
+    }
+    if (b.dataset.act === 'adopt-ingame' && b.dataset.igId) {
+      const ig = (data.inGameParties || []).find(x => String(x.id) === String(b.dataset.igId));
+      if (!ig || !ig.leaderProfileId) {
+        toast('ไม่สามารถนำเข้าตี้นี้ได้ (หัวตี้ไม่ใช่จอใน Manager)', 'error');
+        return;
+      }
+      const memberIds = (ig.managedProfileIds || []).filter(id => String(id) !== String(ig.leaderProfileId));
+      busy = true;
+      b.disabled = true;
+      try {
+        const r = await api('/adopt-ingame', {
+          leaderId: ig.leaderProfileId,
+          memberIds,
+          expMode: ig.expMode,
+          lootMode: ig.lootMode,
+          groupMode: ig.groupMode
+        });
+        toast(r.success === false ? (r.error || 'นำเข้าตี้ไม่สำเร็จ') : '👑 ย้ายตี้นี้เข้าสู่การดูแลของ Manager แล้ว', r.success === false ? 'error' : 'success');
+      } finally {
+        busy = false;
+        b.disabled = false;
+      }
+      return;
+    }
+    if (b.dataset.act === 'leave-ingame' && b.dataset.igId) {
+      const ig = (data.inGameParties || []).find(x => String(x.id) === String(b.dataset.igId));
+      const ids = (ig && Array.isArray(ig.managedProfileIds)) ? ig.managedProfileIds : [];
+      if (!ids.length) return;
+      if (!confirm(`สั่งจอของเรา (${ids.length} จอ) ออกจากปาร์ตี้ตั้งเองในเกมนี้?`)) return;
+      busy = true;
+      b.disabled = true;
+      try {
+        const r = await api('/leave-ingame', { profileIds: ids });
+        toast(r.success === false ? (r.error || 'ออกจากตี้ไม่สำเร็จ') : `🚪 สั่งออกจากปาร์ตี้ในเกมแล้ว (${ids.length} จอ)`, r.success === false ? 'error' : 'success');
+      } finally {
+        busy = false;
+        b.disabled = false;
+      }
       return;
     }
     if (b.dataset.act === 'delete') {
