@@ -160,6 +160,7 @@ const READ_JS = `(() => {
     planActiveModeType: window.__planActiveModeType || '',
     planActiveTargetMap: window.__planActiveTargetMap || null,
     isTraveling: Boolean(window.NC?.Travel?.on),
+    gemRushActive: Boolean(window.__gemRushState && (window.__gemRushState.enabled || (window.__gemRushState.phase && window.__gemRushState.phase !== 'idle'))),
     botRunning: window.__isBotRunning === true,
     noLootMode: Boolean(window.__noLootMode || (live && live.noLootMode)),
     autoFarmMode: (typeof window.__getMemberAutoFarmMode === 'function' ? window.__getMemberAutoFarmMode().mode : (window.__memberAutoFarmMode || 'auto')),
@@ -409,6 +410,7 @@ function pickCandidates(party, parties, states, managedNames, slots, excluded) {
   for (const [id, s] of states) {
     if (taken.has(id) || (excluded && excluded.has(id))) continue;
     if (!s || !s.ok || !s.name || typeof s.level !== 'number') continue;
+    if (s.gemRushActive) continue; // actively running Auto Farm (Gem Rush)
     if (planBlocked(s)) continue; // still levelling with its Plan Script
     if (s.party) {
       // In someone else's party: only usable when that party is ours (stale bot party) or led by our leader
@@ -561,6 +563,7 @@ function createPartyService(opts) {
   const { loadProfiles, evalProfilePort } = opts;
   const dataFile = opts.dataFile || path.join(__dirname, 'data', 'parties.json');
   const isBusy = opts.isBusy || (() => false);
+  const isProfileExcluded = typeof opts.isProfileExcluded === 'function' ? opts.isProfileExcluded : (() => false);
   const getChannelCheckMode = opts.getChannelCheckMode || (() => 'no_overlap');
   const now = opts.now || (() => Date.now());
   const sleep = opts.sleep || (ms => new Promise(r => setTimeout(r, ms)));
@@ -654,9 +657,16 @@ function createPartyService(opts) {
     return true;
   }
 
+  function isAutoFarmProtected(id, snap) {
+    if (id && isProfileExcluded(String(id))) return true;
+    const s = snap !== undefined ? snap : (id ? states.get(id) : null);
+    return Boolean(s && s.gemRushActive);
+  }
+
   function getSoloOccupiedInfo(profileId, profiles) {
     const S = states.get(profileId);
     if (!S || !S.ok || !S.name) return null;
+    if (isAutoFarmProtected(profileId, S)) return null;
     const P = profiles ? profiles.get(profileId) : null;
     const serverKey = normalizeServerKey(S.serverName || P?.serverName || P?.lastServerName || '');
     const rt = srt(profileId);
@@ -717,13 +727,14 @@ function createPartyService(opts) {
     const LP = profiles ? profiles.get(p.leaderId) : null;
     const priest = findPartyPriest(p, profiles, states);
     let anchorSnap = null;
-    if (priest && priest.snap && priest.snap.ok && priest.snap.botRunning !== false && priest.snap.mapId && !isCityMapName(priest.snap.mapName)) {
+    if (priest && !isAutoFarmProtected(priest.id, priest.snap) && priest.snap && priest.snap.ok && priest.snap.botRunning !== false && priest.snap.mapId && !isCityMapName(priest.snap.mapName)) {
       anchorSnap = priest.snap;
-    } else if (L && L.ok && L.botRunning !== false && L.mapId && !isCityMapName(L.mapName)) {
+    } else if (!isAutoFarmProtected(p.leaderId, L) && L && L.ok && L.botRunning !== false && L.mapId && !isCityMapName(L.mapName)) {
       anchorSnap = L;
     } else {
       for (const mid of (p.memberIds || [])) {
         const ms = states.get(mid);
+        if (isAutoFarmProtected(mid, ms)) continue;
         if (ms && ms.ok && ms.botRunning !== false && ms.mapId && !isCityMapName(ms.mapName)) {
           anchorSnap = ms;
           break;
@@ -943,6 +954,7 @@ function createPartyService(opts) {
         continue;
       }
       const L = states.get(party.leaderId);
+      if (isAutoFarmProtected(party.leaderId, L)) continue;
       const rt = prt(party.id);
       const leaderLeadsInGame = Boolean(
         L && L.ok && L.name && L.party &&
@@ -973,6 +985,7 @@ function createPartyService(opts) {
           if (!gm || !gm.name || gm.name === L.name) continue;
           const mid = nameToProfileId.get(String(gm.name).trim().toLowerCase());
           if (!mid || mid === party.leaderId) continue;
+          if (isAutoFarmProtected(mid)) continue;
           if (party.memberIds.includes(mid)) continue;
           if (taken.has(mid)) continue;
           if (Array.isArray(party.excludedIds) && party.excludedIds.includes(mid)) continue;
@@ -1015,6 +1028,7 @@ function createPartyService(opts) {
     for (const [id, P] of profiles) {
       if (taken.has(id)) continue;
       const S = states.get(id);
+      if (isAutoFarmProtected(id, S)) continue;
       if (!S || !S.ok || !S.name || !S.party) continue;
       if (!Array.isArray(S.party.members) || S.party.members.length < 2) continue;
       const pidStr = S.party.partyPid ? String(S.party.partyPid) : '';
@@ -1136,6 +1150,14 @@ function createPartyService(opts) {
     const leaderP = profiles.get(party.leaderId);
     const L = states.get(party.leaderId);
     if (!leaderP) { rt.notes = ['ไม่พบโปรไฟล์หัวตี้แล้ว']; return; }
+    if (isAutoFarmProtected(party.leaderId, L)) {
+      if (L && L.ok && L.hasPmPartySync && L.helpers && L.helpers.updatePartySyncState) {
+        const clr = await act(leaderP, ACTIONS.syncClientPartyState(null), 'clear-autofarm-party-sync');
+        if (clr && clr.ok) L.hasPmPartySync = false;
+      }
+      rt.notes = ['💎 หัวตี้กำลังรันระบบฟาร์มเพชร — พักการจัดการตี้ชั่วคราว (ไม่กระทบจอฟาร์มเพชร)'];
+      return;
+    }
     if (!L || !L.ok || !L.name) { rt.notes = ['หัวตี้ออฟไลน์หรือยังไม่เข้าเกม']; return; }
     if (!L.partyKnown) notes.push('อ่านสถานะปาร์ตี้ในเกมไม่ได้ (หน้าเกมอาจยังโหลดไม่เสร็จ)');
     const managed = managedNameSet();
@@ -1161,6 +1183,13 @@ function createPartyService(opts) {
     for (const id of party.memberIds) {
       if (!profiles.has(id)) continue;
       const s = states.get(id), m = mrt(party.id, id);
+      if (isAutoFarmProtected(id, s)) {
+        m.seenAt = now();
+        m.otherPartySince = 0;
+        m.leaveAttempts = 0;
+        keep.push(id);
+        continue;
+      }
       const charName = (s && s.name) || (profiles.get(id) && profiles.get(id).lastCharName) || null;
       const gm = charName ? inGameMembersMap.get(charName) : null;
       const isOnlineNow = Boolean(s && s.ok && s.name && (!gm || gm.online !== false));
@@ -1200,6 +1229,13 @@ function createPartyService(opts) {
     // Top up to 6 (leader included)
     if (party.autoFill) {
       const excluded = new Set(party.excludedIds);
+      const hardExcluded = new Set(party.excludedIds);
+      for (const id of profiles.keys()) {
+        if (isAutoFarmProtected(id)) {
+          excluded.add(id);
+          hardExcluded.add(id);
+        }
+      }
       for (const [k, until] of tempExcluded) {
         if (until < now()) { tempExcluded.delete(k); continue; }
         const [pid, id] = k.split(':'); if (pid === party.id) excluded.add(id);
@@ -1211,7 +1247,7 @@ function createPartyService(opts) {
       let picks = pickCandidates(party, parties, states, managed, slots, excluded);
       // Fallback: if party still has empty slots and no non-excluded candidate is available, allow retrying temp-excluded clients
       if (!picks.length && slots > 0) {
-        picks = pickCandidates(party, parties, states, managed, slots, new Set(party.excludedIds));
+        picks = pickCandidates(party, parties, states, managed, slots, hardExcluded);
       }
       if (picks.length) { party.memberIds.push(...picks); changed = true; }
     }
@@ -1247,6 +1283,7 @@ function createPartyService(opts) {
     // Invites
     for (const id of party.memberIds) {
       const P = profiles.get(id), S = states.get(id), m = mrt(party.id, id);
+      if (isAutoFarmProtected(id, S)) continue;
       if (!S || !S.ok || !S.name) continue;
       if (inGame.has(S.name)) { m.inviteAttempts = 0; continue; }
       if (S.party && S.party.leader !== L.name) {
@@ -1300,6 +1337,7 @@ function createPartyService(opts) {
       for (const id of [party.leaderId].concat(party.memberIds)) {
         const wantNoLoot = noLootSet.has(String(id));
         const P = profiles.get(id), S = states.get(id);
+        if (isAutoFarmProtected(id, S)) continue;
         if (P && S && S.ok && typeof S.noLootMode === 'boolean' && S.noLootMode !== wantNoLoot) {
           const r = await act(P, ACTIONS.setNoLoot(wantNoLoot), 'sync-noloot');
           if (r.ok) S.noLootMode = wantNoLoot;
@@ -1313,6 +1351,7 @@ function createPartyService(opts) {
       for (const id of [party.leaderId].concat(party.memberIds)) {
         const wantMode = normalizeAutoFarmMode(autoModesMap[id]);
         const P = profiles.get(id), S = states.get(id);
+        if (isAutoFarmProtected(id, S)) continue;
         if (P && S && S.ok && S.autoFarmMode && S.autoFarmMode !== wantMode) {
           const r = await act(P, ACTIONS.setAutoFarmMode(wantMode), 'sync-auto-mode');
           if (r.ok) {
@@ -1327,14 +1366,17 @@ function createPartyService(opts) {
     // - 'none' (default): cancel the game's follow (e.g. after รวมทีม) so the member farms the map independently
     //   (unless it is temporarily walking back to the Priest for buffs: S.returningToPriest === true).
     // - 'leader' or 'member:<id>': engage the game's follow on that party member (or the Priest when a Priest is in the party).
-    const priest = findPartyPriest(party, profiles, states);
+    const rawPriest = findPartyPriest(party, profiles, states);
+    const priest = (rawPriest && !isAutoFarmProtected(rawPriest.id, rawPriest.snap)) ? rawPriest : null;
     const allPartyNames = [L.name].concat(party.memberIds.map(id => {
+      if (isAutoFarmProtected(id)) return null;
       const s = states.get(id), p = profiles.get(id);
       return (s && s.name) || (p && p.lastCharName) || null;
     })).filter(Boolean);
 
     for (const id of [party.leaderId].concat(party.memberIds)) {
       const P = profiles.get(id), S = states.get(id), m = mrt(party.id, id);
+      if (isAutoFarmProtected(id, S)) continue;
       if (!S || !S.ok || !S.name || (id !== party.leaderId && !inGame.has(S.name))) continue;
       if (id === party.leaderId && (!priest || S.follow !== priest.name)) continue;
       const ft = id === party.leaderId
@@ -1427,6 +1469,7 @@ function createPartyService(opts) {
         let latestSwitch = null;
         for (const id of [party.leaderId].concat(party.memberIds)) {
           const S = states.get(id);
+          if (isAutoFarmProtected(id, S)) continue;
           if (!S || !S.ok || !S.name) continue;
           if (id !== party.leaderId && !inGame.has(S.name)) continue;
           const sw = S.lastPostSellChannelSwitch;
@@ -1521,6 +1564,7 @@ function createPartyService(opts) {
 
       for (const id of party.memberIds) {
         const P = profiles.get(id), S = states.get(id), m = mrt(party.id, id);
+        if (isAutoFarmProtected(id, S)) continue;
         if (!S || !S.ok || !S.name) continue;
         const canPreJoinMoveCh = Boolean(!inGame.has(S.name) && !partyFull && !(S.party && S.party.leader !== L.name));
         if (!inGame.has(S.name) && !canPreJoinMoveCh) continue;
@@ -1575,6 +1619,7 @@ function createPartyService(opts) {
     if (priestFlowEnabled) {
       for (const id of [party.leaderId].concat(party.memberIds)) {
         const s = states.get(id);
+        if (isAutoFarmProtected(id, s)) continue;
         if (!s || !s.ok || !s.name) continue;
         if (priest && String(priest.id) === String(id)) continue;
         if (priest && priest.snap && priest.snap.ok) {
@@ -1621,6 +1666,7 @@ function createPartyService(opts) {
     const anchorInField = Boolean(anchorSnap && anchorSnap.mapId && !isCityMapName(anchorSnap.mapName));
     for (const mid of [party.leaderId].concat(party.memberIds)) {
       const ms = states.get(mid);
+      if (isAutoFarmProtected(mid, ms)) continue;
       if (ms && typeof ms.level === 'number' && ms.level > maxMemberLevel) {
         maxMemberLevel = ms.level;
       }
@@ -1634,6 +1680,13 @@ function createPartyService(opts) {
     }
     for (const id of [party.leaderId].concat(party.memberIds)) {
       const P = profiles.get(id), S = states.get(id);
+      if (isAutoFarmProtected(id, S)) {
+        if (P && S && S.ok && S.hasPmPartySync && S.helpers && S.helpers.updatePartySyncState) {
+          const clr = await act(P, ACTIONS.syncClientPartyState(null), 'clear-autofarm-party-sync');
+          if (clr && clr.ok) S.hasPmPartySync = false;
+        }
+        continue;
+      }
       if (!P || !S || !S.ok || !S.helpers || !S.helpers.updatePartySyncState) continue;
       let effMode = 'none';
       if (id !== party.leaderId) {
@@ -1701,6 +1754,7 @@ function createPartyService(opts) {
       const snapshots = new Map();
       for (const id of memberIds) {
         const P = profiles.get(id), S = states.get(id);
+        if (isAutoFarmProtected(id, S)) continue;
         if (!P || !S || !S.ok || !S.name) continue;
         if (Array.isArray(S.busy) && S.busy.length > 0) continue;
         const r = await act(P, ACTIONS.getShareableGear(), 'gear-share-scan', 8000);
@@ -1860,6 +1914,7 @@ function createPartyService(opts) {
       for (const id of ids) {
         if (!parties.includes(party)) return { ok: false, aborted: true };
         const S = states.get(id);
+        if (isAutoFarmProtected(id, S)) continue;
         const nm = (S && S.name) || id;
         if (S && S.channel === ch) continue;
         rt.gatherNote = nm + ' กำลังย้ายไป CH ' + ch + ' (รอคูลดาวน์/ที่ว่างให้เอง)';
@@ -2097,6 +2152,7 @@ function createPartyService(opts) {
     for (const [id, P] of profiles.entries()) {
       if (taken.has(id)) continue;
       const S = states.get(id);
+      if (isAutoFarmProtected(id, S)) continue;
       if (!P || !S || !S.ok || !S.name) continue;
       // CRITICAL: If this profile is NOT assigned to any Manager party, clear any stale client `__pmPartySync` / `__ncPendingPartyLeader`
       // so the bot NEVER hallucinates a phantom Manager party or sends unrequested invites!
@@ -2268,7 +2324,10 @@ function createPartyService(opts) {
     const targetCh = (anchorSnap && rt && rt.settledMapId === anchorSnap.mapId && typeof rt.settledChannel === 'number') ? rt.settledChannel : (anchorSnap && anchorSnap.channel);
     const ft = id === party.leaderId ? { mode: 'none', targetId: null, targetName: null } : resolveFollowTarget(party, id, profiles, states);
     let status = 'offline', text = 'ออฟไลน์';
-    if (S && S.ok && S.name) {
+    if (isAutoFarmProtected(id, S)) {
+      status = 'plan';
+      text = '💎 กำลังรันฟาร์มเพชร (พักตี้ชั่วคราว)';
+    } else if (S && S.ok && S.name) {
       if (inGame.has(S.name)) {
         const same = anchorSnap && S.mapId === anchorSnap.mapId && S.channel === targetCh;
         status = same ? 'joined' : 'apart';
@@ -2323,7 +2382,12 @@ function createPartyService(opts) {
         followModes: p.followModes || {},
         autoModes: p.autoModes || {},
         noLootIds: Array.isArray(p.noLootIds) ? p.noLootIds : [],
-        leader: Object.assign(memberView(p, p.leaderId, profiles, L), L && L.ok ? { status: 'leader', statusText: L.party && L.party.leader === L.name ? 'หัวตี้' : 'หัวตี้ (ยังไม่มีสมาชิก)' } : {}),
+        leader: Object.assign(
+          memberView(p, p.leaderId, profiles, L),
+          (!isAutoFarmProtected(p.leaderId, L) && L && L.ok)
+            ? { status: 'leader', statusText: L.party && L.party.leader === L.name ? 'หัวตี้' : 'หัวตี้ (ยังไม่มีสมาชิก)' }
+            : {}
+        ),
         members: p.memberIds.map(id => memberView(p, id, profiles, L)),
         outsiders,
         count: 1 + p.memberIds.length, max: MAX_MEMBERS,
@@ -2339,6 +2403,7 @@ function createPartyService(opts) {
         inGamePartyLeader: (S && S.party && S.party.leader) || null,
         inGamePartySize: (S && S.party && Array.isArray(S.party.members)) ? S.party.members.length : 0,
         assigned: taken.has(p.id),
+        autoFarmProtected: isAutoFarmProtected(p.id, S),
         noLoot: Boolean(S && S.noLootMode),
         planPending: planBlocked(S) ? planBlockReason(S) : null,
         mapName: S && S.mapName, channel: S && S.channel };
@@ -2351,6 +2416,7 @@ function createPartyService(opts) {
     const profiles = profileMap();
     for (const id of [party.leaderId].concat(party.memberIds || [])) {
       const P = profiles.get(id), S = states.get(id);
+      if (isAutoFarmProtected(id, S)) continue;
       if (P && S && S.ok && S.helpers && S.helpers.updatePartySyncState) {
         await act(P, ACTIONS.syncClientPartyState(null), 'clear-party-sync');
       }
@@ -2368,9 +2434,10 @@ function createPartyService(opts) {
     for (let round = 0; round < 4; round++) {
       await refreshStates(true);
       const L = states.get(party.leaderId);
+      if (isAutoFarmProtected(party.leaderId, L)) return;
       if (L && L.name) leaderName = L.name;
       if (!leaderName) return;
-      const stillIn = party.memberIds.filter(id => { const S = states.get(id); return S && S.ok && S.party && S.party.leader === leaderName; });
+      const stillIn = party.memberIds.filter(id => { const S = states.get(id); return !isAutoFarmProtected(id, S) && S && S.ok && S.party && S.party.leader === leaderName; });
       const leaderLeads = L && L.ok && L.party && L.party.leader === leaderName;
       if (!stillIn.length && !leaderLeads) return;
       for (const id of stillIn) { await act(profiles.get(id), ACTIONS.leave(), 'disband-leave'); await sleep(T.disbandGapMs); }

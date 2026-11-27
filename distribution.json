@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "sourceCommit": "a76d822b623ceb79492010f1832ed25e8cae2d40",
+  "sourceCommit": "ce3ef9ede8cb661798b9e1d2292379a4a1a023ed",
   "files": [
     {
       "path": "manager/asset_cache.js",
@@ -48,7 +48,7 @@
     },
     {
       "path": "manager/fleet_zeny_consolidation.js",
-      "sha256": "3f7b04298c368f011aa0042a715b045e849f525d46582efadbc5294e50590034"
+      "sha256": "c95a15b34f8070e0ca627694f57d1febc79e175fc06e49bcb3873414852a8221"
     },
     {
       "path": "manager/game_loader/main.js",
@@ -116,7 +116,7 @@
     },
     {
       "path": "manager/party_api.js",
-      "sha256": "90315984e43af6f55f50b8812c18347843b7efbb3231198d8e2d5b40238e6d5b"
+      "sha256": "a0ce793da85b965f8a48faa2f21891eb4847f60bf82fc3f622b41fb55d662d60"
     },
     {
       "path": "manager/plan_sync.js",
@@ -144,7 +144,7 @@
     },
     {
       "path": "manager/public/app.js",
-      "sha256": "03c0fa713b2a5bd11b6fb686136bfdb5d5d18b37d88d8061ca12889cff444172"
+      "sha256": "4025f700fff01dbb878e83baba435d3c13915624ad3fbfdaa870c0166faec03d"
     },
     {
       "path": "manager/public/assets/updates/ui_v212_bag_rightclick.jpg",
@@ -244,7 +244,7 @@
     },
     {
       "path": "manager/public/index.html",
-      "sha256": "109b969b3248cf09578cec8718b64e82d98cf633f8bb8561f4cf565abe492566"
+      "sha256": "52ee332d7ec7d5939f6ccc819fce168d861398c480ffd7fc43981e749c0fd8d7"
     },
     {
       "path": "manager/public/inventory_market.css",
@@ -280,7 +280,7 @@
     },
     {
       "path": "manager/public/party_manager.js",
-      "sha256": "c30e52fe47aa16a1a949cf12f677dd0e5cf94bc678c1bdedafc50c1ed82a8b90"
+      "sha256": "e91dbe160d4b81ed40148e7ec1a96532e37537157a73536698f9107a3885437b"
     },
     {
       "path": "manager/public/patcher_module.js",
@@ -396,7 +396,7 @@
     },
     {
       "path": "manager/server.js",
-      "sha256": "84fbbbd2ae8797f403ea6bae2a4eeaaa8ecf6c8a199de15e7a605f9952c5cd94"
+      "sha256": "7240bc0906b5066e49e3ea6c2b4a5cc4922789c8f819ea1f393c61251396abd0"
     },
     {
       "path": "manager/sim_api.js",

@@ -82,6 +82,7 @@ function computeProfileTradeLockMsg(p) {
 }
 
 function isProfileTradeEligible(p) {
+  if (p && p.isAutoFarmRunning) return false;
   if (!computeProfilePremium(p)) return false;
   if (p && p.canFreeTrade === false) return false;
   if (computeProfileTradeLockMsg(p)) return false;
@@ -335,6 +336,7 @@ function createFleetZenyConsolidationService(deps = {}) {
     browserMode = null,
     clientStateCacheByPort = null,
     clientStateLastFailureByPort = null,
+    isProfileRunningAutoFarm = null,
     sleep = defaultSleep,
     pollIntervalMs = 700,
     stage1PollIntervalMs = 1500
@@ -514,8 +516,14 @@ function createFleetZenyConsolidationService(deps = {}) {
       const tradeLevel = (isInGameLive && Number(liveState?.tradeLevel) > 0)
         ? Math.floor(Number(liveState.tradeLevel))
         : 45;
-      const tradeLockMsg = isInGameLive ? String(liveState?.tradeLockMsg || "").trim() : "";
-      const canFreeTrade = Boolean(hasPremium && baseLv >= tradeLevel && !tradeLockMsg);
+      const isAutoFarmRunning = Boolean(
+        (typeof isProfileRunningAutoFarm === "function" && isProfileRunningAutoFarm(p.id, liveState)) ||
+        (liveState?.gemRush && (liveState.gemRush.enabled || (liveState.gemRush.phase && liveState.gemRush.phase !== "idle")))
+      );
+      const tradeLockMsg = isAutoFarmRunning
+        ? "กำลังรันระบบฟาร์มเพชร (ข้ามอัตโนมัติ)"
+        : (isInGameLive ? String(liveState?.tradeLockMsg || "").trim() : "");
+      const canFreeTrade = Boolean(!isAutoFarmRunning && hasPremium && baseLv >= tradeLevel && !tradeLockMsg);
       const zeny = (isInGameLive && typeof liveState?.zeny === "number" && Number.isFinite(liveState.zeny))
         ? Math.max(0, Math.floor(liveState.zeny))
         : (typeof p.lastZeny === "number" && Number.isFinite(p.lastZeny) ? Math.max(0, Math.floor(p.lastZeny)) : 0);
@@ -535,6 +543,7 @@ function createFleetZenyConsolidationService(deps = {}) {
         isRunning: alive,
         isBotRunning: Boolean(alive && liveState && liveState.isBotRunning),
         isMain: Boolean(p.isMain),
+        isAutoFarmRunning,
         hasPremium,
         canFreeTrade,
         ip,
@@ -572,6 +581,9 @@ function createFleetZenyConsolidationService(deps = {}) {
     const p = profiles.find(x => x.id === profileId);
     if (!p || !p.debugPort) {
       throw new Error(`ไม่พบโปรไฟล์ (${profileId}) หรือจอเกมไม่ได้เปิดอยู่`);
+    }
+    if (typeof isProfileRunningAutoFarm === "function" && isProfileRunningAutoFarm(p.id)) {
+      throw new Error(`จอ ${p.name || profileId} กำลังรันระบบฟาร์มเพชรอยู่ — ข้ามอัตโนมัติเพื่อไม่ให้กระทบ`);
     }
     return p;
   }

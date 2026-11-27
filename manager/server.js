@@ -2473,6 +2473,33 @@ function saveAutoFarmState(state) {
   try { writeJsonAtomic(AUTOFARM_STATE_FILE, state); } catch (_) {}
 }
 
+function isProfileActivelyRunningAutoFarm(profileId, liveStateOverride = null) {
+  if (!profileId) return false;
+  try {
+    const afState = loadAutoFarmState();
+    const entry = Array.isArray(afState?.entries)
+      ? afState.entries.find(e => e && e.profileId === profileId)
+      : null;
+    if (afState?.config?.running && entry && !entry.manualPaused && !entry.ineligibleReason) {
+      return true;
+    }
+    // Also protect screens still finishing Gem Rush or returning from temp char to main char!
+    const live = liveStateOverride || (() => {
+      const prof = (loadProfiles() || []).find(p => p && p.id === profileId);
+      return prof?.debugPort ? clientStateCacheByPort.get(prof.debugPort)?.state : null;
+    })();
+    const gr = live && live.gemRush ? live.gemRush : null;
+    if (gr) {
+      if (gr.enabled || (gr.phase && gr.phase !== "idle")) return true;
+      return false;
+    }
+    if (entry && entry.stopEnforceUntil && Date.now() < Number(entry.stopEnforceUntil)) {
+      return true;
+    }
+  } catch (_) {}
+  return false;
+}
+
 function loadAllRuntimeProfiles() {
   return loadProfiles() || [];
 }
@@ -5538,13 +5565,26 @@ async function runConsolidationWorkflow(receiverProfileId, senderProfileIds, kee
     return { ok: false, error: `ตัวรับเงิน (${receiverProfile.name}) กำลังอยู่ในกระบวนการเทรดรวมเงินอยู่แล้ว`, groupTransferredZeny: 0, groupTransferredItems: 0 };
   }
 
+  if (isProfileActivelyRunningAutoFarm(receiverProfile.id)) {
+    addConsolidationLog(`💎 ข้ามตัวรับเงิน (${receiverProfile.name}) เนื่องจากกำลังรันระบบฟาร์มเพชรอยู่`, 'warning');
+    return { ok: false, error: `ตัวรับเงิน (${receiverProfile.name}) กำลังรันระบบฟาร์มเพชรอยู่ — ข้ามอัตโนมัติเพื่อไม่ให้กระทบ`, groupTransferredZeny: 0, groupTransferredItems: 0 };
+  }
+
   const receiverIpKey = getProfileIpGroupKey(receiverProfile.id);
-  let senderProfiles = allProfiles.filter(p =>
-    senderProfileIds.includes(p.id) &&
-    p.id !== receiverProfileId &&
-    p.debugPort &&
-    !activeConsolidationProfiles.has(p.id)
-  );
+  const skippedAutoFarmSenders = [];
+  let senderProfiles = allProfiles.filter(p => {
+    if (!senderProfileIds.includes(p.id) || p.id === receiverProfileId || !p.debugPort || activeConsolidationProfiles.has(p.id)) {
+      return false;
+    }
+    if (isProfileActivelyRunningAutoFarm(p.id)) {
+      skippedAutoFarmSenders.push(p.name || p.id);
+      return false;
+    }
+    return true;
+  });
+  if (skippedAutoFarmSenders.length > 0) {
+    addConsolidationLog(`💎 ข้ามจอที่กำลังรันระบบฟาร์มเพชร ${skippedAutoFarmSenders.length} จอ (${skippedAutoFarmSenders.join(', ')}) เพื่อไม่ให้กระทบการทำงาน`, 'info');
+  }
 
   if (sameIpOnly) {
     const beforeCount = senderProfiles.length;
@@ -5553,6 +5593,11 @@ async function runConsolidationWorkflow(receiverProfileId, senderProfileIds, kee
     if (filteredOut > 0) {
       addConsolidationLog(`🛡️ โหมดจำกัดเฉพาะในวง IP [${receiverIpKey}]: กรองจอที่อยู่คนละวง IP ออก ${filteredOut} จอ`, 'info');
     }
+  }
+
+  if (senderProfiles.length === 0) {
+    addConsolidationLog('⚠️ ไม่มีจอผู้โอนที่พร้อมโอน (ถูกกรองออกหรือกำลังรันระบบฟาร์มเพชรอยู่ทั้งหมด)', 'warning');
+    return { ok: false, error: 'ไม่มีจอผู้โอนที่พร้อมโอน (จอที่เลือกอาจกำลังรันระบบฟาร์มเพชรอยู่)', groupTransferredZeny: 0, groupTransferredItems: 0 };
   }
 
   const wasIdle = activeConsolidationTasks.size === 0;
@@ -6705,10 +6750,10 @@ async function runConsolidationWorkflow(receiverProfileId, senderProfileIds, kee
 async function runIpGroupsConsolidationWorkflow(groups, keepZeny = 0, tradeItemsOpts = null) {
   const validGroups = Array.isArray(groups)
     ? groups
-        .filter(g => g && g.receiverProfileId && !activeConsolidationProfiles.has(g.receiverProfileId) && Array.isArray(g.senderProfileIds))
+        .filter(g => g && g.receiverProfileId && !activeConsolidationProfiles.has(g.receiverProfileId) && !isProfileActivelyRunningAutoFarm(g.receiverProfileId) && Array.isArray(g.senderProfileIds))
         .map(g => ({
           ...g,
-          senderProfileIds: g.senderProfileIds.filter(sid => sid && !activeConsolidationProfiles.has(sid))
+          senderProfileIds: g.senderProfileIds.filter(sid => sid && !activeConsolidationProfiles.has(sid) && !isProfileActivelyRunningAutoFarm(sid))
         }))
         .filter(g => g.senderProfileIds.length > 0)
     : [];
@@ -7714,6 +7759,7 @@ const partyService = createPartyService({
   evalProfilePort,
   dataFile: path.join(__dirname, "data", "parties.json"),
   isBusy: () => consolidationState.running,
+  isProfileExcluded: (id) => isProfileActivelyRunningAutoFarm(id),
   getChannelCheckMode: getEffectiveChannelCheckMode
 });
 partyService.start();
@@ -7725,9 +7771,12 @@ const premiumService = createPremiumService({
   queryProfileState: async (p) => (p && p.debugPort) ? await queryClientState(p.debugPort) : null,
   startPremiumConsolidation: async (opts) => {
     const recvId = opts && opts.receiverProfile && opts.receiverProfile.id;
-    const senderIds = ((opts && opts.senderProfiles) || []).map(s => s.id).filter(sid => !activeConsolidationProfiles.has(sid));
+    const senderIds = ((opts && opts.senderProfiles) || []).map(s => s.id).filter(sid => !activeConsolidationProfiles.has(sid) && !isProfileActivelyRunningAutoFarm(sid));
     if (!recvId || !senderIds.length) {
       return { started: false, error: 'ไม่พบตัวรับหรือตัวโอนเงินที่ว่างอยู่' };
+    }
+    if (isProfileActivelyRunningAutoFarm(recvId)) {
+      return { started: false, error: 'ตัวรับกำลังรันระบบฟาร์มเพชรอยู่ — ข้ามอัตโนมัติเพื่อไม่ให้กระทบ' };
     }
     if (activeConsolidationProfiles.has(recvId)) {
       return { started: false, error: 'ตัวรับกำลังดำเนินการรวมเงินอยู่ในขณะนี้' };
@@ -9906,7 +9955,8 @@ const fleetZenyService = createFleetZenyConsolidationService({
   isProcessAlive,
   browserMode,
   clientStateCacheByPort,
-  clientStateLastFailureByPort
+  clientStateLastFailureByPort,
+  isProfileRunningAutoFarm: (id, liveState) => isProfileActivelyRunningAutoFarm(id, liveState)
 });
 
 const server = http.createServer(async (req, res) => {
@@ -11502,6 +11552,7 @@ const server = http.createServer(async (req, res) => {
           pid: alive ? (proc ? proc.pid : null) : null,
           uptime: alive ? (proc ? Math.round((Date.now() - proc.startTime) / 1000) : 0) : 0,
           liveState,
+          isAutoFarmRunning: isProfileActivelyRunningAutoFarm(p.id, liveState),
           hasPremium,
           premiumUntil: effectivePremiumUntil,
           zenyRate,
@@ -14016,27 +14067,42 @@ public class PmFocus {
         const profiles = loadProfiles();
         const checkProfileTradeEligible = async (pid) => {
           const p = profiles.find(x => x.id === pid);
-          if (!p) return { ok: false, hasPremium: false, lvOk: false, baseLv: 0, tradeLevel: 45, tradeLockMsg: '', name: pid, ip: 'LOCAL' };
+          if (!p) return { ok: false, isAutoFarmRunning: false, hasPremium: false, lvOk: false, baseLv: 0, tradeLevel: 45, tradeLockMsg: '', name: pid, ip: 'LOCAL' };
           const ip = getProfileIpGroupKey(pid);
+          let st = null;
           if (p.debugPort) {
-            const st = await queryClientState(p.debugPort);
-            if (st && !st.error) {
-              const hasPremium = !!st.hasPremium;
-              const tradeLevel = Math.max(1, Number(st.tradeLevel) || 45);
-              const baseLv = Math.max(0, Number(st.baseLv ?? p.lastBaseLv ?? 0) || 0);
-              const tradeLockMsg = String(st.tradeLockMsg || '').trim();
-              const lvOk = baseLv >= tradeLevel;
-              return {
-                ok: Boolean(hasPremium && lvOk && !tradeLockMsg),
-                hasPremium,
-                lvOk,
-                baseLv,
-                tradeLevel,
-                tradeLockMsg,
-                name: st.charName || p.name,
-                ip
-              };
-            }
+            st = await queryClientState(p.debugPort);
+          }
+          if (isProfileActivelyRunningAutoFarm(pid, (st && !st.error) ? st : null)) {
+            return {
+              ok: false,
+              isAutoFarmRunning: true,
+              hasPremium: false,
+              lvOk: false,
+              baseLv: 0,
+              tradeLevel: 45,
+              tradeLockMsg: 'กำลังรันระบบฟาร์มเพชร (ข้ามอัตโนมัติ)',
+              name: (st && !st.error && st.charName) || p.lastCharName || p.name,
+              ip
+            };
+          }
+          if (st && !st.error) {
+            const hasPremium = !!st.hasPremium;
+            const tradeLevel = Math.max(1, Number(st.tradeLevel) || 45);
+            const baseLv = Math.max(0, Number(st.baseLv ?? p.lastBaseLv ?? 0) || 0);
+            const tradeLockMsg = String(st.tradeLockMsg || '').trim();
+            const lvOk = baseLv >= tradeLevel;
+            return {
+              ok: Boolean(hasPremium && lvOk && !tradeLockMsg),
+              isAutoFarmRunning: false,
+              hasPremium,
+              lvOk,
+              baseLv,
+              tradeLevel,
+              tradeLockMsg,
+              name: st.charName || p.name,
+              ip
+            };
           }
           const hasPremium = Number(p.lastPremiumUntil || 0) > Date.now();
           const tradeLevel = 45;
@@ -14044,6 +14110,7 @@ public class PmFocus {
           const lvOk = baseLv >= tradeLevel;
           return {
             ok: Boolean(hasPremium && lvOk),
+            isAutoFarmRunning: false,
             hasPremium,
             lvOk,
             baseLv,
@@ -14115,11 +14182,13 @@ public class PmFocus {
           Promise.all(senderIds.map(async sid => ({ sid, ...(await checkProfileTradeEligible(sid)) })))
         ]);
         if (!recCheck.ok) {
-          const recErr = !recCheck.hasPremium
-            ? `ตัวรับเงิน (${recCheck.name}) ไม่มีสถานะ 👑 Premium — ระบบเทรดรวมเงินเลือกได้เฉพาะตัวละครที่มี Premium เท่านั้น`
-            : (!recCheck.lvOk
-              ? `ตัวรับเงิน (${recCheck.name}) เลเวล ${recCheck.baseLv} ต่ำกว่าเกณฑ์เทรด Lv.${recCheck.tradeLevel} (ต้อง Lv.${recCheck.tradeLevel}+ จึงจะเทรดได้)`
-              : `ตัวรับเงิน (${recCheck.name}) ติดล็อกการเทรด: ${recCheck.tradeLockMsg}`);
+          const recErr = recCheck.isAutoFarmRunning
+            ? `ตัวรับเงิน (${recCheck.name}) กำลังรันระบบฟาร์มเพชรอยู่ — ระบบรวมเงินจะไม่กระทบจอที่กำลังฟาร์มเพชร (กดหยุดจอนั้นก่อนหากต้องการใช้รวมเงิน)`
+            : (!recCheck.hasPremium
+              ? `ตัวรับเงิน (${recCheck.name}) ไม่มีสถานะ 👑 Premium — ระบบเทรดรวมเงินเลือกได้เฉพาะตัวละครที่มี Premium เท่านั้น`
+              : (!recCheck.lvOk
+                ? `ตัวรับเงิน (${recCheck.name}) เลเวล ${recCheck.baseLv} ต่ำกว่าเกณฑ์เทรด Lv.${recCheck.tradeLevel} (ต้อง Lv.${recCheck.tradeLevel}+ จึงจะเทรดได้)`
+                : `ตัวรับเงิน (${recCheck.name}) ติดล็อกการเทรด: ${recCheck.tradeLockMsg}`));
           return sendJSON({ success: false, error: recErr }, 400);
         }
 
@@ -14132,15 +14201,18 @@ public class PmFocus {
           .map(sc => sc.sid);
         if (validSenders.length === 0) {
           const anyBusy = senderChecks.some(sc => activeConsolidationProfiles.has(sc.sid));
+          const anyAutoFarm = senderChecks.some(sc => sc.isAutoFarmRunning);
           const anyUnderLv = senderChecks.some(sc => sc.hasPremium && !sc.lvOk);
           const minReqLv = senderChecks.find(sc => sc.tradeLevel)?.tradeLevel || recCheck.tradeLevel || 45;
           return sendJSON({
             success: false,
             error: anyBusy
               ? "จอผู้โอนที่เลือกกำลังติดภารกิจรวมเงินอยู่ในขณะนี้"
-              : (anyUnderLv
-                ? `จอผู้โอนที่เลือกเลเวลต่ำกว่าเกณฑ์เทรด Lv.${minReqLv} (ต้อง 👑 Premium + Lv.${minReqLv}+ จึงจะเทรดโอนเงินได้)`
-                : `จอผู้โอนที่เลือกไม่เข้าเกณฑ์เทรด (ต้องมีสถานะ 👑 Premium และเลเวล Lv.${minReqLv}+ เท่านั้น)`)
+              : (anyAutoFarm
+                ? "จอผู้โอนที่เลือกกำลังรันระบบฟาร์มเพชรอยู่ — ระบบรวมเงินข้ามให้อัตโนมัติเพื่อไม่ให้กระทบ"
+                : (anyUnderLv
+                  ? `จอผู้โอนที่เลือกเลเวลต่ำกว่าเกณฑ์เทรด Lv.${minReqLv} (ต้อง 👑 Premium + Lv.${minReqLv}+ จึงจะเทรดโอนเงินได้)`
+                  : `จอผู้โอนที่เลือกไม่เข้าเกณฑ์เทรด (ต้องมีสถานะ 👑 Premium และเลเวล Lv.${minReqLv}+ เท่านั้น)`))
           }, anyBusy ? 409 : 400);
         }
 
@@ -14262,7 +14334,7 @@ public class PmFocus {
 
           const gr = liveState && liveState.gemRush ? liveState.gemRush : null;
           if (gr) {
-            const wantSessionId = Number(afState.config.sessionId || 0);
+            const wantSessionId = Number(entry.sessionId || afState.config.sessionId || 0);
             const grMatchesSession = !wantSessionId || Number(gr.sessionId || 0) === wantSessionId;
             if (grMatchesSession) {
               if (Number(gr.cycles) > (Number(entry.cycles) || 0)) {
@@ -14334,6 +14406,8 @@ public class PmFocus {
             returnCharName: entry.returnCharName || p.lastCharName || p.charName || "",
             phase: gr ? (gr.phase || "idle") : (entry.phase || "idle"),
             statusText: gr ? (gr.statusText || "") : (entry.statusText || ""),
+            manualPaused: Boolean(entry.manualPaused),
+            isActivelyRunning: Boolean(afState.config.running && !entry.manualPaused && !entry.ineligibleReason),
             gemRush: gr
           };
         }
@@ -14482,12 +14556,19 @@ public class PmFocus {
             for (const entry of afState.entries) {
               if (!entry) continue;
               entry.manualPaused = false;
+              entry.stopEnforceUntil = 0;
+              entry.startedAt = newSessionId;
+              entry.sessionId = newSessionId;
               entry.cycles = 0;
               entry.gemsEarned = 0;
               entry.lastCycleMs = 0;
             }
           } else {
             afState.config.stopEnforceUntil = Date.now() + 60000;
+            for (const entry of afState.entries) {
+              if (!entry) continue;
+              entry.stopEnforceUntil = Date.now() + 60000;
+            }
           }
           afState.config.lastStatusText = nextRunning
             ? "💎 กำลังตรวจสอบเงื่อนไข Lv.45+ และเริ่มปั๊มเพชรจันทร์ (20 เพชร/รอบ)..."
@@ -14550,6 +14631,111 @@ public class PmFocus {
       return;
     }
 
+    // POST /api/autofarm/profiles/:id/toggle — Start / Pause Gem Rush on a SINGLE pulled profile without affecting other screens!
+    if (req.method === "POST" && pathname.match(/^\/api\/autofarm\/profiles\/[^/]+\/toggle$/)) {
+      const id = decodeURIComponent(pathname.split("/")[4]);
+      let body = "";
+      req.on("data", c => { body += c; if (Buffer.byteLength(body, "utf8") > 16384) req.destroy(); });
+      req.on("end", async () => {
+        try {
+          const data = JSON.parse(body || "{}");
+          const afState = loadAutoFarmState();
+          const entry = afState.entries.find(e => e && e.profileId === id);
+          if (!entry) return sendJSON({ success: false, error: "ไม่พบโปรไฟล์นี้ในหน้า Auto Farm" }, 404);
+
+          const isCurrentlyActive = Boolean(afState.config.running && !entry.manualPaused && !entry.ineligibleReason);
+          const wantRunning = data.running !== undefined ? Boolean(data.running) : !isCurrentlyActive;
+          const p = (loadProfiles() || []).find(x => x && x.id === id) || null;
+          const nowTs = Date.now();
+
+          if (!wantRunning) {
+            entry.manualPaused = true;
+            entry.stopEnforceUntil = nowTs + 60000;
+            entry.statusText = "⏸ กำลังหยุดจอนี้และพากลับตัวหลัก...";
+            entry.updatedAt = nowTs;
+            const anyOtherActive = afState.entries.some(e => e && e.profileId !== id && !e.manualPaused && !e.ineligibleReason);
+            if (!anyOtherActive && afState.config.running) {
+              afState.config.running = false;
+              afState.config.stopEnforceUntil = nowTs + 60000;
+              afState.config.lastStatusText = "⏸ หยุดพักครบทุกจอแล้ว — กดเริ่มเฉพาะจอที่ต้องการได้ทันที";
+            }
+            saveAutoFarmState(afState);
+
+            if (p) {
+              seedGemRushBrowserStorage(p, false, afState.config);
+              if (p.debugPort) {
+                await evalProfilePort(p.debugPort, `(() => {
+                  if (typeof window.__stopGemRushAndRestore === 'function') return window.__stopGemRushAndRestore({ cleanupTemp: true, manualStop: true });
+                  try {
+                    const raw = localStorage.getItem('pelican_gem_rush_state_v1');
+                    if (raw) {
+                      const obj = JSON.parse(raw);
+                      obj.enabled = false;
+                      obj.phase = 'idle';
+                      obj.manualStoppedAt = Date.now();
+                      localStorage.setItem('pelican_gem_rush_state_v1', JSON.stringify(obj));
+                    }
+                    if (window.__gemRushState) { window.__gemRushState.enabled = false; window.__gemRushState.phase = 'idle'; window.__gemRushState.manualStoppedAt = Date.now(); }
+                    const g = window.NC && window.NC.game;
+                    if (g && window.NC.Auto && window.NC.Auto.on) {
+                      if (typeof window.NC.Auto.stop === 'function') window.NC.Auto.stop(g);
+                      else if (typeof window.NC.Auto.toggle === 'function') window.NC.Auto.toggle(g);
+                    }
+                    if (window.NC && window.NC.Travel && window.NC.Travel.on) window.NC.Travel.stop('หยุด Gem Rush');
+                  } catch (_) {}
+                  return true;
+                })()`, 3500).catch(() => {});
+              }
+            }
+            return sendJSON({ success: true, running: false, globalRunning: afState.config.running, entry, config: afState.config });
+          }
+
+          // Start / Resume ONLY this profile!
+          // If global Auto Farm was stopped, mark all OTHER entries as paused so starting 1 screen never starts the others!
+          if (!afState.config.running) {
+            for (const other of afState.entries) {
+              if (!other || other.profileId === id) continue;
+              other.manualPaused = true;
+            }
+            afState.config.running = true;
+            afState.config.startedAt = nowTs;
+            afState.config.stopEnforceUntil = 0;
+            if (!afState.config.sessionId) afState.config.sessionId = nowTs;
+          }
+          entry.manualPaused = false;
+          entry.stopEnforceUntil = 0;
+          entry.eligible = null;
+          entry.ineligibleReason = "";
+          entry.startedAt = nowTs;
+          entry.sessionId = nowTs;
+          entry.cycles = 0;
+          entry.gemsEarned = 0;
+          entry.lastCycleMs = 0;
+          entry.statusText = "💎 กำลังเริ่มรันจอนี้ (ตรวจสอบ Lv.45+)...";
+          entry.updatedAt = nowTs;
+
+          afState.config.totalCycles = afState.entries.reduce((s, e) => s + (Number(e.cycles) || 0), 0);
+          afState.config.totalGemsEarned = afState.entries.reduce((s, e) => s + (Number(e.gemsEarned) || 0), 0);
+          saveAutoFarmState(afState);
+
+          if (p) {
+            const wVault = afState.config.vaultRushEnabled !== false;
+            const wGems = afState.config.takeGems20 !== false;
+            const wCoins = afState.config.depositPassCoins !== false;
+            seedGemRushBrowserStorage(p, true, afState.config);
+            if (p.debugPort && browserMode.isOpen(p.id)) {
+              await evalProfilePort(p.debugPort, `if (typeof window.__setGemRushConfig === 'function') window.__setGemRushConfig({ enabled: true, resetCycles: true, resetIneligible: true, sessionId: ${nowTs}, vaultRushEnabled: ${wVault}, takeGems20: ${wGems}, depositPassCoins: ${wCoins} });`, 2500).catch(() => {});
+            }
+          }
+          setImmediate(() => runAutoFarmOrchestratorTick().catch(() => {}));
+          return sendJSON({ success: true, running: true, globalRunning: afState.config.running, entry, config: afState.config });
+        } catch (e) {
+          return sendJSON({ success: false, error: e.message }, 400);
+        }
+      });
+      return;
+    }
+
     // POST /api/autofarm/profiles/:id/recheck — Clear ineligible stamp & re-check Lv.45+ / empty slot
     if (req.method === "POST" && pathname.match(/^\/api\/autofarm\/profiles\/[^/]+\/recheck$/)) {
       const id = decodeURIComponent(pathname.split("/")[4]);
@@ -14564,7 +14750,7 @@ public class PmFocus {
 
       const p = (loadProfiles() || []).find(x => x.id === id);
       if (p && p.debugPort && browserMode.isOpen(p.id)) {
-        if (afState.config.running) {
+        if (afState.config.running && !entry.manualPaused) {
           await evalProfilePort(p.debugPort, `if (typeof window.__setGemRushConfig === 'function') window.__setGemRushConfig({ enabled: true, resetIneligible: true, vaultRushEnabled: ${afState.config.vaultRushEnabled !== false}, takeGems20: ${afState.config.takeGems20 !== false}, depositPassCoins: ${afState.config.depositPassCoins !== false} });`, 3000).catch(() => {});
         } else {
           const chk = await evalProfilePort(p.debugPort, `(() => {
@@ -15585,11 +15771,15 @@ async function runAutoFarmOrchestratorTick() {
         } else if (gr && gr.statusText) {
           entry.statusText = gr.statusText;
           entry.phase = gr.phase || "idle";
+          if (!gr.phase || gr.phase === "idle") entry.stopEnforceUntil = 0;
           entry.updatedAt = Date.now();
         }
       }
       if (!stillActiveAny) {
         afState.config.stopEnforceUntil = 0;
+        for (const entry of entries) {
+          if (entry && (!entry.phase || entry.phase === "idle")) entry.stopEnforceUntil = 0;
+        }
       }
       saveAutoFarmState(afState);
     } catch (_) {
@@ -15614,6 +15804,7 @@ async function runAutoFarmOrchestratorTick() {
     let stateChanged = false;
     let launchedThisTick = false;
     let activeCount = 0;
+    let pausedCount = 0;
     let ineligibleCount = 0;
     let waitingCount = 0;
     const runStartedAt = Number(afState.config.startedAt || 0);
@@ -15623,8 +15814,26 @@ async function runAutoFarmOrchestratorTick() {
       const prof = mainMap.get(entry.profileId);
       if (!prof) continue;
 
-      // Respect manual stop on this specific screen (from main Manager page or in-game STOP BOT button)
+      // Respect manual stop/pause on this specific screen (from per-card Pause button or in-game STOP BOT button)
       if (entry.manualPaused) {
+        pausedCount++;
+        if (entry.stopEnforceUntil && Date.now() < Number(entry.stopEnforceUntil) && prof.debugPort && browserMode.isOpen(prof.id)) {
+          const livePaused = await queryClientState(prof.debugPort).catch(() => null);
+          const grPaused = livePaused && !livePaused.error ? livePaused.gemRush : null;
+          if (grPaused && grPaused.enabled) {
+            seedGemRushBrowserStorage(prof, false, afState.config);
+            await evalProfilePort(prof.debugPort, `if (typeof window.__stopGemRushAndRestore === 'function') window.__stopGemRushAndRestore({ cleanupTemp: true, manualStop: true });`, 2500).catch(() => {});
+          } else if (grPaused) {
+            entry.phase = grPaused.phase || "idle";
+            entry.statusText = grPaused.statusText || "⏸ หยุดพักจอนี้แล้ว (กลับตัวหลัก)";
+            if (!grPaused.phase || grPaused.phase === "idle") entry.stopEnforceUntil = 0;
+            entry.updatedAt = Date.now();
+            stateChanged = true;
+          }
+        } else if (entry.stopEnforceUntil && Date.now() >= Number(entry.stopEnforceUntil)) {
+          entry.stopEnforceUntil = 0;
+          stateChanged = true;
+        }
         continue;
       }
 
@@ -15656,16 +15865,18 @@ async function runAutoFarmOrchestratorTick() {
 
       const gr = live.gemRush || null;
       // Honor user clicking STOP BOT directly inside the game window while Auto Farm is running!
-      if (gr && !gr.enabled && Number(gr.manualStoppedAt || 0) > 0 && Number(gr.manualStoppedAt || 0) >= runStartedAt) {
+      const effStartedAt = Math.max(runStartedAt, Number(entry.startedAt || 0));
+      if (gr && !gr.enabled && Number(gr.manualStoppedAt || 0) > 0 && Number(gr.manualStoppedAt || 0) >= effStartedAt) {
         entry.manualPaused = true;
         entry.phase = gr.phase || "idle";
         entry.statusText = gr.statusText || "⏸ ผู้ใช้กดหยุดจากหน้าจอเกมแล้ว";
         entry.updatedAt = Date.now();
         seedGemRushBrowserStorage(prof, false, afState.config);
+        pausedCount++;
         stateChanged = true;
         continue;
       }
-      const wantSessionId = Number(afState.config.sessionId || 0);
+      const wantSessionId = Number(entry.sessionId || afState.config.sessionId || 0);
       const grMatchesSession = !wantSessionId || Number(gr?.sessionId || 0) === wantSessionId;
       if (gr) {
         if (grMatchesSession) {
@@ -15756,12 +15967,16 @@ async function runAutoFarmOrchestratorTick() {
       ? "💎 เพชร 20 + 💰 3,500g"
       : (afState.config.takeGems20 !== false ? "💎 เพชร 20 อย่างเดียว" : "💰 เงิน 3,500g อย่างเดียว (พาส Lv.1)");
 
-    if (activeCount === 0 && waitingCount === 0 && ineligibleCount > 0) {
+    if (activeCount === 0 && waitingCount === 0 && pausedCount > 0) {
+      afState.config.running = false;
+      afState.config.lastStatusText = `⏸ หยุดพักครบทุกจอแล้ว (${pausedCount} จอ${ineligibleCount ? ` · ไม่ผ่าน ${ineligibleCount}` : ""}) — กดเริ่มเฉพาะจอที่ต้องการได้ทันที`;
+      stateChanged = true;
+    } else if (activeCount === 0 && waitingCount === 0 && ineligibleCount > 0) {
       afState.config.running = false;
       afState.config.lastStatusText = `🚫 ไม่มีโปรไฟล์ที่ผ่านเงื่อนไข (ไม่ผ่าน ${ineligibleCount} จอ · กลับไปทำงานบอทปกติแล้ว)`;
       stateChanged = true;
     } else {
-      afState.config.lastStatusText = `${modeBadgeTxt} · กำลังรัช ${activeCount} จอ${waitingCount ? ` · รอเปิด ${waitingCount}` : ""}${ineligibleCount ? ` · ไม่ผ่าน ${ineligibleCount}` : ""} | สะสม ${totGems.toLocaleString()} เพชร · ${totCoins.toLocaleString()}g (${totCycles} รอบ)`;
+      afState.config.lastStatusText = `${modeBadgeTxt} · กำลังรัช ${activeCount} จอ${pausedCount ? ` · พัก ${pausedCount}` : ""}${waitingCount ? ` · รอเปิด ${waitingCount}` : ""}${ineligibleCount ? ` · ไม่ผ่าน ${ineligibleCount}` : ""} | สะสม ${totGems.toLocaleString()} เพชร · ${totCoins.toLocaleString()}g (${totCycles} รอบ)`;
     }
 
     if (stateChanged) {

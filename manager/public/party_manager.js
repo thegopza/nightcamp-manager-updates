@@ -667,8 +667,11 @@
   }
 
   function patchPickBtn(btn, c) {
-    const nextCls = 'pt-pick' + (c.online ? '' : ' off');
+    const isAfProtected = Boolean(c.autoFarmProtected);
+    const nextCls = 'pt-pick' + (c.online && !isAfProtected ? '' : ' off');
     if (btn.className !== nextCls) btn.className = nextCls;
+    btn.disabled = isAfProtected;
+    btn.title = isAfProtected ? 'จอนี้กำลังรันระบบฟาร์มเพชรอยู่ — กดหยุดจอนั้นก่อนหากต้องการนำเข้าปาร์ตี้' : '';
     const displayName = c.charName || c.name || '?';
     const ava = btn.querySelector('.pt-ava');
     if (ava) {
@@ -693,11 +696,12 @@
     }
     const sub = [
       c.name,
+      isAfProtected ? '💎 กำลังรันฟาร์มเพชร (ระบบตี้ข้ามอัตโนมัติ)' : null,
       c.online ? (c.mapName ? c.mapName + (c.channel ? ' · CH ' + c.channel : '') : 'ออนไลน์') : 'ออฟไลน์',
       c.inGameParty ? 'มีตี้ในเกมอยู่แล้ว' : null
     ].filter(Boolean).join(' · ');
     setText(btn.querySelector('.pt-sub'), sub);
-    setText(btn.querySelector('.pt-go'), pickerState.mode === 'member' ? '+ เพิ่มเข้าตี้' : 'เลือก →');
+    setText(btn.querySelector('.pt-go'), isAfProtected ? '💎 ฟาร์มเพชร' : (pickerState.mode === 'member' ? '+ เพิ่มเข้าตี้' : 'เลือก →'));
   }
 
   function renderPicker() {
@@ -720,6 +724,7 @@
       .filter(c => !c.assigned)
       .filter(c => !q || String(c.name).toLowerCase().includes(q) || String(c.charName || '').toLowerCase().includes(q))
       .sort((a, b) => {
+        if (Boolean(a.autoFarmProtected) !== Boolean(b.autoFarmProtected)) return a.autoFarmProtected ? 1 : -1;
         if (b.online !== a.online) return b.online - a.online;
         if (leaderLv != null && typeof a.level === 'number' && typeof b.level === 'number') {
           const da = Math.abs(a.level - leaderLv), db = Math.abs(b.level - leaderLv);

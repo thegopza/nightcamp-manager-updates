@@ -1675,11 +1675,20 @@ function getProfileBaseLevel(p) {
   return Math.max(0, Math.floor(rawLv));
 }
 
+function isProfileAutoFarmActive(p) {
+  if (!p) return false;
+  if (p.isAutoFarmRunning) return true;
+  const gr = p.liveState && p.liveState.gemRush ? p.liveState.gemRush : null;
+  return Boolean(gr && (gr.enabled || (gr.phase && gr.phase !== "idle")));
+}
+
 function getProfileTradeLockMsg(p) {
+  if (isProfileAutoFarmActive(p)) return "กำลังรันระบบฟาร์มเพชร (ข้ามอัตโนมัติ)";
   return String(p?.liveState?.tradeLockMsg || p?.tradeLockMsg || "").trim();
 }
 
 function isProfileTradeEligible(p) {
+  if (isProfileAutoFarmActive(p)) return false;
   if (!isProfilePremium(p)) return false;
   if (p?.liveState?.canFreeTrade === false) return false;
   if (getProfileTradeLockMsg(p)) return false;
@@ -7473,7 +7482,7 @@ function updateZenyConsolidationView() {
           const hasPrem = isProfilePremium(p);
           const lv = getProfileBaseLevel(p);
           const reqLv = getProfileTradeMinLevel(p);
-          const lockReason = !hasPrem ? "ไม่มี Premium" : (lv < reqLv ? `Lv.${lv}/${reqLv}` : "ติดล็อกเทรด");
+          const lockReason = isProfileAutoFarmActive(p) ? "💎 กำลังฟาร์มเพชร" : (!hasPrem ? "ไม่มี Premium" : (lv < reqLv ? `Lv.${lv}/${reqLv}` : "ติดล็อกเทรด"));
           const ipKey = getProfileIpGroupKey(p);
           return {
             value: p.id,
@@ -7495,7 +7504,7 @@ function updateZenyConsolidationView() {
         const mainStar = p.isMain ? "⭐ " : "";
         const premPrefix = canTrade
           ? "👑 "
-          : (!hasPrem ? "🔒 [ไม่มี Premium] " : (lv < reqLv ? `🔒 [Lv.${lv}/${reqLv}] ` : "🔒 [ติดล็อกเทรด] "));
+          : (isProfileAutoFarmActive(p) ? "💎 [กำลังฟาร์มเพชร] " : (!hasPrem ? "🔒 [ไม่มี Premium] " : (lv < reqLv ? `🔒 [Lv.${lv}/${reqLv}] ` : "🔒 [ติดล็อกเทรด] ")));
         const ipKey = getProfileIpGroupKey(p);
         return {
           value: p.id,
@@ -7646,7 +7655,9 @@ function updateZenyConsolidationView() {
       }
 
       let statusBadge = '';
-      if (isReceiver) {
+      if (isProfileAutoFarmActive(p)) {
+        statusBadge = `<span class="zeny-badge-status offline" style="color: #7dd3fc; border-color: rgba(56, 189, 248, 0.42); background: rgba(14, 165, 233, 0.14);" title="จอนี้กำลังรันระบบฟาร์มเพชรอยู่ — ระบบรวมเงินข้ามให้อัตโนมัติเพื่อไม่ให้กระทบ (กดหยุดจอนั้นก่อนหากต้องการใช้รวมเงิน)">💎 กำลังฟาร์มเพชร (ข้ามอัตโนมัติ)</span>`;
+      } else if (isReceiver) {
         statusBadge = `<span class="zeny-badge-receiver">👑 ตัวรับเงิน (Receiver)</span>`;
       } else if (!hasPrem) {
         statusBadge = `<span class="zeny-badge-status offline" style="color: #fca5a5; border-color: rgba(239, 68, 68, 0.35); background: rgba(239, 68, 68, 0.12);" title="ต้องมีสถานะ Premium และ Lv.${reqTradeLv}+ จึงจะเทรดแลกเปลี่ยนเงินกับผู้เล่นอื่นได้">🔒 ไม่มี Premium (เทรดไม่ได้)</span>`;
@@ -7670,15 +7681,17 @@ function updateZenyConsolidationView() {
 
       const ipChipHtml = `<span style="display: inline-flex; align-items: center; gap: 3px; font-size: 10px; padding: 1px 6px; border-radius: 5px; font-family: monospace; background: ${isSameIpAsReceiver ? 'rgba(16, 185, 129, 0.16)' : 'rgba(148, 163, 184, 0.12)'}; color: ${isSameIpAsReceiver ? '#6ee7b7' : '#94a3b8'}; border: 1px solid ${isSameIpAsReceiver ? 'rgba(16, 185, 129, 0.4)' : 'rgba(148, 163, 184, 0.25)'};" title="${isSameIpAsReceiver ? 'อยู่ในวง IP เดียวกับตัวรับเงิน' : 'คนละวง IP กับตัวรับเงิน'}">🛡️ ${escapeHTML(profileIp)}</span>`;
 
-      const cbTitle = !hasPrem
-        ? 'เลือกไม่ได้: ตัวละครนี้ไม่มีสถานะ Premium'
-        : (!lvOk
-          ? `เลือกไม่ได้: ตัวละคร Lv.${baseLv} ต่ำกว่าเกณฑ์เทรดของเกม (ต้อง Lv.${reqTradeLv}+)`
-          : (tradeLockMsg
-            ? `เลือกไม่ได้: ${tradeLockMsg}`
-            : (!isOnline
-              ? 'เลือกไม่ได้: จอนี้ยังไม่ออนไลน์'
-              : (sameIpOnly && !isSameIpAsReceiver ? 'คลิกเพื่อปลดล็อกโหมดจำกัด IP และเลือกจอนี้รวมเงินด้วย' : 'เลือกเพื่อโอนเงิน'))));
+      const cbTitle = isProfileAutoFarmActive(p)
+        ? 'ข้ามอัตโนมัติ: จอนี้กำลังรันระบบฟาร์มเพชรอยู่ (กดหยุดจอนั้นก่อนหากต้องการใช้รวมเงิน)'
+        : (!hasPrem
+          ? 'เลือกไม่ได้: ตัวละครนี้ไม่มีสถานะ Premium'
+          : (!lvOk
+            ? `เลือกไม่ได้: ตัวละคร Lv.${baseLv} ต่ำกว่าเกณฑ์เทรดของเกม (ต้อง Lv.${reqTradeLv}+)`
+            : (tradeLockMsg
+              ? `เลือกไม่ได้: ${tradeLockMsg}`
+              : (!isOnline
+                ? 'เลือกไม่ได้: จอนี้ยังไม่ออนไลน์'
+                : (sameIpOnly && !isSameIpAsReceiver ? 'คลิกเพื่อปลดล็อกโหมดจำกัด IP และเลือกจอนี้รวมเงินด้วย' : 'เลือกเพื่อโอนเงิน')))));
 
       const checkboxHtml = isReceiver ? 
         `<span style="color: #facc15; font-size: 14px;" title="ตัวรับเงิน (ยกเว้นจากการส่งเงิน)">👑</span>` :
@@ -8168,14 +8181,15 @@ window.switchMainTab = switchMainTab;
     syncCb("af-cfg-auto-launch", afConfig.autoLaunchClosed !== false);
 
     const ineligibleCount = afProfiles.filter(p => Boolean(p.ineligibleReason)).length;
-    const rushingCount = afProfiles.filter(p => !p.ineligibleReason && p.isRunning && (p.gemRush?.enabled || afConfig.running)).length;
+    const rushingCount = afProfiles.filter(p => !p.ineligibleReason && !p.manualPaused && (p.gemRush?.enabled || (afConfig.running && p.isRunning))).length;
+    const pausedCount = afProfiles.filter(p => !p.ineligibleReason && (p.manualPaused || (!afConfig.running && !p.gemRush?.enabled))).length;
 
     const mGems = document.getElementById("af-metric-gems");
     if (mGems) mGems.textContent = `${Number(afConfig.totalGemsEarned || 0).toLocaleString()} เพชร`;
     const mCycles = document.getElementById("af-metric-cycles");
     if (mCycles) mCycles.textContent = `${Number(afConfig.totalCycles || 0).toLocaleString()} รอบ`;
     const mActive = document.getElementById("af-metric-active");
-    if (mActive) mActive.textContent = `กำลังวิ่ง ${rushingCount}/${afProfiles.length} จอ · ไม่ผ่าน ${ineligibleCount}`;
+    if (mActive) mActive.textContent = `กำลังวิ่ง ${rushingCount}/${afProfiles.length} จอ${pausedCount ? ` · พัก ${pausedCount}` : ""}${ineligibleCount ? ` · ไม่ผ่าน ${ineligibleCount}` : ""}`;
     const mCoins = document.getElementById("af-metric-coins");
     if (mCoins) mCoins.textContent = `${Number(afConfig.totalCoinsDeposited || 0).toLocaleString()} เหรียญ`;
 
@@ -8220,12 +8234,16 @@ window.switchMainTab = switchMainTab;
       const liveGems = (p.lastGems != null) ? Number(p.lastGems) : null;
       const isZeroRender = Boolean((p.windowState && p.windowState.zeroRender) || (live && live.zeroRender));
 
-      const statusText = (gr && gr.statusText) || p.statusText || (p.isRunning ? "พร้อมเช็กตัวละคร Lv.45+" : "ปิดจออยู่ · รอเริ่มรัน");
+      const isCardRunning = Boolean(!isIneligible && !p.manualPaused && (afConfig.running || gr?.enabled));
+      const isCardPaused = Boolean(!isIneligible && p.manualPaused);
+      const statusText = (gr && gr.statusText) || p.statusText || (isCardPaused ? "⏸ หยุดพักจอนี้ไว้ชั่วคราว (เข้าร่วมระบบรวมเงิน/ตี้ได้ปกติ)" : (p.isRunning ? "พร้อมเช็กตัวละคร Lv.45+" : "ปิดจออยู่ · รอเริ่มรัน"));
       const borderColor = isNoLv45
         ? "rgba(239,68,68,0.72)"
         : (isSlotsFull
           ? "rgba(245,158,11,0.72)"
-          : (gr?.enabled ? "rgba(56,189,248,0.68)" : (p.isRunning ? "rgba(16,185,129,0.45)" : "rgba(148,163,184,0.22)")));
+          : (isCardPaused
+            ? "rgba(245,158,11,0.52)"
+            : (isCardRunning ? "rgba(56,189,248,0.68)" : (p.isRunning ? "rgba(16,185,129,0.45)" : "rgba(148,163,184,0.22)"))));
 
       // Diagonal Stamp Overlay (replaces old green PASS stamp!)
       const stampOverlayHtml = isNoLv45 ? `
@@ -8270,6 +8288,8 @@ window.switchMainTab = switchMainTab;
                 <span style="padding:2px 7px;border-radius:6px;font-size:10.5px;font-weight:800;background:${p.isRunning ? "rgba(16,185,129,0.2)" : "rgba(100,116,139,0.2)"};color:${p.isRunning ? "#34d399" : "#94a3b8"};">
                   ${p.isRunning ? `🟢 ออนไลน์ :${p.port || ""}` : "⚪ ปิดจอ"}
                 </span>
+                ${isCardRunning ? `<span style="padding:2px 7px;border-radius:6px;font-size:10.5px;font-weight:800;background:rgba(56,189,248,0.2);color:#7dd3fc;border:1px solid rgba(56,189,248,0.38);">💎 กำลังรัน</span>` : ""}
+                ${isCardPaused ? `<span style="padding:2px 7px;border-radius:6px;font-size:10.5px;font-weight:800;background:rgba(245,158,11,0.2);color:#fcd34d;border:1px solid rgba(245,158,11,0.4);">⏸ หยุดพัก</span>` : ""}
               </div>
               <div style="font-size:14.5px;font-weight:800;color:#f8fafc;margin-top:6px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
                 <span>${showingTemp ? "⚡ ตัวรัช:" : "👑 ตัวหลัก:"} ${escHtml(liveChar)}</span>
@@ -8333,6 +8353,15 @@ window.switchMainTab = switchMainTab;
 
           <!-- ACTION BUTTONS (above stamp overlay z-index:15 so always clickable) -->
           <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:auto;position:relative;z-index:15;">
+            ${!isIneligible ? (isCardRunning ? `
+              <button type="button" class="btn btn-sm" style="padding:6px 10px;font-size:11.5px;font-weight:800;background:linear-gradient(135deg,#b45309,#d97706);border:1px solid rgba(251,191,36,0.52);color:#fff;" title="หยุดฟาร์มเพชรเฉพาะจอนี้และพากลับตัวหลัก (จออื่นยังรันต่อตามปกติ)" onclick="window.__afToggleProfile('${escHtml(p.id)}', false, '${escHtml(p.name)}')">
+                ⏸ หยุดจอนี้
+              </button>
+            ` : `
+              <button type="button" class="btn btn-success btn-sm" style="padding:6px 10px;font-size:11.5px;font-weight:800;" title="เริ่มรันฟาร์มเพชรเฉพาะจอนี้ (ไม่กระทบจออื่นที่หยุดพักไว้)" onclick="window.__afToggleProfile('${escHtml(p.id)}', true, '${escHtml(p.name)}')">
+                ▶ เริ่มจอนี้
+              </button>
+            `) : ""}
             ${p.isRunning ? `
               <button type="button" class="btn btn-secondary btn-sm" style="flex:1;padding:6px 8px;font-size:11.5px;" onclick="focusWindow('${escHtml(p.id)}')">
                 🖥️ แสดงภาพ
@@ -8358,6 +8387,31 @@ window.switchMainTab = switchMainTab;
       `;
     }).join("");
   }
+
+  window.__afToggleProfile = async function (profileId, wantRunning, label) {
+    try {
+      const res = await fetch(`${API_BASE}/api/autofarm/profiles/${encodeURIComponent(profileId)}/toggle`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ running: Boolean(wantRunning) })
+      }).then(r => r.json());
+      if (res && res.success) {
+        if (typeof showToast === "function") {
+          showToast(
+            wantRunning
+              ? `💎 เริ่มรันฟาร์มเพชรเฉพาะจอ "${label || profileId}" แล้ว (ระบบรวมเงินและปาร์ตี้จะข้ามจอนี้อัตโนมัติ)`
+              : `⏸ หยุดฟาร์มเพชรเฉพาะจอ "${label || profileId}" และพากลับตัวหลักแล้ว`,
+            wantRunning ? "success" : "info"
+          );
+        }
+        await loadAutoFarmDashboard(true);
+      } else if (typeof showToast === "function") {
+        showToast(res?.error || "เปลี่ยนสถานะจอไม่สำเร็จ", "error");
+      }
+    } catch (e) {
+      if (typeof showToast === "function") showToast("เชื่อมต่อ Manager ไม่สำเร็จ: " + e.message, "error");
+    }
+  };
 
   window.__afRecheckProfile = async function (profileId) {
     const res = await fetch(`${API_BASE}/api/autofarm/profiles/${encodeURIComponent(profileId)}/recheck`, {
@@ -8548,11 +8602,13 @@ function initZenyConsolidationEvents() {
       const chosen = currentProfiles.find(p => p.id === e.target.value);
       if (!chosen || !isProfileTradeEligible(chosen)) {
         const reqLv = chosen ? getProfileTradeMinLevel(chosen) : 45;
-        const msg = !chosen || !isProfilePremium(chosen)
-          ? "⚠️ เลือกได้เฉพาะตัวละครที่มีสถานะ 👑 Premium เท่านั้น"
-          : (getProfileBaseLevel(chosen) < reqLv
-            ? `⚠️ ตัวละครนี้ Lv.${getProfileBaseLevel(chosen)} ต่ำกว่าเกณฑ์เทรดของเกม (ต้อง Lv.${reqLv}+)`
-            : `⚠️ ${getProfileTradeLockMsg(chosen) || 'ตัวละครนี้ติดล็อกการเทรด'}`);
+        const msg = isProfileAutoFarmActive(chosen)
+          ? "💎 จอนี้กำลังรันระบบฟาร์มเพชรอยู่ — ระบบรวมเงินจะไม่กระทบจอที่กำลังรันฟาร์มเพชร"
+          : (!chosen || !isProfilePremium(chosen)
+            ? "⚠️ เลือกได้เฉพาะตัวละครที่มีสถานะ 👑 Premium เท่านั้น"
+            : (getProfileBaseLevel(chosen) < reqLv
+              ? `⚠️ ตัวละครนี้ Lv.${getProfileBaseLevel(chosen)} ต่ำกว่าเกณฑ์เทรดของเกม (ต้อง Lv.${reqLv}+)`
+              : `⚠️ ${getProfileTradeLockMsg(chosen) || 'ตัวละครนี้ติดล็อกการเทรด'}`));
         showToast(msg, "warning");
         updateZenyConsolidationView();
         return;
@@ -8635,11 +8691,13 @@ function initZenyConsolidationEvents() {
           cb.checked = false;
           selectedSenderIds.delete(pid);
           const reqLv = prof ? getProfileTradeMinLevel(prof) : 45;
-          const msg = !prof || !isProfilePremium(prof)
-            ? "⚠️ เลือกได้เฉพาะตัวละครที่มีสถานะ 👑 Premium เท่านั้น"
-            : (getProfileBaseLevel(prof) < reqLv
-              ? `⚠️ ตัวละครนี้ Lv.${getProfileBaseLevel(prof)} ต่ำกว่าเกณฑ์เทรดของเกม (ต้อง Lv.${reqLv}+)`
-              : `⚠️ ${getProfileTradeLockMsg(prof) || 'ตัวละครนี้ติดล็อกการเทรด'}`);
+          const msg = isProfileAutoFarmActive(prof)
+            ? "💎 จอนี้กำลังรันระบบฟาร์มเพชรอยู่ — ระบบรวมเงินข้ามให้อัตโนมัติเพื่อไม่ให้กระทบ"
+            : (!prof || !isProfilePremium(prof)
+              ? "⚠️ เลือกได้เฉพาะตัวละครที่มีสถานะ 👑 Premium เท่านั้น"
+              : (getProfileBaseLevel(prof) < reqLv
+                ? `⚠️ ตัวละครนี้ Lv.${getProfileBaseLevel(prof)} ต่ำกว่าเกณฑ์เทรดของเกม (ต้อง Lv.${reqLv}+)`
+                : `⚠️ ${getProfileTradeLockMsg(prof) || 'ตัวละครนี้ติดล็อกการเทรด'}`));
           showToast(msg, "warning");
           return;
         }
