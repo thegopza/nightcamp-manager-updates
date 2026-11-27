@@ -62,6 +62,34 @@ function computeProfilePremium(p) {
   return until > Date.now();
 }
 
+function computeProfileTradeLevel(p) {
+  const lv = Number(p?.tradeLevel || p?.liveState?.tradeLevel || 0);
+  return Number.isFinite(lv) && lv > 0 ? Math.floor(lv) : 45;
+}
+
+function computeProfileBaseLv(p) {
+  if (!p) return null;
+  const raw = (typeof p.baseLv === "number" && Number.isFinite(p.baseLv))
+    ? p.baseLv
+    : ((p.liveState && typeof p.liveState.baseLv === "number" && Number.isFinite(p.liveState.baseLv))
+      ? p.liveState.baseLv
+      : ((typeof p.lastBaseLv === "number" && Number.isFinite(p.lastBaseLv)) ? p.lastBaseLv : null));
+  return raw != null ? Math.max(0, Math.floor(raw)) : null;
+}
+
+function computeProfileTradeLockMsg(p) {
+  return String(p?.tradeLockMsg || p?.liveState?.tradeLockMsg || "").trim();
+}
+
+function isProfileTradeEligible(p) {
+  if (!computeProfilePremium(p)) return false;
+  if (p && p.canFreeTrade === false) return false;
+  if (computeProfileTradeLockMsg(p)) return false;
+  const baseLv = computeProfileBaseLv(p);
+  if (baseLv === null) return true; // Backward-compat for peer machines not yet updated
+  return baseLv >= computeProfileTradeLevel(p);
+}
+
 function computeProfileZeny(p) {
   if (!p) return 0;
   if (p.liveState && typeof p.liveState.totalCoins === "number" && Number.isFinite(p.liveState.totalCoins)) {
@@ -141,6 +169,11 @@ function buildIpGroupsForMachine(machineKey, profiles, cfg, masterReceiverKey, c
 
   const groupMap = new Map();
   for (const rawP of profiles) {
+    const baseLv = computeProfileBaseLv(rawP);
+    const tradeLevel = computeProfileTradeLevel(rawP);
+    const tradeLockMsg = computeProfileTradeLockMsg(rawP);
+    const hasPremium = computeProfilePremium(rawP);
+    const canFreeTrade = isProfileTradeEligible(rawP);
     const p = {
       id: String(rawP.id || ""),
       name: String(rawP.name || rawP.lastCharName || rawP.id || "Client"),
@@ -149,10 +182,14 @@ function buildIpGroupsForMachine(machineKey, profiles, cfg, masterReceiverKey, c
       map: String(rawP.map || rawP.liveState?.map || rawP.targetMap || ""),
       channel: Number(rawP.channel || rawP.liveState?.channel || 0) || null,
       zeny: computeProfileZeny(rawP),
+      baseLv,
+      tradeLevel,
+      tradeLockMsg,
       isRunning: Boolean(rawP.isRunning),
       isBotRunning: Boolean(rawP.isBotRunning || rawP.liveState?.isBotRunning),
       isMain: Boolean(rawP.isMain),
-      hasPremium: computeProfilePremium(rawP),
+      hasPremium,
+      canFreeTrade,
       ip: getProfileIpFromObject(rawP),
       busy: Boolean(rawP.busy)
     };
@@ -168,7 +205,7 @@ function buildIpGroupsForMachine(machineKey, profiles, cfg, masterReceiverKey, c
     const g = groupMap.get(p.ip);
     g.profiles.push(p);
     if (p.isRunning) g.onlineProfiles.push(p);
-    if (p.hasPremium) {
+    if (p.canFreeTrade) {
       g.premiumProfiles.push(p);
       if (p.isRunning) g.onlinePremiumProfiles.push(p);
     }
@@ -242,14 +279,19 @@ function buildIpGroupsForMachine(machineKey, profiles, cfg, masterReceiverKey, c
         name: effectiveStage1Receiver.name,
         charName: effectiveStage1Receiver.charName,
         zeny: effectiveStage1Receiver.zeny,
+        baseLv: effectiveStage1Receiver.baseLv,
+        tradeLevel: effectiveStage1Receiver.tradeLevel,
         isRunning: effectiveStage1Receiver.isRunning,
-        hasPremium: effectiveStage1Receiver.hasPremium
+        hasPremium: effectiveStage1Receiver.hasPremium,
+        canFreeTrade: effectiveStage1Receiver.canFreeTrade
       } : null,
       receiverCandidates: g.premiumProfiles.map(p => ({
         id: p.id,
         name: p.name,
         charName: p.charName,
         zeny: p.zeny,
+        baseLv: p.baseLv,
+        tradeLevel: p.tradeLevel,
         isRunning: p.isRunning,
         isMain: p.isMain
       })),
@@ -466,6 +508,14 @@ function createFleetZenyConsolidationService(deps = {}) {
       const hasPremium = isInGameLive
         ? Boolean(liveState.hasPremium)
         : Boolean(Number(p.lastPremiumUntil || 0) > Date.now());
+      const baseLv = (isInGameLive && typeof liveState?.baseLv === "number" && Number.isFinite(liveState.baseLv))
+        ? Math.max(0, Math.floor(liveState.baseLv))
+        : (typeof p.lastBaseLv === "number" && Number.isFinite(p.lastBaseLv) ? Math.max(0, Math.floor(p.lastBaseLv)) : 0);
+      const tradeLevel = (isInGameLive && Number(liveState?.tradeLevel) > 0)
+        ? Math.floor(Number(liveState.tradeLevel))
+        : 45;
+      const tradeLockMsg = isInGameLive ? String(liveState?.tradeLockMsg || "").trim() : "";
+      const canFreeTrade = Boolean(hasPremium && baseLv >= tradeLevel && !tradeLockMsg);
       const zeny = (isInGameLive && typeof liveState?.zeny === "number" && Number.isFinite(liveState.zeny))
         ? Math.max(0, Math.floor(liveState.zeny))
         : (typeof p.lastZeny === "number" && Number.isFinite(p.lastZeny) ? Math.max(0, Math.floor(p.lastZeny)) : 0);
@@ -479,10 +529,14 @@ function createFleetZenyConsolidationService(deps = {}) {
         map: String((liveState && liveState.map) || p.targetMap || ""),
         channel: Number(liveState?.channel || 0) || null,
         zeny,
+        baseLv,
+        tradeLevel,
+        tradeLockMsg,
         isRunning: alive,
         isBotRunning: Boolean(alive && liveState && liveState.isBotRunning),
         isMain: Boolean(p.isMain),
         hasPremium,
+        canFreeTrade,
         ip,
         debugPort: p.debugPort || null,
         busy: Boolean(activeConsolidationProfiles && activeConsolidationProfiles.has(p.id))
@@ -1321,12 +1375,11 @@ function createFleetZenyConsolidationService(deps = {}) {
 
     const snapshots = await Promise.all(sortedMachines.map(fetchSingleMachineSnapshot));
 
-    // Resolve or auto-pick a valid Master Receiver
+    // Resolve or auto-pick a valid Master Receiver (👑 Premium + Lv.45+)
     const allOnlineVips = [];
     for (const snap of snapshots) {
       for (const p of snap.profiles) {
-        const hasPrem = computeProfilePremium(p);
-        if (p.isRunning && hasPrem) {
+        if (p.isRunning && isProfileTradeEligible(p)) {
           allOnlineVips.push({
             machineKey: snap.machineKey,
             deviceName: snap.deviceName,
@@ -1337,6 +1390,8 @@ function createFleetZenyConsolidationService(deps = {}) {
             name: String(p.name || p.charName || p.id),
             charName: String(p.charName || p.liveState?.charName || p.lastCharName || p.name || ""),
             zeny: computeProfileZeny(p),
+            baseLv: computeProfileBaseLv(p),
+            tradeLevel: computeProfileTradeLevel(p),
             ip: getProfileIpFromObject(p),
             isMain: Boolean(p.isMain)
           });
@@ -1375,7 +1430,7 @@ function createFleetZenyConsolidationService(deps = {}) {
         0
       );
       const machineOnlineCount = snap.profiles.filter(p => p.isRunning).length;
-      const machineOnlineVipCount = snap.profiles.filter(p => p.isRunning && computeProfilePremium(p)).length;
+      const machineOnlineVipCount = snap.profiles.filter(p => p.isRunning && isProfileTradeEligible(p)).length;
 
       totalOnlineZenyAll += machineOnlineZeny;
       totalIpRings += ipGroups.length;
@@ -1431,13 +1486,15 @@ function createFleetZenyConsolidationService(deps = {}) {
         isCurrentMachine: s.isCurrentMachine,
         actorReady: s.actorReady,
         candidates: s.profiles
-          .filter(p => p.isRunning && computeProfilePremium(p))
+          .filter(p => p.isRunning && isProfileTradeEligible(p))
           .map(p => ({
             compositeKey: makeCompositeKey(s.machineKey, p.id),
             id: String(p.id),
             name: String(p.name || p.id),
             charName: String(p.charName || p.liveState?.charName || p.lastCharName || p.name || ""),
             zeny: computeProfileZeny(p),
+            baseLv: computeProfileBaseLv(p),
+            tradeLevel: computeProfileTradeLevel(p),
             ip: getProfileIpFromObject(p),
             isMain: Boolean(p.isMain)
           }))
@@ -1751,7 +1808,7 @@ function createFleetZenyConsolidationService(deps = {}) {
     }
 
     if (!masterInfo) {
-      throw new Error("กรุณาเลือกตัวหลักรับเงินปลายทางที่กำลังออนไลน์และมี 👑 Premium ก่อน");
+      throw new Error("กรุณาเลือกตัวหลักรับเงินปลายทางที่กำลังออนไลน์ มี 👑 Premium และเลเวลถึงเกณฑ์เทรด (Lv.45+) ก่อน");
     }
     if (!masterInfo.actorReady) {
       throw new Error(`เครื่องของตัวหลัก (${masterInfo.deviceName}) ยังเป็นเวอร์ชันเก่า — กรุณารออัปเดต Manager เป็น v4.63.8+ ก่อน`);
@@ -1902,7 +1959,7 @@ function createFleetZenyConsolidationService(deps = {}) {
         for (const m of postStage1Overview.machines) {
           if (!m.isOnline) continue;
           for (const g of m.ipGroups) {
-            if (!g.receiver || !g.receiver.isRunning || !g.receiver.hasPremium) continue;
+            if (!g.receiver || !g.receiver.isRunning || !g.receiver.hasPremium || g.receiver.canFreeTrade === false) continue;
             if (g.receiver.compositeKey === masterInfo.compositeKey) continue;
             const transferAmt = calcTransferZeny(g.receiver.zeny, keepZeny, roundHundredK);
             if (transferAmt <= 0) continue;
@@ -1943,7 +2000,7 @@ function createFleetZenyConsolidationService(deps = {}) {
         for (const snap of rawSnaps) {
           if (!snap.isOnline) continue;
           for (const p of snap.profiles) {
-            if (!p.isRunning || !computeProfilePremium(p)) continue;
+            if (!p.isRunning || !isProfileTradeEligible(p)) continue;
             const compKey = makeCompositeKey(snap.machineKey, p.id);
             if (compKey === masterInfo.compositeKey) continue;
             const zeny = computeProfileZeny(p);
@@ -2145,7 +2202,7 @@ function createFleetZenyConsolidationService(deps = {}) {
         const machine = ov.machines.find(m => m.machineKey === machineKey);
         const grp = machine && machine.ipGroups.find(g => g.ip === ip);
         if (!grp || !grp.canConsolidateInRing || !grp.receiver) {
-          return reply({ success: false, error: `วง IP [${ip}] ยังไม่มีตัวรับและผู้ส่งสถานะ 👑 Premium ออนไลน์ในวงเดียวกัน` }, 400);
+          return reply({ success: false, error: `วง IP [${ip}] ยังไม่มีตัวรับและผู้ส่งสถานะ 👑 Premium + Lv.45+ ออนไลน์ในวงเดียวกัน` }, 400);
         }
         const resRemote = await remoteFleet.requestMachineJson(machineKey, "POST", "/api/consolidation/start", {
           keepZeny,

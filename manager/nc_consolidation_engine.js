@@ -95,8 +95,12 @@ async function runNightcampConsolidationWorkflow(ctx) {
     if (!recPrep.hasPremium) {
       throw new Error(`ตัวรับเงิน (${receiverCharName}) ไม่มีสถานะ 👑 Premium`);
     }
-    if ((recPrep.lv || 1) < (recPrep.tradeLevel || 20)) {
-      throw new Error(`ตัวรับเงิน (${receiverCharName}) เลเวล ${recPrep.lv} ต่ำกว่าเกณฑ์เทรด Lv.${recPrep.tradeLevel || 20}`);
+    const recReqLv = Number(recPrep.tradeLevel) || 45;
+    if ((recPrep.lv || 1) < recReqLv) {
+      throw new Error(`ตัวรับเงิน (${receiverCharName}) เลเวล ${recPrep.lv} ต่ำกว่าเกณฑ์เทรด Lv.${recReqLv}`);
+    }
+    if (recPrep.tradeLockMsg) {
+      throw new Error(`ตัวรับเงิน (${receiverCharName}) ติดล็อกการเทรด: ${recPrep.tradeLockMsg}`);
     }
     if (recPrep.claimedDelta > 0) {
       logTask(`🛒 ตัวรับ ${receiverCharName} รับเงินจากตลาดกลางเพิ่ม +${recPrep.claimedDelta.toLocaleString()} g`, 'success');
@@ -123,8 +127,14 @@ async function runNightcampConsolidationWorkflow(ctx) {
         await safeFinishProfile(sp, { resumeBot: true });
         continue;
       }
-      if ((pr.lv || 1) < (pr.tradeLevel || 20)) {
-        logTask(`🔒 ข้าม ${sName}: เลเวล ${pr.lv} ต่ำกว่าเกณฑ์เทรด Lv.${pr.tradeLevel || 20}`, 'warning');
+      const senderReqLv = Number(pr.tradeLevel) || 45;
+      if ((pr.lv || 1) < senderReqLv) {
+        logTask(`🔒 ข้าม ${sName}: เลเวล ${pr.lv} ต่ำกว่าเกณฑ์เทรด Lv.${senderReqLv}`, 'warning');
+        await safeFinishProfile(sp, { resumeBot: true });
+        continue;
+      }
+      if (pr.tradeLockMsg) {
+        logTask(`🔒 ข้าม ${sName}: ${pr.tradeLockMsg}`, 'warning');
         await safeFinishProfile(sp, { resumeBot: true });
         continue;
       }

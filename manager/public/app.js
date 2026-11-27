@@ -1658,6 +1658,34 @@ function isProfilePremium(p) {
   return until > Date.now();
 }
 
+function getProfileTradeMinLevel(p) {
+  const lv = Number(p?.liveState?.tradeLevel || p?.tradeLevel || 0);
+  return Number.isFinite(lv) && lv > 0 ? Math.floor(lv) : 45;
+}
+
+function getProfileBaseLevel(p) {
+  if (!p) return 0;
+  const liveLv = p.liveState && typeof p.liveState.baseLv === "number" && Number.isFinite(p.liveState.baseLv)
+    ? p.liveState.baseLv
+    : null;
+  if (liveLv !== null && liveLv > 0) return Math.floor(liveLv);
+  const lastLv = typeof p.lastBaseLv === "number" && Number.isFinite(p.lastBaseLv) ? p.lastBaseLv : null;
+  if (lastLv !== null && lastLv > 0) return Math.floor(lastLv);
+  const rawLv = typeof p.baseLv === "number" && Number.isFinite(p.baseLv) ? p.baseLv : 0;
+  return Math.max(0, Math.floor(rawLv));
+}
+
+function getProfileTradeLockMsg(p) {
+  return String(p?.liveState?.tradeLockMsg || p?.tradeLockMsg || "").trim();
+}
+
+function isProfileTradeEligible(p) {
+  if (!isProfilePremium(p)) return false;
+  if (p?.liveState?.canFreeTrade === false) return false;
+  if (getProfileTradeLockMsg(p)) return false;
+  return getProfileBaseLevel(p) >= getProfileTradeMinLevel(p);
+}
+
 const captchaHighlightUntilMap = new Map();
 
 const NIGHTCAMP_SERVER_META_MAP = {
@@ -7172,7 +7200,7 @@ function buildIpConsolidationGroups() {
     const g = map.get(ip);
     g.profiles.push(p);
     if (p.isRunning) g.onlineProfiles.push(p);
-    if (isProfilePremium(p)) {
+    if (isProfileTradeEligible(p)) {
       g.premiumProfiles.push(p);
       if (p.isRunning) g.onlinePremiumProfiles.push(p);
     }
@@ -7297,7 +7325,7 @@ function patchZenyIpGroupCardEl(card, g, activeTasksByIp, sameIpOnly, activeRece
 
   const countsEl = card.querySelector(".js-ip-counts");
   if (countsEl) {
-    const nextCountsHtml = `🟢 <b>${g.onlineProfiles.length}</b>/${g.profiles.length} จอ · 👑 <b>${g.onlinePremiumProfiles.length}</b> VIP`;
+    const nextCountsHtml = `🟢 <b>${g.onlineProfiles.length}</b>/${g.profiles.length} จอ · 👑 <b>${g.onlinePremiumProfiles.length}</b> พร้อมเทรด`;
     if (window.PmUiGuard) window.PmUiGuard.setHtmlIfChanged(countsEl, nextCountsHtml);
     else if (countsEl.innerHTML !== nextCountsHtml) countsEl.innerHTML = nextCountsHtml;
   }
@@ -7323,15 +7351,16 @@ function patchZenyIpGroupCardEl(card, g, activeTasksByIp, sameIpOnly, activeRece
     const recOpts = g.premiumProfiles.length > 0
       ? g.premiumProfiles.map(p => {
           const cName = p.liveState?.charName || p.lastCharName || p.name;
+          const lv = getProfileBaseLevel(p);
           const zVal = typeof p.liveState?.zeny === "number" ? `${p.liveState.zeny.toLocaleString()} z` : "--";
           const onTag = p.isRunning ? "🟢" : "⚪";
           return {
             value: p.id,
-            label: `${onTag} 👑 ${p.name} [${cName}] (${zVal})`,
+            label: `${onTag} 👑 ${p.name} [${cName} Lv.${lv}] (${zVal})`,
             disabled: false
           };
         })
-      : [{ value: "", label: "🔒 ไม่มีตัวละครที่มี Premium ในวงนี้", disabled: false }];
+      : [{ value: "", label: "🔒 ไม่มีตัวละครที่มี Premium + Lv.45+ ในวงนี้", disabled: false }];
     const selectedId = (g.receiver && g.premiumProfiles.length > 0) ? g.receiver.id : "";
     // Only disable the receiver dropdown if THIS specific IP group is currently consolidating
     const isSelDisabled = g.premiumProfiles.length === 0 || isCurrentRunningIp;
@@ -7374,8 +7403,8 @@ function patchZenyIpGroupCardEl(card, g, activeTasksByIp, sameIpOnly, activeRece
 
 function updateZenyConsolidationView() {
   const onlineProfiles = currentProfiles.filter(p => p.isRunning);
-  const premiumProfiles = currentProfiles.filter(p => isProfilePremium(p));
-  const onlinePremiumProfiles = onlineProfiles.filter(p => isProfilePremium(p));
+  const premiumProfiles = currentProfiles.filter(p => isProfileTradeEligible(p));
+  const onlinePremiumProfiles = onlineProfiles.filter(p => isProfileTradeEligible(p));
   const sameIpOnly = isConsolidateSameIpOnly();
   const sameIpCb = document.getElementById("cb-consolidate-same-ip-only");
   if (sameIpCb && sameIpCb.checked !== sameIpOnly) sameIpCb.checked = sameIpOnly;
@@ -7390,10 +7419,10 @@ function updateZenyConsolidationView() {
   if (onlineCountEl) onlineCountEl.innerText = `${onlineProfiles.length}`;
 
   const sendersBadge = document.getElementById("zeny-senders-count-badge");
-  if (sendersBadge) sendersBadge.innerText = `${currentProfiles.length} จอ (${onlinePremiumProfiles.length} จอมี 👑 Premium ออนไลน์)`;
+  if (sendersBadge) sendersBadge.innerText = `${currentProfiles.length} จอ (${onlinePremiumProfiles.length} จอ 👑 Premium + Lv.45+ ออนไลน์)`;
 
   const curRecProfile = currentProfiles.find(p => p.id === selectedReceiverProfileId);
-  if (!selectedReceiverProfileId || !curRecProfile || !isProfilePremium(curRecProfile)) {
+  if (!selectedReceiverProfileId || !curRecProfile || !isProfileTradeEligible(curRecProfile)) {
     const defaultRec = onlinePremiumProfiles.find(p => p.isMain) || onlinePremiumProfiles[0] || premiumProfiles.find(p => p.isMain) || premiumProfiles[0] || null;
     selectedReceiverProfileId = defaultRec ? defaultRec.id : "";
   }
@@ -7431,13 +7460,17 @@ function updateZenyConsolidationView() {
     let receiverOpts = [];
     if (premiumProfiles.length === 0) {
       receiverOpts = [
-        { value: "", label: "⚠️ ไม่มีตัวละครที่มีสถานะ 👑 Premium (การเทรดต้องมี Premium)", disabled: true },
+        { value: "", label: "⚠️ ไม่มีตัวละครที่พร้อมเทรด (ต้องมี 👑 Premium และ Lv.45+)", disabled: true },
         ...currentProfiles.map(p => {
           const charName = p.liveState?.charName || p.lastCharName || p.name;
+          const hasPrem = isProfilePremium(p);
+          const lv = getProfileBaseLevel(p);
+          const reqLv = getProfileTradeMinLevel(p);
+          const lockReason = !hasPrem ? "ไม่มี Premium" : (lv < reqLv ? `Lv.${lv}/${reqLv}` : "ติดล็อกเทรด");
           const ipKey = getProfileIpGroupKey(p);
           return {
             value: p.id,
-            label: `🔒 [ไม่มี Premium] ${p.name} [${charName}] — IP: ${ipKey}`,
+            label: `🔒 [${lockReason}] ${p.name} [${charName}] — IP: ${ipKey}`,
             disabled: true
           };
         })
@@ -7445,17 +7478,22 @@ function updateZenyConsolidationView() {
     } else {
       receiverOpts = currentProfiles.map(p => {
         const hasPrem = isProfilePremium(p);
+        const lv = getProfileBaseLevel(p);
+        const reqLv = getProfileTradeMinLevel(p);
+        const canTrade = isProfileTradeEligible(p);
         const charName = p.liveState?.charName || p.lastCharName || p.name;
         const isOnline = p.isRunning ? "🟢 ออนไลน์" : "⚪ ออฟไลน์";
         const totalC = getProfileConsolidatableCoins(p);
         const zeny = p.liveState ? `${totalC.toLocaleString()} g` : '--';
         const mainStar = p.isMain ? "⭐ " : "";
-        const premPrefix = hasPrem ? "👑 " : "🔒 [ไม่มี Premium] ";
+        const premPrefix = canTrade
+          ? "👑 "
+          : (!hasPrem ? "🔒 [ไม่มี Premium] " : (lv < reqLv ? `🔒 [Lv.${lv}/${reqLv}] ` : "🔒 [ติดล็อกเทรด] "));
         const ipKey = getProfileIpGroupKey(p);
         return {
           value: p.id,
-          label: `${premPrefix}${mainStar}${p.name} [${charName}] — ${zeny} · 🛡️ IP: ${ipKey} (${isOnline})`,
-          disabled: !hasPrem
+          label: `${premPrefix}${mainStar}${p.name} [${charName} Lv.${lv}] — ${zeny} · 🛡️ IP: ${ipKey} (${isOnline})`,
+          disabled: !canTrade
         };
       });
     }
@@ -7560,9 +7598,14 @@ function updateZenyConsolidationView() {
       const isReceiver = Boolean(selectedReceiverProfileId && p.id === selectedReceiverProfileId);
       const isOnline = !!p.isRunning;
       const hasPrem = isProfilePremium(p);
+      const baseLv = getProfileBaseLevel(p);
+      const reqTradeLv = getProfileTradeMinLevel(p);
+      const tradeLockMsg = getProfileTradeLockMsg(p);
+      const lvOk = baseLv >= reqTradeLv;
+      const canTrade = isProfileTradeEligible(p);
       const profileIp = getProfileIpGroupKey(p);
       const isSameIpAsReceiver = Boolean(activeReceiverIp && profileIp === activeReceiverIp);
-      const canSelectSender = isOnline && hasPrem && !isReceiver;
+      const canSelectSender = isOnline && canTrade && !isReceiver;
       const state = p.liveState || {};
       const charName = state.charName || p.lastCharName || p.name;
       const charClass = state.charClass || p.lastCharClass || p.charClass || 'Novice';
@@ -7599,7 +7642,11 @@ function updateZenyConsolidationView() {
       if (isReceiver) {
         statusBadge = `<span class="zeny-badge-receiver">👑 ตัวรับเงิน (Receiver)</span>`;
       } else if (!hasPrem) {
-        statusBadge = `<span class="zeny-badge-status offline" style="color: #fca5a5; border-color: rgba(239, 68, 68, 0.35); background: rgba(239, 68, 68, 0.12);" title="ต้องมีสถานะ Premium จึงจะเทรดแลกเปลี่ยนเงินกับผู้เล่นอื่นได้">🔒 ไม่มี Premium (เทรดไม่ได้)</span>`;
+        statusBadge = `<span class="zeny-badge-status offline" style="color: #fca5a5; border-color: rgba(239, 68, 68, 0.35); background: rgba(239, 68, 68, 0.12);" title="ต้องมีสถานะ Premium และ Lv.${reqTradeLv}+ จึงจะเทรดแลกเปลี่ยนเงินกับผู้เล่นอื่นได้">🔒 ไม่มี Premium (เทรดไม่ได้)</span>`;
+      } else if (!lvOk) {
+        statusBadge = `<span class="zeny-badge-status offline" style="color: #fdba74; border-color: rgba(249, 115, 22, 0.42); background: rgba(249, 115, 22, 0.14);" title="เกมกำหนดให้ตัวละครต้องถึง Lv.${reqTradeLv} จึงจะเทรดกับผู้เล่นได้ (ตอนนี้ Lv.${baseLv})">🔒 Lv.${baseLv}/${reqTradeLv} (เทรดไม่ได้)</span>`;
+      } else if (tradeLockMsg) {
+        statusBadge = `<span class="zeny-badge-status offline" style="color: #fca5a5; border-color: rgba(239, 68, 68, 0.35); background: rgba(239, 68, 68, 0.12);" title="${escapeHTML(tradeLockMsg)}">🔒 ติดล็อกเทรด</span>`;
       } else if (!isOnline) {
         statusBadge = `<span class="zeny-badge-status offline">⚪ ออฟไลน์</span>`;
       } else if (isConsolidationRunning && completedSet.has(p.id)) {
@@ -7611,17 +7658,27 @@ function updateZenyConsolidationView() {
       } else if (sameIpOnly && !isSameIpAsReceiver) {
         statusBadge = `<span class="zeny-badge-status offline" style="color: #c4b5fd; border-color: rgba(168, 85, 247, 0.35); background: rgba(168, 85, 247, 0.12);" title="คลิกติ๊กที่ช่องด้านซ้ายเพื่อปลดล็อกและเลือกโอนข้ามวง IP ได้ทันที">🛡️ คนละวง IP (${escapeHTML(profileIp)})</span>`;
       } else {
-        statusBadge = `<span class="zeny-badge-status ready">🟢 พร้อมโอนเงิน (👑 Premium)</span>`;
+        statusBadge = `<span class="zeny-badge-status ready">🟢 พร้อมโอนเงิน (👑 Lv.${baseLv})</span>`;
       }
 
       const ipChipHtml = `<span style="display: inline-flex; align-items: center; gap: 3px; font-size: 10px; padding: 1px 6px; border-radius: 5px; font-family: monospace; background: ${isSameIpAsReceiver ? 'rgba(16, 185, 129, 0.16)' : 'rgba(148, 163, 184, 0.12)'}; color: ${isSameIpAsReceiver ? '#6ee7b7' : '#94a3b8'}; border: 1px solid ${isSameIpAsReceiver ? 'rgba(16, 185, 129, 0.4)' : 'rgba(148, 163, 184, 0.25)'};" title="${isSameIpAsReceiver ? 'อยู่ในวง IP เดียวกับตัวรับเงิน' : 'คนละวง IP กับตัวรับเงิน'}">🛡️ ${escapeHTML(profileIp)}</span>`;
 
+      const cbTitle = !hasPrem
+        ? 'เลือกไม่ได้: ตัวละครนี้ไม่มีสถานะ Premium'
+        : (!lvOk
+          ? `เลือกไม่ได้: ตัวละคร Lv.${baseLv} ต่ำกว่าเกณฑ์เทรดของเกม (ต้อง Lv.${reqTradeLv}+)`
+          : (tradeLockMsg
+            ? `เลือกไม่ได้: ${tradeLockMsg}`
+            : (!isOnline
+              ? 'เลือกไม่ได้: จอนี้ยังไม่ออนไลน์'
+              : (sameIpOnly && !isSameIpAsReceiver ? 'คลิกเพื่อปลดล็อกโหมดจำกัด IP และเลือกจอนี้รวมเงินด้วย' : 'เลือกเพื่อโอนเงิน'))));
+
       const checkboxHtml = isReceiver ? 
         `<span style="color: #facc15; font-size: 14px;" title="ตัวรับเงิน (ยกเว้นจากการส่งเงิน)">👑</span>` :
-        `<input type="checkbox" class="zeny-sender-cb" data-profile-id="${p.id}" ${isChecked ? 'checked' : ''} ${!canSelectSender ? 'disabled' : ''} title="${!hasPrem ? 'เลือกไม่ได้: ตัวละครนี้ไม่มีสถานะ Premium' : (!isOnline ? 'เลือกไม่ได้: จอนี้ยังไม่ออนไลน์' : (sameIpOnly && !isSameIpAsReceiver ? 'คลิกเพื่อปลดล็อกโหมดจำกัด IP และเลือกจอนี้รวมเงินด้วย' : 'เลือกเพื่อโอนเงิน'))}" style="accent-color: #0ea5e9; cursor: ${canSelectSender ? 'pointer' : 'not-allowed'};">`;
+        `<input type="checkbox" class="zeny-sender-cb" data-profile-id="${p.id}" ${isChecked ? 'checked' : ''} ${!canSelectSender ? 'disabled' : ''} title="${escapeHTML(cbTitle)}" style="accent-color: #0ea5e9; cursor: ${canSelectSender ? 'pointer' : 'not-allowed'};">`;
 
       return `
-        <tr class="${isReceiver ? 'receiver-row' : ''}" style="${!hasPrem ? 'opacity: 0.6;' : (sameIpOnly && !isSameIpAsReceiver && !isReceiver ? 'opacity: 0.8;' : '')}">
+        <tr class="${isReceiver ? 'receiver-row' : ''}" style="${!canTrade ? 'opacity: 0.6;' : (sameIpOnly && !isSameIpAsReceiver && !isReceiver ? 'opacity: 0.8;' : '')}">
           <td style="text-align: center;">${checkboxHtml}</td>
           <td>
             <div style="font-weight: 700; color: #f8fafc; display: flex; align-items: center; gap: 5px; flex-wrap: wrap;">
@@ -7635,7 +7692,7 @@ function updateZenyConsolidationView() {
           </td>
           <td>
             <div style="font-weight: 600; color: #e2e8f0;">${escapeHTML(charName)}</div>
-            <div style="font-size: 10.5px; color: #94a3b8;">${escapeHTML(charClass)}</div>
+            <div style="font-size: 10.5px; color: ${lvOk ? '#94a3b8' : '#fdba74'};">${escapeHTML(charClass)} · Lv.${baseLv || '?'}</div>
           </td>
           <td>
             <div style="color: #cbd5e1; font-size: 11.5px;">📍 ${escapeHTML(mapName)}</div>
@@ -7717,7 +7774,7 @@ window.switchMainTab = switchMainTab;
     serverName: "Nightfall",
     receiverProfileId: "",
     concurrency: 3,
-    targetLevel: 20,
+    targetLevel: 45,
     tradeChannel: 1,
     completionAction: "pass",
     running: false,
@@ -7790,7 +7847,7 @@ window.switchMainTab = switchMainTab;
       serverName: (serverEl && serverEl.value.trim()) || afConfig.serverName || "Nightfall",
       receiverProfileId: (recEl && recEl.value) || afConfig.receiverProfileId || "",
       concurrency: Math.max(1, Math.min(15, Number(concEl && concEl.value) || 3)),
-      targetLevel: Math.max(5, Math.min(99, Number(lvEl && lvEl.value) || 20)),
+      targetLevel: Math.max(5, Math.min(99, Number(lvEl && lvEl.value) || 45)),
       tradeChannel: Math.max(1, Math.min(20, Number(chEl && chEl.value) || 1)),
       completionAction: (compEl && compEl.value) || "pass",
       ...extraPatch
@@ -7868,7 +7925,7 @@ window.switchMainTab = switchMainTab;
           if (res && res.success) {
             afConfig = res.config || afConfig;
             if (typeof showToast === "function") {
-              showToast(afConfig.running ? "🚀 เริ่มรันคิว Auto Farm Lv.20 อัตโนมัติแล้ว!" : "⏸ หยุดพักคิว Auto Farm แล้ว", "info");
+              showToast(afConfig.running ? `🚀 เริ่มรันคิว Auto Farm Lv.${afConfig.targetLevel || 45} อัตโนมัติแล้ว!` : "⏸ หยุดพักคิว Auto Farm แล้ว", "info");
             }
             await loadAutoFarmDashboard(true);
           } else if (typeof showToast === "function") {
@@ -8017,7 +8074,7 @@ window.switchMainTab = switchMainTab;
     };
     syncInput("af-cfg-server", afConfig.serverName || "Nightfall");
     syncInput("af-cfg-concurrency", afConfig.concurrency || 3);
-    syncInput("af-cfg-target-lv", afConfig.targetLevel || 20);
+    syncInput("af-cfg-target-lv", afConfig.targetLevel || 45);
     syncInput("af-cfg-trade-ch", afConfig.tradeChannel || 1);
     syncInput("af-cfg-completion", afConfig.completionAction || "pass");
 
@@ -8306,7 +8363,7 @@ function selectSendersForReceiverIp(receiverProfileId) {
   selectedSenderIds.clear();
   unselectedSenderIds.clear();
   for (const p of currentProfiles) {
-    if (p.id === receiverProfileId || !p.isRunning || !isProfilePremium(p)) continue;
+    if (p.id === receiverProfileId || !p.isRunning || !isProfileTradeEligible(p)) continue;
     if (!recIp || getProfileIpGroupKey(p) === recIp) {
       selectedSenderIds.add(p.id);
     } else {
@@ -8340,7 +8397,7 @@ function initZenyConsolidationEvents() {
       } else {
         unselectedSenderIds.clear();
         currentProfiles.forEach(p => {
-          if (p.id !== selectedReceiverProfileId && p.isRunning && isProfilePremium(p)) {
+          if (p.id !== selectedReceiverProfileId && p.isRunning && isProfileTradeEligible(p)) {
             selectedSenderIds.add(p.id);
           }
         });
@@ -8396,7 +8453,7 @@ function initZenyConsolidationEvents() {
     unselectedSenderIds.clear();
     let matchedCount = 0;
     currentProfiles.forEach(p => {
-      if (p.id === selectedReceiverProfileId || !p.isRunning || !isProfilePremium(p)) return;
+      if (p.id === selectedReceiverProfileId || !p.isRunning || !isProfileTradeEligible(p)) return;
       const sameIpOk = !sameIpOnly || !recIp || getProfileIpGroupKey(p) === recIp;
       const z = getProfileConsolidatableCoins(p);
       if (sameIpOk && z > minVal) {
@@ -8429,8 +8486,14 @@ function initZenyConsolidationEvents() {
   if (recSelect) {
     recSelect.onchange = (e) => {
       const chosen = currentProfiles.find(p => p.id === e.target.value);
-      if (!chosen || !isProfilePremium(chosen)) {
-        showToast("⚠️ เลือกได้เฉพาะตัวละครที่มีสถานะ 👑 Premium เท่านั้น", "warning");
+      if (!chosen || !isProfileTradeEligible(chosen)) {
+        const reqLv = chosen ? getProfileTradeMinLevel(chosen) : 45;
+        const msg = !chosen || !isProfilePremium(chosen)
+          ? "⚠️ เลือกได้เฉพาะตัวละครที่มีสถานะ 👑 Premium เท่านั้น"
+          : (getProfileBaseLevel(chosen) < reqLv
+            ? `⚠️ ตัวละครนี้ Lv.${getProfileBaseLevel(chosen)} ต่ำกว่าเกณฑ์เทรดของเกม (ต้อง Lv.${reqLv}+)`
+            : `⚠️ ${getProfileTradeLockMsg(chosen) || 'ตัวละครนี้ติดล็อกการเทรด'}`);
+        showToast(msg, "warning");
         updateZenyConsolidationView();
         return;
       }
@@ -8450,12 +8513,12 @@ function initZenyConsolidationEvents() {
       unselectedSenderIds.clear();
       selectedSenderIds.clear();
       currentProfiles.forEach(p => {
-        if (p.id !== selectedReceiverProfileId && p.isRunning && isProfilePremium(p)) {
+        if (p.id !== selectedReceiverProfileId && p.isRunning && isProfileTradeEligible(p)) {
           selectedSenderIds.add(p.id);
         }
       });
       updateZenyConsolidationView();
-      showToast(`🌐 เลือกทุกจอที่มี Premium ออนไลน์ครบทุกวง IP (${selectedSenderIds.size} จอ) เรียบร้อยแล้ว`, "success");
+      showToast(`🌐 เลือกทุกจอที่มี Premium + Lv.45+ ออนไลน์ครบทุกวง IP (${selectedSenderIds.size} จอ) เรียบร้อยแล้ว`, "success");
     };
   }
 
@@ -8485,7 +8548,7 @@ function initZenyConsolidationEvents() {
       const recIp = rec ? getProfileIpGroupKey(rec) : null;
       currentProfiles.forEach(p => {
         const sameIpOk = !sameIpOnly || !recIp || getProfileIpGroupKey(p) === recIp;
-        if (p.id !== selectedReceiverProfileId && p.isRunning && isProfilePremium(p) && sameIpOk) {
+        if (p.id !== selectedReceiverProfileId && p.isRunning && isProfileTradeEligible(p) && sameIpOk) {
           if (checked) {
             selectedSenderIds.add(p.id);
             unselectedSenderIds.delete(p.id);
@@ -8508,10 +8571,16 @@ function initZenyConsolidationEvents() {
       if (cb) {
         const pid = cb.dataset.profileId;
         const prof = currentProfiles.find(p => p.id === pid);
-        if (!prof || !isProfilePremium(prof)) {
+        if (!prof || !isProfileTradeEligible(prof)) {
           cb.checked = false;
           selectedSenderIds.delete(pid);
-          showToast("⚠️ เลือกได้เฉพาะตัวละครที่มีสถานะ 👑 Premium เท่านั้น", "warning");
+          const reqLv = prof ? getProfileTradeMinLevel(prof) : 45;
+          const msg = !prof || !isProfilePremium(prof)
+            ? "⚠️ เลือกได้เฉพาะตัวละครที่มีสถานะ 👑 Premium เท่านั้น"
+            : (getProfileBaseLevel(prof) < reqLv
+              ? `⚠️ ตัวละครนี้ Lv.${getProfileBaseLevel(prof)} ต่ำกว่าเกณฑ์เทรดของเกม (ต้อง Lv.${reqLv}+)`
+              : `⚠️ ${getProfileTradeLockMsg(prof) || 'ตัวละครนี้ติดล็อกการเทรด'}`);
+          showToast(msg, "warning");
           return;
         }
         if (cb.checked) {
@@ -8683,7 +8752,7 @@ function initZenyConsolidationEvents() {
         const groups = buildIpConsolidationGroups();
         const grp = groups.find(g => g.ip === ip);
         if (!grp || !grp.receiver) {
-          showToast("⚠️ ไม่มีตัวรับเงินที่มี Premium ในวง IP นี้", "warning");
+          showToast("⚠️ ไม่มีตัวรับเงินที่มี Premium + Lv.45+ ในวง IP นี้", "warning");
           return;
         }
         selectedReceiverProfileId = grp.receiver.id;
@@ -8704,7 +8773,7 @@ function initZenyConsolidationEvents() {
         const groups = buildIpConsolidationGroups();
         const grp = groups.find(g => g.ip === ip);
         if (!grp || !grp.canConsolidate || !grp.receiver) {
-          alert(`วง IP [${ip}] ยังไม่มีตัวรับหรือผู้โอนที่ออนไลน์และมี 👑 Premium พร้อมโอน`);
+          alert(`วง IP [${ip}] ยังไม่มีตัวรับหรือผู้โอนที่ออนไลน์ มี 👑 Premium และเลเวล Lv.45+ พร้อมโอน`);
           return;
         }
         const recName = grp.receiver.liveState?.charName || grp.receiver.name;
@@ -8774,8 +8843,14 @@ function initZenyConsolidationEvents() {
   if (btnStartConsolidation) {
     btnStartConsolidation.onclick = async () => {
       const recProfile = currentProfiles.find(p => p.id === selectedReceiverProfileId);
-      if (!selectedReceiverProfileId || !recProfile || !isProfilePremium(recProfile)) {
-        alert("กรุณาเลือกตัวรับเงิน (Receiver) ที่มีสถานะ 👑 Premium ก่อน (การเทรดโอนเงินใช้ได้เฉพาะตัวที่มี Premium เท่านั้น)");
+      if (!selectedReceiverProfileId || !recProfile || !isProfileTradeEligible(recProfile)) {
+        const reqLv = recProfile ? getProfileTradeMinLevel(recProfile) : 45;
+        const recErr = !recProfile || !isProfilePremium(recProfile)
+          ? `กรุณาเลือกตัวรับเงิน (Receiver) ที่มีสถานะ 👑 Premium และเลเวล Lv.${reqLv}+ ก่อน`
+          : (getProfileBaseLevel(recProfile) < reqLv
+            ? `ตัวรับเงิน (${recProfile.name}) เลเวล ${getProfileBaseLevel(recProfile)} ต่ำกว่าเกณฑ์เทรด Lv.${reqLv} (ต้อง Lv.${reqLv}+ จึงจะเทรดได้)`
+            : `ตัวรับเงิน (${recProfile.name}) ติดล็อกการเทรด: ${getProfileTradeLockMsg(recProfile)}`);
+        alert(recErr);
         return;
       }
       const sameIpOnly = isConsolidateSameIpOnly();
@@ -8793,14 +8868,15 @@ function initZenyConsolidationEvents() {
         if (id === selectedReceiverProfileId) return false;
         if (activeProfileIdsSet.has(id)) return false;
         const sp = currentProfiles.find(p => p.id === id);
-        if (!sp || !sp.isRunning || !isProfilePremium(sp)) return false;
+        if (!sp || !sp.isRunning || !isProfileTradeEligible(sp)) return false;
         if (sameIpOnly && getProfileIpGroupKey(sp) !== recIp) return false;
         return true;
       });
       if (senderList.length === 0) {
+        const reqLv = getProfileTradeMinLevel(recProfile);
         alert(sameIpOnly
-          ? `ไม่มีจอผู้โอนที่ว่างอยู่ในวง IP เดียวกับตัวรับ (${recIp}) และมีสถานะ 👑 Premium`
-          : "กรุณาเลือกจอผู้โอนที่ว่างและมีสถานะ 👑 Premium อย่างน้อย 1 จอ");
+          ? `ไม่มีจอผู้โอนที่ว่างอยู่ในวง IP เดียวกับตัวรับ (${recIp}) ที่มี 👑 Premium และ Lv.${reqLv}+`
+          : `กรุณาเลือกจอผู้โอนที่ว่าง มีสถานะ 👑 Premium และเลเวล Lv.${reqLv}+ อย่างน้อย 1 จอ`);
         return;
       }
 
@@ -11895,7 +11971,23 @@ function populateWebHudData(profileId, data) {
     setField('#p-nc-cm-auto-unlist', cmc.autoUnlistExpired !== false, true);
   }
   const cmStatEl = hud.querySelector('#p-nc-cm-autosell-status');
-  if (cmStatEl && st.cmarketLastLog) cmStatEl.textContent = st.cmarketLastLog;
+  if (cmStatEl) {
+    const reqTradeLv = Number(st.cmarketSummary?.tradeLevel || st.tradeLevel) || 45;
+    const curLv = Number(st.baseLv) || 0;
+    const lockMsg = String(st.cmarketSummary?.tradeLockMsg || st.tradeLockMsg || '').trim() ||
+      (curLv > 0 && curLv < reqTradeLv ? `ซื้อขายตลาดกลางได้เมื่อตัวละครถึง Lv.${reqTradeLv} (ตอนนี้ Lv.${curLv})` : '');
+    if (lockMsg) {
+      cmStatEl.textContent = `🔒 ${lockMsg}`;
+      cmStatEl.style.color = '#fca5a5';
+      cmStatEl.style.border = '1px solid rgba(248,113,113,0.45)';
+      cmStatEl.style.background = 'rgba(127,29,29,0.35)';
+    } else {
+      if (st.cmarketLastLog) cmStatEl.textContent = st.cmarketLastLog;
+      cmStatEl.style.color = '#a5b4fc';
+      cmStatEl.style.border = 'none';
+      cmStatEl.style.background = 'rgba(2,6,23,0.55)';
+    }
+  }
   const cmQuotaEl = hud.querySelector('#p-nc-cm-quota-badge');
   if (cmQuotaEl && st.cmarketSummary) {
     const op = Number(st.cmarketSummary.openSlotCount ?? 0);
@@ -19859,6 +19951,20 @@ function renderNightcampCMarketTabHtml(d) {
   const maxSlots = Number(cm.maxSlots) || 20;
   const taxPct = Number(cm.taxPct) || 10;
   const readyRulesCount = rules.filter(r => r.ready).length;
+  const reqTradeLv = Number(cm.tradeLevel || d.tradeLevel) || 45;
+  const baseLvNum = Number(d.baseLv) || 0;
+  const effectiveTradeLockMsg = String(cm.tradeLockMsg || d.tradeLockMsg || '').trim() ||
+    (baseLvNum > 0 && baseLvNum < reqTradeLv
+      ? `ซื้อขายกับผู้เล่นและตลาดกลางได้เมื่อตัวละครถึง Lv.${reqTradeLv} (ตอนนี้ Lv.${baseLvNum})`
+      : '');
+  const isMarketLocked = Boolean(effectiveTradeLockMsg);
+
+  const tradeLockBannerHtml = isMarketLocked ? `
+    <div style="background:rgba(127,29,29,0.42); border:1px solid rgba(248,113,113,0.58); color:#fecaca; border-radius:9px; padding:8px 12px; margin-bottom:10px; font-size:11.5px; font-weight:700; display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap;">
+      <span>🔒 ${escapeHTML(effectiveTradeLockMsg)}</span>
+      <span style="font-size:10.5px; color:#fde68a; font-weight:600;">💡 สามารถตั้งค่ารายการ Auto-Sell ไว้ล่วงหน้าได้ (บอทจะกันของไม่ให้ขายร้าน NPC และเริ่มลงตลาดอัตโนมัติเมื่อถึง Lv.${reqTradeLv})</span>
+    </div>
+  ` : '';
 
   const subTabsHtml = `
     <div style="display:flex; flex-wrap:wrap; gap:6px; align-items:center; justify-content:space-between; margin-bottom:10px; background:rgba(15,23,42,0.82); border:1px solid rgba(129,140,248,0.32); border-radius:10px; padding:7px 10px;">
@@ -19874,11 +19980,12 @@ function renderNightcampCMarketTabHtml(d) {
         `).join('')}
       </div>
       <div style="display:flex; align-items:center; gap:6px; font-size:10.5px;">
-        <span style="background:rgba(16,185,129,0.16); border:1px solid rgba(52,211,153,0.4); color:#6ee7b7; padding:2px 8px; border-radius:999px; font-weight:700;">
-          🏪 ชั้นของฉัน ${openCount}/${maxSlots} · ภาษี ${taxPct}%
+        <span style="background:${isMarketLocked ? 'rgba(239,68,68,0.18)' : 'rgba(16,185,129,0.16)'}; border:1px solid ${isMarketLocked ? 'rgba(248,113,113,0.5)' : 'rgba(52,211,153,0.4)'}; color:${isMarketLocked ? '#fca5a5' : '#6ee7b7'}; padding:2px 8px; border-radius:999px; font-weight:700;">
+          ${isMarketLocked ? `🔒 ล็อก Lv.${baseLvNum}/${reqTradeLv}` : `🏪 ชั้นของฉัน ${openCount}/${maxSlots} · ภาษี ${taxPct}%`}
         </span>
       </div>
     </div>
+    ${tradeLockBannerHtml}
   `;
 
   // =========================================================================
@@ -19925,7 +20032,7 @@ function renderNightcampCMarketTabHtml(d) {
             <button type="button" onclick="runNightcampCharacterAction({ action: 'cmarket_claim_mail' })" style="background:rgba(16,185,129,0.2); border:1px solid rgba(52,211,153,0.5); color:#6ee7b7; border-radius:7px; padding:5px 10px; font-size:11px; font-weight:700; cursor:pointer;">
               📬 รับเงินจากการขาย
             </button>
-            <button type="button" onclick="runNightcampCharacterAction({ action: 'cmarket_run_autosell_now' })" style="background:linear-gradient(135deg,#4f46e5,#4338ca); border:1px solid #818cf8; color:#fff; border-radius:7px; padding:5px 12px; font-size:11px; font-weight:800; cursor:pointer; box-shadow:0 4px 12px rgba(79,70,229,0.35);">
+            <button type="button" ${isMarketLocked ? 'disabled' : ''} onclick="runNightcampCharacterAction({ action: 'cmarket_run_autosell_now' })" title="${escapeHTML(isMarketLocked ? effectiveTradeLockMsg : 'ตรวจสอบกระเป๋าและวางขายลงตลาดกลางทันที')}" style="background:${isMarketLocked ? '#1e293b' : 'linear-gradient(135deg,#4f46e5,#4338ca)'}; border:1px solid ${isMarketLocked ? '#334155' : '#818cf8'}; color:${isMarketLocked ? '#64748b' : '#fff'}; border-radius:7px; padding:5px 12px; font-size:11px; font-weight:800; cursor:${isMarketLocked ? 'not-allowed' : 'pointer'}; ${isMarketLocked ? '' : 'box-shadow:0 4px 12px rgba(79,70,229,0.35);'}">
               ⚡ ตรวจสอบ &amp; ลงขายทันที
             </button>
           </div>
@@ -19967,7 +20074,7 @@ function renderNightcampCMarketTabHtml(d) {
 
         <div style="font-size:10.5px; color:#a5b4fc; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">
           <span>📌 สถานะล่าสุด: <b style="color:#e0e7ff;">${escapeHTML(cm.lastLog || 'พร้อมตรวจสอบรายการขายตลาดกลาง')}</b></span>
-          ${cm.tradeLockMsg ? `<span style="color:#fca5a5; font-weight:700;">⚠️ ${escapeHTML(cm.tradeLockMsg)}</span>` : `<span style="color:#86efac;">🟢 ตัวละครพร้อมซื้อขายตลาดกลาง (Lv.${d.baseLv})</span>`}
+          ${isMarketLocked ? `<span style="color:#fca5a5; font-weight:700;">🔒 ${escapeHTML(effectiveTradeLockMsg)}</span>` : `<span style="color:#86efac;">🟢 ตัวละครพร้อมซื้อขายตลาดกลาง (Lv.${d.baseLv} · เกณฑ์ Lv.${reqTradeLv}+)</span>`}
         </div>
 
         ${ncCharModalState.cmCopyPanelOpen ? `
@@ -20291,8 +20398,9 @@ function renderNightcampCMarketTabHtml(d) {
                   <input type="number" id="nc-cm-manual-price-${idx}" value="${defaultPrice}" min="${band[0]}" max="${band[1]}"
                          style="width:100%; box-sizing:border-box; background:#090d16; border:1px solid rgba(52,211,153,0.45); color:#86efac; font-weight:700; border-radius:5px; padding:4px 6px; font-size:11px;">
                 </div>
-                <button type="button" onclick="manualListNightcampCMarketItem(${idx}, '${escapeHTML(h.k)}', '${escapeHTML(h.id)}', ${Number(h.u) || 0})"
-                        style="background:linear-gradient(135deg,#059669,#10b981); border:1px solid #34d399; color:#fff; border-radius:6px; padding:5px 10px; font-size:10.5px; font-weight:800; cursor:pointer; white-space:nowrap;">
+                <button type="button" ${isMarketLocked ? 'disabled' : ''} onclick="manualListNightcampCMarketItem(${idx}, '${escapeHTML(h.k)}', '${escapeHTML(h.id)}', ${Number(h.u) || 0})"
+                        title="${escapeHTML(isMarketLocked ? effectiveTradeLockMsg : 'วางขายไอเทมนี้ลงตลาดกลาง')}"
+                        style="background:${isMarketLocked ? '#1e293b' : 'linear-gradient(135deg,#059669,#10b981)'}; border:1px solid ${isMarketLocked ? '#334155' : '#34d399'}; color:${isMarketLocked ? '#64748b' : '#fff'}; border-radius:6px; padding:5px 10px; font-size:10.5px; font-weight:800; cursor:${isMarketLocked ? 'not-allowed' : 'pointer'}; white-space:nowrap;">
                   🏪 วางขาย
                 </button>
               </div>
@@ -20447,9 +20555,9 @@ function renderNightcampCMarketTabHtml(d) {
               <div style="display:flex; align-items:center; gap:6px;">
                 <input type="number" id="nc-cm-buy-qty-${idx}" value="1" min="1" max="${Math.max(1, l.maxBuyN || l.n)}"
                        style="width:58px; background:#090d16; border:1px solid rgba(56,189,248,0.45); color:#fde047; font-weight:700; border-radius:5px; padding:3px 6px; font-size:11px; text-align:right;">
-                <button type="button" ${l.buyable ? '' : 'disabled'} onclick="buyNightcampCMarketListing('${escapeHTML(String(l.id))}', 'nc-cm-buy-qty-${idx}')"
-                        title="${escapeHTML(l.whyBlocked || 'กดเพื่อซื้อทันที (ต้องยืนใกล้ลุงโกโก้)')}"
-                        style="background:${l.buyable ? 'linear-gradient(135deg,#d97706,#b45309)' : '#1e293b'}; border:1px solid ${l.buyable ? '#fbbf24' : '#334155'}; color:${l.buyable ? '#fff' : '#64748b'}; border-radius:6px; padding:4px 10px; font-size:11px; font-weight:800; cursor:${l.buyable ? 'pointer' : 'not-allowed'};">
+                <button type="button" ${(l.buyable && !isMarketLocked) ? '' : 'disabled'} onclick="buyNightcampCMarketListing('${escapeHTML(String(l.id))}', 'nc-cm-buy-qty-${idx}')"
+                        title="${escapeHTML(isMarketLocked ? effectiveTradeLockMsg : (l.whyBlocked || 'กดเพื่อซื้อทันที (ต้องยืนใกล้ลุงโกโก้)'))}"
+                        style="background:${(l.buyable && !isMarketLocked) ? 'linear-gradient(135deg,#d97706,#b45309)' : '#1e293b'}; border:1px solid ${(l.buyable && !isMarketLocked) ? '#fbbf24' : '#334155'}; color:${(l.buyable && !isMarketLocked) ? '#fff' : '#64748b'}; border-radius:6px; padding:4px 10px; font-size:11px; font-weight:800; cursor:${(l.buyable && !isMarketLocked) ? 'pointer' : 'not-allowed'};">
                   🛒 ซื้อทันที
                 </button>
               </div>

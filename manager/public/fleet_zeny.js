@@ -415,7 +415,7 @@
 
     const groups = ov?.masterOptionsByMachine || [];
     if (groups.length === 0) {
-      const emptyHtml = `<option value="">-- ยังไม่มีตัวละครที่มี 👑 Premium ออนไลน์ในเครื่องใด --</option>`;
+      const emptyHtml = `<option value="">-- ยังไม่มีตัวละครที่มี 👑 Premium + Lv.45+ ออนไลน์ในเครื่องใด --</option>`;
       if (sel.innerHTML !== emptyHtml) sel.innerHTML = emptyHtml;
       return;
     }
@@ -426,7 +426,8 @@
       const inner = mg.candidates.map(c => {
         const isSel = c.compositeKey === curKey ? " selected" : "";
         const star = c.isMain ? "⭐ " : "";
-        const lbl = `👑 ${star}${c.name} [${c.charName}] (${Number(c.zeny || 0).toLocaleString()} z · 🛡️ ${c.ip})`;
+        const lvTag = (typeof c.baseLv === "number" && c.baseLv > 0) ? ` Lv.${c.baseLv}` : "";
+        const lbl = `👑 ${star}${c.name} [${c.charName}${lvTag}] (${Number(c.zeny || 0).toLocaleString()} z · 🛡️ ${c.ip})`;
         return `<option value="${esc(c.compositeKey)}"${isSel}>${esc(lbl)}</option>`;
       }).join("");
       return `<optgroup label="${esc(mLabel)}">${inner}</optgroup>`;
@@ -624,9 +625,10 @@
             ? cands.map(c => {
                 const selected = g.uiReceiver && c.id === g.uiReceiver.id ? " selected" : "";
                 const dot = c.isRunning ? "🟢" : "⚪";
-                return `<option value="${esc(c.id)}"${selected}>${dot} 👑 ${esc(c.name)} [${esc(c.charName)}] (${Number(c.zeny || 0).toLocaleString()} z)</option>`;
+                const lvTag = (typeof c.baseLv === "number" && c.baseLv > 0) ? ` Lv.${c.baseLv}` : "";
+                return `<option value="${esc(c.id)}"${selected}>${dot} 👑 ${esc(c.name)} [${esc(c.charName)}${lvTag}] (${Number(c.zeny || 0).toLocaleString()} z)</option>`;
               }).join("")
-            : `<option value="">🔒 ไม่มีตัวละครที่มี Premium ในวงนี้</option>`;
+            : `<option value="">🔒 ไม่มีตัวละครที่มี Premium + Lv.45+ ในวงนี้</option>`;
 
           const runningPill = isRunningRing
             ? `<span class="fz-ring-running-pill">🔄 กำลังรวม (${Number(g.activeTask.stepIndex || 1)}/5)</span>`
@@ -639,7 +641,7 @@
                   <span class="fz-ring-ip-chip">🛡️ ${esc(ipLabel)}</span>
                   ${runningPill}
                 </div>
-                <span class="fz-ring-counts">🟢 <b>${g.onlineCount}</b>/${g.totalCount} จอ · 👑 <b>${g.onlineVipCount}</b> VIP</span>
+                <span class="fz-ring-counts">🟢 <b>${g.onlineCount}</b>/${g.totalCount} จอ · 👑 <b>${g.onlineVipCount}</b> พร้อมเทรด</span>
               </div>
 
               <div class="fz-ring-amount-row">

@@ -1662,8 +1662,9 @@ function createPartyService(opts) {
 
       const tradable = [...snapshots.values()].filter(x => x.canTrade && x.premium && x.mapId && x.ch > 0);
       if (tradable.length < 2) {
+        const reqTradeLv = [...snapshots.values()].map(x => Number(x.tradeLv || x.tradeLevel || 0)).find(n => n > 0) || 45;
         const msg = tradable.length === 0
-          ? '⚠️ ไม่มีสมาชิกพรีเมียม Lv.20+ ที่ออนไลน์พร้อมเทรด'
+          ? `⚠️ ไม่มีสมาชิกพรีเมียม Lv.${reqTradeLv}+ ที่ออนไลน์พร้อมเทรด`
           : '⏳ รอสมาชิกพรีเมียมอย่างน้อย 2 คนออนไลน์อยู่แมพและแชนแนลเดียวกัน';
         if (manual) rt.lastGearShareNote = msg;
         return { ok: true, traded: 0, matches: 0, message: msg };

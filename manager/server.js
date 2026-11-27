@@ -2564,14 +2564,14 @@ function getDefaultAutoFarmConfig() {
     serverName: "Nightfall",
     receiverProfileId: "",
     concurrency: 3,
-    targetLevel: 20,
+    targetLevel: 45,
     tradeChannel: 1,
     completionAction: "pass", // 'pass' | 'delete'
     planId: "default_archer_wolf",
     running: false,
     totalTradedCoins: 0,
     completedCount: 0,
-    lastStatusText: "พร้อมเริ่มระบบ Auto Farm Lv.20"
+    lastStatusText: "พร้อมเริ่มระบบ Auto Farm Lv.45"
   };
 }
 
@@ -3532,13 +3532,15 @@ const LIVE_STATE_EVAL = `(() => {
       if (window.NC && window.NC.FreeTrade) {
         const prem = Boolean(window.NC.FreeTrade.premium && window.NC.FreeTrade.premium());
         const premDays = Number(window.NC?.PremiumOnline?.days?.() || 0);
-        const tlv = Number(window.NC.FreeTrade.tradeLevel ? window.NC.FreeTrade.tradeLevel() : 20) || 20;
+        const tlv = Number(window.NC.FreeTrade.tradeLevel ? window.NC.FreeTrade.tradeLevel() : 45) || 45;
+        const tLock = typeof window.NC.FreeTrade.lock === 'function' ? String(window.NC.FreeTrade.lock() || '') : '';
         s.hasPremium = prem;
         if (prem) {
           s.premiumUntil = Date.now() + Math.max(1, premDays || 1) * 86400000;
         }
         s.tradeLevel = tlv;
-        s.canFreeTrade = Boolean(prem && (Number(ncp?.lv || s.baseLv || 1) >= tlv));
+        s.tradeLockMsg = tLock;
+        s.canFreeTrade = Boolean(prem && !tLock && (Number(ncp?.lv || s.baseLv || 1) >= tlv));
       }
       const ncCh = Number(window.NC?.OnlineChannels?.current?.() || window.NC?.Online?.snap?.channelId || 0);
       if (Number.isFinite(ncCh) && ncCh > 0) {
@@ -3610,11 +3612,13 @@ const NIGHTCAMP_LIVE_STATE_EVAL = `(() => {
     if (window.NC?.FreeTrade) {
       const prem = Boolean(window.NC.FreeTrade.premium && window.NC.FreeTrade.premium());
       const premDays = Number(window.NC?.PremiumOnline?.days?.() || 0);
-      const tlv = Number(window.NC.FreeTrade.tradeLevel ? window.NC.FreeTrade.tradeLevel() : 20) || 20;
+      const tlv = Number(window.NC.FreeTrade.tradeLevel ? window.NC.FreeTrade.tradeLevel() : 45) || 45;
+      const tLock = typeof window.NC.FreeTrade.lock === 'function' ? String(window.NC.FreeTrade.lock() || '') : '';
       s.hasPremium = prem;
       if (prem) s.premiumUntil = Date.now() + Math.max(1, premDays || 1) * 86400000;
       s.tradeLevel = tlv;
-      s.canFreeTrade = Boolean(prem && (Number(ncp?.lv || s.baseLv || 1) >= tlv));
+      s.tradeLockMsg = tLock;
+      s.canFreeTrade = Boolean(prem && !tLock && (Number(ncp?.lv || s.baseLv || 1) >= tlv));
     }
     const ncCh = Number(window.NC?.OnlineChannels?.current?.() || window.NC?.Online?.snap?.channelId || 0);
     if (Number.isFinite(ncCh) && ncCh > 0) { s.channel = ncCh; s.channelText = 'CH ' + ncCh; }
@@ -14145,17 +14149,44 @@ public class PmFocus {
         }
 
         const profiles = loadProfiles();
-        const checkProfilePremium = async (pid) => {
+        const checkProfileTradeEligible = async (pid) => {
           const p = profiles.find(x => x.id === pid);
-          if (!p) return { ok: false, name: pid, ip: 'LOCAL' };
+          if (!p) return { ok: false, hasPremium: false, lvOk: false, baseLv: 0, tradeLevel: 45, tradeLockMsg: '', name: pid, ip: 'LOCAL' };
           const ip = getProfileIpGroupKey(pid);
           if (p.debugPort) {
             const st = await queryClientState(p.debugPort);
             if (st && !st.error) {
-              return { ok: !!st.hasPremium, name: st.charName || p.name, ip };
+              const hasPremium = !!st.hasPremium;
+              const tradeLevel = Math.max(1, Number(st.tradeLevel) || 45);
+              const baseLv = Math.max(0, Number(st.baseLv ?? p.lastBaseLv ?? 0) || 0);
+              const tradeLockMsg = String(st.tradeLockMsg || '').trim();
+              const lvOk = baseLv >= tradeLevel;
+              return {
+                ok: Boolean(hasPremium && lvOk && !tradeLockMsg),
+                hasPremium,
+                lvOk,
+                baseLv,
+                tradeLevel,
+                tradeLockMsg,
+                name: st.charName || p.name,
+                ip
+              };
             }
           }
-          return { ok: Number(p.lastPremiumUntil || 0) > Date.now(), name: p.lastCharName || p.name, ip };
+          const hasPremium = Number(p.lastPremiumUntil || 0) > Date.now();
+          const tradeLevel = 45;
+          const baseLv = Math.max(0, Number(p.lastBaseLv || 0) || 0);
+          const lvOk = baseLv >= tradeLevel;
+          return {
+            ok: Boolean(hasPremium && lvOk),
+            hasPremium,
+            lvOk,
+            baseLv,
+            tradeLevel,
+            tradeLockMsg: '',
+            name: p.lastCharName || p.name,
+            ip
+          };
         };
 
         // Multi-group IP consolidation mode (runs non-overlapping IP groups concurrently in parallel)
@@ -14164,10 +14195,10 @@ public class PmFocus {
           for (const g of ipGroupsInput) {
             if (!g || !g.receiverProfileId || !Array.isArray(g.senderProfileIds) || g.senderProfileIds.length === 0) continue;
             if (activeConsolidationProfiles.has(g.receiverProfileId)) continue;
-            const recCheck = await checkProfilePremium(g.receiverProfileId);
+            const recCheck = await checkProfileTradeEligible(g.receiverProfileId);
             if (!recCheck.ok) continue;
             if (Array.from(activeConsolidationTasks.values()).some(t => t.ip === recCheck.ip)) continue;
-            const sChecks = await Promise.all(g.senderProfileIds.map(async sid => ({ sid, ...(await checkProfilePremium(sid)) })));
+            const sChecks = await Promise.all(g.senderProfileIds.map(async sid => ({ sid, ...(await checkProfileTradeEligible(sid)) })));
             const validSenders = sChecks
               .filter(sc => sc.ok && sc.sid !== g.receiverProfileId && sc.ip === recCheck.ip && !activeConsolidationProfiles.has(sc.sid))
               .map(sc => sc.sid);
@@ -14184,7 +14215,7 @@ public class PmFocus {
               success: false,
               error: activeConsolidationTasks.size > 0
                 ? "วง IP ที่เลือกกำลังดำเนินการรวมเงินอยู่แล้วในขณะนี้"
-                : "ไม่พบวง IP ที่มีทั้งตัวรับและผู้โอนสถานะ 👑 Premium พร้อมโอนในวงเดียวกัน"
+                : "ไม่พบวง IP ที่มีทั้งตัวรับและผู้โอนสถานะ 👑 Premium และเลเวลถึงเกณฑ์เทรด (Lv.45+) พร้อมโอนในวงเดียวกัน"
             }, activeConsolidationTasks.size > 0 ? 409 : 400);
           }
           runIpGroupsConsolidationWorkflow(validatedGroups, keepZeny, {
@@ -14215,11 +14246,16 @@ public class PmFocus {
         }
 
         const [recCheck, senderChecks] = await Promise.all([
-          checkProfilePremium(receiverId),
-          Promise.all(senderIds.map(async sid => ({ sid, ...(await checkProfilePremium(sid)) })))
+          checkProfileTradeEligible(receiverId),
+          Promise.all(senderIds.map(async sid => ({ sid, ...(await checkProfileTradeEligible(sid)) })))
         ]);
         if (!recCheck.ok) {
-          return sendJSON({ success: false, error: `ตัวรับเงิน (${recCheck.name}) ไม่มีสถานะ 👑 Premium — ระบบเทรดรวมเงินเลือกได้เฉพาะตัวละครที่มี Premium เท่านั้น` }, 400);
+          const recErr = !recCheck.hasPremium
+            ? `ตัวรับเงิน (${recCheck.name}) ไม่มีสถานะ 👑 Premium — ระบบเทรดรวมเงินเลือกได้เฉพาะตัวละครที่มี Premium เท่านั้น`
+            : (!recCheck.lvOk
+              ? `ตัวรับเงิน (${recCheck.name}) เลเวล ${recCheck.baseLv} ต่ำกว่าเกณฑ์เทรด Lv.${recCheck.tradeLevel} (ต้อง Lv.${recCheck.tradeLevel}+ จึงจะเทรดได้)`
+              : `ตัวรับเงิน (${recCheck.name}) ติดล็อกการเทรด: ${recCheck.tradeLockMsg}`);
+          return sendJSON({ success: false, error: recErr }, 400);
         }
 
         if (sameIpOnly && Array.from(activeConsolidationTasks.values()).some(t => t.ip === recCheck.ip)) {
@@ -14231,11 +14267,15 @@ public class PmFocus {
           .map(sc => sc.sid);
         if (validSenders.length === 0) {
           const anyBusy = senderChecks.some(sc => activeConsolidationProfiles.has(sc.sid));
+          const anyUnderLv = senderChecks.some(sc => sc.hasPremium && !sc.lvOk);
+          const minReqLv = senderChecks.find(sc => sc.tradeLevel)?.tradeLevel || recCheck.tradeLevel || 45;
           return sendJSON({
             success: false,
             error: anyBusy
               ? "จอผู้โอนที่เลือกกำลังติดภารกิจรวมเงินอยู่ในขณะนี้"
-              : "จอผู้โอนที่เลือกไม่มีสถานะ 👑 Premium (การเทรดโอนเงินใช้ได้เฉพาะตัวที่มี Premium เท่านั้น)"
+              : (anyUnderLv
+                ? `จอผู้โอนที่เลือกเลเวลต่ำกว่าเกณฑ์เทรด Lv.${minReqLv} (ต้อง 👑 Premium + Lv.${minReqLv}+ จึงจะเทรดโอนเงินได้)`
+                : `จอผู้โอนที่เลือกไม่เข้าเกณฑ์เทรด (ต้องมีสถานะ 👑 Premium และเลเวล Lv.${minReqLv}+ เท่านั้น)`)
           }, anyBusy ? 409 : 400);
         }
 
@@ -14246,7 +14286,7 @@ public class PmFocus {
           if (validSenders.length === 0) {
             return sendJSON({
               success: false,
-              error: `ไม่มีจอผู้โอนที่ว่างอยู่ในวง IP เดียวกับตัวรับ (${recCheck.ip}) และมี 👑 Premium`
+              error: `ไม่มีจอผู้โอนที่ว่างอยู่ในวง IP เดียวกับตัวรับ (${recCheck.ip}) ที่มี 👑 Premium และเลเวล Lv.${recCheck.tradeLevel || 45}+`
             }, 400);
           }
         }
@@ -14426,7 +14466,7 @@ public class PmFocus {
           if (data.serverName !== undefined) afState.config.serverName = String(data.serverName || "Nightfall").trim();
           if (data.receiverProfileId !== undefined) afState.config.receiverProfileId = String(data.receiverProfileId || "").trim();
           if (data.concurrency !== undefined) afState.config.concurrency = Math.max(1, Math.min(20, Number(data.concurrency) || 3));
-          if (data.targetLevel !== undefined) afState.config.targetLevel = Math.max(1, Math.min(99, Number(data.targetLevel) || 20));
+          if (data.targetLevel !== undefined) afState.config.targetLevel = Math.max(1, Math.min(99, Number(data.targetLevel) || 45));
           if (data.tradeChannel !== undefined) afState.config.tradeChannel = Math.max(1, Math.min(20, Number(data.tradeChannel) || 1));
           if (data.completionAction !== undefined) afState.config.completionAction = data.completionAction === "delete" ? "delete" : "pass";
           if (data.planId !== undefined) afState.config.planId = String(data.planId || "default_archer_wolf").trim();
@@ -15572,7 +15612,7 @@ function seedAutoFarmBrowserStorage(profile, role, receiverCharName, afConfig) {
     const afObj = {
       enabled: true,
       role: role || (profile.isReceiver ? "receiver" : "farmer"),
-      targetLevel: Number(afConfig && afConfig.targetLevel) || 20,
+      targetLevel: Number(afConfig && afConfig.targetLevel) || 45,
       receiverCharName: receiverCharName || "",
       tradeChannel: Number(afConfig && afConfig.tradeChannel) || 1,
       tradeCompleted: Boolean(profile.passed)
@@ -15619,7 +15659,7 @@ async function runAutoFarmOrchestratorTick() {
     receiverProfile.isReceiver = true;
 
     let stateChanged = false;
-    const targetLevel = Math.max(1, Number(afState.config.targetLevel) || 20);
+    const targetLevel = Math.max(1, Number(afState.config.targetLevel) || 45);
     const tradeChannel = Math.max(1, Number(afState.config.tradeChannel) || 1);
 
     // 1. Ensure Receiver Profile (จอ 1) is ALWAYS Open First & Staying Online Waiting to Receive Coins
