@@ -522,13 +522,30 @@ const pushJs = cfg => `(() => {
       password: String(c.password || '')
     };
   }
-  if (patch.preserveUserToggle && c.userToggledAt && typeof c.enabled === 'boolean') {
+  if (patch.preserveUserToggle && (c.userToggledAt || c.enabled === false || c.userDisabledAutoLogin)) {
     delete patch.enabled;
   }
   delete patch.preserveUserToggle;
-  Object.assign(c, patch);
+  if (patch.enabled === true) {
+    window.__ncAllowEnableAutoLogin = true;
+    window.__ncUserDisabledAutoLogin = false;
+  } else if (patch.enabled === false) {
+    window.__ncUserDisabledAutoLogin = true;
+  }
+  try {
+    Object.assign(c, patch);
+    if (patch.enabled === false) c.userDisabledAutoLogin = true;
+    else if (patch.enabled === true) c.userDisabledAutoLogin = false;
+  } finally {
+    window.__ncAllowEnableAutoLogin = false;
+  }
   c.lastManagerPushAt = Date.now();
-  try { localStorage.setItem('pelican_auth_cfg', JSON.stringify(c)); } catch (e) {}
+  try {
+    localStorage.setItem('pelican_auth_cfg', JSON.stringify(c));
+    if (typeof patch.enabled === 'boolean') {
+      localStorage.setItem('pelican_autologin_user_lock', JSON.stringify({ enabled: patch.enabled, ts: c.lastManagerPushAt }));
+    }
+  } catch (e) {}
   const set = (id, v) => { const el = document.getElementById(id); if (el && document.activeElement !== el) { if (el.type === 'checkbox') el.checked = !!v; else el.value = v; } };
   if (c.enabled !== undefined) set('p-auth-enabled', c.enabled);
   set('p-auth-user', c.username || '');
@@ -989,13 +1006,21 @@ function createAuthSync({
         (userEditedCharNewer && cur.charNameCfg !== (profile.charName || '')) ||
         (!profile.charName && cur.charNameCfg && !isPlaceholderCharName(cur.charNameCfg))
       );
-      if (!isSameAccountId(cur.username, profile.account) || cur.username !== profile.account || cur.password !== pw(profile) || (shouldAdoptServer && cur.serverName !== (profile.serverName || '')) || shouldAdoptChar || profile.autoRegister || (profile.generatedAccount && !cur.generatedUser)) {
+      const clientToggledNewer = Boolean(Number(cur.userToggledAt) > lastManagerPushAt);
+      const toggleChanged = Boolean(
+        clientToggledNewer && (
+          Boolean(cur.enabled) !== (profile.autoLoginEnabled !== false) ||
+          Boolean(cur.autoResumeBot) !== Boolean(profile.autoResumeBot)
+        )
+      );
+      if (!isSameAccountId(cur.username, profile.account) || cur.username !== profile.account || cur.password !== pw(profile) || (shouldAdoptServer && cur.serverName !== (profile.serverName || '')) || shouldAdoptChar || toggleChanged || profile.autoRegister || (profile.generatedAccount && !cur.generatedUser)) {
         credentials.setPassword(profile.id, cur.password);
         const nextCharVal = (!cur.charNameCfg || !isPlaceholderCharName(cur.charNameCfg)) ? cur.charNameCfg : '';
         updateProfile(profile.id, {
           account: cur.username,
           ...(shouldAdoptServer ? { serverName: cur.serverName } : {}),
           ...(shouldAdoptChar ? { charName: nextCharVal } : {}),
+          ...(clientToggledNewer ? { autoLoginEnabled: Boolean(cur.enabled), autoResumeBot: Boolean(cur.autoResumeBot) } : {}),
           autoRegister: false,
           generatedAccount: !!cur.generatedUser,
           registerError: '',
@@ -1005,8 +1030,11 @@ function createAuthSync({
         });
         pendingCreds.delete(profile.id);
         console.log(`[AuthSync] 🔄 ${profile.name}: ซิงค์ไอดี/รหัสจากเมนูบอทในเกม ("${cur.username}") เข้าโปรไฟล์ Manager อัตโนมัติ`);
-      } else if (manualUserEditedAt > lastManagerPushAt) {
-        updateProfile(profile.id, { lastAuthSyncPushAt: Date.now() });
+      } else if (manualUserEditedAt > lastManagerPushAt || clientToggledNewer) {
+        updateProfile(profile.id, {
+          ...(clientToggledNewer ? { autoLoginEnabled: Boolean(cur.enabled), autoResumeBot: Boolean(cur.autoResumeBot) } : {}),
+          lastAuthSyncPushAt: Date.now()
+        });
       }
       return;
     }
@@ -1211,10 +1239,18 @@ function createAuthSync({
       }
     }
 
-    // If user toggled Auto-Login checkbox inside the in-game Bot HUD, adopt their toggle into the Manager profile
-    if (Number(cur.userToggledAt) > (Number(profile.lastAuthSyncPushAt) || 0) && cur.enabled !== (profile.autoLoginEnabled !== false)) {
-      updateProfile(profile.id, { autoLoginEnabled: Boolean(cur.enabled) });
+    // If user toggled Auto-Login / Auto-Resume checkbox inside the in-game Bot HUD, adopt their toggle into the Manager profile
+    const toggleTs = Number(cur.userToggledAt) || 0;
+    const isClientToggleNewer = toggleTs > (Number(profile.lastAuthSyncPushAt) || 0);
+    if (isClientToggleNewer && (cur.enabled !== (profile.autoLoginEnabled !== false) || Boolean(cur.autoResumeBot) !== Boolean(profile.autoResumeBot))) {
+      updateProfile(profile.id, {
+        autoLoginEnabled: Boolean(cur.enabled),
+        autoResumeBot: Boolean(cur.autoResumeBot),
+        lastAuthSyncPushAt: toggleTs
+      });
       profile.autoLoginEnabled = Boolean(cur.enabled);
+      profile.autoResumeBot = Boolean(cur.autoResumeBot);
+      profile.lastAuthSyncPushAt = toggleTs;
     }
 
     // If user explicitly changed Server inside the in-game Bot HUD, adopt it into profile.serverName even while in-world
@@ -1241,7 +1277,7 @@ function createAuthSync({
       cur.password !== pw(profile) ||
       (profile.serverName !== undefined && cur.serverName !== (profile.serverName || '')) ||
       (!clientCharEditedNewer && profile.charName !== undefined && Boolean(profile.charName) && cur.charNameCfg !== profile.charName) ||
-      (!cur.userToggledAt && profile.autoLoginEnabled !== undefined && cur.enabled !== (profile.autoLoginEnabled !== false)) ||
+      (!cur.userToggledAt && cur.enabled !== false && profile.autoLoginEnabled !== undefined && cur.enabled !== (profile.autoLoginEnabled !== false)) ||
       (profile.autoResumeBot !== undefined && cur.autoResumeBot !== Boolean(profile.autoResumeBot))
     )) {
       // If per-screen proxy is enabled and we are pushing new credentials (which may auto-switch to signup if account is new),

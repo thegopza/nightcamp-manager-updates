@@ -4260,6 +4260,7 @@ function buildClientActionEvalCode(payload) {
       }
       if (patch.enabled !== undefined) {
         window.__authConfig.userToggledAt = Date.now();
+        try { localStorage.setItem('pelican_autologin_user_lock', JSON.stringify({ enabled: !!window.__authConfig.enabled, ts: window.__authConfig.userToggledAt })); } catch(e){}
       }
       if (patch.charName !== undefined) {
         window.__authConfig.charEditedAt = 0;
@@ -12419,6 +12420,7 @@ const server = http.createServer(async (req, res) => {
                   cfg.enabled = ${nextEnVal};
                   cfg.userDisabledAutoLogin = ${!nextEnVal};
                   cfg.userToggledAt = Date.now();
+                  localStorage.setItem('pelican_autologin_user_lock', JSON.stringify({ enabled: ${nextEnVal}, ts: cfg.userToggledAt }));
                 } finally {
                   window.__ncAllowEnableAutoLogin = false;
                 }

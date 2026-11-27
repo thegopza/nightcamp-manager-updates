@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "sourceCommit": "9229a1ac298bb3898087b0c51b86297e03ac0511",
+  "sourceCommit": "fdda5e0192f53beec7a7846a1438769bd7bd1fb3",
   "files": [
     {
       "path": "manager/asset_cache.js",
@@ -8,7 +8,7 @@
     },
     {
       "path": "manager/auth_sync.js",
-      "sha256": "83ee27c28457f9a3955dc65e187e301e165c7594dcd28a6b06bc8811fc4ffd20"
+      "sha256": "b9df5c275d688260e1bd901fd22b5abc88d7acaf371438518769ba5ff9660706"
     },
     {
       "path": "manager/bot_auto_update.js",
@@ -16,7 +16,7 @@
     },
     {
       "path": "manager/browser_mode.js",
-      "sha256": "e35667c9bb8354864e2717d4305e0fa29281ce13c16d4a4faa25bc91055d6bfe"
+      "sha256": "bc6dad1b83758e86bc1b8fb61cd0f057256081737a7d2eb6cf9eca5b741553b7"
     },
     {
       "path": "manager/captcha_stats.js",
@@ -328,7 +328,7 @@
     },
     {
       "path": "manager/public/update_log.js",
-      "sha256": "47814462b965881f88dd78a2630bfc35f34a9376156903c265a961bd851bd56a"
+      "sha256": "5e177a0e327516c6a5190910084a7c6d42c027ee3fcf36aca54ed897de82124b"
     },
     {
       "path": "manager/public/wiki/atlases/wiki_hats128.webp",
@@ -396,7 +396,7 @@
     },
     {
       "path": "manager/server.js",
-      "sha256": "237f78dea82a08a688706c090353da7ea466d569b15129f603ea1f3dcb5e1e12"
+      "sha256": "a3c8eee73a4e63307a78534d1994817a8b0d87f89fff02f58a293710b75c1b3f"
     },
     {
       "path": "manager/sim_api.js",

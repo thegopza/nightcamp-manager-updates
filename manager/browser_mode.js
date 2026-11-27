@@ -2693,8 +2693,12 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
           const authKey = `pelican_${profileId}__auth_cfg`;
           let parsedAuth = {};
           try { parsedAuth = JSON.parse(saved[authKey] || '{}') || {}; } catch (_) { parsedAuth = {}; }
+          const parsedToggledAt = Number(parsedAuth.userToggledAt) || 0;
+          const mgrPushAt = Number(self.lastAuthSyncPushAt) || 0;
+          const keepSavedToggle = parsedToggledAt > 0 && parsedToggledAt >= mgrPushAt && typeof parsedAuth.enabled === 'boolean';
           if (self.account && !self.autoRegister) {
-            parsedAuth.enabled = self.autoLoginEnabled !== false;
+            if (!keepSavedToggle) parsedAuth.enabled = self.autoLoginEnabled !== false;
+            parsedAuth.userDisabledAutoLogin = parsedAuth.enabled === false;
             parsedAuth.username = String(self.account).trim();
             if (self.serverName) parsedAuth.serverName = String(self.serverName).trim();
             if (self.charName) parsedAuth.charName = String(self.charName).trim();
@@ -2705,7 +2709,8 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
           } else if (self.serverName) {
             parsedAuth.serverName = String(self.serverName).trim();
             if (self.charName) parsedAuth.charName = String(self.charName).trim();
-            if (self.autoLoginEnabled !== undefined) parsedAuth.enabled = self.autoLoginEnabled !== false;
+            if (!keepSavedToggle && self.autoLoginEnabled !== undefined) parsedAuth.enabled = self.autoLoginEnabled !== false;
+            parsedAuth.userDisabledAutoLogin = parsedAuth.enabled === false;
             if (self.autoResumeBot !== undefined) parsedAuth.autoResumeBot = Boolean(self.autoResumeBot);
             saved[authKey] = JSON.stringify(parsedAuth);
           }
@@ -2725,7 +2730,7 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
     }
     const hasSaved = Object.keys(orderedSaved).length > 0;
     const restoreJs = hasSaved
-      ? `try { const __s = ${JSON.stringify(orderedSaved)}; const __rawGet = (window.__pmRawStorage && window.__pmRawStorage.get) || Storage.prototype.getItem; const __rawSet = (window.__pmRawStorage && window.__pmRawStorage.set) || Storage.prototype.setItem; const __rawDel = (window.__pmRawStorage && window.__pmRawStorage.del) || Storage.prototype.removeItem; if (window.localStorage && window.__pmProfileId && __rawGet.call(window.localStorage, 'pelican_auth_cfg') !== null) { const __rm = []; for (let i = 0; i < window.localStorage.length; i++) { const lk = window.localStorage.key(i); if (lk && lk.startsWith('pelican_') && lk.indexOf('__') === -1 && lk !== 'pelican_icon_manifest' && lk !== 'pelican_item_catalog') __rm.push(lk); } for (const lk of __rm) { try { __rawDel.call(window.localStorage, lk); } catch (_) {} } } const __impKey = window.__pmProfileId ? ('pelican_' + window.__pmProfileId + '__pm_import_stamp') : ''; const __forceImportRestore = Boolean(window.localStorage && __impKey && typeof __s[__impKey] === 'string' && __rawGet.call(window.localStorage, __impKey) !== __s[__impKey]); for (const [k, v] of Object.entries(__s)) { if (typeof v !== 'string' || k === 'aetheria.device' || k === 'aetheria.machine') continue; if (k.startsWith('__ss:')) { const sk = k.slice(5); if (window.sessionStorage && __rawGet.call(window.sessionStorage, sk) === null) { try { __rawSet.call(window.sessionStorage, sk, v); } catch (_) {} } } else if (window.localStorage) { const curV = __rawGet.call(window.localStorage, k); const isClobberedSell = (k.endsWith('__sell_cfg') || k === 'pelican_sell_cfg') && curV !== null && curV.indexOf('"weaponRarity"') === -1 && v.indexOf('"weaponRarity"') !== -1; if (__forceImportRestore || k.endsWith('__aetheria_device') || k.endsWith('__aetheria_machine') || k.endsWith('__auth_cfg') || curV === null || isClobberedSell) { try { __rawSet.call(window.localStorage, k, v); } catch (_) { if (typeof __freeStorageQuota === 'function') __freeStorageQuota(window.localStorage, __rawDel); try { __rawSet.call(window.localStorage, k, v); } catch (__) {} } } } } window.__pmStorageRestored = true; if (typeof window.reloadBotConfigsFromLocalStorage === 'function') { try { window.reloadBotConfigsFromLocalStorage(); } catch (_) {} } } catch (_) { window.__pmStorageRestored = true; }`
+      ? `try { const __s = ${JSON.stringify(orderedSaved)}; const __rawGet = (window.__pmRawStorage && window.__pmRawStorage.get) || Storage.prototype.getItem; const __rawSet = (window.__pmRawStorage && window.__pmRawStorage.set) || Storage.prototype.setItem; const __rawDel = (window.__pmRawStorage && window.__pmRawStorage.del) || Storage.prototype.removeItem; if (window.localStorage && window.__pmProfileId && __rawGet.call(window.localStorage, 'pelican_auth_cfg') !== null) { const __rm = []; for (let i = 0; i < window.localStorage.length; i++) { const lk = window.localStorage.key(i); if (lk && lk.startsWith('pelican_') && lk.indexOf('__') === -1 && lk !== 'pelican_icon_manifest' && lk !== 'pelican_item_catalog') __rm.push(lk); } for (const lk of __rm) { try { __rawDel.call(window.localStorage, lk); } catch (_) {} } } const __impKey = window.__pmProfileId ? ('pelican_' + window.__pmProfileId + '__pm_import_stamp') : ''; const __forceImportRestore = Boolean(window.localStorage && __impKey && typeof __s[__impKey] === 'string' && __rawGet.call(window.localStorage, __impKey) !== __s[__impKey]); for (const [k, v] of Object.entries(__s)) { if (typeof v !== 'string' || k === 'aetheria.device' || k === 'aetheria.machine') continue; if (k.startsWith('__ss:')) { const sk = k.slice(5); if (window.sessionStorage && __rawGet.call(window.sessionStorage, sk) === null) { try { __rawSet.call(window.sessionStorage, sk, v); } catch (_) {} } } else if (window.localStorage) { const curV = __rawGet.call(window.localStorage, k); const isClobberedSell = (k.endsWith('__sell_cfg') || k === 'pelican_sell_cfg') && curV !== null && curV.indexOf('"weaponRarity"') === -1 && v.indexOf('"weaponRarity"') !== -1; if (k.endsWith('__auth_cfg') && curV !== null && !__forceImportRestore) { try { const __co = JSON.parse(curV) || {}; const __so = JSON.parse(v) || {}; const __merged = Object.assign({}, __so, __co); if (__co.enabled === false || __co.userDisabledAutoLogin) { __merged.enabled = false; __merged.userDisabledAutoLogin = true; } __rawSet.call(window.localStorage, k, JSON.stringify(__merged)); } catch (_) {} } else if (__forceImportRestore || k.endsWith('__aetheria_device') || k.endsWith('__aetheria_machine') || curV === null || isClobberedSell) { try { __rawSet.call(window.localStorage, k, v); } catch (_) { if (typeof __freeStorageQuota === 'function') __freeStorageQuota(window.localStorage, __rawDel); try { __rawSet.call(window.localStorage, k, v); } catch (__) {} } } } } window.__pmStorageRestored = true; if (typeof window.reloadBotConfigsFromLocalStorage === 'function') { try { window.reloadBotConfigsFromLocalStorage(); } catch (_) {} } } catch (_) { window.__pmStorageRestored = true; }`
       : `window.__pmStorageRestored = true;`;
     // IMPORTANT: Do NOT use regex literals (/.../) inside this template string, because \/ unescapes to / and // becomes a JS line comment!
     const deviceHookJs = `try {
@@ -3156,9 +3161,12 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
               if (res && res.ok) {
                 try {
                   const now = Date.now();
-                  const cur = (window.__authConfig && typeof window.__authConfig === 'object') ? window.__authConfig : {};
+                  let storedCur = {};
+                  try { storedCur = JSON.parse(window.localStorage ? (window.localStorage.getItem('pelican_auth_cfg') || '{}') : '{}') || {}; } catch (_) {}
+                  const cur = (window.__authConfig && typeof window.__authConfig === 'object') ? window.__authConfig : storedCur;
                   const isSameGen = Boolean(cur.generatedUser && cur.username === loginCreds.username);
-                  const next = Object.assign({}, cur, {
+                  const keepDisabled = Boolean(cur.enabled === false || cur.userDisabledAutoLogin || storedCur.enabled === false || storedCur.userDisabledAutoLogin);
+                  const patchLogin = {
                     username: loginCreds.username,
                     password: loginCreds.password,
                     generatedUser: isSameGen,
@@ -3166,14 +3174,25 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
                     registerDone: true,
                     verifiedLoginAt: now,
                     userEditedAt: Number(cur.userEditedAt) || 0
-                  });
-                  delete next.registerError;
-                  window.__authConfig = next;
-                  if (window.localStorage) window.localStorage.setItem('pelican_auth_cfg', JSON.stringify(next));
+                  };
+                  if (keepDisabled) {
+                    patchLogin.enabled = false;
+                    patchLogin.userDisabledAutoLogin = true;
+                  }
+                  if (window.__authConfig && typeof window.__authConfig === 'object') {
+                    Object.assign(window.__authConfig, patchLogin);
+                    delete window.__authConfig.registerError;
+                  } else {
+                    const next = Object.assign({}, storedCur, patchLogin);
+                    delete next.registerError;
+                    window.__authConfig = next;
+                  }
+                  const activeCfg = window.__authConfig;
+                  if (window.localStorage) window.localStorage.setItem('pelican_auth_cfg', JSON.stringify(activeCfg));
                   const uEl = document.getElementById('p-auth-user');
                   const pEl = document.getElementById('p-auth-pass');
-                  if (uEl && document.activeElement !== uEl) uEl.value = next.username;
-                  if (pEl && document.activeElement !== pEl) pEl.value = next.password;
+                  if (uEl && document.activeElement !== uEl) uEl.value = activeCfg.username;
+                  if (pEl && document.activeElement !== pEl) pEl.value = activeCfg.password;
                 } catch (_) {}
               }
               return res;
@@ -3200,11 +3219,27 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
               window.__authConfig = cur;
               if (window.localStorage) window.localStorage.setItem('pelican_auth_cfg', JSON.stringify(cur));
             } else if (t.id === 'p-auth-enabled') {
+              const wantEn = Boolean(t.checked);
+              const nowTs = Date.now();
               const cur = (window.__authConfig && typeof window.__authConfig === 'object') ? window.__authConfig : {};
-              cur.enabled = Boolean(t.checked);
-              cur.userToggledAt = Date.now();
+              if (wantEn) {
+                window.__ncAllowEnableAutoLogin = true;
+                window.__ncUserDisabledAutoLogin = false;
+              } else {
+                window.__ncUserDisabledAutoLogin = true;
+              }
+              try {
+                cur.enabled = wantEn;
+                cur.userDisabledAutoLogin = !wantEn;
+                cur.userToggledAt = nowTs;
+              } finally {
+                window.__ncAllowEnableAutoLogin = false;
+              }
               window.__authConfig = cur;
-              if (window.localStorage) window.localStorage.setItem('pelican_auth_cfg', JSON.stringify(cur));
+              if (window.localStorage) {
+                window.localStorage.setItem('pelican_auth_cfg', JSON.stringify(cur));
+                window.localStorage.setItem('pelican_autologin_user_lock', JSON.stringify({ enabled: wantEn, ts: nowTs }));
+              }
             }
           } catch (_) {}
         };
