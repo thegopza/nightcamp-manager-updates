@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "sourceCommit": "11418484fbd3b16f26b94894dcfbab43338e42e2",
+  "sourceCommit": "7dac33f88f1b68e9cd2b543f29453dd9c68244e3",
   "files": [
     {
       "path": "manager/asset_cache.js",
@@ -172,15 +172,15 @@
     },
     {
       "path": "manager/public/build_sim.css",
-      "sha256": "36e785488f70e355dc62a60c71996bdb34d39196bb4e74d4e85a2729583466d6"
+      "sha256": "e78346fdfc2923aea85e7ec227eac6451cce7c9afd864ea30403e7bc1059bc4e"
     },
     {
       "path": "manager/public/build_sim.js",
-      "sha256": "dc3d54f7599001c31049ee652b4624aa25795993bf0d0def7fa9b46c890407f0"
+      "sha256": "abcd373f7f2f1e091242969fa5089beb6473f488dcc78a4bb828c982e1888c01"
     },
     {
       "path": "manager/public/build_sim_arena.js",
-      "sha256": "9091a439bf0f9c4d8eafe53d269a229413d3d8319a816c99cfbe7d4f8c3b0417"
+      "sha256": "a27e15dc5d68f22a6f83c5007d36b4059c14025364eb2c81b69cf984be1d9cb1"
     },
     {
       "path": "manager/public/builder_module.js",
@@ -240,7 +240,7 @@
     },
     {
       "path": "manager/public/index.html",
-      "sha256": "6f96ac958412eb25eec75c200111c5488a6fbd755ede5b13786460bbbe45b177"
+      "sha256": "0559dc8e52de5e10ce2a2d7758b8a16448afbb35e08454c95627cdfe9c1a50d0"
     },
     {
       "path": "manager/public/inventory_market.css",
@@ -324,7 +324,7 @@
     },
     {
       "path": "manager/public/update_log.js",
-      "sha256": "39e3c0a35be52e6e90320ef7c0c01c7f511349ea4f012d1ef4ba52670a2ca04f"
+      "sha256": "fbe1c53c4d62af44049dd642eac89e74511548cfe6170a085f5fe2c2630514c2"
     },
     {
       "path": "manager/public/wiki/calc.js",
