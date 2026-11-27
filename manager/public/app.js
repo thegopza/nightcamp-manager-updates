@@ -7760,6 +7760,10 @@ function switchMainTab(tabName) {
     if (wikiFrame && !wikiFrame.getAttribute("src")) {
       wikiFrame.setAttribute("src", wikiFrame.getAttribute("data-src") || "/wiki/index.html");
     }
+  } else if (tabName === "buildsim") {
+    if (window.NCBuildSim && typeof window.NCBuildSim.onTabShown === "function") {
+      window.NCBuildSim.onTabShown();
+    }
   }
   window.dispatchEvent(new CustomEvent("pm-main-tab-changed", { detail: { tabName } }));
 }

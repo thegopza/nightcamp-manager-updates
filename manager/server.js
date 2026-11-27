@@ -10152,6 +10152,15 @@ const server = http.createServer(async (req, res) => {
   // ==========================================
   // API ROUTING
   // ==========================================
+  if (pathname.startsWith('/api/sim')) {
+    const simApi = require('./sim_api.js');
+    const handled = await simApi.handleSimApi(req, res, pathname, parsedUrl, {
+      sendJSON,
+      getProfile: (id) => loadProfiles().find(p => p && String(p.id) === String(id)),
+      evalProfilePort,
+    });
+    if (handled) return;
+  }
   if (pathname === '/api/script/status' && req.method === 'GET') return sendJSON(scriptCoordinator.status());
   if(pathname==='/api/script/pilot' && req.method==='GET')return sendJSON({success:true,profiles:loadProfiles().map(p=>({id:p.id,name:p.name})),...scriptCoordinator.status()});
   if(pathname==='/api/script/pilot' && req.method==='POST') {

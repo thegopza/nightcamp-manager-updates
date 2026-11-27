@@ -6,8 +6,9 @@
   <title>Nightcamp — PmheeNightcamp Multi-Client Manager</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&family=Noto+Sans+Thai:wght@400;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css?v=nc2.3.19b">
+  <link rel="stylesheet" href="build_sim.css?v=nc2.3.28">
   <link rel="stylesheet" href="inventory_market.css?v=nc1.1.1">
   <link rel="stylesheet" href="bot_update.css?v=nc1.1.1">
   <link rel="stylesheet" href="plan_editor.css?v=nc2.3.19">
@@ -544,6 +545,9 @@
             <button type="button" class="tab-btn" data-tab="wiki" id="tab-btn-wiki" role="tab" title="เปิดคัมภีร์ฐานข้อมูล Night Camp SS2 (คลิกเพื่อดูในหน้านี้ หรือคลิกไอคอน 📖 Wiki ใต้ปุ่ม Device ขวามือเพื่อเปิดแยกแท็บใหม่)">
               <span class="icon">📖</span> คัมภีร์ Wiki <span class="tab-count" style="background:rgba(245,158,11,0.22);color:#fde68a;border:1px solid rgba(251,191,36,0.4);">SS2</span>
             </button>
+            <button type="button" class="tab-btn" data-tab="buildsim" id="tab-btn-buildsim" role="tab" title="จำลอง Build, เสกเลเวล/ของ/รูน/การ์ด, เสกบอสทดสอบสกิลและ DPS เรียลไทม์ + เชื่อมต่อ MCP">
+              <span class="icon">🧪</span> Build Simulate <span class="tab-count" style="background:rgba(168,85,247,0.28);color:#e9d5ff;border:1px solid rgba(192,132,252,0.5);">SIM</span>
+            </button>
             <button type="button" class="tab-btn" data-tab="zeny" id="tab-btn-zeny" role="tab">
               <span class="icon">💰</span> ระบบรวมเงิน
             </button>
@@ -1047,6 +1051,11 @@
             <iframe id="nc-wiki-iframe" data-src="/wiki/index.html" title="Night Camp SS2 Wiki &amp; Codex" style="width:100%;height:100%;border:none;display:block;background:#070a12;"></iframe>
           </div>
         </div>
+      </section>
+
+      <!-- TAB: NIGHTCAMP BUILD SIMULATE ARENA & DPS LAB -->
+      <section class="tab-pane" data-pane="buildsim" id="buildsim-pane">
+        <div id="ncsim-mount"></div>
       </section>
     </main>
   </div>
@@ -2017,7 +2026,10 @@
   </div>
 
   <script src="image_board_solver.js?v=nc1.9.4"></script>
-  <script src="app.js?v=nc2.3.27"></script>
+  <script src="app.js?v=nc2.3.28"></script>
+  <script src="sim_engine.js?v=nc2.3.28"></script>
+  <script src="build_sim_arena.js?v=nc2.3.28"></script>
+  <script src="build_sim.js?v=nc2.3.28"></script>
   <script src="builder_module.js?v=nc1.9.6"></script>
   <script src="gear_builder.js?v=nc2.3.19"></script>
   <script src="patcher_module.js?v=nc1.9.4"></script>
@@ -2030,7 +2042,7 @@
   <script src="fleet_dashboard.js?v=nc1.9.4"></script>
   <script src="support_chat.js?v=nc1.9.4"></script>
   <script src="announcements.js?v=nc1.9.4"></script>
-  <script src="update_log.js?v=nc2.3.27"></script>
+  <script src="update_log.js?v=nc2.3.28"></script>
   <!-- FLOATING IN-GAME BOT HUDS CONTAINER -->
   <div id="web-huds-container"></div>
 
