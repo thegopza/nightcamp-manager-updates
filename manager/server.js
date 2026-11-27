@@ -14262,14 +14262,20 @@ public class PmFocus {
 
           const gr = liveState && liveState.gemRush ? liveState.gemRush : null;
           if (gr) {
-            if (Number(gr.cycles) > (Number(entry.cycles) || 0)) {
-              entry.cycles = Number(gr.cycles);
-              afDirty = true;
+            const wantSessionId = Number(afState.config.sessionId || 0);
+            const grMatchesSession = !wantSessionId || Number(gr.sessionId || 0) === wantSessionId;
+            if (grMatchesSession) {
+              if (Number(gr.cycles) > (Number(entry.cycles) || 0)) {
+                entry.cycles = Number(gr.cycles);
+                afDirty = true;
+              }
+              if (Number(gr.gemsEarned) > (Number(entry.gemsEarned) || 0)) {
+                entry.gemsEarned = Number(gr.gemsEarned);
+                afDirty = true;
+              }
+              if (gr.lastCycleMs > 0) entry.lastCycleMs = Number(gr.lastCycleMs);
             }
-            if (Number(gr.gemsEarned) > (Number(entry.gemsEarned) || 0)) {
-              entry.gemsEarned = Number(gr.gemsEarned);
-              afDirty = true;
-            }
+            // Always preserve cumulative gold deposited across all shared vaults!
             if (Number(gr.totalCoinsDeposited) > (Number(entry.totalCoinsDeposited) || 0)) {
               entry.totalCoinsDeposited = Number(gr.totalCoinsDeposited);
               afDirty = true;
@@ -14289,7 +14295,6 @@ public class PmFocus {
             }
             if (gr.emptySlotsCount !== undefined) entry.emptySlotsCount = Number(gr.emptySlotsCount) || 0;
             if (gr.totalSlotsCount !== undefined) entry.totalSlotsCount = Number(gr.totalSlotsCount) || 0;
-            if (gr.lastCycleMs > 0) entry.lastCycleMs = Number(gr.lastCycleMs);
             if (gr.returnCharName) entry.returnCharName = gr.returnCharName;
             if (gr.tempCharName !== undefined) entry.tempCharName = gr.tempCharName || "";
             if (gr.phase) entry.phase = gr.phase;
@@ -14467,10 +14472,19 @@ public class PmFocus {
 
           afState.config.running = nextRunning;
           if (nextRunning) {
-            afState.config.startedAt = Date.now();
+            const newSessionId = Date.now();
+            afState.config.startedAt = newSessionId;
+            afState.config.sessionId = newSessionId;
             afState.config.stopEnforceUntil = 0;
+            // Reset session cycle & gem counters on fresh Start; KEEP cumulative totalCoinsDeposited across all shared vaults!
+            afState.config.totalCycles = 0;
+            afState.config.totalGemsEarned = 0;
             for (const entry of afState.entries) {
-              if (entry) entry.manualPaused = false;
+              if (!entry) continue;
+              entry.manualPaused = false;
+              entry.cycles = 0;
+              entry.gemsEarned = 0;
+              entry.lastCycleMs = 0;
             }
           } else {
             afState.config.stopEnforceUntil = Date.now() + 60000;
@@ -14482,6 +14496,18 @@ public class PmFocus {
 
           const mainMap = new Map((loadProfiles() || []).map(p => [p.id, p]));
           if (nextRunning) {
+            const sid = Number(afState.config.sessionId || Date.now());
+            const wVault = afState.config.vaultRushEnabled !== false;
+            const wGems = afState.config.takeGems20 !== false;
+            const wCoins = afState.config.depositPassCoins !== false;
+            await Promise.all(afState.entries.map(async (entry) => {
+              const p = mainMap.get(entry.profileId);
+              if (!p) return;
+              seedGemRushBrowserStorage(p, true, afState.config);
+              if (p.debugPort && !entry.ineligibleReason) {
+                await evalProfilePort(p.debugPort, `if (typeof window.__setGemRushConfig === 'function') window.__setGemRushConfig({ enabled: true, resetCycles: true, sessionId: ${sid}, vaultRushEnabled: ${wVault}, takeGems20: ${wGems}, depositPassCoins: ${wCoins} });`, 2500).catch(() => {});
+              }
+            }));
             setImmediate(() => runAutoFarmOrchestratorTick().catch(() => {}));
           } else {
             // Stop cleanly on EVERY pulled client (even if browserMode.isOpen is stale or screen is mid-transition)
@@ -15513,6 +15539,14 @@ function seedGemRushBrowserStorage(profile, enableRush, afConfig) {
     if (enableRush) {
       nextObj.eligible = null;
       nextObj.ineligibleReason = "";
+      const wantSid = Number(afConfig?.sessionId || 0);
+      if (wantSid > 0 && Number(prev.sessionId || 0) !== wantSid) {
+        nextObj.sessionId = wantSid;
+        nextObj.cycles = 0;
+        nextObj.gemsEarned = 0;
+        nextObj.lastCycleMs = 0;
+        // Preserve cumulative `prev.totalCoinsDeposited` across all shared vaults!
+      }
     }
     data[key] = JSON.stringify(nextObj);
     writeJsonAtomic(bsFile, data);
@@ -15631,15 +15665,21 @@ async function runAutoFarmOrchestratorTick() {
         stateChanged = true;
         continue;
       }
+      const wantSessionId = Number(afState.config.sessionId || 0);
+      const grMatchesSession = !wantSessionId || Number(gr?.sessionId || 0) === wantSessionId;
       if (gr) {
-        if (Number(gr.cycles) > (Number(entry.cycles) || 0)) {
-          entry.cycles = Number(gr.cycles);
-          stateChanged = true;
+        if (grMatchesSession) {
+          if (Number(gr.cycles) > (Number(entry.cycles) || 0)) {
+            entry.cycles = Number(gr.cycles);
+            stateChanged = true;
+          }
+          if (Number(gr.gemsEarned) > (Number(entry.gemsEarned) || 0)) {
+            entry.gemsEarned = Number(gr.gemsEarned);
+            stateChanged = true;
+          }
+          if (gr.lastCycleMs > 0) entry.lastCycleMs = Number(gr.lastCycleMs);
         }
-        if (Number(gr.gemsEarned) > (Number(entry.gemsEarned) || 0)) {
-          entry.gemsEarned = Number(gr.gemsEarned);
-          stateChanged = true;
-        }
+        // Always keep cumulative gold deposited across all shared vaults!
         if (Number(gr.totalCoinsDeposited) > (Number(entry.totalCoinsDeposited) || 0)) {
           entry.totalCoinsDeposited = Number(gr.totalCoinsDeposited);
           stateChanged = true;
@@ -15681,11 +15721,13 @@ async function runAutoFarmOrchestratorTick() {
           Boolean(gr.depositPassCoins !== false) !== wantCoins
         )
       );
-      if (!gr || !gr.enabled || flagsDesynced) {
+      if (!gr || !gr.enabled || flagsDesynced || !grMatchesSession) {
         const engRes = await evalProfilePort(prof.debugPort, `(() => {
           if (typeof window.__setGemRushConfig === 'function') {
             window.__setGemRushConfig({
               enabled: true,
+              resetCycles: ${!grMatchesSession},
+              sessionId: ${wantSessionId},
               vaultRushEnabled: ${wantVault},
               takeGems20: ${wantGems},
               depositPassCoins: ${wantCoins}

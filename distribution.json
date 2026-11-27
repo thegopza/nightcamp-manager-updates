@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "sourceCommit": "fb0293f9c6e66b9933c9c63d3d38aaa427783a58",
+  "sourceCommit": "5ddf1feea60d1da15db4593361ec023078c32d3c",
   "files": [
     {
       "path": "manager/asset_cache.js",
@@ -396,7 +396,7 @@
     },
     {
       "path": "manager/server.js",
-      "sha256": "a3c8eee73a4e63307a78534d1994817a8b0d87f89fff02f58a293710b75c1b3f"
+      "sha256": "84fbbbd2ae8797f403ea6bae2a4eeaaa8ecf6c8a199de15e7a605f9952c5cd94"
     },
     {
       "path": "manager/sim_api.js",
