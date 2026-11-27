@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "sourceCommit": "fdda5e0192f53beec7a7846a1438769bd7bd1fb3",
+  "sourceCommit": "fb0293f9c6e66b9933c9c63d3d38aaa427783a58",
   "files": [
     {
       "path": "manager/asset_cache.js",
@@ -116,7 +116,7 @@
     },
     {
       "path": "manager/party_api.js",
-      "sha256": "f3d405ea029245781d233e160a10f104faa273b5d61a56da556f484b07495e83"
+      "sha256": "40536ba48f35bd806b752dcef16a0bd258c4db24163824330b82c8391945283c"
     },
     {
       "path": "manager/plan_sync.js",
@@ -328,7 +328,7 @@
     },
     {
       "path": "manager/public/update_log.js",
-      "sha256": "5e177a0e327516c6a5190910084a7c6d42c027ee3fcf36aca54ed897de82124b"
+      "sha256": "6dff488a16adedce9b1310da4492718f12ad09bfeebd9ad0194a5196a6b2e490"
     },
     {
       "path": "manager/public/wiki/atlases/wiki_hats128.webp",

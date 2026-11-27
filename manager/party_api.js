@@ -166,9 +166,11 @@ const READ_JS = `(() => {
       : Math.max(0, ((Number(window.NC?.Online?.snap?.self?.channelMoveAt) || 0) + 300000) - Date.now())),
     pendingChannelSpread: window.__ncPendingChannelSpread || null,
     pkChannel: Boolean(room.state.pk || (typeof window.isCurrentChannelPk === 'function' && window.isCurrentChannelPk())),
-    targetMap: window.__targetFarmMap || (live && live.targetMap) || null,
+    targetMap: window.__planActiveTargetMap || window.__targetFarmMap || (live && live.targetMap) || null,
     keptFarmMap: window.__keptFarmMap || null,
-    smartAutoQuestEnabled: Boolean(window.__smartAutoQuestEnabled),
+    smartAutoQuestEnabled: Boolean(window.__smartAutoQuestEnabled || window.__planActiveModeType === 'auto_quest'),
+    planAutoQuestActive: Boolean(window.__planActiveModeType === 'auto_quest'),
+    planActiveTargetMap: window.__planActiveTargetMap || null,
     isTraveling: Boolean(window.NC?.Travel?.on),
     botRunning: window.__isBotRunning === true,
     noLootMode: Boolean(window.__noLootMode || (live && live.noLootMode)),
@@ -439,9 +441,11 @@ function channelTarget(leaderSnap, memberSnap) {
   return leaderSnap.channel;
 }
 
-// Plan Script still has Base / Job level steps to do → the plan decides the map, the party doesn't move it
+// Plan Script still has Base / Job level steps (or Plan Auto-Quest) to do → the plan decides the map, the party doesn't move it
 function planBlocked(s) {
-  return !!(s && s.plan && Array.isArray(s.plan.levelPending) && s.plan.levelPending.length);
+  if (!s) return false;
+  if (s.smartAutoQuestEnabled || s.planAutoQuestActive) return true;
+  return !!(s.plan && Array.isArray(s.plan.levelPending) && s.plan.levelPending.length);
 }
 
 function normalizeFollowMode(mode, party, memberId) {
@@ -1361,11 +1365,15 @@ function createPartyService(opts) {
     }
 
     // Same map + same CH as the party (Priest is the Channel Anchor when present on the farm map; otherwise Leader)
-    // CRITICAL (v2.3.9): NEVER treat Nightcamp's 'auto' targetMap as a concrete map name, and require 12s dwell
-    // before adopting Leader's current mapId when Leader has no explicit targetMap (prevents transit-map yanking!).
+    // CRITICAL (v2.3.9 / v2.3.40): NEVER treat Nightcamp's 'auto' targetMap as a concrete map name,
+    // NEVER grab stale `L.targetMap` (e.g. old `graveyard` from a previous character) while Leader is in Auto-Quest / Plan Auto-Quest mode,
+    // and require 12s dwell before adopting Leader's current mapId when Leader has no explicit targetMap!
     let leaderMap = null;
     let leaderMapId = null;
-    if (!isAutoMapToken(L.targetMap) && !isCityMapName(L.targetMap)) {
+    const leaderInAutoQuest = Boolean(L.smartAutoQuestEnabled || L.planAutoQuestActive);
+    if (leaderInAutoQuest) {
+      rt.lastLeaderFarmMap = null;
+    } else if (!isAutoMapToken(L.targetMap) && !isCityMapName(L.targetMap)) {
       leaderMap = String(L.targetMap).trim();
       if (/^[a-z0-9_]+$/i.test(leaderMap)) leaderMapId = leaderMap.toLowerCase();
     } else if (L.mapId && !isCityMapName(L.mapId) && !isCityMapName(L.mapName)) {
@@ -1381,11 +1389,11 @@ function createPartyService(opts) {
         }
       }
     }
-    if (!leaderMap && !isAutoMapToken(L.keptFarmMap) && !isCityMapName(L.keptFarmMap)) {
+    if (!leaderInAutoQuest && !leaderMap && !isAutoMapToken(L.keptFarmMap) && !isCityMapName(L.keptFarmMap)) {
       leaderMap = String(L.keptFarmMap).trim();
       if (/^[a-z0-9_]+$/i.test(leaderMap)) leaderMapId = leaderMap.toLowerCase();
     }
-    if (!leaderMap && !isAutoMapToken(rt.lastLeaderFarmMap) && !isCityMapName(rt.lastLeaderFarmMap)) {
+    if (!leaderInAutoQuest && !leaderMap && !isAutoMapToken(rt.lastLeaderFarmMap) && !isCityMapName(rt.lastLeaderFarmMap)) {
       leaderMap = String(rt.lastLeaderFarmMap).trim();
       if (/^[a-z0-9_]+$/i.test(leaderMap)) leaderMapId = leaderMap.toLowerCase();
     }
