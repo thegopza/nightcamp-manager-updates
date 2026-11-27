@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "sourceCommit": "5ddf1feea60d1da15db4593361ec023078c32d3c",
+  "sourceCommit": "d93ec98475182a6a750181f0e5d6a5ee0a66d676",
   "files": [
     {
       "path": "manager/asset_cache.js",
@@ -116,7 +116,7 @@
     },
     {
       "path": "manager/party_api.js",
-      "sha256": "40536ba48f35bd806b752dcef16a0bd258c4db24163824330b82c8391945283c"
+      "sha256": "3f37a1504e965c94ff7eb7173f4100faa2223e1f03db459cb720fec84ced873a"
     },
     {
       "path": "manager/plan_sync.js",

@@ -111,36 +111,21 @@ const READ_JS = `(() => {
   try { follow = g.follow ? g.follow() : null; } catch (e) {}
   try { if (!follow && document.querySelector('.follow-chip')) follow = '?'; } catch (e) {}
   const busy = ${JSON.stringify(BUSY_FLAGS)}.filter(k => window[k] === true);
-  // Plan Script: only Base / Job level triggers keep the character on its own maps. Zeny / gear triggers don't.
-  // Judge by the real level + class too: a plan loaded on an already-levelled character has an empty 'done' list.
+  // Plan Script: only actively running exclusive steps ('auto_quest', 'life_gather', or an in-progress 'change_class' retry)
+  // keep a character away from the party. Future level triggers (e.g. Base 25 / Job 40) do NOT block farming together right now!
   const plan = (() => {
     const p = window.__currentScriptPlan;
     if (!window.__planScriptEnabled || !p) return null;
     const nm = (typeof window.getCharacterName === 'function' ? window.getCharacterName() : '') || (me && me.name) || '';
     let st = null; try { st = JSON.parse(localStorage.getItem('pelican_plan_state_' + nm + '_' + (p.id || p.name || 'plan')) || 'null'); } catch (e) {}
     const done = (st && st.done) || {}, pend = (st && st.pending) || {};
-    const base = (me && me.level) || (live && live.baseLv) || 0;
-    const job = (me && me.jobLevel) || (live && live.jobLv) || 0;
-    const cls = String((me && me.classId) || (live && live.classId) || '').toLowerCase();
-    const order = ['novice', p.class1Target, p.class2Target].filter(Boolean).map(x => String(x).toLowerCase());
-    const ci = order.indexOf(cls);
     const levelPending = (p.triggers || []).filter(t => t && (t.type === 'base_level' || t.type === 'job_level')).filter(t => {
       if (done[t.id]) return false;
-      if (Array.isArray(t.actions) && t.actions.length && !t.actions.some(a => a && (a.type === 'change_map' || a.type === 'change_class'))) return false;
       if (pend[t.id]) {
-        // Still retrying: only blocks while a map / class step is left (gear, arrows, selling don't move the character)
         const left = Array.isArray(pend[t.id].actions) ? pend[t.id].actions.map(i => (t.actions || [])[i]).filter(Boolean) : (t.actions || []);
-        return left.some(a => a && (a.type === 'change_map' || a.type === 'change_class'));
+        return left.some(a => a && a.type === 'change_class');
       }
-      const lv = Number(t.targetLevel) || 0;
-      if (t.type === 'base_level') return base < lv;
-      if (t.classId) {
-        const ti = order.indexOf(String(t.classId).toLowerCase());
-        if (ti < 0 || ci < 0) return false;
-        if (ci > ti) return false;
-        if (ci < ti) return true;
-      }
-      return job < lv;
+      return false;
     }).map(t => (t.type === 'base_level' ? 'Base ' : 'Job ') + t.targetLevel + (t.classId ? ' ' + t.classId : ''));
     return { name: p.name || null, levelPending };
   })();
@@ -166,10 +151,13 @@ const READ_JS = `(() => {
       : Math.max(0, ((Number(window.NC?.Online?.snap?.self?.channelMoveAt) || 0) + 300000) - Date.now())),
     pendingChannelSpread: window.__ncPendingChannelSpread || null,
     pkChannel: Boolean(room.state.pk || (typeof window.isCurrentChannelPk === 'function' && window.isCurrentChannelPk())),
-    targetMap: window.__planActiveTargetMap || window.__targetFarmMap || (live && live.targetMap) || null,
+    targetMap: (window.__smartAutoQuestEnabled || window.__planActiveModeType === 'auto_quest')
+      ? null
+      : (window.__partyEffectiveFollowerMap || (window.__planScriptEnabled && window.__planActiveTargetMap) || window.__targetFarmMap || (live && live.targetMap) || null),
     keptFarmMap: window.__keptFarmMap || null,
     smartAutoQuestEnabled: Boolean(window.__smartAutoQuestEnabled || window.__planActiveModeType === 'auto_quest'),
     planAutoQuestActive: Boolean(window.__planActiveModeType === 'auto_quest'),
+    planActiveModeType: window.__planActiveModeType || '',
     planActiveTargetMap: window.__planActiveTargetMap || null,
     isTraveling: Boolean(window.NC?.Travel?.on),
     botRunning: window.__isBotRunning === true,
@@ -441,11 +429,21 @@ function channelTarget(leaderSnap, memberSnap) {
   return leaderSnap.channel;
 }
 
-// Plan Script still has Base / Job level steps (or Plan Auto-Quest) to do → the plan decides the map, the party doesn't move it
+// Plan Script still has an actively running exclusive step (Auto-Quest, life_gather, or in-progress change_class)
+// → the plan decides the map, the party doesn't move it
 function planBlocked(s) {
   if (!s) return false;
   if (s.smartAutoQuestEnabled || s.planAutoQuestActive) return true;
+  if (s.planActiveModeType === 'life_gather') return true;
   return !!(s.plan && Array.isArray(s.plan.levelPending) && s.plan.levelPending.length);
+}
+
+function planBlockReason(s) {
+  if (!s) return null;
+  if (s.planAutoQuestActive || s.smartAutoQuestEnabled) return 'Auto-Quest';
+  if (s.planActiveModeType === 'life_gather') return 'เก็บวัตถุดิบ';
+  if (s.plan && Array.isArray(s.plan.levelPending) && s.plan.levelPending.length) return String(s.plan.levelPending[0]);
+  return null;
 }
 
 function normalizeFollowMode(mode, party, memberId) {
@@ -1544,7 +1542,8 @@ function createPartyService(opts) {
           S.botRunning &&
           S.mapName &&
           !memberOnLeaderMap &&
-          !isCityMapName(S.mapName)
+          !isCityMapName(S.mapName) &&
+          !(memberTargetsLeaderMap && S.isTraveling)
         );
         if ((wrongTarget || wrongCurrentMap) && S.helpers && S.helpers.setTargetFarmMap && now() - m.mapAt >= T.mapCooldownMs) {
           m.mapAt = now();
@@ -2256,7 +2255,7 @@ function createPartyService(opts) {
         } else {
           text = same ? 'อยู่ด้วยกัน' : (S.mapId !== (anchorSnap && anchorSnap.mapId) ? 'กำลังไปแมพตี้' : 'กำลังย้าย CH');
         }
-        if (!same && planBlocked(S)) { status = 'plan'; text = 'แผนยังเก็บเลเวล (' + S.plan.levelPending[0] + ')'; }
+        if (!same && planBlocked(S)) { status = 'plan'; text = 'แผนกำลังทำงาน (' + (planBlockReason(S) || 'ตามแผน') + ')'; }
       } else if (S.party && leaderSnap && S.party.leader !== leaderSnap.name) { status = 'other'; text = 'อยู่ตี้อื่น'; }
       else if (leaderSnap && leaderSnap.party && Array.isArray(leaderSnap.party.members) && leaderSnap.party.members.length >= (leaderSnap.party.maxMembers || MAX_MEMBERS)) {
         status = 'apart'; text = 'ตี้เต็ม (มีคนนอก)';
@@ -2313,7 +2312,7 @@ function createPartyService(opts) {
         inGamePartySize: (S && S.party && Array.isArray(S.party.members)) ? S.party.members.length : 0,
         assigned: taken.has(p.id),
         noLoot: Boolean(S && S.noLootMode),
-        planPending: planBlocked(S) ? S.plan.levelPending[0] : null,
+        planPending: planBlocked(S) ? planBlockReason(S) : null,
         mapName: S && S.mapName, channel: S && S.channel };
     });
     const channelCheckMode = typeof getChannelCheckMode === 'function' ? (getChannelCheckMode() || 'all') : 'all';
