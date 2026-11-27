@@ -2300,6 +2300,7 @@ function createScreenProxyManager({ dataDir, solver, loadProfiles, assetCache: p
     const homeLeases = [];
     const releasedFromProxy = [];
     const proxyIdsToAcquire = [];
+    const socketsToReset = new Set();
     for (const profileId of ids) {
       const cm = profileGroupMap.get(profileId);
       if (cm && cm.useHomeIp) {
@@ -2309,7 +2310,7 @@ function createScreenProxyManager({ dataDir, solver, loadProfiles, assetCache: p
         homeLeases.push(homeLease);
         if (prev && !prev.useHomeIp && prev.proxyId) {
           releasedFromProxy.push(profileId);
-          resetProfileSockets(profileId);
+          socketsToReset.add(profileId);
         }
       } else {
         proxyIdsToAcquire.push(profileId);
@@ -2323,6 +2324,7 @@ function createScreenProxyManager({ dataDir, solver, loadProfiles, assetCache: p
     }
     if (proxyIdsToAcquire.length === 0) {
       await syncDaemonState().catch(() => {});
+      for (const pid of socketsToReset) resetProfileSockets(pid);
       return homeLeases;
     }
 
@@ -2387,12 +2389,13 @@ function createScreenProxyManager({ dataDir, solver, loadProfiles, assetCache: p
                 });
                 stickyHistory.set(l.profileId, l.proxyId);
                 if (prev && (prev.useHomeIp || (prev.proxyId && prev.proxyId !== l.proxyId))) {
-                  resetProfileSockets(l.profileId);
+                  socketsToReset.add(l.profileId);
                 }
               }
             }
             saveStickyHistory();
             await syncDaemonState().catch(() => {});
+            for (const pid of socketsToReset) resetProfileSockets(pid);
             syncProxyBillingToServer().catch(() => {});
             return [...homeLeases, ...validLeases];
           }

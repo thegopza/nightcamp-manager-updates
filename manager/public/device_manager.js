@@ -385,28 +385,30 @@
     drawer.setAttribute('aria-label', 'จัดการ Device Spoof & แยก IP พิเศษ');
     drawer.innerHTML = `
       <header class="dv-header">
-        <div class="dv-header-title">
-          <span class="dv-header-icon">⚙️</span>
-          <div>
-            <h2 id="dv-header-title-text">จัดการ Device Spoof (1 IP : 6 จอ)</h2>
-            <p id="dv-header-sub-text">จัดกลุ่มอัตโนมัติ หรือแยก IP/Device พิเศษเฉพาะจอที่ต้องการ</p>
+        <div class="dv-header-top">
+          <div class="dv-header-title">
+            <span class="dv-header-icon">⚙️</span>
+            <div class="dv-header-text">
+              <h2 id="dv-header-title-text">จัดการ Device Spoof (1 IP : 6 จอ)</h2>
+              <p id="dv-header-sub-text">จัดกลุ่มอัตโนมัติ หรือแยก IP/Device พิเศษเฉพาะจอที่ต้องการ</p>
+            </div>
           </div>
+          <button type="button" class="dv-btn dv-close-btn" id="dv-close-btn" title="ปิดแถบ (Esc)">✕</button>
         </div>
-        <div class="dv-header-actions">
+        <div class="dv-header-actions" id="dv-header-actions-row">
           <button type="button" class="dv-btn dv-btn-reip-header" id="dv-reip-all-btn" title="หา IP ว่างชุดใหม่ในระบบแล้วสลับให้ทุกวง IP ที่เปิดใช้งานอยู่พร้อมกัน">🔄 Re-IP ทุกวง</button>
           <button type="button" class="dv-btn" id="dv-rotate-stuck-btn" title="สุ่มเลข Device ID ใหม่เฉพาะจอที่ติดจำกัด 2 จอ / ติดคุก / โดนแบน (ไม่กระทบจอปกติที่ฟาร์มอยู่)" style="border-color:rgba(251,191,36,0.5);background:rgba(245,158,11,0.16);color:#fde68a;">🎯 Random จอที่ติด</button>
           <button type="button" class="dv-btn dv-btn-primary" id="dv-rotate-all-btn" title="สุ่มเลข Device ID และ Machine ID ใหม่ให้ทุกกลุ่มอัตโนมัติพร้อมกัน">🎲 Random ทุกกลุ่ม</button>
-          <button type="button" class="dv-btn" id="dv-close-btn" title="ปิดแถบ (Esc)">✕</button>
         </div>
       </header>
 
       <div class="dv-mode-tabs" role="tablist">
         <button type="button" class="dv-mode-tab active" id="dv-mode-tab-auto" data-dv-tab="auto" role="tab">
-          <span>📦 จัดกลุ่มอัตโนมัติ</span>
+          <span>📦 อัตโนมัติ</span>
           <span class="dv-mode-badge" id="dv-mode-badge-auto">0 จอ</span>
         </button>
         <button type="button" class="dv-mode-tab" id="dv-mode-tab-custom" data-dv-tab="custom" role="tab">
-          <span>🎯 แยก IP / Device พิเศษ</span>
+          <span>🎯 แยก IP พิเศษ</span>
           <span class="dv-mode-badge" id="dv-mode-badge-custom">0 วง</span>
         </button>
         <button type="button" class="dv-mode-tab" id="dv-mode-tab-unban" data-dv-tab="unban" role="tab">
@@ -1827,6 +1829,10 @@
     }
 
     const stuckCount = list.filter(p => Boolean(getProfileStuckInfo(p))).length;
+    const headerActionsRow = document.getElementById('dv-header-actions-row');
+    if (headerActionsRow) {
+      headerActionsRow.classList.toggle('dv-hidden', activeTab === 'unban');
+    }
     if (rotateStuckBtn) {
       rotateStuckBtn.classList.toggle('dv-hidden', activeTab === 'unban');
       rotateStuckBtn.disabled = rotatingStuck || rotatingAll || list.length === 0;

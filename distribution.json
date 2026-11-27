@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "sourceCommit": "bb26012a7f3fbd25ec7017a51912174d5b7d8866",
+  "sourceCommit": "a76d822b623ceb79492010f1832ed25e8cae2d40",
   "files": [
     {
       "path": "manager/asset_cache.js",
@@ -200,11 +200,11 @@
     },
     {
       "path": "manager/public/device_manager.css",
-      "sha256": "18a0b67dd0e43adad396c21b137615eb0f78153c66f71b9d7c159b248af54bd7"
+      "sha256": "abb6ecff0c7bec342f34bcd437c40630de61af98619b4f20386aa619f5a9a9be"
     },
     {
       "path": "manager/public/device_manager.js",
-      "sha256": "f9003c874d8413587e5fea4a4a05519f9117aa38d13a9afa97a58ca3b974f0b2"
+      "sha256": "c5c0bcdfe832fad9f8ce68b9a11442eeab8c4716c8dc15796f84e0c4ced0d122"
     },
     {
       "path": "manager/public/fleet_dashboard.css",
@@ -244,7 +244,7 @@
     },
     {
       "path": "manager/public/index.html",
-      "sha256": "9aa52afa596a3f68862e2b35789c83aabd84fa68db01adbf4d7d0a1d5aaaa352"
+      "sha256": "109b969b3248cf09578cec8718b64e82d98cf633f8bb8561f4cf565abe492566"
     },
     {
       "path": "manager/public/inventory_market.css",
@@ -372,7 +372,7 @@
     },
     {
       "path": "manager/screen_proxy_manager.js",
-      "sha256": "6224fb44b1bc420c9c1bfe3382f25296b5bbd197c3053bde233bca0c8b30fd03"
+      "sha256": "dfaf24535f76a105f9e33c43216207f80855fb849d6406b5ce59fa8533e819ab"
     },
     {
       "path": "manager/script_bootstrap.js",
