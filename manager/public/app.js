@@ -20847,77 +20847,156 @@ function renderNightcampCMarketTabHtml(d) {
   }
 
   // =========================================================================
-  // SUB-TAB 3: 📦 ชั้นวางของฉัน & รับเงิน (Active & Expired Listings)
+  // SUB-TAB 3: 📦 ชั้นวางของฉัน & รับเงิน (Active Listings + Sold/Expired History)
   // =========================================================================
   if (subTab === 'active') {
-    const totalListedValue = mineListings.filter(l => l.state === 'open').reduce((s, l) => s + (Number(l.totalPrice) || 0), 0);
+    const openListings = mineListings.filter(l => l && l.state === 'open');
+    const historyListings = mineListings.filter(l => l && l.state !== 'open');
+    const soldListings = historyListings.filter(l => l.state === 'sold');
+    const totalListedValue = openListings.reduce((s, l) => s + (Number(l.totalPrice) || 0), 0);
+    const unclaimedMailCount = Number(cm.unclaimedMailCount) || 0;
+    const isNearCoco = Boolean(cm.nearCoco);
+
+    const renderListingCard = (l) => {
+      const st = getNightcampRarityStyle(l.rarity, false);
+      const state = String(l.state || 'open').toLowerCase();
+      const isOpen = state === 'open';
+      const isSold = state === 'sold';
+      const isExpired = state === 'expired';
+      const isWithdrawn = state === 'withdrawn';
+      const isStuck = state === 'stuck';
+      const lMk = `${l.k || 'mat'}:${l.itemId}`;
+      const nOrig = Number(l.n0 || l.n) || 1;
+      const nRem = Number(l.n) || 0;
+      const soldCount = l.soldCount != null ? Number(l.soldCount) : Math.max(0, nOrig - nRem);
+      const displayTotal = isOpen ? (Number(l.totalPrice) || 0) : (Number(l.grossValue) || ((Number(l.price) || 0) * nOrig));
+
+      let badgeHtml = '';
+      let borderCol = st.border;
+      let actionHtml = '';
+      let qtyHtml = '';
+
+      if (isOpen) {
+        badgeHtml = `<span style="font-size:10px; font-weight:700; color:#6ee7b7; background:rgba(16,185,129,0.18); border:1px solid rgba(52,211,153,0.45); padding:1px 7px; border-radius:999px;">🟢 กำลังวางขายบนชั้น</span>`;
+        qtyHtml = `<span style="font-size:10.5px; font-weight:800; color:#fde047;">เหลือ ×${nRem}${nOrig !== nRem ? ` / ${nOrig}` : ''} ชิ้น</span>`;
+        actionHtml = `
+          <button type="button" onclick="runNightcampCharacterAction({ action: 'cmarket_unlist', listingId: '${escapeHTML(String(l.id))}' })"
+                  title="${isNearCoco ? 'ถอนรายการนี้คืนเข้ากระเป๋าทันที' : 'ตัวละครอยู่นอกค่าย — กดแล้วบอทจะเดินกลับเมืองไปหาลุงโกโก้เพื่อถอนคืนให้แล้วกลับแมพเดิมอัตโนมัติ'}"
+                  style="background:rgba(239,68,68,0.18); border:1px solid rgba(248,113,113,0.5); color:#fca5a5; border-radius:7px; padding:5px 11px; font-size:11px; font-weight:700; cursor:pointer; white-space:nowrap;">
+            ${isNearCoco ? '📥 ถอนคืนเข้ากระเป๋า' : '🏃 กลับเมืองถอนคืน'}
+          </button>`;
+      } else if (isSold) {
+        borderCol = 'rgba(52,211,153,0.38)';
+        badgeHtml = `<span style="font-size:10px; font-weight:800; color:#86efac; background:rgba(16,185,129,0.18); border:1px solid rgba(52,211,153,0.45); padding:1px 7px; border-radius:999px;">✅ ขายหมดแล้ว · เงินเข้าจดหมาย</span>`;
+        qtyHtml = `<span style="font-size:10.5px; font-weight:800; color:#86efac;">ขายออก ×${soldCount || nOrig} / ${nOrig} ชิ้น</span>`;
+        actionHtml = `<span style="font-size:10.5px; color:#6ee7b7; font-weight:700; background:rgba(16,185,129,0.1); border:1px solid rgba(52,211,153,0.28); border-radius:7px; padding:4px 9px; white-space:nowrap;">💰 ขายสำเร็จแล้ว</span>`;
+      } else if (isExpired) {
+        borderCol = 'rgba(251,191,36,0.45)';
+        badgeHtml = `<span style="font-size:10px; font-weight:800; color:#fde68a; background:rgba(245,158,11,0.18); border:1px solid rgba(251,191,36,0.45); padding:1px 7px; border-radius:999px;">⏰ หมดเวลา · คืนทางจดหมายแล้ว</span>`;
+        qtyHtml = `<span style="font-size:10.5px; font-weight:800; color:#fde68a;">คืนทางจดหมาย ×${nOrig} ชิ้น</span>`;
+        actionHtml = `
+          <button type="button" onclick="runNightcampCharacterAction({ action: 'cmarket_claim_mail', goCampIfSkipped: true })"
+                  style="background:rgba(245,158,11,0.2); border:1px solid rgba(251,191,36,0.5); color:#fde68a; border-radius:7px; padding:5px 11px; font-size:11px; font-weight:700; cursor:pointer; white-space:nowrap;">
+            📬 รับของจากจดหมาย
+          </button>`;
+      } else if (isWithdrawn) {
+        borderCol = 'rgba(148,163,184,0.28)';
+        badgeHtml = `<span style="font-size:10px; font-weight:700; color:#cbd5e1; background:rgba(148,163,184,0.15); border:1px solid rgba(148,163,184,0.35); padding:1px 7px; border-radius:999px;">↩️ ถอนคืนเข้ากระเป๋าแล้ว</span>`;
+        qtyHtml = `<span style="font-size:10.5px; font-weight:700; color:#94a3b8;">×${nOrig} ชิ้น</span>`;
+        actionHtml = `<span style="font-size:10.5px; color:#94a3b8; font-weight:600; padding:4px 8px;">ประวัติ</span>`;
+      } else {
+        borderCol = 'rgba(248,113,113,0.45)';
+        badgeHtml = `<span style="font-size:10px; font-weight:700; color:#fca5a5; background:rgba(239,68,68,0.18); border:1px solid rgba(248,113,113,0.45); padding:1px 7px; border-radius:999px;">${isStuck ? '⚠️ ทีมงานกำลังตรวจ' : escapeHTML(state)}</span>`;
+        qtyHtml = `<span style="font-size:10.5px; font-weight:700; color:#fca5a5;">×${nRem} / ${nOrig} ชิ้น</span>`;
+      }
+
+      const lHoverAttrs = buildNcMarketHoverAttrs({
+        key: lMk,
+        name: l.name,
+        rarity: l.rarity || 'common',
+        icon: l.icon || '',
+        extra: `ราคาชิ้นละ ${Number(l.price || 0).toLocaleString()}g · มูลค่ารวม ${displayTotal.toLocaleString()}g`
+      });
+      return `
+        <div ${lHoverAttrs} style="background:rgba(15,23,42,${isOpen ? '0.86' : '0.68'}); border:1px solid ${borderCol}; border-radius:10px; padding:9px 12px; display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; opacity:${isWithdrawn ? '0.78' : '1'};">
+          <div style="display:flex; align-items:center; gap:9px; min-width:0;">
+            <div style="width:40px; height:40px; border-radius:8px; background:#020617; border:1px solid ${st.border}; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+              ${l.icon ? `<img src="${escapeHTML(l.icon)}" alt="" style="width:34px;height:34px;object-fit:contain;">` : `<span>📦</span>`}
+            </div>
+            <div style="min-width:0;">
+              <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                <span style="font-size:12.5px; font-weight:800; color:${st.color};">${escapeHTML(l.name)}</span>
+                ${buildNcInlineMarketPricePillHtml(lMk)}
+                ${qtyHtml}
+                ${badgeHtml}
+              </div>
+              <div style="font-size:10.5px; color:#94a3b8; margin-top:2px;">
+                ราคาชิ้นละ <b style="color:#fde047;">${Number(l.price || 0).toLocaleString()}g</b> · ${isSold ? 'ยอดขายรวม' : 'มูลค่ารวม'} <b style="color:#86efac;">${displayTotal.toLocaleString()}g</b>
+              </div>
+            </div>
+          </div>
+          ${actionHtml}
+        </div>
+      `;
+    };
+
     return `
       ${subTabsHtml}
-      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(190px, 1fr)); gap:8px; margin-bottom:10px;">
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(195px, 1fr)); gap:8px; margin-bottom:10px;">
         <div style="background:rgba(15,23,42,0.82); border:1px solid rgba(56,189,248,0.35); border-radius:9px; padding:9px 12px;">
           <div style="font-size:10px; color:#94a3b8;">📦 โควตาชั้นวางของฉัน</div>
           <div style="font-size:16px; font-weight:800; color:#7dd3fc;">${openCount} / ${maxSlots} ช่อง</div>
+          <div style="font-size:10px; color:#64748b; margin-top:1px;">ขายออกแล้ว ${soldListings.length} รายการล่าสุด</div>
         </div>
         <div style="background:rgba(15,23,42,0.82); border:1px solid rgba(250,204,21,0.35); border-radius:9px; padding:9px 12px;">
-          <div style="font-size:10px; color:#94a3b8;">💰 มูลค่าที่กำลังวางขายรวม</div>
+          <div style="font-size:10px; color:#94a3b8;">💰 มูลค่าที่กำลังวางขายบนชั้น</div>
           <div style="font-size:16px; font-weight:800; color:#fde047;">${totalListedValue.toLocaleString()} เหรียญ</div>
+          <div style="font-size:10px; color:#94a3b8; margin-top:1px;">ของหมดเวลา/เงินขาย เซิร์ฟส่งเข้าจดหมายอัตโนมัติ</div>
         </div>
-        <div style="background:rgba(15,23,42,0.82); border:1px solid rgba(52,211,153,0.35); border-radius:9px; padding:9px 12px; display:flex; align-items:center; justify-content:space-between; gap:8px;">
-          <div>
-            <div style="font-size:10px; color:#94a3b8;">📬 เงินจากการขาย</div>
-            <div style="font-size:11.5px; font-weight:700; color:#6ee7b7;">ส่งเข้ากล่องจดหมายทันที</div>
+        <div style="background:rgba(15,23,42,0.82); border:1px solid rgba(52,211,153,0.4); border-radius:9px; padding:9px 12px; display:flex; flex-direction:column; justify-content:space-between; gap:6px;">
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:6px;">
+            <span style="font-size:10.5px; color:#94a3b8; font-weight:700;">📬 จดหมาย (เงินขาย + ของคืน)</span>
+            ${unclaimedMailCount > 0
+              ? `<span style="font-size:10px; font-weight:800; color:#fef08a; background:rgba(245,158,11,0.24); border:1px solid rgba(251,191,36,0.5); padding:1px 7px; border-radius:999px;">รอรับ ${unclaimedMailCount} ฉบับ</span>`
+              : `<span style="font-size:10px; color:#6ee7b7; font-weight:700;">บอทกดรับออโต้</span>`}
           </div>
-          <button type="button" onclick="runNightcampCharacterAction({ action: 'cmarket_claim_mail' })"
-                  style="background:linear-gradient(135deg,#059669,#10b981); border:1px solid #34d399; color:#fff; border-radius:7px; padding:6px 11px; font-size:11px; font-weight:800; cursor:pointer; white-space:nowrap;">
-            📬 รับเงินทั้งหมด
-          </button>
+          <div style="display:flex; gap:6px; flex-wrap:wrap;">
+            <button type="button" onclick="runNightcampCharacterAction({ action: 'cmarket_claim_mail', goCampIfSkipped: true })"
+                    title="กดรับเงินและของในกล่องจดหมายทันทีจากแมพปัจจุบัน (หากกระเป๋าเต็มจะพากลับเมืองเคลียร์ของแล้วรับให้อัตโนมัติ)"
+                    style="flex:1; background:linear-gradient(135deg,#059669,#10b981); border:1px solid #34d399; color:#fff; border-radius:7px; padding:5px 9px; font-size:11px; font-weight:800; cursor:pointer; white-space:nowrap;">
+              📬 รับเงิน/ของทันที
+            </button>
+            <button type="button" onclick="runNightcampCharacterAction({ action: 'cmarket_camp_claim_all' })"
+                    title="สั่งตัวละครเดิน/วาร์ปกลับค่ายกลางป่า (ลุงโกโก้) เคลียร์กระเป๋าและกดรับจดหมายทั้งหมด เสร็จแล้วกลับแมพฟาร์มเดิมให้อัตโนมัติ"
+                    style="flex:1; background:linear-gradient(135deg,#0284c7,#0369a1); border:1px solid #38bdf8; color:#fff; border-radius:7px; padding:5px 9px; font-size:11px; font-weight:800; cursor:pointer; white-space:nowrap;">
+              🏕️ กลับเมืองรับทั้งหมด
+            </button>
+          </div>
         </div>
       </div>
 
-      <div style="display:flex; flex-direction:column; gap:7px;">
-        ${mineListings.length > 0 ? mineListings.map(l => {
-          const st = getNightcampRarityStyle(l.rarity, false);
-          const isOpen = l.state === 'open';
-          const lMk = `${l.k || 'mat'}:${l.itemId}`;
-          const lHoverAttrs = buildNcMarketHoverAttrs({
-            key: lMk,
-            name: l.name,
-            rarity: l.rarity || 'common',
-            icon: l.icon || '',
-            extra: `วางขายชิ้นละ ${l.price.toLocaleString()}g · รวม ${l.totalPrice.toLocaleString()}g`
-          });
-          return `
-            <div ${lHoverAttrs} style="background:rgba(15,23,42,0.82); border:1px solid ${isOpen ? st.border : 'rgba(248,113,113,0.45)'}; border-radius:10px; padding:9px 12px; display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
-              <div style="display:flex; align-items:center; gap:9px; min-width:0;">
-                <div style="width:40px; height:40px; border-radius:8px; background:#020617; border:1px solid ${st.border}; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
-                  ${l.icon ? `<img src="${escapeHTML(l.icon)}" alt="" style="width:34px;height:34px;object-fit:contain;">` : `<span>📦</span>`}
-                </div>
-                <div style="min-width:0;">
-                  <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
-                    <span style="font-size:12.5px; font-weight:800; color:${st.color};">${escapeHTML(l.name)}</span>
-                    ${buildNcInlineMarketPricePillHtml(lMk)}
-                    <span style="font-size:10.5px; font-weight:800; color:#fde047;">×${l.n}${l.n0 && l.n0 !== l.n ? ` / ${l.n0}` : ''} ชิ้น</span>
-                    <span style="font-size:10px; font-weight:700; color:${isOpen ? '#6ee7b7' : '#fca5a5'}; background:${isOpen ? 'rgba(16,185,129,0.18)' : 'rgba(239,68,68,0.18)'}; border:1px solid ${isOpen ? 'rgba(52,211,153,0.45)' : 'rgba(248,113,113,0.45)'}; padding:1px 7px; border-radius:999px;">
-                      ${isOpen ? '🟢 กำลังวางขายบนชั้น' : '🔴 หมดเวลา / รอถอนคืน'}
-                    </span>
-                  </div>
-                  <div style="font-size:10.5px; color:#94a3b8; margin-top:2px;">
-                    ราคาชิ้นละ <b style="color:#fde047;">${l.price.toLocaleString()}g</b> · มูลค่ารวม <b style="color:#86efac;">${l.totalPrice.toLocaleString()}g</b>
-                  </div>
-                </div>
-              </div>
-              <button type="button" onclick="runNightcampCharacterAction({ action: 'cmarket_unlist', listingId: '${escapeHTML(String(l.id))}' })"
-                      style="background:rgba(239,68,68,0.18); border:1px solid rgba(248,113,113,0.5); color:#fca5a5; border-radius:7px; padding:5px 11px; font-size:11px; font-weight:700; cursor:pointer;">
-                📥 ถอนคืนเข้ากระเป๋า
-              </button>
-            </div>
-          `;
-        }).join('') : `
-          <div style="text-align:center; padding:32px; color:#94a3b8; background:rgba(2,6,23,0.45); border-radius:10px; font-size:12px;">
-            📦 ตอนนี้ยังไม่มีไอเทมที่วางขายอยู่บนชั้นของคุณ
-          </div>
-        `}
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin:4px 0 6px; flex-wrap:wrap;">
+        <div style="font-size:11.5px; font-weight:800; color:#7dd3fc;">🟢 กำลังวางขายบนชั้น (${openListings.length} รายการ)</div>
+        ${openListings.length > 0 ? `
+          <button type="button" onclick="if(confirm('ยืนยันสั่งตัวละครถอนของที่กำลังวางขายอยู่ทั้ง ${openListings.length} รายการกลับเข้ากระเป๋าหรือไม่? (หากอยู่นอกค่าย บอทจะพากลับไปหาลุงโกโก้เพื่อถอนคืนแล้วกลับแมพเดิมให้อัตโนมัติ)')) runNightcampCharacterAction({ action: 'cmarket_unlist_all' })"
+                  style="background:rgba(239,68,68,0.16); border:1px solid rgba(248,113,113,0.45); color:#fca5a5; border-radius:7px; padding:4px 10px; font-size:11px; font-weight:700; cursor:pointer;">
+            ${isNearCoco ? `📥 ถอนคืนที่วางขายทั้งหมด (${openListings.length})` : `🏃 กลับเมืองถอนคืนทั้งหมด (${openListings.length})`}
+          </button>
+        ` : ''}
       </div>
+
+      <div style="display:flex; flex-direction:column; gap:7px; margin-bottom:14px;">
+        ${openListings.length > 0
+          ? openListings.map(renderListingCard).join('')
+          : `<div style="text-align:center; padding:18px; color:#94a3b8; background:rgba(2,6,23,0.45); border-radius:10px; font-size:11.5px;">📦 ตอนนี้ไม่มีไอเทมที่กำลังค้างวางขายบนชั้น</div>`}
+      </div>
+
+      ${historyListings.length > 0 ? `
+        <div style="font-size:11.5px; font-weight:800; color:#94a3b8; margin:4px 0 6px;">📜 ประวัติรายการที่ขายออกแล้ว / หมดเวลา / ถอนคืนแล้ว (${historyListings.length} รายการ)</div>
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          ${historyListings.map(renderListingCard).join('')}
+        </div>
+      ` : ''}
     `;
   }
 
