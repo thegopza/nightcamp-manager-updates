@@ -12258,6 +12258,8 @@ function populateWebHudData(profileId, data) {
       : (Array.isArray(st.cmarketAutoSellConfig?.rules) ? st.cmarketAutoSellConfig.rules : []);
     const sig = JSON.stringify(rawRules.map(r => [r.id, r.itemId, r.itemName, r.kind, r.isSingle, r.minQty, r.sellMode, r.enabled, r.statusLabel]));
     if (cmListEl.dataset.sig !== sig) {
+      const hudBodyEl = hud.querySelector('#pelican-content');
+      const prevHudScroll = hudBodyEl ? hudBodyEl.scrollTop : 0;
       cmListEl.dataset.sig = sig;
       if (rawRules.length === 0) {
         cmListEl.innerHTML = `<div style="text-align:center; padding:12px 8px; font-size:10px; color:#94a3b8; background:rgba(2,6,23,0.48); border:1px dashed rgba(45,212,191,0.32); border-radius:7px; line-height:1.45;">🏪 ยังไม่มีรายการ WL ตลาดกลาง<br><span style="color:#5eead4;">กด ➕ เพิ่มรายการลงขาย หรือเพิ่มจากหน้าไอเทมในเกมได้เลย</span></div>`;
@@ -12289,6 +12291,7 @@ function populateWebHudData(profileId, data) {
           `</div>`;
         }).join('');
       }
+      if (hudBodyEl) hudBodyEl.scrollTop = prevHudScroll;
     }
   }
 
@@ -19158,13 +19161,16 @@ function selectNightcampEquipSlotFilter(slotKey) {
 window.selectNightcampEquipSlotFilter = selectNightcampEquipSlotFilter;
 
 function switchNightcampCharTab(tab) {
+  const prevTab = ncCharModalState.activeTab === 'mats' ? 'bag' : ncCharModalState.activeTab;
+  let nextTab = tab;
   if (tab === 'mats') {
+    nextTab = 'bag';
     ncCharModalState.activeTab = 'bag';
     ncCharModalState.bagSubCat = 'mat';
   } else {
     ncCharModalState.activeTab = tab;
   }
-  renderNightcampCharacterModal();
+  renderNightcampCharacterModal({ resetRightScroll: nextTab !== prevTab });
 }
 window.switchNightcampCharTab = switchNightcampCharTab;
 
@@ -19193,8 +19199,10 @@ window.onNightcampBagSearchInput = onNightcampBagSearchInput;
 // NIGHTCAMP CENTRAL MARKET (ตลาดกลาง) & AUTO-SELL MARKET CONTROLLERS
 // ============================================================================
 function switchNightcampCMarketSubTab(subTab) {
-  ncCharModalState.marketSubTab = subTab || 'autosell';
-  renderNightcampRightPaneOnly();
+  const nextSub = subTab || 'autosell';
+  const changed = ncCharModalState.marketSubTab !== nextSub;
+  ncCharModalState.marketSubTab = nextSub;
+  renderNightcampRightPaneOnly({ resetScroll: changed });
   if (subTab === 'browse' && ncCharModalState.data && !ncCharModalState.data.isOfflineFallback) {
     const cm = ncCharModalState.data.cmarket || {};
     if ((!cm.shelfCards || cm.shelfCards.length === 0) && (!cm.sheetListings || cm.sheetListings.length === 0)) {
@@ -19307,12 +19315,22 @@ async function quickAddNightcampCMarketRule(itemId, itemName, kind = 'mat', defa
       enabled: true
     });
     cur.enabled = true;
+    showToast(`✅ เพิ่ม "${cleanName}" เข้า Auto-Sell ตลาดกลางแล้ว`, 'success');
   }
-  ncCharModalState.activeTab = 'cmarket';
-  ncCharModalState.marketSubTab = 'autosell';
   await persistAndSyncNightcampCMarketConfig(cur, false);
 }
 window.quickAddNightcampCMarketRule = quickAddNightcampCMarketRule;
+
+function isItemInNightcampCMarketRules(itemId, itemName) {
+  const rules = ncCharModalState.data?.cmarket?.autoSellConfig?.rules;
+  if (!Array.isArray(rules) || rules.length === 0) return false;
+  const idLow = String(itemId || '').trim().toLowerCase();
+  const nmLow = String(itemName || '').trim().toLowerCase();
+  return rules.some(r => r && r.enabled !== false && (
+    (idLow && String(r.itemId || '').trim().toLowerCase() === idLow) ||
+    (nmLow && String(r.itemName || '').trim().toLowerCase() === nmLow)
+  ));
+}
 
 // === Floating Item Info Hover Card & Searchable Catalog Picker for Central Market Auto-Sell ===
 function hideNightcampCatalogHoverCard() {
@@ -19871,7 +19889,10 @@ function renderNightcampGearCardHtml(item, { isStorage = false } = {}) {
           <button type="button" onclick="runNightcampCharacterAction({ action: 'toggle_lock_gear', uid: ${item.uid} })" style="background:rgba(148,163,184,0.15);border:1px solid rgba(148,163,184,0.35);color:#e2e8f0;border-radius:6px;padding:4px 8px;font-size:10.5px;font-weight:600;cursor:pointer;">${item.locked ? '🔓 ปลดล็อก' : '🔒 ล็อก'}</button>
           <button type="button" onclick="runNightcampCharacterAction({ action: 'refine_gear', uid: ${item.uid} })" title="ตีบวก +1 (ต้องยืนใกล้เตาป๋าหมูหริ่ง)" style="background:rgba(168,85,247,0.18);border:1px solid rgba(192,132,252,0.45);color:#e9d5ff;border-radius:6px;padding:4px 8px;font-size:10.5px;font-weight:600;cursor:pointer;">🔨 ตีบวก</button>
           ${!isWorn ? `<button type="button" onclick="runNightcampCharacterAction({ action: 'store_gear', uid: ${item.uid} })" title="ฝากเข้าคลังค่าย (ต้องอยู่ใกล้ลุงโกโก้)" style="background:rgba(14,165,233,0.16);border:1px solid rgba(56,189,248,0.4);color:#7dd3fc;border-radius:6px;padding:4px 8px;font-size:10.5px;font-weight:600;cursor:pointer;">📦 ฝากคลัง</button>` : ''}
-          ${!isWorn && !item.locked ? `<button type="button" onclick="quickAddNightcampCMarketRule('${escapeHTML(item.id)}', '${escapeHTML(item.baseName || item.name)}', 'item', 1)" title="เพิ่มเข้า Auto-Sell ตลาดกลาง (และป้องกันการขายให้ร้านลุงโกโก้)" style="background:rgba(99,102,241,0.22);border:1px solid rgba(129,140,248,0.5);color:#c7d2fe;border-radius:6px;padding:4px 8px;font-size:10.5px;font-weight:700;cursor:pointer;">🏪 +ตลาดกลาง</button>` : ''}
+          ${!isWorn && !item.locked ? (() => {
+            const inCM = isItemInNightcampCMarketRules(item.id, item.baseName || item.name);
+            return `<button type="button" onclick="quickAddNightcampCMarketRule('${escapeHTML(item.id)}', '${escapeHTML(item.baseName || item.name)}', 'item', 1)" title="${inCM ? 'อยู่ในรายการ Auto-Sell ตลาดกลางแล้ว (คลิกเพื่อยืนยัน/เปิดใช้งาน)' : 'เพิ่มเข้า Auto-Sell ตลาดกลาง (อยู่ที่หน้ากระเป๋าเดิม · ป้องกันการขายให้ร้านลุงโกโก้)'}" style="background:${inCM ? 'rgba(16,185,129,0.2)' : 'rgba(99,102,241,0.22)'};border:1px solid ${inCM ? 'rgba(52,211,153,0.55)' : 'rgba(129,140,248,0.5)'};color:${inCM ? '#6ee7b7' : '#c7d2fe'};border-radius:6px;padding:4px 8px;font-size:10.5px;font-weight:700;cursor:pointer;">${inCM ? '✅ ในตลาดกลาง' : '🏪 +ตลาดกลาง'}</button>`;
+          })() : ''}
           ${!isWorn && !item.locked ? `<button type="button" onclick="runNightcampCharacterAction({ action: 'sell_gear', uid: ${item.uid} })" title="ขายร้านลุงโกโก้" style="background:rgba(245,158,11,0.18);border:1px solid rgba(251,191,36,0.45);color:#fde68a;border-radius:6px;padding:4px 8px;font-size:10.5px;font-weight:600;cursor:pointer;">💰 ขาย</button>` : ''}
           ${!isWorn && !item.locked ? `<button type="button" onclick="if(confirm('ยืนยันทิ้ง ${escapeHTML(item.name)}? (ทิ้งแล้วไม่ได้เหรียญ)')) runNightcampCharacterAction({ action: 'discard_gear', uid: ${item.uid} })" title="ทิ้งไอเทมนี้" style="background:rgba(239,68,68,0.14);border:1px solid rgba(248,113,113,0.35);color:#fca5a5;border-radius:6px;padding:4px 7px;font-size:10.5px;cursor:pointer;">🗑️</button>` : ''}
         `}
@@ -19913,7 +19934,12 @@ function renderNightcampMatCardHtml(m) {
         ${m.canUse ? `
           <button type="button" onclick="runNightcampCharacterAction({ action: 'use_item', itemId: '${escapeHTML(m.id)}', useKind: '${escapeHTML(m.useKind)}' })" style="background:linear-gradient(135deg,#059669,#10b981);border:1px solid #34d399;color:#fff;border-radius:5px;padding:3px 9px;font-size:10.5px;font-weight:700;cursor:pointer;">${escapeHTML(m.useLabel || '✨ ใช้งาน')}</button>
         ` : ''}
-        <button type="button" onclick="quickAddNightcampCMarketRule('${escapeHTML(m.marketItemId || m.id)}', '${escapeHTML(m.marketItemName || m.name)}', '${m.useKind === 'builtin_potion' ? 'pot' : (m.category === 'rune' ? 'rune' : 'mat')}', ${m.category === 'card' || m.category === 'box' || m.category === 'rune' ? 1 : 10})" title="เพิ่มเข้า Auto-Sell ตลาดกลาง (และป้องกันการขายให้ร้านลุงโกโก้)" style="background:rgba(99,102,241,0.22);border:1px solid rgba(129,140,248,0.5);color:#c7d2fe;border-radius:5px;padding:3px 8px;font-size:10px;font-weight:700;cursor:pointer;">🏪 +ตลาดกลาง</button>
+        ${(() => {
+          const mId = m.marketItemId || m.id;
+          const mNm = m.marketItemName || m.name;
+          const inCM = isItemInNightcampCMarketRules(mId, mNm);
+          return `<button type="button" onclick="quickAddNightcampCMarketRule('${escapeHTML(mId)}', '${escapeHTML(mNm)}', '${m.useKind === 'builtin_potion' ? 'pot' : (m.category === 'rune' ? 'rune' : 'mat')}', ${m.category === 'card' || m.category === 'box' || m.category === 'rune' ? 1 : 10})" title="${inCM ? 'อยู่ในรายการ Auto-Sell ตลาดกลางแล้ว (คลิกเพื่อยืนยัน/เปิดใช้งาน)' : 'เพิ่มเข้า Auto-Sell ตลาดกลาง (อยู่ที่หน้ากระเป๋าเดิม · ป้องกันการขายให้ร้านลุงโกโก้)'}" style="background:${inCM ? 'rgba(16,185,129,0.2)' : 'rgba(99,102,241,0.22)'};border:1px solid ${inCM ? 'rgba(52,211,153,0.55)' : 'rgba(129,140,248,0.5)'};color:${inCM ? '#6ee7b7' : '#c7d2fe'};border-radius:5px;padding:3px 8px;font-size:10px;font-weight:700;cursor:pointer;">${inCM ? '✅ ในตลาดกลาง' : '🏪 +ตลาดกลาง'}</button>`;
+        })()}
         ${m.useKind !== 'builtin_potion' && !m.noStore && m.useKind !== 'rune_pouch' ? `
           <button type="button" onclick="runNightcampCharacterAction({ action: 'store_mat', itemId: '${escapeHTML(m.id)}', qty: ${m.qty} })" style="background:rgba(14,165,233,0.16);border:1px solid rgba(56,189,248,0.4);color:#7dd3fc;border-radius:5px;padding:3px 8px;font-size:10px;font-weight:600;cursor:pointer;">📦 ฝากคลัง</button>
         ` : ''}
@@ -20914,16 +20940,24 @@ function renderNightcampCMarketTabHtml(d) {
   `;
 }
 
-function renderNightcampRightPaneOnly() {
+function renderNightcampRightPaneOnly(opts = {}) {
   hideNcMarketTooltip();
   const d = ncCharModalState.data;
   const contentEl = document.getElementById('nc-char-right-content');
   if (d && contentEl) {
+    const prevScroll = opts && opts.resetScroll ? 0 : contentEl.scrollTop;
     contentEl.innerHTML = renderNightcampRightPaneContentHtml(d);
+    contentEl.scrollTop = prevScroll;
+    if (prevScroll > 0) {
+      requestAnimationFrame(() => {
+        const el = document.getElementById('nc-char-right-content');
+        if (el) el.scrollTop = prevScroll;
+      });
+    }
   }
 }
 
-function renderNightcampCharacterModal() {
+function renderNightcampCharacterModal(opts = {}) {
   const d = ncCharModalState.data;
   const pid = ncCharModalState.profileId;
   if (!d || !pid) return;
@@ -20931,6 +20965,12 @@ function renderNightcampCharacterModal() {
   const headerEl = document.getElementById('nc-char-modal-header');
   const bodyEl = document.getElementById('nc-char-modal-body');
   if (!headerEl || !bodyEl) return;
+
+  const prevRightEl = document.getElementById('nc-char-right-content');
+  const prevLeftEl = document.getElementById('nc-char-left-scroll');
+  const savedRightScroll = (opts && opts.resetRightScroll) ? 0 : (prevRightEl ? prevRightEl.scrollTop : 0);
+  const savedLeftScroll = (opts && opts.resetLeftScroll) ? 0 : (prevLeftEl ? prevLeftEl.scrollTop : 0);
+  hideNcMarketTooltip();
 
   const hpPct = d.hpMax > 0 ? Math.min(100, Math.round((d.hp / d.hpMax) * 100)) : 100;
   const spPct = d.spMax > 0 ? Math.min(100, Math.round((d.sp / d.spMax) * 100)) : 100;
@@ -20968,7 +21008,7 @@ function renderNightcampCharacterModal() {
   const tab = ncCharModalState.activeTab;
   bodyEl.innerHTML = `
     <!-- LEFT COLUMN: Character Paperdoll, 10 Equipment Slots & 6 Base Stats Allocation -->
-    <div style="border-right:1px solid rgba(148,163,184,0.16); padding:12px 14px; overflow-y:auto; overflow-x:hidden; min-width:0; box-sizing:border-box; display:flex; flex-direction:column; gap:10px; background:rgba(2,6,23,0.42);">
+    <div id="nc-char-left-scroll" style="border-right:1px solid rgba(148,163,184,0.16); padding:12px 14px; overflow-y:auto; overflow-x:hidden; min-width:0; box-sizing:border-box; display:flex; flex-direction:column; gap:10px; background:rgba(2,6,23,0.42);">
       <!-- HP / SP Gauges -->
       <div style="display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 1fr); gap:8px; min-width:0; background:rgba(15,23,42,0.75); border:1px solid rgba(148,163,184,0.2); border-radius:9px; padding:7px 10px;">
         <div style="min-width:0;">
@@ -21086,6 +21126,20 @@ function renderNightcampCharacterModal() {
       </div>
     </div>
   `;
+
+  // Restore scroll positions so deleting/editing rules or adding items never jumps back to the top!
+  const nextRightEl = document.getElementById('nc-char-right-content');
+  const nextLeftEl = document.getElementById('nc-char-left-scroll');
+  if (nextRightEl && savedRightScroll > 0) nextRightEl.scrollTop = savedRightScroll;
+  if (nextLeftEl && savedLeftScroll > 0) nextLeftEl.scrollTop = savedLeftScroll;
+  if (savedRightScroll > 0 || savedLeftScroll > 0) {
+    requestAnimationFrame(() => {
+      const rEl = document.getElementById('nc-char-right-content');
+      const lEl = document.getElementById('nc-char-left-scroll');
+      if (rEl && savedRightScroll > 0) rEl.scrollTop = savedRightScroll;
+      if (lEl && savedLeftScroll > 0) lEl.scrollTop = savedLeftScroll;
+    });
+  }
 }
 
 
