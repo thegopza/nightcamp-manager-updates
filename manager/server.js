@@ -13643,6 +13643,7 @@ public class PmFocus {
     if (!profile.debugPort) return sendJSON({ success: false, error: "Client debug port not set" }, 400);
 
     const action = parsedUrl.searchParams.get("action"); // 'start', 'stop', or toggle
+    const reqMode = parsedUrl.searchParams.get("mode") === "gather" ? "gather" : "bot";
     const live = await queryClientState(profile.debugPort);
     // "ลูป 24 ชม." (autoLoop) is only a setting — START BOT is __isBotRunning
     const isRunning = Boolean(live && live.isBotRunning);
@@ -13653,28 +13654,30 @@ public class PmFocus {
     const planShouldEnable = Boolean(assignedPlan && (!plansData.userDisabled || !plansData.userDisabled[id]));
 
     const code = targetRunning ? `(() => {
+      const wantMode = ${JSON.stringify(reqMode)};
       try {
         const assignedPlan = ${JSON.stringify(assignedPlan || null)};
         const shouldEnablePlan = ${JSON.stringify(planShouldEnable)};
         const userDis = localStorage.getItem('pelican_plan_user_disabled') === 'true';
-        if (assignedPlan && typeof window.__applyScriptPlan === 'function') {
+        if (wantMode !== 'gather' && assignedPlan && typeof window.__applyScriptPlan === 'function') {
           const curId = window.__currentScriptPlan ? window.__currentScriptPlan.id : null;
           if (curId !== assignedPlan.id || (shouldEnablePlan && !userDis && !window.__planScriptEnabled)) {
             window.__applyScriptPlan(assignedPlan, (shouldEnablePlan && !userDis) ? true : undefined);
           }
         }
       } catch (_) {}
-      if (window.__isBotRunning) {
+      if (window.__isBotRunning && (window.__botRunMode || 'bot') === wantMode) {
         if (typeof updateMasterBotUI === 'function') updateMasterBotUI();
-        return { success: true, running: true, unchanged: true };
+        return { success: true, running: true, mode: wantMode, unchanged: true };
       }
       window.__autoLoopEnabled = true;
       window.__isBotRunning = true;
       try { localStorage.setItem('pelican_auto_loop', true); } catch(e){}
-      if (typeof window.startMasterBot === 'function') window.startMasterBot();
+      if (wantMode === 'gather' && typeof window.startGatherBot === 'function') window.startGatherBot();
+      else if (typeof window.startMasterBot === 'function') window.startMasterBot(wantMode);
       if (typeof window.startAutoLoop === 'function') window.startAutoLoop();
       if (typeof updateMasterBotUI === 'function') updateMasterBotUI();
-      return { success: true, running: true };
+      return { success: true, running: true, mode: wantMode };
     })()` : `(() => {
       if (!window.__isBotRunning) {
         window.__autoLoopEnabled = false;

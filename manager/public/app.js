@@ -2170,8 +2170,8 @@ function buildProfileCard(p) {
       <div class="card-footer-controls">
         <div class="card-action-row main-actions">
           ${isOnline ? (isBotRunning ? `
-          <button class="btn btn-sm btn-bot-toggle is-stop" onclick="toggleBotExecution('${p.id}', false, this)" title="หยุดการทำงานของบอท (เกมยังเปิดอยู่)">
-            <span>⏸️</span> หยุดบอท
+          <button class="btn btn-sm btn-bot-toggle is-stop" onclick="toggleBotExecution('${p.id}', false, this)" title="${p.liveState?.botRunMode === 'gather' ? 'หยุดโหมดเก็บเกี่ยว (Start Gath)' : 'หยุดการทำงานของบอท (เกมยังเปิดอยู่)'}">
+            <span>${p.liveState?.botRunMode === 'gather' ? '⛏️' : '⏸️'}</span> ${p.liveState?.botRunMode === 'gather' ? 'หยุด Gath' : 'หยุดบอท'}
           </button>` : `
           <button class="btn btn-sm btn-bot-toggle is-start" onclick="toggleBotExecution('${p.id}', true, this)" title="เริ่มการทำงานของบอททันที">
             <span>▶️</span> เริ่มบอท
@@ -3571,10 +3571,17 @@ async function setBotOnAllClients(start, btn) {
   const label = btn.innerHTML;
   btn.disabled = true;
   btn.innerHTML = `<span class="icon">⏳</span> ${start ? "กำลังเริ่มบอท..." : "กำลังหยุดบอท..."}`;
-  const results = await Promise.all(online.map(p =>
-    fetch(`${API_BASE}/api/profiles/${p.id}/toggle-bot?action=${start ? "start" : "stop"}`, { method: "POST" })
-      .then(r => r.json()).catch(e => ({ success: false, error: e.message }))
-  ));
+  const results = await Promise.all(online.map(p => {
+    if (start && p.liveState?.isBotRunning && p.liveState?.botRunMode === 'gather') {
+      return fetch(`${API_BASE}/api/profiles/${p.id}/client-action`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "eval", code: "(typeof window.startMasterBot === 'function' ? window.startMasterBot('bot') : false)" })
+      }).then(r => r.json()).catch(e => ({ success: false, error: e.message }));
+    }
+    return fetch(`${API_BASE}/api/profiles/${p.id}/toggle-bot?action=${start ? "start" : "stop"}`, { method: "POST" })
+      .then(r => r.json()).catch(e => ({ success: false, error: e.message }));
+  }));
   btn.disabled = false;
   btn.innerHTML = label;
   const failed = online.filter((p, i) => !results[i].success).map(p => p.name);
@@ -9451,6 +9458,21 @@ function renderNightcampFarmMapOptionsHtml(selectedMap, filterText = '') {
     .join('');
 }
 
+const NIGHTCAMP_GATHER_MAP_OPTIONS = [
+  ['', '📍 แมพปัจจุบัน (ไม่ย้ายแมพ · เก็บในแมพที่ยืนอยู่)'],
+  ['homefarm', '🏡 [ปลอดภัย] ฟาร์มหิ่งห้อย · แร่ทองแดง/ไม้โอ๊ก (homefarm)'],
+  ...NIGHTCAMP_FARM_MAP_OPTIONS.filter(([id]) => id !== 'auto' && id !== 'homefarm')
+];
+
+function renderNightcampGatherMapOptionsHtml(selectedMap, filterText = '') {
+  const cur = String(selectedMap || '').trim();
+  const q = String(filterText || '').trim().toLowerCase();
+  return NIGHTCAMP_GATHER_MAP_OPTIONS
+    .filter(([id, label]) => id === '' || id === cur || !q || id.toLowerCase().includes(q) || label.toLowerCase().includes(q))
+    .map(([id, label]) => `<option value="${escapeHTML(id)}"${id === cur ? ' selected' : ''}>${escapeHTML(label)}</option>`)
+    .join('');
+}
+
 const NC_GATHER_ORE_CATALOG = [
   { key: 'copper', mat: 'lf_copper', name: 'แร่ทองแดง', lv: 1, tier: 1, where: 'เหมืองหิน 1–3 · ถ้ำค้างคาว · ลานหินฟาร์ม' },
   { key: 'quartz', mat: 'lf_quartz', name: 'ควอตซ์', lv: 3, tier: 1, where: 'เหมืองหิน 1–3 · ถ้ำค้างคาว' },
@@ -9554,7 +9576,7 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
   const sc = state?.sellConfig || {};
   const gtc = (state?.gatherConfig && typeof state.gatherConfig === 'object')
     ? state.gatherConfig
-    : { enabled: false, mode: 'alongside', scanRadius: 650, defendOnAggro: true, ores: [], woods: [] };
+    : { enabled: false, mode: 'alongside', scanRadius: 650, defendOnAggro: true, targetMap: '', ores: [], woods: [] };
   const pfc = state?.perfConfig || {
     dotMonsters: true,
     dotNpcs: true,
@@ -9576,6 +9598,9 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
   const savedResume = (auth.autoResumeBot !== undefined) ? !!auth.autoResumeBot : Boolean(profile?.autoResumeBot ?? firstOnlineProf?.autoResumeBot);
   const isOnline = isCentral ? onlineCount > 0 : Boolean(profile?.isRunning);
   const isBotRunning = Boolean(clientData?.isBotRunning ?? state?.isBotRunning);
+  const botRunMode = String(state?.botRunMode || 'bot') === 'gather' ? 'gather' : 'bot';
+  const isRunningBotMode = Boolean(isBotRunning && botRunMode !== 'gather');
+  const isRunningGatherMode = Boolean(isBotRunning && botRunMode === 'gather');
   const isZeroRender = Boolean(state?.zeroRender ?? profile?.windowState?.isHidden);
   const charDisplayName = isCentral
     ? `เมนูส่วนกลาง (${onlineCount} จอออนไลน์)`
@@ -9619,13 +9644,13 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
   </div>
   ` : ''}
 
-  <!-- 6/7-Tab Bar matching in-game bot.js v2.3.18 (Trainer tab gated by secretAccess.trainer) -->
+  <!-- 6/7-Tab Bar matching in-game bot.js v2.3.25 (🚀 บอท | ⛏️ เก็บ | 🧪 ยา | 🛒 ขาย | 🏪 ตลาด | ⚙️ ตั้งค่า) -->
   <div id="p-nc-tabbar" style="display:flex; flex-wrap:wrap; gap:3px; background:rgba(2, 6, 23, 0.72); border:1px solid rgba(148, 163, 184, 0.24); border-radius:7px; padding:3px;">
     <button type="button" id="p-nc-tab-bot" style="flex:1 1 auto; min-width:44px; padding:5px 3px; border:0; border-radius:5px; font-size:9.8px; font-weight:700; cursor:pointer; background:#0284c7; color:#fff; white-space:nowrap;">🚀 บอท</button>
+    <button type="button" id="p-nc-tab-gather" style="flex:1 1 auto; min-width:46px; padding:5px 3px; border:0; border-radius:5px; font-size:9.8px; font-weight:700; cursor:pointer; background:transparent; color:#fcd34d; white-space:nowrap;" title="ระบบเก็บเกี่ยวแร่และไม้อัตโนมัติ">⛏️ เก็บ</button>
     <button type="button" id="p-nc-tab-potions" style="flex:1 1 auto; min-width:38px; padding:5px 3px; border:0; border-radius:5px; font-size:9.8px; font-weight:700; cursor:pointer; background:transparent; color:#94a3b8; white-space:nowrap;">🧪 ยา</button>
     <button type="button" id="p-nc-tab-sell" style="flex:1 1 auto; min-width:42px; padding:5px 3px; border:0; border-radius:5px; font-size:9.8px; font-weight:700; cursor:pointer; background:transparent; color:#94a3b8; white-space:nowrap;">🛒 ขาย</button>
     <button type="button" id="p-nc-tab-market" style="flex:1 1 auto; min-width:46px; padding:5px 3px; border:0; border-radius:5px; font-size:9.8px; font-weight:700; cursor:pointer; background:transparent; color:#5eead4; white-space:nowrap;">🏪 ตลาด</button>
-    <button type="button" id="p-nc-tab-gather" style="flex:1 1 auto; min-width:46px; padding:5px 3px; border:0; border-radius:5px; font-size:9.8px; font-weight:700; cursor:pointer; background:transparent; color:#fcd34d; white-space:nowrap;" title="ระบบเก็บเกี่ยวแร่และไม้อัตโนมัติ">⛏️ เก็บ</button>
     <button type="button" id="p-nc-tab-settings" style="flex:1 1 auto; min-width:50px; padding:5px 3px; border:0; border-radius:5px; font-size:9.8px; font-weight:700; cursor:pointer; background:transparent; color:#94a3b8; white-space:nowrap;">⚙️ ตั้งค่า</button>
     <button type="button" id="p-nc-tab-trainer" style="display:${(window.__secretTrainerUnlocked || state?.trainerAccessUnlocked) ? 'inline-block' : 'none'}; flex:1 1 auto; min-width:54px; padding:5px 3px; border:0; border-radius:5px; font-size:9.8px; font-weight:700; cursor:pointer; background:transparent; color:#fda4af; white-space:nowrap;" title="ระบบพิเศษสำหรับผู้ได้รับอนุมัติ Access">🧲 Trainer</button>
   </div>
@@ -9658,7 +9683,7 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
       </div>
     </div>
 
-    <button type="button" class="p-btn" id="p-btn-toggle-bot" ${isOnline ? '' : 'disabled'} style="width: 100%; font-size: 12px; padding: 8px 10px; font-weight: bold; border-radius: 6px; cursor: ${isOnline ? 'pointer' : 'not-allowed'}; opacity: ${isOnline ? '1' : '0.55'};">${isBotRunning ? '⏹️ STOP BOT (หยุดทำงาน)' : '▶️ START BOT (เริ่มทำงาน)'}</button>
+    <button type="button" class="p-btn" id="p-btn-toggle-bot" ${isOnline ? '' : 'disabled'} style="width: 100%; font-size: 12px; padding: 8px 10px; font-weight: bold; border-radius: 6px; cursor: ${isOnline ? 'pointer' : 'not-allowed'}; opacity: ${isOnline ? '1' : '0.55'};">${isRunningBotMode ? '⏹️ STOP BOT (หยุดทำงาน)' : (isRunningGatherMode ? '▶️ START BOT (สลับเป็นโหมดบอท)' : '▶️ START BOT (เริ่มทำงาน)')}</button>
 
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
       <button type="button" class="p-btn" id="p-btn-nc-zerorender" style="margin:0; font-size:10.5px; padding:6px; border-radius:6px; background:rgba(34,197,94,0.14); border:1px solid rgba(52,211,153,0.4); color:#6ee7b7; font-weight:700; cursor:pointer;">${isZeroRender ? '🖥️ แสดงภาพปกติ' : '⚡ พักกราฟิก'}</button>
@@ -10116,22 +10141,46 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
     <div id="p-nc-cm-rules-list" style="display:flex; flex-direction:column; gap:6px;"></div>
   </div>
 
-  <!-- TAB 4b: ⛏️ เก็บเกี่ยว (GATHERING — ORES & WOODS TIER 1–4) -->
+  <!-- TAB 2: ⛏️ เก็บเกี่ยว (DEDICATED START GATH + MULTITASK ORES & WOODS TIER 1–4) -->
   <div id="p-nc-pane-gather" style="display:none; flex-direction:column; gap:7px; min-width:0;">
-    <div class="p-card" style="background:linear-gradient(145deg, rgba(120,53,15,0.38), rgba(6,78,59,0.34)); border:1px solid rgba(251,191,36,0.48); border-radius:8px; padding:8px; display:flex; flex-direction:column; gap:6px; font-size:10px;">
-      <label style="display:flex; align-items:center; gap:6px; font-size:11.5px; font-weight:800; color:#fde68a; cursor:pointer;">
-        <input type="checkbox" id="p-nc-gather-enabled" ${gtc.enabled ? 'checked' : ''} style="accent-color:#f59e0b; width:15px; height:15px;">
-        <span>⛏️ เปิดระบบ Gathering อัตโนมัติ</span>
-      </label>
-      <div style="display:flex; align-items:center; gap:6px; min-width:0;">
-        <span style="color:#cbd5e1; white-space:nowrap;">โหมด:</span>
-        <select id="p-nc-gather-mode" style="flex:1; min-width:0; max-width:100%; background:#090d16; border:1px solid rgba(251,191,36,0.45); color:#fef3c7; border-radius:4px; font-size:10px; font-weight:700; padding:3px 5px;">
-          <option value="alongside" ${(gtc.mode || 'alongside') === 'alongside' ? 'selected' : ''}>⚔️ ฟาร์มไปเก็บไป (เจอระหว่างทางค่อยแวะ)</option>
-          <option value="only" ${gtc.mode === 'only' ? 'selected' : ''}>⛏️ เดินเก็บเกี่ยวอย่างเดียว (โฟกัสแมพนี้)</option>
+    <!-- Card 1: Dedicated Start Gath Mode & Target Map -->
+    <div class="p-card" style="background:linear-gradient(145deg, rgba(120,53,15,0.46), rgba(6,78,59,0.4)); border:1px solid rgba(251,191,36,0.55); border-radius:8px; padding:8px; display:flex; flex-direction:column; gap:6px; font-size:10px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
+        <b style="color:#fde68a; font-size:11px;">⛏️ โหมดเก็บเกี่ยวหลัก (Start Gath)</b>
+        <span id="p-nc-gather-mode-badge" style="font-size:9.5px; font-weight:700; color:${isRunningGatherMode ? '#fde047' : (isRunningBotMode && gtc.enabled ? '#86efac' : '#94a3b8')};">${isCentral ? '🎛️ เมนูส่วนกลาง' : (isRunningGatherMode ? '⛏️ กำลังเก็บเกี่ยว (Start Gath)' : (isRunningBotMode && gtc.enabled ? '⚔️ Multitask (Start Bot)' : '⏸️ STANDBY'))}</span>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:4px;">
+        <span style="font-size:9.8px; font-weight:700; color:#fef08a;">🗺️ แมพเป้าหมายสำหรับ Gathering (แยกจากแมพหน้าบอท):</span>
+        <input type="text" id="p-nc-gather-target-map-search" placeholder="🔍 พิมพ์ค้นหาเหมือง / ป่า / ชื่อแมพ (คลิกเพื่อเลือก)..." autocomplete="off" style="width:100%; background:#090d16; border:1px solid rgba(251,191,36,0.38); color:#fef3c7; border-radius:4px; font-size:10px; padding:4px 6px; box-sizing:border-box;">
+        <div id="p-nc-gather-target-map-results" style="display:none; flex-direction:column; gap:3px; max-height:135px; overflow-y:auto; background:#050811; border:1px solid rgba(251,191,36,0.55); border-radius:5px; padding:4px;"></div>
+        <select id="p-nc-gather-target-map" style="width:100%; background:#090d16; border:1px solid rgba(251,191,36,0.5); color:#fff; border-radius:4px; font-size:10px; padding:4px 5px; cursor:pointer;">
+          ${renderNightcampGatherMapOptionsHtml(gtc.targetMap || '')}
         </select>
       </div>
+
+      ${isCentral ? `
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+        <button type="button" class="p-btn" id="p-btn-central-start-gather" style="margin:0; font-size:11px; padding:8px 6px; font-weight:800; border-radius:6px; background:linear-gradient(135deg, #d97706, #059669); color:#fff; border:1px solid #fbbf24; cursor:pointer;">⛏️ เริ่ม Gath ทุกจอ</button>
+        <button type="button" class="p-btn" id="p-btn-central-stop-gather" style="margin:0; font-size:11px; padding:8px 6px; font-weight:800; border-radius:6px; background:linear-gradient(135deg, #dc2626, #b91c1c); color:#fff; border:1px solid #f87171; cursor:pointer;">⏹️ หยุดทุกจอ</button>
+      </div>
+      ` : `
+      <button type="button" class="p-btn" id="p-btn-nc-toggle-gather" ${isOnline ? '' : 'disabled'} style="width:100%; margin:0; font-size:11.5px; padding:8px 10px; font-weight:800; border-radius:6px; cursor:${isOnline ? 'pointer' : 'not-allowed'}; opacity:${isOnline ? '1' : '0.55'}; background:${isRunningGatherMode ? 'linear-gradient(135deg, #ef4444, #dc2626)' : 'linear-gradient(135deg, #d97706, #059669)'}; border:1px solid ${isRunningGatherMode ? '#f87171' : '#fbbf24'}; color:#fff;">${isRunningGatherMode ? '⏹️ STOP GATH (หยุดเก็บเกี่ยว)' : (isRunningBotMode ? '⛏️ START GATH (สลับเป็นเก็บเกี่ยวหลัก)' : '⛏️ START GATH (เริ่มเก็บเกี่ยว)')}</button>
+      `}
+
+      <div style="font-size:9px; color:#cbd5e1; line-height:1.35;">
+        💡 กด <b>START GATH</b> เพื่อไปยังแมพด้านบน เดินหาแร่/ไม้ทั่วแมพ และเคลียร์เฉพาะมอนที่จำเป็นรอบจุดเก็บ (กันโดนตี Cancel)
+      </div>
+    </div>
+
+    <!-- Card 2: Multitask (with Start Bot) & Anti-Interrupt Defense -->
+    <div class="p-card" style="background:rgba(15,23,42,0.74); border:1px solid rgba(56,189,248,0.4); border-radius:8px; padding:8px; display:flex; flex-direction:column; gap:6px; font-size:10px;">
+      <label style="display:flex; align-items:center; gap:6px; font-size:10.8px; font-weight:800; color:#7dd3fc; cursor:pointer;" title="เมื่อติ๊กเปิดแล้วกด START BOT ที่หน้า 🚀 บอท บอทจะฟาร์มแมพหน้าบอทเป็นหลักและแวะเก็บแร่/ไม้ที่เจอระหว่างทาง (Multitask)">
+        <input type="checkbox" id="p-nc-gather-enabled" ${gtc.enabled ? 'checked' : ''} style="accent-color:#0ea5e9; width:14px; height:14px;">
+        <span>⚔️ เปิด Gathering ร่วมตอนกด Start Bot (Multitask)</span>
+      </label>
       <div style="display:flex; align-items:center; gap:6px; min-width:0;">
-        <span style="color:#cbd5e1; white-space:nowrap;">📡 ระยะตรวจจับ:</span>
+        <span style="color:#cbd5e1; white-space:nowrap;">📡 ระยะแวะเก็บ (Multitask):</span>
         <select id="p-nc-gather-radius" style="flex:1; min-width:0; max-width:100%; background:#090d16; border:1px solid rgba(52,211,153,0.45); color:#a7f3d0; border-radius:4px; font-size:10px; font-weight:700; padding:3px 5px;">
           <option value="350" ${Number(gtc.scanRadius ?? 650) === 350 ? 'selected' : ''}>ใกล้ตัว (350 px)</option>
           <option value="650" ${Number(gtc.scanRadius ?? 650) === 650 ? 'selected' : ''}>รอบหน้าจอ (650 px · แนะนำ)</option>
@@ -10139,9 +10188,9 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
           <option value="0" ${Number(gtc.scanRadius ?? 650) === 0 ? 'selected' : ''}>ทั้งแมพ (เดินหาให้ทั่ว)</option>
         </select>
       </div>
-      <label style="display:flex; align-items:center; gap:5px; color:#fca5a5; cursor:pointer;">
+      <label style="display:flex; align-items:center; gap:5px; color:#fca5a5; cursor:pointer;" title="เคลียร์มอนรอบจุดขุด/ตัดที่อาจเข้ามาตีขัดจังหวะ และสู้กลับทันทีเมื่อโดนมอนโจมตี">
         <input type="checkbox" id="p-nc-gather-defend" ${gtc.defendOnAggro !== false ? 'checked' : ''} style="accent-color:#ef4444;">
-        <span>🛡️ สู้กลับอัตโนมัติเมื่อมอนโจมตีระหว่างเก็บเกี่ยว</span>
+        <span>🛡️ เคลียร์มอนที่จำเป็น / สู้กลับเมื่อมอนมาตี (กันโดนตี Cancel)</span>
       </label>
       <div id="p-nc-gather-live-status" style="font-size:9.5px; color:#cbd5e1; background:rgba(2,6,23,0.68); border:1px solid rgba(255,255,255,0.1); border-radius:5px; padding:5px 7px; line-height:1.45;">
         ${state?.gatherSummary?.html || '⏳ กำลังตรวจสอบเลเวลขุดแร่/ตัดไม้ และแหล่งในแมพนี้...'}
@@ -10579,6 +10628,7 @@ async function openWebBotHUD(profileId) {
       mode: src?.mode === 'only' ? 'only' : 'alongside',
       scanRadius: Number.isFinite(Number(src?.scanRadius)) ? Number(src.scanRadius) : 650,
       defendOnAggro: src?.defendOnAggro !== false,
+      targetMap: String(src?.targetMap || '').trim(),
       ores: Array.isArray(src?.ores) ? [...src.ores] : [],
       woods: Array.isArray(src?.woods) ? [...src.woods] : []
     };
@@ -10726,9 +10776,23 @@ async function openWebBotHUD(profileId) {
   // Single screen actions
   const toggleBotBtn = hudEl.querySelector('#p-btn-toggle-bot');
   if (toggleBotBtn) {
-    toggleBotBtn.onclick = () => {
+    toggleBotBtn.onclick = async () => {
       const curProf = currentProfiles.find(x => x.id === profileId) || profile;
-      const isRunning = Boolean(activeWebHuds[profileId]?.data?.isBotRunning ?? curProf?.liveState?.isBotRunning);
+      const st = activeWebHuds[profileId]?.data?.state || curProf?.liveState || {};
+      const isRunning = Boolean(activeWebHuds[profileId]?.data?.isBotRunning ?? st.isBotRunning);
+      const runMode = String(st.botRunMode || 'bot') === 'gather' ? 'gather' : 'bot';
+      if (isRunning && runMode === 'gather') {
+        // Currently running Dedicated Gather -> switch cleanly to Bot mode (uses Bot tab's map!)
+        try {
+          await sendWebHudAction(profileId, {
+            type: 'eval',
+            code: `(typeof window.startMasterBot === 'function' ? window.startMasterBot('bot') : false)`
+          });
+          showToast('🚀 สลับเป็นโหมด START BOT (ฟาร์มแมพหน้าบอท) เรียบร้อย!', 'success');
+          setTimeout(() => { fetchProfiles(); updateActiveWebHuds(); }, 250);
+        } catch (_) {}
+        return;
+      }
       toggleBotExecution(profileId, !isRunning);
     };
   }
@@ -11439,7 +11503,6 @@ async function openWebBotHUD(profileId) {
   };
   [
     ['#p-nc-gather-enabled', 'enabled', 'bool'],
-    ['#p-nc-gather-mode', 'mode', 'str'],
     ['#p-nc-gather-radius', 'scanRadius', 'num'],
     ['#p-nc-gather-defend', 'defendOnAggro', 'bool']
   ].forEach(([sel, key, kind]) => {
@@ -11450,10 +11513,110 @@ async function openWebBotHUD(profileId) {
       markCentralControlEdited(el);
       const val = kind === 'bool'
         ? Boolean(el.checked)
-        : (kind === 'num' ? Math.max(0, Number(el.value) || 0) : String(el.value || 'alongside'));
+        : (kind === 'num' ? Math.max(0, Number(el.value) || 0) : String(el.value || ''));
       sendGatherPatch({ [key]: val });
     };
   });
+
+  const gatherMapSearch = hudEl.querySelector('#p-nc-gather-target-map-search');
+  const gatherMapRes = hudEl.querySelector('#p-nc-gather-target-map-results');
+  const gatherMapSel = hudEl.querySelector('#p-nc-gather-target-map');
+  const renderManagerGatherMapSearchPopup = (rawQuery) => {
+    if (!gatherMapRes || !gatherMapSel) return;
+    const q = String(rawQuery || '').trim().toLowerCase();
+    const curVal = gatherMapSel.value || '';
+    if (!q) {
+      gatherMapRes.style.display = 'none';
+      gatherMapRes.innerHTML = '';
+      return;
+    }
+    const matches = NIGHTCAMP_GATHER_MAP_OPTIONS.filter(([id, label]) =>
+      id !== '' && (id.toLowerCase().includes(q) || label.toLowerCase().includes(q))
+    );
+    if (matches.length === 0) {
+      gatherMapRes.style.display = 'block';
+      gatherMapRes.innerHTML = `<div style="padding:4px 6px; font-size:9.5px; color:#94a3b8;">ไม่พบแมพที่ค้นหา "${escapeHTML(q)}"</div>`;
+      return;
+    }
+    gatherMapRes.style.display = 'flex';
+    gatherMapRes.innerHTML = matches.map(([id, label]) => {
+      const isCur = id === curVal;
+      return `<button type="button" data-nc-pick-gmap="${escapeHTML(id)}" style="text-align:left; background:${isCur ? 'rgba(245,158,11,0.28)' : 'rgba(15,23,42,0.85)'}; border:1px solid ${isCur ? 'rgba(251,191,36,0.68)' : 'rgba(148,163,184,0.18)'}; color:${isCur ? '#fde68a' : '#e2e8f0'}; border-radius:4px; padding:4px 6px; font-size:10px; cursor:pointer; display:flex; justify-content:space-between; align-items:center; gap:4px;">` +
+        `<span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHTML(label)}</span>` +
+        `<span style="font-size:9px; color:${isCur ? '#4ade80' : '#fbbf24'}; white-space:nowrap;">${isCur ? '✓ เลือกอยู่' : 'คลิกเลือก'}</span>` +
+        `</button>`;
+    }).join('');
+  };
+  if (gatherMapSearch && gatherMapSel) {
+    gatherMapSearch.addEventListener('input', () => {
+      const curVal = gatherMapSel.value || '';
+      gatherMapSel.innerHTML = renderNightcampGatherMapOptionsHtml(curVal, gatherMapSearch.value);
+      gatherMapSel.value = curVal;
+      renderManagerGatherMapSearchPopup(gatherMapSearch.value);
+    });
+  }
+  if (gatherMapRes && gatherMapSel) {
+    gatherMapRes.addEventListener('click', async (ev) => {
+      const btn = ev.target?.closest?.('[data-nc-pick-gmap]');
+      if (!btn) return;
+      const pickedMap = btn.getAttribute('data-nc-pick-gmap') || '';
+      if (gatherMapSearch) gatherMapSearch.value = '';
+      gatherMapSel.innerHTML = renderNightcampGatherMapOptionsHtml(pickedMap, '');
+      gatherMapSel.value = pickedMap;
+      renderManagerGatherMapSearchPopup('');
+      markCentralControlEdited(gatherMapSel);
+      await sendGatherPatch({ targetMap: pickedMap });
+    });
+  }
+  if (gatherMapSel) {
+    gatherMapSel.onchange = async () => {
+      if (gatherMapSel.value === '__MIXED__') return;
+      markCentralControlEdited(gatherMapSel);
+      if (gatherMapSearch && gatherMapSearch.value) {
+        gatherMapSearch.value = '';
+        renderManagerGatherMapSearchPopup('');
+      }
+      await sendGatherPatch({ targetMap: gatherMapSel.value || '' });
+    };
+  }
+
+  const toggleGatherBtn = hudEl.querySelector('#p-btn-nc-toggle-gather');
+  if (toggleGatherBtn) {
+    toggleGatherBtn.onclick = async () => {
+      const curProf = currentProfiles.find(x => x.id === profileId) || profile;
+      const st = activeWebHuds[profileId]?.data?.state || curProf?.liveState || {};
+      const isRunning = Boolean(activeWebHuds[profileId]?.data?.isBotRunning ?? st.isBotRunning);
+      const isGatherNow = Boolean(isRunning && String(st.botRunMode || 'bot') === 'gather');
+      try {
+        await sendWebHudAction(profileId, {
+          type: 'eval',
+          code: isGatherNow
+            ? `(typeof window.stopGatherBot === 'function' ? window.stopGatherBot() : (typeof window.stopMasterBot === 'function' ? window.stopMasterBot() : false))`
+            : `(typeof window.startGatherBot === 'function' ? window.startGatherBot() : (typeof window.startMasterBot === 'function' ? window.startMasterBot('gather') : false))`
+        });
+        showToast(isGatherNow ? '⏹️ หยุดโหมดเก็บเกี่ยว (Start Gath) แล้ว' : '⛏️ เริ่มโหมดเก็บเกี่ยวหลัก (Start Gath) แล้ว!', 'success');
+        setTimeout(() => { fetchProfiles(); updateActiveWebHuds(); }, 250);
+      } catch (_) {}
+    };
+  }
+  const centralStartGatherBtn = hudEl.querySelector('#p-btn-central-start-gather');
+  if (centralStartGatherBtn) {
+    centralStartGatherBtn.onclick = async () => {
+      await sendWebHudAction('__central__', {
+        type: 'eval',
+        code: `(typeof window.startGatherBot === 'function' ? window.startGatherBot() : (typeof window.startMasterBot === 'function' ? window.startMasterBot('gather') : false))`
+      });
+    };
+  }
+  const centralStopGatherBtn = hudEl.querySelector('#p-btn-central-stop-gather');
+  if (centralStopGatherBtn) {
+    centralStopGatherBtn.onclick = async () => {
+      await sendWebHudAction('__central__', {
+        type: 'eval',
+        code: `(typeof window.stopGatherBot === 'function' ? window.stopGatherBot() : (typeof window.stopMasterBot === 'function' ? window.stopMasterBot() : false))`
+      });
+    };
+  }
   const oreAddBtn = hudEl.querySelector('#p-btn-nc-gather-ore-add');
   if (oreAddBtn) {
     oreAddBtn.onclick = () => {
@@ -11783,7 +11946,7 @@ const CENTRAL_HUD_FIELD_SPECS = [
   ['#p-nc-cm-auto-claim', 'bool', st => st.cmarketAutoSellConfig?.autoClaimMail !== false],
   ['#p-nc-cm-auto-unlist', 'bool', st => st.cmarketAutoSellConfig?.autoUnlistExpired !== false],
   ['#p-nc-gather-enabled', 'bool', st => Boolean(st.gatherConfig?.enabled)],
-  ['#p-nc-gather-mode', 'select', st => String(st.gatherConfig?.mode || 'alongside')],
+  ['#p-nc-gather-target-map', 'select', st => String(st.gatherConfig?.targetMap || '')],
   ['#p-nc-gather-radius', 'select', st => String(st.gatherConfig?.scanRadius ?? 650)],
   ['#p-nc-gather-defend', 'bool', st => st.gatherConfig?.defendOnAggro !== false],
   ['#p-nc-perf-dot-monsters', 'bool', st => st.perfConfig?.dotMonsters !== false],
@@ -11908,6 +12071,7 @@ function populateWebHudData(profileId, data) {
           mode: gc.mode === 'only' ? 'only' : 'alongside',
           scanRadius: Number.isFinite(Number(gc.scanRadius)) ? Number(gc.scanRadius) : 650,
           defendOnAggro: gc.defendOnAggro !== false,
+          targetMap: String(gc.targetMap || '').trim(),
           ores: Array.isArray(gc.ores) ? [...gc.ores] : [],
           woods: Array.isArray(gc.woods) ? [...gc.woods] : []
         };
@@ -12131,7 +12295,7 @@ function populateWebHudData(profileId, data) {
   if (st.gatherConfig && typeof st.gatherConfig === 'object' && Number(hudObj.gatherLocalDirtyUntil || 0) <= Date.now()) {
     const gc = st.gatherConfig;
     setField('#p-nc-gather-enabled', Boolean(gc.enabled), true);
-    setField('#p-nc-gather-mode', gc.mode === 'only' ? 'only' : 'alongside', false);
+    setField('#p-nc-gather-target-map', String(gc.targetMap || '').trim(), false);
     setField('#p-nc-gather-radius', String(Number.isFinite(Number(gc.scanRadius)) ? Number(gc.scanRadius) : 650), false);
     setField('#p-nc-gather-defend', gc.defendOnAggro !== false, true);
     hudObj.gatherCfg = {
@@ -12139,6 +12303,7 @@ function populateWebHudData(profileId, data) {
       mode: gc.mode === 'only' ? 'only' : 'alongside',
       scanRadius: Number.isFinite(Number(gc.scanRadius)) ? Number(gc.scanRadius) : 650,
       defendOnAggro: gc.defendOnAggro !== false,
+      targetMap: String(gc.targetMap || '').trim(),
       ores: Array.isArray(gc.ores) ? [...gc.ores] : [],
       woods: Array.isArray(gc.woods) ? [...gc.woods] : []
     };
@@ -12170,16 +12335,26 @@ function populateWebHudData(profileId, data) {
   const trainerItemEl = hud.querySelector('#p-nc-trainer-item-status');
   if (trainerItemEl && st.trainerItemStatusHtml) trainerItemEl.innerHTML = st.trainerItemStatusHtml;
 
+  const botRunModeNow = String(st.botRunMode || 'bot') === 'gather' ? 'gather' : 'bot';
+  const isRunningBotNow = Boolean(isBotRunning && botRunModeNow !== 'gather');
+  const isRunningGatherNow = Boolean(isBotRunning && botRunModeNow === 'gather');
+
   const btn = hud.querySelector('#p-btn-toggle-bot');
   if (btn) {
     btn.disabled = !isOnline;
     btn.style.opacity = isOnline ? '1' : '0.55';
     btn.style.cursor = isOnline ? 'pointer' : 'not-allowed';
-    if (isBotRunning) {
+    if (isRunningBotNow) {
       btn.innerHTML = '⏹️ STOP BOT (หยุดทำงาน)';
       btn.style.background = 'linear-gradient(135deg, #ef4444, #dc2626)';
       btn.style.boxShadow = '0 0 14px rgba(239, 68, 68, 0.55)';
       btn.style.border = '1px solid #f87171';
+      btn.style.color = '#fff';
+    } else if (isRunningGatherNow) {
+      btn.innerHTML = '▶️ START BOT (สลับเป็นโหมดบอท)';
+      btn.style.background = 'linear-gradient(135deg, #0284c7, #0369a1)';
+      btn.style.boxShadow = '0 0 14px rgba(14, 165, 233, 0.45)';
+      btn.style.border = '1px solid #38bdf8';
       btn.style.color = '#fff';
     } else {
       btn.innerHTML = '▶️ START BOT (เริ่มทำงาน)';
@@ -12187,6 +12362,48 @@ function populateWebHudData(profileId, data) {
       btn.style.boxShadow = '0 0 14px rgba(16, 185, 129, 0.4)';
       btn.style.border = '1px solid #34d399';
       btn.style.color = '#fff';
+    }
+  }
+
+  const gBtn = hud.querySelector('#p-btn-nc-toggle-gather');
+  if (gBtn) {
+    gBtn.disabled = !isOnline;
+    gBtn.style.opacity = isOnline ? '1' : '0.55';
+    gBtn.style.cursor = isOnline ? 'pointer' : 'not-allowed';
+    if (isRunningGatherNow) {
+      gBtn.innerHTML = '⏹️ STOP GATH (หยุดเก็บเกี่ยว)';
+      gBtn.style.background = 'linear-gradient(135deg, #ef4444, #dc2626)';
+      gBtn.style.boxShadow = '0 0 14px rgba(239, 68, 68, 0.5)';
+      gBtn.style.border = '1px solid #f87171';
+      gBtn.style.color = '#fff';
+    } else if (isRunningBotNow) {
+      gBtn.innerHTML = '⛏️ START GATH (สลับเป็นเก็บเกี่ยวหลัก)';
+      gBtn.style.background = 'linear-gradient(135deg, #d97706, #059669)';
+      gBtn.style.boxShadow = '0 0 14px rgba(245, 158, 11, 0.4)';
+      gBtn.style.border = '1px solid #fbbf24';
+      gBtn.style.color = '#fff';
+    } else {
+      gBtn.innerHTML = '⛏️ START GATH (เริ่มเก็บเกี่ยว)';
+      gBtn.style.background = 'linear-gradient(135deg, #d97706, #059669)';
+      gBtn.style.boxShadow = '0 0 14px rgba(245, 158, 11, 0.35)';
+      gBtn.style.border = '1px solid #fbbf24';
+      gBtn.style.color = '#fff';
+    }
+  }
+  const gBadge = hud.querySelector('#p-nc-gather-mode-badge');
+  if (gBadge) {
+    if (isRunningGatherNow) {
+      gBadge.textContent = '⛏️ กำลังเก็บเกี่ยว (Start Gath)';
+      gBadge.style.color = '#fde047';
+    } else if (isRunningBotNow && hudObj.gatherCfg?.enabled) {
+      gBadge.textContent = '⚔️ Multitask (Start Bot)';
+      gBadge.style.color = '#86efac';
+    } else if (isRunningBotNow) {
+      gBadge.textContent = '⚔️ บอทฟาร์มอยู่';
+      gBadge.style.color = '#7dd3fc';
+    } else {
+      gBadge.textContent = '⏸️ STANDBY';
+      gBadge.style.color = '#94a3b8';
     }
   }
 
