@@ -10063,7 +10063,7 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
           <input type="checkbox" id="p-nc-cm-autosell-enabled" ${(state?.cmarketAutoSellConfig?.enabled) ? 'checked' : ''} style="accent-color:#14b8a6; width:15px; height:15px;">
           <span>เปิดใช้งาน Auto-Sell ตลาด</span>
         </label>
-        <span id="p-nc-cm-quota-badge" style="font-size:10px; font-weight:800; color:#7dd3fc; background:rgba(2,6,23,0.72); border:1px solid rgba(56,189,248,0.48); border-radius:5px; padding:2px 7px; white-space:nowrap;">โควตา: ${Number(state?.cmarketSummary?.openSlotCount ?? 0)}/${Number(state?.cmarketSummary?.maxSlots ?? 12)}</span>
+        <span id="p-nc-cm-quota-badge" style="font-size:10px; font-weight:800; color:#7dd3fc; background:rgba(2,6,23,0.72); border:1px solid rgba(56,189,248,0.48); border-radius:5px; padding:2px 7px; white-space:nowrap;">โควตา: ${Number(state?.cmarketSummary?.openSlotCount ?? 0)}/${Number(state?.cmarketSummary?.maxSlots ?? (state?.hasPremium ? 20 : 3))}</span>
       </div>
 
       <div style="display:flex; align-items:center; gap:5px; border-top:1px solid rgba(148,163,184,0.18); padding-top:5px;">
@@ -12246,7 +12246,7 @@ function populateWebHudData(profileId, data) {
   const cmQuotaEl = hud.querySelector('#p-nc-cm-quota-badge');
   if (cmQuotaEl && st.cmarketSummary) {
     const op = Number(st.cmarketSummary.openSlotCount ?? 0);
-    const mx = Number(st.cmarketSummary.maxSlots ?? 12);
+    const mx = Number(st.cmarketSummary.maxSlots ?? (st.hasPremium ? 20 : 3));
     cmQuotaEl.textContent = `โควตา: ${op}/${mx}`;
     cmQuotaEl.style.borderColor = op >= mx ? 'rgba(248,113,113,0.65)' : 'rgba(56,189,248,0.48)';
     cmQuotaEl.style.color = op >= mx ? '#fca5a5' : '#7dd3fc';
