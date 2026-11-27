@@ -3217,10 +3217,17 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
     return `window.__pmProfileId = ${JSON.stringify(profileId)}; window.__pmManagedDeviceGroup = true; window.__pmDeviceId = ${JSON.stringify(deviceId)}; window.__pmMachineId = ${JSON.stringify(machineId)}; window.__pmDeviceSpec = ${JSON.stringify(deviceSpec)}; window.__pmLocalAssetCacheEnabled = ${cacheFlag}; try { window.sessionStorage && window.sessionStorage.setItem('__pmProfileId', ${JSON.stringify(profileId)}); } catch (_) {} ${deviceHookJs} ${restoreJs} ${hidePmPropsJs}`;
   };
 
-  async function configureSessionAssetCache(sessionId) {
+  async function configureSessionAssetCache(sessionId, opts = {}) {
     if (!sessionId) return;
+    const forceDisable = Boolean(opts && opts.forceDisable);
+    const shouldEnable = !forceDisable && Boolean(effectiveAssetCache && effectiveAssetCache.isEnabled());
+    const patterns = (shouldEnable && Array.isArray(effectiveAssetCache.CDP_ASSET_FETCH_PATTERNS))
+      ? effectiveAssetCache.CDP_ASSET_FETCH_PATTERNS
+      : [];
     await Promise.all([
-      send('Fetch.disable', {}, sessionId, 3000).catch(() => {}),
+      shouldEnable && patterns.length > 0
+        ? send('Fetch.enable', { patterns }, sessionId, 4000).catch(() => {})
+        : send('Fetch.disable', {}, sessionId, 3000).catch(() => {}),
       send('Runtime.disable', {}, sessionId, 3000).catch(() => {})
     ]);
   }
@@ -3585,6 +3592,10 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
       const requestId = msg.params.requestId;
       const reqUrl = msg.params.request?.url || '';
       const reqMethod = String(msg.params.request?.method || 'GET').toUpperCase();
+      const reqHeaders = (msg.params.request && msg.params.request.headers && typeof msg.params.request.headers === 'object')
+        ? msg.params.request.headers
+        : {};
+      const hasRangeHeader = Boolean(reqHeaders.Range || reqHeaders.range);
       if (reqUrl.includes('/__pmhee_recover__')) {
         send('Fetch.fulfillRequest', {
           requestId,
@@ -3594,7 +3605,23 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
         }, msg.sessionId, 3000).catch(() => {});
         return;
       }
-      if (effectiveAssetCache && effectiveAssetCache.isEnabled() && reqMethod === 'GET' && effectiveAssetCache.isCacheableAssetUrl(reqUrl)) {
+      if (reqMethod === 'OPTIONS' && effectiveAssetCache && effectiveAssetCache.isEnabled() && effectiveAssetCache.isCacheableAssetUrl(reqUrl)) {
+        send('Fetch.fulfillRequest', {
+          requestId,
+          responseCode: 204,
+          responseHeaders: [
+            { name: 'Access-Control-Allow-Origin', value: '*' },
+            { name: 'Access-Control-Allow-Methods', value: 'GET, HEAD, OPTIONS' },
+            { name: 'Access-Control-Allow-Headers', value: '*' },
+            { name: 'Access-Control-Max-Age', value: '86400' }
+          ],
+          body: ''
+        }, msg.sessionId, 3000).catch(() => {
+          send('Fetch.continueRequest', { requestId }, msg.sessionId, 3000).catch(() => {});
+        });
+        return;
+      }
+      if (!hasRangeHeader && effectiveAssetCache && effectiveAssetCache.isEnabled() && reqMethod === 'GET' && effectiveAssetCache.isCacheableAssetUrl(reqUrl)) {
         effectiveAssetCache.getOrFetch(reqUrl).then(cached => {
           if (cached && cached.ok && cached.base64) {
             return send('Fetch.fulfillRequest', {
@@ -3610,7 +3637,7 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
                 { name: 'X-Pmhee-Asset-Cache', value: cached.hit ? 'HIT' : 'MISS-DIRECT' }
               ],
               body: cached.base64
-            }, msg.sessionId, 10000);
+            }, msg.sessionId, 12000);
           }
           return send('Fetch.continueRequest', { requestId }, msg.sessionId, 5000);
         }).catch(() => {
@@ -3641,9 +3668,9 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
 
   async function ensureClientFramePacerHealed(c) {
     if (!c || !c.sessionId || c.framePacerHealInFlight) return;
-    if (!c.cdpFetchDisabled) {
-      c.cdpFetchDisabled = true;
-      send('Fetch.disable', {}, c.sessionId, 3000).catch(() => {});
+    if (!c.cdpAssetCacheSynced) {
+      c.cdpAssetCacheSynced = true;
+      configureSessionAssetCache(c.sessionId).catch(() => {});
     }
     if (c.framePacerHealedDocId && c.framePacerHealedDocId === c.documentId) return;
     c.framePacerHealInFlight = true;
@@ -5783,7 +5810,7 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
 
     await applyCdpDeviceEmulation(sessionId, deviceSpec);
     await send('Page.enable', {}, sessionId, 5000).catch(() => {});
-    await configureSessionAssetCache(sessionId);
+    await configureSessionAssetCache(sessionId, { forceDisable: true });
 
     const initScriptSrc = unbanInitScript(pid, identity);
     const addedScript = await send('Page.addScriptToEvaluateOnNewDocument', { source: initScriptSrc }, sessionId, 5000).catch(() => null);

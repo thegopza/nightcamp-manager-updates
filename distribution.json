@@ -1,10 +1,10 @@
 {
   "schema": 1,
-  "sourceCommit": "e55d3188455c119d018bc98f36516953661c3ebc",
+  "sourceCommit": "c2b59ca04ba083ebbeaaad6fe476dc46d1dc1c00",
   "files": [
     {
       "path": "manager/asset_cache.js",
-      "sha256": "241a69f4727b756ec60bd561157a5b554416d25486fa1fa761a5da621bd365f8"
+      "sha256": "2d571ef6c008856880eef545f3cce1673c5beb06afdd86c985a44295c9176a95"
     },
     {
       "path": "manager/auth_sync.js",
@@ -16,7 +16,7 @@
     },
     {
       "path": "manager/browser_mode.js",
-      "sha256": "72cdbea4c9cda24821b82e3a49ba4c2868308d6349d91a6b06b68ae4bfdd5329"
+      "sha256": "e35667c9bb8354864e2717d4305e0fa29281ce13c16d4a4faa25bc91055d6bfe"
     },
     {
       "path": "manager/captcha_stats.js",
@@ -144,7 +144,7 @@
     },
     {
       "path": "manager/public/app.js",
-      "sha256": "02860b2a2bb78ba5a205fea35fd74c2027c4a891442923ccb97b46a4f051c031"
+      "sha256": "316d93a26a621bdc112559b561083726ba46dfacb82f6115a5770d761f7b27cd"
     },
     {
       "path": "manager/public/assets/updates/ui_v212_bag_rightclick.jpg",
@@ -228,7 +228,7 @@
     },
     {
       "path": "manager/public/index.html",
-      "sha256": "69683c25a6a0779eb76f060071dc0de61338119b8a2a12e7b1a2cae8a76ee127"
+      "sha256": "b37d023cc83b862fe281cd174958fc53f2e20c7cb8aaab6186700e1bca858581"
     },
     {
       "path": "manager/public/inventory_market.css",
@@ -308,7 +308,7 @@
     },
     {
       "path": "manager/public/update_log.js",
-      "sha256": "03a3ffa383f658e55993f0a80fb94ba94ab2aa9bf89eb81703fec12a8329bf66"
+      "sha256": "dfb522995b25a3f78243554709485d39965e63576a942e18586ec3c8d3eaea7d"
     },
     {
       "path": "manager/public/wiki/calc.js",
@@ -352,7 +352,7 @@
     },
     {
       "path": "manager/server.js",
-      "sha256": "2eb71eaeb7cc33d7ea2ade5ff22c4b668dd844fd71bf7d3a636617efdbbc1acb"
+      "sha256": "7b48953aec5fbf5345520d03d7006a343072d1eb44112764e98b02dc515baed9"
     },
     {
       "path": "manager/test_isolation.js",

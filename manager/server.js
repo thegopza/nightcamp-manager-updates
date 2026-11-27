@@ -11136,6 +11136,90 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
+  // --- Shared Local Game Asset Cache API (accelerates BOTH Direct & Proxy windows) ---
+  if (pathname === "/api/asset-cache/status" && req.method === "GET") {
+    try {
+      const ac = screenProxy && screenProxy.assetCache;
+      if (!ac) return sendJSON({ success: false, error: "ASSET_CACHE_UNAVAILABLE" }, 503);
+      return sendJSON({ success: true, assetCache: ac.getStatus() });
+    } catch (e) {
+      return sendJSON({ success: false, error: e.message }, 500);
+    }
+  }
+
+  if (pathname === "/api/asset-cache/toggle" && req.method === "POST") {
+    let body = "";
+    req.on("data", c => {
+      body += c;
+      if (Buffer.byteLength(body, "utf8") > 8192) req.destroy();
+    });
+    req.on("end", async () => {
+      try {
+        const ac = screenProxy && screenProxy.assetCache;
+        if (!ac) return sendJSON({ success: false, error: "ASSET_CACHE_UNAVAILABLE" }, 503);
+        const data = JSON.parse(body || "{}");
+        const nextEnabled = typeof data.enabled === "boolean" ? data.enabled : !ac.isEnabled();
+        screenProxy.saveSettings({ localAssetCache: nextEnabled });
+        ac.setEnabled(nextEnabled);
+        if (isBrowserMode() && typeof browserMode.syncAssetCacheToOpenWindows === "function") {
+          await browserMode.syncAssetCacheToOpenWindows().catch(() => {});
+        }
+        return sendJSON({ success: true, enabled: nextEnabled, assetCache: ac.getStatus() });
+      } catch (e) {
+        return sendJSON({ success: false, error: e.message }, 400);
+      }
+    });
+    return;
+  }
+
+  if (pathname === "/api/asset-cache/prewarm" && req.method === "POST") {
+    let body = "";
+    req.on("data", c => {
+      body += c;
+      if (Buffer.byteLength(body, "utf8") > 8192) req.destroy();
+    });
+    req.on("end", async () => {
+      try {
+        const ac = screenProxy && screenProxy.assetCache;
+        if (!ac || typeof ac.prewarmGameBootAssets !== "function") {
+          return sendJSON({ success: false, error: "ASSET_CACHE_UNAVAILABLE" }, 503);
+        }
+        const data = JSON.parse(body || "{}");
+        if (data.enable !== false && !ac.isEnabled()) {
+          screenProxy.saveSettings({ localAssetCache: true });
+          ac.setEnabled(true);
+          if (isBrowserMode() && typeof browserMode.syncAssetCacheToOpenWindows === "function") {
+            browserMode.syncAssetCacheToOpenWindows().catch(() => {});
+          }
+        }
+        const concurrency = Math.max(2, Math.min(20, Number(data.concurrency) || 14));
+        const p = ac.prewarmGameBootAssets({ concurrency });
+        if (data.wait === true) {
+          const result = await p;
+          return sendJSON({ success: Boolean(result && result.success !== false), result, assetCache: ac.getStatus() });
+        }
+        p.catch(() => {});
+        return sendJSON({ success: true, started: true, assetCache: ac.getStatus() });
+      } catch (e) {
+        return sendJSON({ success: false, error: e.message }, 500);
+      }
+    });
+    return;
+  }
+
+  if (pathname === "/api/asset-cache/clear" && req.method === "POST") {
+    try {
+      const ac = screenProxy && screenProxy.assetCache;
+      if (!ac || typeof ac.clearCache !== "function") {
+        return sendJSON({ success: false, error: "ASSET_CACHE_UNAVAILABLE" }, 503);
+      }
+      const res = ac.clearCache();
+      return sendJSON({ success: true, removedFiles: res.removedFiles || 0, removedBytes: res.removedBytes || 0, assetCache: ac.getStatus() });
+    } catch (e) {
+      return sendJSON({ success: false, error: e.message }, 500);
+    }
+  }
+
   if (pathname === "/api/screen-proxy/test" && req.method === "POST") {
     let body = "";
     req.on("data", c => {
@@ -15736,6 +15820,31 @@ server.listen(PORT, "127.0.0.1", () => {
         syncScreenProxyForOpenProfiles().catch(() => {});
       }
     }, 60000);
+    setTimeout(() => {
+      const ac = screenProxy && screenProxy.assetCache;
+      if (!ac || !ac.isEnabled() || typeof ac.prewarmGameBootAssets !== "function") return;
+      (async () => {
+        const ver = typeof ac.checkLatestGameVersion === "function" ? await ac.checkLatestGameVersion().catch(() => null) : null;
+        const st = ac.getStatus();
+        if (st.prewarm && st.prewarm.running) return;
+        const needPrewarm = (Number(st.filesCount) || 0) < 200 || (ver && ver.build && ver.build !== st.lastPrewarmBuild);
+        if (needPrewarm) {
+          ac.prewarmGameBootAssets({ concurrency: 6 }).catch(() => {});
+        }
+      })().catch(() => {});
+    }, 15000);
+    setInterval(() => {
+      const ac = screenProxy && screenProxy.assetCache;
+      if (!ac || !ac.isEnabled() || typeof ac.checkLatestGameVersion !== "function") return;
+      (async () => {
+        const ver = await ac.checkLatestGameVersion().catch(() => null);
+        const st = ac.getStatus();
+        if (st.prewarm && st.prewarm.running) return;
+        if (ver && ver.build && ver.build !== st.lastPrewarmBuild && typeof ac.prewarmGameBootAssets === "function") {
+          ac.prewarmGameBootAssets({ concurrency: 8 }).catch(() => {});
+        }
+      })().catch(() => {});
+    }, 180000);
     setTimeout(() => syncStashTradeConfigToAllClients().catch(() => {}), 3500);
     setInterval(() => syncStashTradeConfigToAllClients().catch(() => {}), 25000);
   }

@@ -639,6 +639,9 @@
             <button id="btn-export-credentials-txt" class="btn btn-ghost btn-sm" title="ส่งออกโปรไฟล์เต็มรูปแบบ (.json — ครบ ID/รหัส + Server + Config บอททุกจอ) หรือรายการรหัส (.txt)" style="border: 1px solid rgba(52, 211, 153, 0.45); background: rgba(16, 185, 129, 0.12); color: #6ee7b7; font-weight: 700;">
               <span class="icon">📦</span> Export โปรไฟล์ / รหัส
             </button>
+            <button id="btn-open-game-cache-modal" class="btn btn-ghost btn-sm" title="ระบบแคชไฟล์เกมในเครื่อง (Shared Local Game Cache) — เก็บสคริปต์ รูปภาพ แมพ และเสียงไว้บน SSD/RAM ใช้ร่วมกันทุกจอทั้งเน็ตบ้านและ Proxy โหลดเข้าเกมไวขึ้นมาก" style="border: 1px solid rgba(251, 191, 36, 0.48); background: linear-gradient(135deg, rgba(245, 158, 11, 0.16), rgba(16, 185, 129, 0.1)); color: #fde68a; font-weight: 700;">
+              <span class="icon">⚡</span> Cache เกม <span id="toolbar-game-cache-badge" style="margin-left: 3px; font-size: 10px; padding: 1px 5px; border-radius: 999px; background: rgba(16, 185, 129, 0.22); color: #6ee7b7; border: 1px solid rgba(52, 211, 153, 0.35);">ON</span>
+            </button>
           </div>
         </div>
       </div>
@@ -2014,7 +2017,7 @@
   </div>
 
   <script src="image_board_solver.js?v=nc1.9.4"></script>
-  <script src="app.js?v=nc2.3.23"></script>
+  <script src="app.js?v=nc2.3.25"></script>
   <script src="builder_module.js?v=nc1.9.6"></script>
   <script src="gear_builder.js?v=nc2.3.19"></script>
   <script src="patcher_module.js?v=nc1.9.4"></script>
@@ -2027,7 +2030,7 @@
   <script src="fleet_dashboard.js?v=nc1.9.4"></script>
   <script src="support_chat.js?v=nc1.9.4"></script>
   <script src="announcements.js?v=nc1.9.4"></script>
-  <script src="update_log.js?v=nc2.3.24"></script>
+  <script src="update_log.js?v=nc2.3.25"></script>
   <!-- FLOATING IN-GAME BOT HUDS CONTAINER -->
   <div id="web-huds-container"></div>
 
@@ -2883,7 +2886,7 @@
             </label>
             <label style="display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: #fde68a; cursor: pointer;">
               <input type="checkbox" id="sp-local-asset-cache" checked style="accent-color: #f59e0b;">
-              <span>📦 <b>Local Asset Cache:</b> โหลดรูป/เสียง/สคริปต์ (<code>/cas/*.js</code>, <code>.png</code>, <code>.webp</code>, <code>.mp3</code>, <code>.woff2</code>) จาก Cache ในเครื่อง (ไม่เปลืองเน็ต Proxy เลย)</span>
+              <span>⚡ <b>Local Game Asset Cache (ใช้ร่วมกันทุกจอทั้งเน็ตบ้าน &amp; Proxy):</b> โหลดสคริปต์/CSS/รูป/แผนที่/เสียง (<code>/cas/*</code>, <code>css</code>, <code>cas.json</code>, <code>.webp</code>, <code>.png</code>, <code>.mp3</code>, <code>.woff2</code>) จาก SSD &amp; Hot RAM ในเครื่อง เข้าเกมไวขึ้นและไม่เปลืองเน็ต Proxy</span>
             </label>
           </div>
         </div>
@@ -2891,10 +2894,27 @@
         <!-- Real Proxy Traffic & Local Asset Cache Savings Meter -->
         <div style="background: rgba(15, 23, 42, 0.65); border: 1px solid rgba(56, 189, 248, 0.28); border-radius: 9px; padding: 9px 12px; display: flex; flex-direction: column; gap: 6px;">
           <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px;">
-            <span style="font-size: 11.5px; font-weight: 700; color: #7dd3fc;">📊 มิเตอร์วัดเน็ต Proxy จริง & ประหยัดด้วย Cache ในเครื่อง</span>
-            <button type="button" id="btn-sp-reset-traffic" class="btn btn-ghost btn-sm" style="font-size: 10.5px; padding: 2px 9px; border: 1px solid rgba(148, 163, 184, 0.3); color: #cbd5e1;" title="รีเซ็ตตัวนับเน็ต Proxy และตัวนับเน็ตวันนี้เพื่อเริ่มจับค่าใหม่">
-              🔄 รีเซ็ตตัวนับเน็ต
-            </button>
+            <span style="font-size: 11.5px; font-weight: 700; color: #7dd3fc;">📊 มิเตอร์วัดเน็ต Proxy จริง &amp; ประหยัดด้วย Cache ในเครื่อง</span>
+            <div style="display: flex; align-items: center; gap: 5px; flex-wrap: wrap;">
+              <button type="button" id="btn-sp-prewarm-cache" class="btn btn-ghost btn-sm" style="font-size: 10.5px; padding: 2px 9px; border: 1px solid rgba(251, 191, 36, 0.48); background: rgba(245, 158, 11, 0.16); color: #fde68a; font-weight: 700;" title="ดาวน์โหลดไฟล์เริ่มต้นของเกม (~22 MB) มาเก็บลง Cache เครื่องล่วงหน้าครั้งเดียว เพื่อให้ทุกจอเข้าเกมไวทันที">
+                ⚡ โหลดแคชล่วงหน้า
+              </button>
+              <button type="button" id="btn-sp-clear-cache" class="btn btn-ghost btn-sm" style="font-size: 10.5px; padding: 2px 9px; border: 1px solid rgba(248, 113, 113, 0.35); color: #fca5a5;" title="ล้างไฟล์แคชเกมทั้งหมดบนเครื่องเพื่อดึงใหม่">
+                🗑️ ล้างแคช
+              </button>
+              <button type="button" id="btn-sp-reset-traffic" class="btn btn-ghost btn-sm" style="font-size: 10.5px; padding: 2px 9px; border: 1px solid rgba(148, 163, 184, 0.3); color: #cbd5e1;" title="รีเซ็ตตัวนับเน็ต Proxy และตัวนับเน็ตวันนี้เพื่อเริ่มจับค่าใหม่">
+                🔄 รีเซ็ตตัวนับเน็ต
+              </button>
+            </div>
+          </div>
+          <div id="sp-cache-prewarm-strip" style="display: none; flex-direction: column; gap: 4px; background: rgba(2, 6, 23, 0.65); border: 1px solid rgba(251, 191, 36, 0.35); border-radius: 7px; padding: 6px 9px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 10.5px; color: #fde68a;">
+              <span id="sp-cache-prewarm-text">⚡ กำลังเตรียมแคชเกม...</span>
+              <span id="sp-cache-prewarm-pct" style="font-weight: 700;">0%</span>
+            </div>
+            <div style="width: 100%; height: 6px; border-radius: 999px; background: rgba(148, 163, 184, 0.2); overflow: hidden;">
+              <div id="sp-cache-prewarm-bar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #f59e0b, #10b981); transition: width 0.25s ease;"></div>
+            </div>
           </div>
           <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;">
             <div style="background: rgba(2, 6, 23, 0.55); border: 1px solid rgba(255,255,255,0.06); border-radius: 7px; padding: 6px 9px;">
@@ -3258,6 +3278,79 @@
             <button type="button" id="btn-auth-reg-submit" class="btn btn-success" style="width:100%;padding:9px 14px;font-weight:700;">📝 สมัครสมาชิก &amp; ส่งอนุมัติ</button>
           </div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SHARED LOCAL GAME ASSET CACHE MODAL -->
+  <div id="game-cache-modal" class="modal" style="display: none; z-index: 10040; align-items: center; justify-content: center; background: rgba(2, 6, 23, 0.78); backdrop-filter: blur(5px);">
+    <div class="modal-content" style="max-width: 580px; width: 94%; background: linear-gradient(155deg, #0b1120 0%, #111827 100%); border: 1px solid rgba(251, 191, 36, 0.42); border-radius: 14px; padding: 18px 20px; box-shadow: 0 24px 60px rgba(0,0,0,0.68); display: flex; flex-direction: column; gap: 13px;">
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; border-bottom: 1px solid rgba(148, 163, 184, 0.16); padding-bottom: 10px;">
+        <div style="display: flex; align-items: center; gap: 9px;">
+          <span style="font-size: 20px;">⚡</span>
+          <div>
+            <div style="font-size: 15px; font-weight: 800; color: #fef3c7;">ระบบแคชไฟล์เกมในเครื่อง (Shared Local Game Cache)</div>
+            <div style="font-size: 11px; color: #94a3b8;">เก็บไฟล์เกมไว้บน SSD &amp; Hot RAM ในเครื่องครั้งเดียว ใช้ร่วมกันทุกจอ (ทั้งเน็ตบ้าน &amp; Proxy)</div>
+          </div>
+        </div>
+        <button type="button" id="btn-gc-close" style="background: transparent; border: none; color: #94a3b8; font-size: 18px; cursor: pointer; padding: 4px 8px;">✕</button>
+      </div>
+
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; background: rgba(15, 23, 42, 0.72); border: 1px solid rgba(52, 211, 153, 0.35); border-radius: 10px; padding: 10px 12px;">
+        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 12.5px; font-weight: 700; color: #a7f3d0;">
+          <input type="checkbox" id="gc-enabled-toggle" checked style="accent-color: #10b981; width: 16px; height: 16px;">
+          <span>เปิดใช้งานแคชไฟล์เกมในเครื่อง (แนะนำให้เปิดไว้เสมอ)</span>
+        </label>
+        <span id="gc-status-pill" style="font-size: 10.5px; font-weight: 800; padding: 2px 9px; border-radius: 999px; background: rgba(16, 185, 129, 0.22); color: #6ee7b7; border: 1px solid rgba(52, 211, 153, 0.45); white-space: nowrap;">🟢 เปิดใช้งาน</span>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 9px;">
+        <div style="background: rgba(2, 6, 23, 0.6); border: 1px solid rgba(251, 191, 36, 0.22); border-radius: 9px; padding: 10px 12px;">
+          <div style="font-size: 10.5px; color: #94a3b8;">🗂️ ไฟล์ในแคชบนเครื่อง (SSD)</div>
+          <div id="gc-stat-files" style="font-size: 16px; font-weight: 800; color: #fbbf24; margin-top: 3px;">0 ไฟล์</div>
+          <div id="gc-stat-disk" style="font-size: 10.5px; color: #cbd5e1; margin-top: 2px;">ขนาดรวม 0 B</div>
+        </div>
+        <div style="background: rgba(2, 6, 23, 0.6); border: 1px solid rgba(56, 189, 248, 0.22); border-radius: 9px; padding: 10px 12px;">
+          <div style="font-size: 10.5px; color: #94a3b8;">⚡ แคชด่วนบนแรม (Hot RAM)</div>
+          <div id="gc-stat-ram" style="font-size: 16px; font-weight: 800; color: #38bdf8; margin-top: 3px;">0 B</div>
+          <div id="gc-stat-ram-sub" style="font-size: 10.5px; color: #cbd5e1; margin-top: 2px;">0 ไฟล์พร้อมเสิร์ฟทันที (&lt;1 ms)</div>
+        </div>
+        <div style="background: rgba(2, 6, 23, 0.6); border: 1px solid rgba(52, 211, 153, 0.22); border-radius: 9px; padding: 10px 12px;">
+          <div style="font-size: 10.5px; color: #94a3b8;">🎯 อัตราใช้แคช (Hit Rate)</div>
+          <div id="gc-stat-hitrate" style="font-size: 16px; font-weight: 800; color: #34d399; margin-top: 3px;">0%</div>
+          <div id="gc-stat-hits" style="font-size: 10.5px; color: #cbd5e1; margin-top: 2px;">Hit 0 ครั้ง · ดึงใหม่ 0 ครั้ง</div>
+        </div>
+        <div style="background: rgba(2, 6, 23, 0.6); border: 1px solid rgba(168, 85, 247, 0.24); border-radius: 9px; padding: 10px 12px;">
+          <div style="font-size: 10.5px; color: #94a3b8;">💾 ประหยัดเน็ตสะสม &amp; แพทช์ล่าสุด</div>
+          <div id="gc-stat-saved" style="font-size: 16px; font-weight: 800; color: #c084fc; margin-top: 3px;">0 B</div>
+          <div id="gc-stat-build" style="font-size: 10.5px; color: #cbd5e1; margin-top: 2px;">Build: ยังไม่ได้เตรียมแคช</div>
+        </div>
+      </div>
+
+      <div id="gc-prewarm-box" style="display: none; flex-direction: column; gap: 5px; background: rgba(2, 6, 23, 0.7); border: 1px solid rgba(251, 191, 36, 0.4); border-radius: 9px; padding: 9px 12px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #fde68a;">
+          <span id="gc-prewarm-text">⚡ กำลังดาวน์โหลดไฟล์เริ่มต้นของเกม...</span>
+          <span id="gc-prewarm-pct" style="font-weight: 800;">0%</span>
+        </div>
+        <div style="width: 100%; height: 8px; border-radius: 999px; background: rgba(148, 163, 184, 0.22); overflow: hidden;">
+          <div id="gc-prewarm-bar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #f59e0b, #10b981); transition: width 0.25s ease;"></div>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+        <button type="button" id="btn-gc-prewarm" class="btn btn-primary btn-sm" style="flex: 1 1 200px; padding: 8px 12px; font-weight: 800; background: linear-gradient(135deg, #d97706, #059669); border: 1px solid rgba(251, 191, 36, 0.55); color: #fff;">
+          ⚡ โหลดแคชเกมล่วงหน้า (Pre-warm ~22 MB)
+        </button>
+        <button type="button" id="btn-gc-refresh" class="btn btn-ghost btn-sm" style="padding: 8px 12px; border: 1px solid rgba(148, 163, 184, 0.35); color: #cbd5e1;">
+          🔄 รีเฟรชสถานะ
+        </button>
+        <button type="button" id="btn-gc-clear" class="btn btn-danger btn-sm" style="padding: 8px 12px;">
+          🗑️ ล้างแคชทั้งหมด
+        </button>
+      </div>
+
+      <div style="font-size: 11px; color: #94a3b8; line-height: 1.5; background: rgba(15, 23, 42, 0.55); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; padding: 8px 11px;">
+        💡 <b>หลักการทำงาน:</b> ระบบจะเก็บไฟล์ตัวเกม (สคริปต์, ธีม, รูปภาพตัวละคร/มอนสเตอร์/แมพ, ฟอนต์ และเสียง) ไว้บนเครื่องครั้งเดียวแล้วแจกให้ทุกจอใช้งานร่วมกันโดยไม่ต้องโหลดซ้ำจากเซิร์ฟเวอร์ — เมื่อเกมออกแพทช์ใหม่ ระบบจะอัปเดตเฉพาะไฟล์ที่เปลี่ยนให้อัตโนมัติ ส่วนการล็อกอิน เลือกตัวละคร และการเชื่อมต่อเซิร์ฟเวอร์ยังคงทำงานสดกับเซิร์ฟเวอร์เกมตามปกติ 100%
       </div>
     </div>
   </div>

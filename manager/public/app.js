@@ -4543,13 +4543,18 @@ function renderScreenProxyModal(statusData) {
     cacheSavedEl.textContent = formatProxyBytes(ac.bytesSaved || 0);
   }
   if (cacheSavedSubEl) {
-    cacheSavedSubEl.textContent = `Hit ${(Number(ac.hits) || 0).toLocaleString()} ครั้ง (ดึงใหม่ ${(Number(ac.misses) || 0).toLocaleString()})`;
+    const hitPct = ac.hitRatePct != null ? ` · ${ac.hitRatePct}%` : "";
+    cacheSavedSubEl.textContent = `Hit ${(Number(ac.hits) || 0).toLocaleString()} ครั้ง (ดึงใหม่ ${(Number(ac.misses) || 0).toLocaleString()}${hitPct})`;
   }
   if (cacheFilesEl) {
     cacheFilesEl.textContent = `${(Number(ac.filesCount) || 0).toLocaleString()} ไฟล์`;
   }
   if (cacheFilesSubEl) {
-    cacheFilesSubEl.textContent = `ขนาดรวม ${formatProxyBytes(ac.diskBytes || 0)}`;
+    const ramNote = Number(ac.memoryBytes) > 0 ? ` · RAM ${formatProxyBytes(ac.memoryBytes)}` : "";
+    cacheFilesSubEl.textContent = `ขนาดรวม ${formatProxyBytes(ac.diskBytes || 0)}${ramNote}`;
+  }
+  if (typeof renderAssetCacheWidgets === "function") {
+    renderAssetCacheWidgets(ac);
   }
 
   const poolTextarea = document.getElementById("sp-pool-textarea");
@@ -4865,6 +4870,269 @@ function initScreenProxyControls() {
       }
     };
   }
+
+  // --- Shared Local Game Asset Cache Modal & Pre-warm Controls ---
+  let gameCachePollTimer = null;
+  let lastGameCacheWasRunning = false;
+
+  function renderAssetCacheWidgets(ac) {
+    if (!ac || typeof ac !== "object") return;
+    const enabled = ac.enabled !== false;
+    const filesCount = Number(ac.filesCount) || 0;
+    const diskBytes = Number(ac.diskBytes) || 0;
+    const memFiles = Number(ac.memoryFilesCount) || 0;
+    const memBytes = Number(ac.memoryBytes) || 0;
+    const hits = Number(ac.hits) || 0;
+    const misses = Number(ac.misses) || 0;
+    const hitRatePct = Number(ac.hitRatePct) || 0;
+    const bytesSaved = Number(ac.bytesSaved) || 0;
+    const pw = ac.prewarm || {};
+    const pwRunning = Boolean(pw.running);
+    const pwTotal = Number(pw.total) || 0;
+    const pwDone = Number(pw.completed) || 0;
+    const pwPct = pwTotal > 0 ? Math.min(100, Math.round((pwDone / pwTotal) * 100)) : (pwRunning ? 8 : 0);
+
+    const badge = document.getElementById("toolbar-game-cache-badge");
+    if (badge) {
+      if (!enabled) {
+        badge.textContent = "OFF";
+        badge.style.background = "rgba(100, 116, 139, 0.25)";
+        badge.style.color = "#94a3b8";
+        badge.style.borderColor = "rgba(148, 163, 184, 0.3)";
+      } else if (pwRunning) {
+        badge.textContent = `⏳ ${pwPct}%`;
+        badge.style.background = "rgba(245, 158, 11, 0.25)";
+        badge.style.color = "#fde68a";
+        badge.style.borderColor = "rgba(251, 191, 36, 0.45)";
+      } else if (filesCount > 0) {
+        badge.textContent = `${filesCount.toLocaleString()} ไฟล์`;
+        badge.style.background = "rgba(16, 185, 129, 0.22)";
+        badge.style.color = "#6ee7b7";
+        badge.style.borderColor = "rgba(52, 211, 153, 0.4)";
+      } else {
+        badge.textContent = "ON";
+        badge.style.background = "rgba(16, 185, 129, 0.22)";
+        badge.style.color = "#6ee7b7";
+        badge.style.borderColor = "rgba(52, 211, 153, 0.35)";
+      }
+    }
+
+    const gcToggle = document.getElementById("gc-enabled-toggle");
+    if (gcToggle) gcToggle.checked = enabled;
+    const spChk = document.getElementById("sp-local-asset-cache");
+    if (spChk && document.activeElement !== spChk) spChk.checked = enabled;
+
+    const gcPill = document.getElementById("gc-status-pill");
+    if (gcPill) {
+      gcPill.textContent = enabled ? "🟢 เปิดใช้งาน" : "⏸️ ปิดอยู่";
+      gcPill.style.background = enabled ? "rgba(16, 185, 129, 0.22)" : "rgba(100, 116, 139, 0.25)";
+      gcPill.style.color = enabled ? "#6ee7b7" : "#cbd5e1";
+      gcPill.style.borderColor = enabled ? "rgba(52, 211, 153, 0.45)" : "rgba(148, 163, 184, 0.35)";
+    }
+
+    const elFiles = document.getElementById("gc-stat-files");
+    const elDisk = document.getElementById("gc-stat-disk");
+    const elRam = document.getElementById("gc-stat-ram");
+    const elRamSub = document.getElementById("gc-stat-ram-sub");
+    const elHitRate = document.getElementById("gc-stat-hitrate");
+    const elHits = document.getElementById("gc-stat-hits");
+    const elSaved = document.getElementById("gc-stat-saved");
+    const elBuild = document.getElementById("gc-stat-build");
+    if (elFiles) elFiles.textContent = `${filesCount.toLocaleString()} ไฟล์`;
+    if (elDisk) elDisk.textContent = `ขนาดรวม ${formatProxyBytes(diskBytes)}`;
+    if (elRam) elRam.textContent = formatProxyBytes(memBytes);
+    if (elRamSub) elRamSub.textContent = `${memFiles.toLocaleString()} ไฟล์พร้อมเสิร์ฟทันที (<1 ms)`;
+    if (elHitRate) elHitRate.textContent = `${hitRatePct.toFixed(1)}%`;
+    if (elHits) elHits.textContent = `Hit ${hits.toLocaleString()} ครั้ง · ดึงใหม่ ${misses.toLocaleString()} ครั้ง`;
+    if (elSaved) elSaved.textContent = formatProxyBytes(bytesSaved);
+    if (elBuild) {
+      const bTag = ac.lastPrewarmBuild || ac.latestGameVersion?.build || "";
+      const vTag = ac.latestGameVersion?.version ? ` (v${ac.latestGameVersion.version})` : "";
+      elBuild.textContent = bTag ? `Build: ${bTag}${vTag}` : "Build: พร้อมแคชอัตโนมัติเมื่อเปิดเกม";
+    }
+
+    const pwText = pwRunning
+      ? (pw.phase === "discovering"
+          ? "🔍 กำลังตรวจสอบรายการไฟล์แพทช์ล่าสุดของเกม..."
+          : `⚡ กำลังโหลดแคชเกมล่วงหน้า (${pwDone.toLocaleString()}/${pwTotal.toLocaleString()} ไฟล์ · โหลดใหม่ ${Number(pw.downloaded || 0).toLocaleString()} · มีแล้ว ${Number(pw.cachedAlready || 0).toLocaleString()})`)
+      : (pw.phase === "done"
+          ? `✅ เตรียมแคชเสร็จสมบูรณ์ (${pwTotal.toLocaleString()} ไฟล์ · โหลดใหม่ ${Number(pw.downloaded || 0).toLocaleString()} · ใช้ของเดิม ${Number(pw.cachedAlready || 0).toLocaleString()})`
+          : (pw.phase === "error" ? `⚠️ เตรียมแคชขัดข้อง: ${pw.error || "Unknown"}` : ""));
+
+    const gcPwBox = document.getElementById("gc-prewarm-box");
+    const gcPwText = document.getElementById("gc-prewarm-text");
+    const gcPwPct = document.getElementById("gc-prewarm-pct");
+    const gcPwBar = document.getElementById("gc-prewarm-bar");
+    if (gcPwBox) gcPwBox.style.display = (pwRunning || pw.phase === "done" || pw.phase === "error") ? "flex" : "none";
+    if (gcPwText && pwText) gcPwText.textContent = pwText;
+    if (gcPwPct) gcPwPct.textContent = `${pwRunning ? pwPct : (pw.phase === "done" ? 100 : 0)}%`;
+    if (gcPwBar) gcPwBar.style.width = `${pwRunning ? pwPct : (pw.phase === "done" ? 100 : 0)}%`;
+
+    const spPwStrip = document.getElementById("sp-cache-prewarm-strip");
+    const spPwText = document.getElementById("sp-cache-prewarm-text");
+    const spPwPct = document.getElementById("sp-cache-prewarm-pct");
+    const spPwBar = document.getElementById("sp-cache-prewarm-bar");
+    if (spPwStrip) spPwStrip.style.display = (pwRunning || pw.phase === "done" || pw.phase === "error") ? "flex" : "none";
+    if (spPwText && pwText) spPwText.textContent = pwText;
+    if (spPwPct) spPwPct.textContent = `${pwRunning ? pwPct : (pw.phase === "done" ? 100 : 0)}%`;
+    if (spPwBar) spPwBar.style.width = `${pwRunning ? pwPct : (pw.phase === "done" ? 100 : 0)}%`;
+
+    const btnGcPrewarm = document.getElementById("btn-gc-prewarm");
+    const btnSpPrewarm = document.getElementById("btn-sp-prewarm-cache");
+    if (btnGcPrewarm) {
+      btnGcPrewarm.disabled = pwRunning;
+      btnGcPrewarm.textContent = pwRunning
+        ? `⏳ กำลังโหลดแคช... (${pwPct}%)`
+        : "⚡ โหลดแคชเกมล่วงหน้า (Pre-warm ~22 MB)";
+    }
+    if (btnSpPrewarm) {
+      btnSpPrewarm.disabled = pwRunning;
+      btnSpPrewarm.textContent = pwRunning ? `⏳ ${pwPct}%` : "⚡ โหลดแคชล่วงหน้า";
+    }
+
+    if (lastGameCacheWasRunning && !pwRunning && pw.phase === "done") {
+      showToast(`⚡ เตรียมแคชเกมเสร็จแล้ว! (${filesCount.toLocaleString()} ไฟล์ · ${formatProxyBytes(diskBytes)}) — เปิดจอต่อไปเข้าเกมไวทันที`, "success");
+    }
+    lastGameCacheWasRunning = pwRunning;
+    ensureGameCachePoll(pwRunning);
+  }
+  window.renderAssetCacheWidgets = renderAssetCacheWidgets;
+
+  function ensureGameCachePoll(shouldPoll) {
+    if (shouldPoll && !gameCachePollTimer) {
+      gameCachePollTimer = setInterval(() => {
+        refreshGameCacheStatus(true).catch(() => {});
+      }, 1200);
+    } else if (!shouldPoll && gameCachePollTimer) {
+      clearInterval(gameCachePollTimer);
+      gameCachePollTimer = null;
+    }
+  }
+
+  async function refreshGameCacheStatus(silent = false) {
+    try {
+      const res = await fetch(`${API_BASE}/api/asset-cache/status`).then(r => r.json());
+      if (res && res.success && res.assetCache) {
+        renderAssetCacheWidgets(res.assetCache);
+        const spSaved = document.getElementById("sp-stat-cache-saved");
+        const spSavedSub = document.getElementById("sp-stat-cache-saved-sub");
+        const spFiles = document.getElementById("sp-stat-cache-files");
+        const spFilesSub = document.getElementById("sp-stat-cache-files-sub");
+        const ac = res.assetCache;
+        if (spSaved) spSaved.textContent = formatProxyBytes(ac.bytesSaved || 0);
+        if (spSavedSub) spSavedSub.textContent = `Hit ${(Number(ac.hits) || 0).toLocaleString()} ครั้ง (ดึงใหม่ ${(Number(ac.misses) || 0).toLocaleString()} · ${ac.hitRatePct || 0}%)`;
+        if (spFiles) spFiles.textContent = `${(Number(ac.filesCount) || 0).toLocaleString()} ไฟล์`;
+        if (spFilesSub) {
+          const ramNote = Number(ac.memoryBytes) > 0 ? ` · RAM ${formatProxyBytes(ac.memoryBytes)}` : "";
+          spFilesSub.textContent = `ขนาดรวม ${formatProxyBytes(ac.diskBytes || 0)}${ramNote}`;
+        }
+        return ac;
+      }
+    } catch (e) {
+      if (!silent) showToast("❌ โหลดสถานะแคชไม่สำเร็จ: " + e.message, "error");
+    }
+    return null;
+  }
+
+  async function toggleGameCacheEnabled(nextEnabled) {
+    try {
+      const res = await fetch(`${API_BASE}/api/asset-cache/toggle`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: Boolean(nextEnabled) })
+      }).then(r => r.json());
+      if (res && res.success) {
+        if (res.assetCache) renderAssetCacheWidgets(res.assetCache);
+        showToast(
+          res.enabled
+            ? "⚡ เปิดระบบแคชไฟล์เกมในเครื่องแล้ว — ทุกจอทั้งเน็ตบ้านและ Proxy จะโหลดไฟล์เกมจากเครื่องทันที"
+            : "⏸️ ปิดระบบแคชไฟล์เกมในเครื่องแล้ว",
+          res.enabled ? "success" : "info"
+        );
+      }
+    } catch (e) {
+      showToast("❌ เปลี่ยนสถานะแคชไม่สำเร็จ: " + e.message, "error");
+    }
+  }
+
+  async function startGameCachePrewarm() {
+    try {
+      const res = await fetch(`${API_BASE}/api/asset-cache/prewarm`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ concurrency: 14, enable: true })
+      }).then(r => r.json());
+      if (res && res.success) {
+        lastGameCacheWasRunning = true;
+        if (res.assetCache) renderAssetCacheWidgets(res.assetCache);
+        ensureGameCachePoll(true);
+        showToast("⚡ เริ่มโหลดไฟล์เกมเริ่มต้นลงแคชในเครื่องแล้ว (รอสักครู่ ~5–15 วินาที)", "info");
+      } else {
+        showToast("❌ เริ่มโหลดแคชล่วงหน้าไม่สำเร็จ: " + (res?.error || "Unknown"), "error");
+      }
+    } catch (e) {
+      showToast("❌ เริ่มโหลดแคชล่วงหน้าไม่สำเร็จ: " + e.message, "error");
+    }
+  }
+
+  async function clearGameCache() {
+    if (!confirm("ต้องการล้างไฟล์แคชเกมทั้งหมดบนเครื่องหรือไม่?\n(หลังจากล้างแล้ว ระบบจะดาวน์โหลดไฟล์ใหม่เมื่อเปิดจอหรือกดโหลดแคชล่วงหน้า)")) {
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/api/asset-cache/clear`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}"
+      }).then(r => r.json());
+      if (res && res.success) {
+        if (res.assetCache) renderAssetCacheWidgets(res.assetCache);
+        showToast(`🗑️ ล้างแคชเกมแล้ว ${(res.removedFiles || 0).toLocaleString()} ไฟล์ (${formatProxyBytes(res.removedBytes || 0)})`, "success");
+      } else {
+        showToast("❌ ล้างแคชไม่สำเร็จ: " + (res?.error || "Unknown"), "error");
+      }
+    } catch (e) {
+      showToast("❌ ล้างแคชไม่สำเร็จ: " + e.message, "error");
+    }
+  }
+
+  function openGameCacheModal() {
+    const m = document.getElementById("game-cache-modal");
+    if (!m) return;
+    m.style.display = "flex";
+    refreshGameCacheStatus(true);
+  }
+  function closeGameCacheModal() {
+    const m = document.getElementById("game-cache-modal");
+    if (m) m.style.display = "none";
+  }
+
+  const btnOpenGcModal = document.getElementById("btn-open-game-cache-modal");
+  if (btnOpenGcModal) btnOpenGcModal.onclick = openGameCacheModal;
+  const btnGcClose = document.getElementById("btn-gc-close");
+  if (btnGcClose) btnGcClose.onclick = closeGameCacheModal;
+  const gcModalEl = document.getElementById("game-cache-modal");
+  if (gcModalEl) {
+    gcModalEl.addEventListener("click", (e) => {
+      if (e.target === gcModalEl) closeGameCacheModal();
+    });
+  }
+  const gcEnabledToggle = document.getElementById("gc-enabled-toggle");
+  if (gcEnabledToggle) gcEnabledToggle.onchange = () => toggleGameCacheEnabled(gcEnabledToggle.checked);
+  const btnGcPrewarm = document.getElementById("btn-gc-prewarm");
+  if (btnGcPrewarm) btnGcPrewarm.onclick = startGameCachePrewarm;
+  const btnGcRefresh = document.getElementById("btn-gc-refresh");
+  if (btnGcRefresh) btnGcRefresh.onclick = () => refreshGameCacheStatus(false);
+  const btnGcClear = document.getElementById("btn-gc-clear");
+  if (btnGcClear) btnGcClear.onclick = clearGameCache;
+
+  const btnSpPrewarm = document.getElementById("btn-sp-prewarm-cache");
+  if (btnSpPrewarm) btnSpPrewarm.onclick = startGameCachePrewarm;
+  const btnSpClear = document.getElementById("btn-sp-clear-cache");
+  if (btnSpClear) btnSpClear.onclick = clearGameCache;
+
+  // Initial toolbar badge sync
+  setTimeout(() => { refreshGameCacheStatus(true).catch(() => {}); }, 800);
 
   const btnToggleMain = document.getElementById("btn-screen-proxy-toggle-main");
   if (btnToggleMain) {
@@ -9874,6 +10142,10 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
         <input type="checkbox" id="p-central-auth-resume" ${savedResume ? 'checked' : ''} style="accent-color:#22c55e;">
         <span>เริ่มทำงานบอทต่อทันทีเมื่อ Login สำเร็จ (Auto-Resume)</span>
       </label>
+      <label style="display:flex; align-items:center; gap:6px; font-size:10.5px; color:#fde047; cursor:pointer;" title="เมื่อเกมออกแพทช์ใหม่หรือขึ้นป้าย 'ต้องอัปเดตเกมก่อนเล่นต่อ' บอทจะกด 'อัปเดตตอนนี้' รีโหลดและกลับเข้าตัวละครเดิมให้อัตโนมัติทุกจอ">
+        <input type="checkbox" id="p-central-auto-update-game" ${state?.autoUpdateGame !== false ? 'checked' : ''} style="accent-color:#eab308;">
+        <span>🔄 อัปเดตเกมอัตโนมัติทุกจอ (Auto-Update เมื่อเกมออกแพทช์ใหม่)</span>
+      </label>
       <button type="button" class="p-btn" id="p-btn-central-apply-auth" style="width:100%; background:#6d28d9; border:1px solid #a855f7; color:#fff; font-size:11px; font-weight:700; padding:7px; border-radius:6px; cursor:pointer;">💾 บันทึกการตั้งค่าไปยังทุกจอที่ออนไลน์</button>
       <button type="button" class="p-btn" id="p-btn-central-test-login" style="width:100%; background:linear-gradient(135deg,#9333ea,#7e22ce); border:1px solid #c084fc; color:#fff; font-size:11px; font-weight:700; padding:8px; border-radius:6px; cursor:pointer;">🔑 ทดสอบเข้าสู่ระบบทันทีทุกจอ (Test Login)</button>
     </div>
@@ -9910,6 +10182,10 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
       <label style="display:flex; align-items:center; gap:6px; font-size:10px; color:#4ade80; cursor:pointer;">
         <input type="checkbox" id="p-auth-resume" ${savedResume ? 'checked' : ''} style="accent-color:#22c55e;">
         <span>เริ่มทำงานบอทต่อทันทีเมื่อ Login สำเร็จ (Auto-Resume)</span>
+      </label>
+      <label style="display:flex; align-items:center; gap:6px; font-size:10px; color:#fde047; cursor:pointer;" title="เมื่อเกมออกแพทช์ใหม่หรือขึ้นป้าย 'ต้องอัปเดตเกมก่อนเล่นต่อ' บอทจะกด 'อัปเดตตอนนี้' รีโหลดและกลับเข้าตัวละครเดิมให้อัตโนมัติ">
+        <input type="checkbox" id="p-auto-update-game" ${state?.autoUpdateGame !== false ? 'checked' : ''} style="accent-color:#eab308;">
+        <span>🔄 อัปเดตเกมอัตโนมัติ (Auto-Update เมื่อเกมออกแพทช์ใหม่)</span>
       </label>
       <button type="button" class="p-btn" id="p-btn-test-login" style="width:100%; margin-top:2px; background:linear-gradient(135deg,#9333ea,#7e22ce); border:1px solid #c084fc; color:#fff; font-size:11px; font-weight:700; padding:8px; border-radius:6px; cursor:pointer;">🔑 บันทึก & ทดสอบ Login ทันที</button>
     </div>
@@ -10303,6 +10579,35 @@ async function openWebBotHUD(profileId) {
       centralAuthResCb.indeterminate = false;
       centralAuthResCb.dataset.ncCentralDirtyUntil = String(Date.now() + 3500);
       applyCentralAuthSettings(hudEl, { patchOnly: { autoResumeBot: Boolean(centralAuthResCb.checked) } });
+    });
+  }
+
+  const centralAutoUpdCb = hudEl.querySelector('#p-central-auto-update-game');
+  if (centralAutoUpdCb) {
+    centralAutoUpdCb.addEventListener('change', async () => {
+      centralAutoUpdCb.indeterminate = false;
+      centralAutoUpdCb.dataset.ncCentralDirtyUntil = String(Date.now() + 3500);
+      const val = Boolean(centralAutoUpdCb.checked);
+      try {
+        await sendWebHudAction('__central__', {
+          type: 'eval',
+          code: `(typeof window.__setAutoUpdateGame === 'function' ? window.__setAutoUpdateGame(${val}) : (window.__autoUpdateGameEnabled = ${val}))`
+        });
+      } catch (_) {}
+      showToast(val ? '🔄 เปิดอัปเดตเกมอัตโนมัติทุกจอที่ออนไลน์แล้ว' : '⏸️ ปิดอัปเดตเกมอัตโนมัติทุกจอแล้ว', 'info');
+    });
+  }
+
+  const singleAutoUpdCb = hudEl.querySelector('#p-auto-update-game');
+  if (singleAutoUpdCb && !isCentral) {
+    singleAutoUpdCb.addEventListener('change', async () => {
+      const val = Boolean(singleAutoUpdCb.checked);
+      try {
+        await sendWebHudAction(profileId, {
+          type: 'eval',
+          code: `(typeof window.__setAutoUpdateGame === 'function' ? window.__setAutoUpdateGame(${val}) : (window.__autoUpdateGameEnabled = ${val}))`
+        });
+      } catch (_) {}
     });
   }
 
@@ -11341,7 +11646,8 @@ const CENTRAL_HUD_FIELD_SPECS = [
   ['#p-nc-trainer-pull-item', 'bool', st => Boolean(st.trainerConfig?.pullItemEnabled)],
   ['#p-nc-trainer-pull-item-rush', 'bool', st => st.trainerConfig?.pullItemRush !== false],
   ['#p-central-auth-enabled', 'bool', st => st.authConfig?.enabled !== false],
-  ['#p-central-auth-resume', 'bool', st => Boolean(st.authConfig?.autoResumeBot)]
+  ['#p-central-auth-resume', 'bool', st => Boolean(st.authConfig?.autoResumeBot)],
+  ['#p-central-auto-update-game', 'bool', st => st.autoUpdateGame !== false]
 ];
 
 function syncCentralHudMixedStates(hud) {
@@ -11724,6 +12030,7 @@ function populateWebHudData(profileId, data) {
     setField('#p-auth-pass', resolvedPass, false);
     setField('#p-auth-char', resolvedChar, false);
     setField('#p-auth-resume', resolvedResume, true);
+    setField('#p-auto-update-game', st.autoUpdateGame !== false, true);
   }
 }
 
