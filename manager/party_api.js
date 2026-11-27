@@ -1420,8 +1420,8 @@ function createPartyService(opts) {
         leaderMap || (anchorSnap && anchorSnap.mapName)
       );
 
-      // When any party member returns from selling items / death / town to the farm map and selects/moves to the least-populated CH,
-      // lock the party onto that channel and pull all other party members on the farm map (including Leader & Priest) to follow.
+      // When any party member settles its channel right inside Camp (pre-departure) OR returns from selling to the farm map,
+      // adopt that settled channel immediately so teammates sync in Camp BEFORE departing and Anchor is NEVER yanked back to Camp!
       let triggeredByPostSell = false;
       if (partyChannelCheckEnabled) {
         let latestSwitch = null;
@@ -1429,31 +1429,38 @@ function createPartyService(opts) {
           const S = states.get(id);
           if (!S || !S.ok || !S.name) continue;
           if (id !== party.leaderId && !inGame.has(S.name)) continue;
-          if (!S.mapId || isCityMapName(S.mapName)) continue;
-          const onPartyFarmMap = !leaderMap || (S.mapName && S.mapName.includes(leaderMap)) || (anchorSnap && S.mapId === anchorSnap.mapId);
-          if (!onPartyFarmMap) continue;
           const sw = S.lastPostSellChannelSwitch;
           if (!sw || typeof sw.channel !== 'number' || typeof sw.at !== 'number') continue;
           if (S.pkChannel) continue;
-          if (sw.at <= (rt.lastPostSellFollowAt || 0)) continue;
           if (now() - sw.at > 180000) continue;
           if (S.channel !== sw.channel) continue;
-          if (sw.mapId && S.mapId !== sw.mapId) continue;
           if (avoidChannels.includes(sw.channel)) continue;
+          const isCampPreDepart = Boolean(S.mapId === 'camp' && id === anchorId && sw.mapId && (!leaderMapId || sw.mapId === leaderMapId));
+          const onPartyFarmMap = Boolean(S.mapId && !isCityMapName(S.mapName) && (!leaderMap || (S.mapName && S.mapName.includes(leaderMap)) || (anchorSnap && S.mapId === anchorSnap.mapId) || (leaderMapId && S.mapId === leaderMapId)));
+          if (!onPartyFarmMap && !isCampPreDepart) continue;
+          if (!isCampPreDepart && sw.mapId && S.mapId !== sw.mapId) continue;
+          // If Anchor already settled this exact (mapId, channel) in Camp right before departing, honor it silently so `needsInitialChannelCheck` does NOT bounce Anchor back to Camp!
+          if (id === anchorId && onPartyFarmMap && sw.mapId === S.mapId && rt.settledMapId !== S.mapId) {
+            rt.settledMapId = S.mapId;
+            rt.settledChannel = sw.channel;
+            rt.settledChannelAt = sw.at || now();
+            rt.lastPostSellFollowAt = Math.max(rt.lastPostSellFollowAt || 0, sw.at);
+          }
+          if (sw.at <= (rt.lastPostSellFollowAt || 0)) continue;
           if (!latestSwitch || sw.at > latestSwitch.sw.at) {
-            latestSwitch = { id, snap: S, sw };
+            latestSwitch = { id, snap: S, sw, targetMapId: isCampPreDepart ? sw.mapId : S.mapId };
           }
         }
         if (latestSwitch) {
           rt.lastPostSellFollowAt = latestSwitch.sw.at;
-          rt.settledMapId = latestSwitch.snap.mapId;
+          rt.settledMapId = latestSwitch.targetMapId;
           rt.settledChannel = latestSwitch.sw.channel;
           rt.settledChannelAt = latestSwitch.sw.at || now();
           rt.settledByMemberName = latestSwitch.snap.name;
           anchorId = latestSwitch.id;
           anchorSnap = latestSwitch.snap;
           triggeredByPostSell = true;
-          log('post-sell-ch-follow', latestSwitch.snap.name, 'selected CH', latestSwitch.sw.channel, 'on', latestSwitch.snap.mapId);
+          log('post-sell-ch-follow', latestSwitch.snap.name, 'selected CH', latestSwitch.sw.channel, 'on', latestSwitch.targetMapId);
         }
       }
 
@@ -2123,6 +2130,26 @@ function createPartyService(opts) {
       const isOverlapped = Boolean((onFarm || inCampWithTarget) && typeof S.channel === 'number' && syncAvoidInfo.avoidChannels.includes(S.channel));
 
       if (!onFarm) {
+        const swCamp = S.lastPostSellChannelSwitch;
+        const freshCampSettlement = Boolean(
+          inCampWithTarget &&
+          campTargetMapId &&
+          !S.pkChannel &&
+          typeof S.channel === 'number' &&
+          swCamp &&
+          swCamp.mapId === campTargetMapId &&
+          swCamp.channel === S.channel &&
+          typeof swCamp.at === 'number' &&
+          (now() - swCamp.at <= 120000) &&
+          !isOverlapped &&
+          !hasPendingSpread
+        );
+        if (freshCampSettlement) {
+          rt.settledMapId = campTargetMapId;
+          rt.settledChannel = S.channel;
+          rt.settledChannelAt = swCamp.at;
+          rt.lastSwitchSeenAt = Math.max(rt.lastSwitchSeenAt || 0, swCamp.at);
+        }
         const keepCampReservation = Boolean(
           inCampWithTarget &&
           rt.settledMapId &&
@@ -2140,8 +2167,9 @@ function createPartyService(opts) {
       } else if (!S.pkChannel && typeof S.channel === 'number') {
         const sw = S.lastPostSellChannelSwitch;
         const swAt = (sw && sw.channel === S.channel && (!sw.mapId || sw.mapId === S.mapId) && typeof sw.at === 'number') ? sw.at : 0;
-        if (swAt && swAt > (rt.lastSwitchSeenAt || 0)) {
-          rt.lastSwitchSeenAt = swAt;
+        const swFreshForThisMap = Boolean(swAt && (now() - swAt <= 150000) && !isOverlapped && !hasPendingSpread);
+        if ((swAt && swAt > (rt.lastSwitchSeenAt || 0)) || (swFreshForThisMap && rt.settledMapId !== S.mapId)) {
+          rt.lastSwitchSeenAt = Math.max(rt.lastSwitchSeenAt || 0, swAt);
           if (!isOverlapped && !hasPendingSpread) {
             rt.settledMapId = S.mapId;
             rt.settledChannel = S.channel;
