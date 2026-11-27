@@ -31,8 +31,10 @@
   let cachedSurchargeConfig = JSON.parse(JSON.stringify(DEFAULT_SURCHARGE_CFG));
 
   let rotatingGroups = new Set();
+  let rotatingProfiles = new Set();
   let rotatingCustomDevices = new Set();
   let rotatingAll = false;
+  let rotatingStuck = false;
   let rotatingIpBlocks = new Set();
   let rotatingCustomIps = new Set();
   let rotatingAllIps = false;
@@ -193,6 +195,7 @@
             deviceId: g.deviceId || (members[0].profile && members[0].profile.deviceId) || '-',
             machineId: g.machineId || (members[0].profile && members[0].profile.machineId) || '',
             maxScreens: Number(g.maxScreens) || MAX_SCREENS_PER_DEVICE,
+            isIsolated: Boolean(g.isIsolated),
             members
           });
         }
@@ -391,6 +394,7 @@
         </div>
         <div class="dv-header-actions">
           <button type="button" class="dv-btn dv-btn-reip-header" id="dv-reip-all-btn" title="หา IP ว่างชุดใหม่ในระบบแล้วสลับให้ทุกวง IP ที่เปิดใช้งานอยู่พร้อมกัน">🔄 Re-IP ทุกวง</button>
+          <button type="button" class="dv-btn" id="dv-rotate-stuck-btn" title="สุ่มเลข Device ID ใหม่เฉพาะจอที่ติดจำกัด 2 จอ / ติดคุก / โดนแบน (ไม่กระทบจอปกติที่ฟาร์มอยู่)" style="border-color:rgba(251,191,36,0.5);background:rgba(245,158,11,0.16);color:#fde68a;">🎯 Random จอที่ติด</button>
           <button type="button" class="dv-btn dv-btn-primary" id="dv-rotate-all-btn" title="สุ่มเลข Device ID และ Machine ID ใหม่ให้ทุกกลุ่มอัตโนมัติพร้อมกัน">🎲 Random ทุกกลุ่ม</button>
           <button type="button" class="dv-btn" id="dv-close-btn" title="ปิดแถบ (Esc)">✕</button>
         </div>
@@ -496,6 +500,7 @@
     document.body.appendChild(drawer);
 
     document.getElementById('dv-close-btn').addEventListener('click', () => setOpen(false));
+    document.getElementById('dv-rotate-stuck-btn').addEventListener('click', () => rotateStuckProfiles());
     document.getElementById('dv-rotate-all-btn').addEventListener('click', () => rotateAllGroups());
     document.getElementById('dv-reip-all-btn').addEventListener('click', () => reIpAllRings());
 
@@ -643,6 +648,100 @@
         cardEl.classList.remove('jail-card-focus-pulse');
       }, 2600);
     }, 120);
+  }
+
+  function getProfileStuckInfo(p) {
+    if (!p || typeof p !== 'object') return null;
+    const st = p.isRunning ? p.liveState : null;
+    if (st && st.screenPhase !== 'in_game') {
+      const msg = [st.screenDetail, st.screenError, st.screenPhaseLabel, st.botStatus].filter(Boolean).join(' ');
+      if (st.screenPhase === 'char_select_limit' || /เครื่องนี้เปิดเกมครบ|เครื่องนี้เล่นพร้อมกันได้สูงสุด|ออกจากตัวละครอื่นก่อน|already has \d+ game windows/i.test(msg)) {
+        return { kind: 'limit', label: '⚠️ ติดจำกัด 2 จอ', color: '#fde047', bg: 'rgba(245,158,11,0.2)', border: 'rgba(251,191,36,0.55)' };
+      }
+    }
+    if (p.isBanned || (st && st.accountBanned)) {
+      return { kind: 'banned', label: '🚫 แบน', color: '#fca5a5', bg: 'rgba(239,68,68,0.2)', border: 'rgba(248,113,113,0.55)' };
+    }
+    if (p.isJailed || (st && st.charSelectInJail)) {
+      return { kind: 'jailed', label: '🔒 ติดคุก', color: '#fdba74', bg: 'rgba(249,115,22,0.2)', border: 'rgba(251,146,60,0.55)' };
+    }
+    return null;
+  }
+
+  async function rotateSingleProfile(profileId, event) {
+    if (event) event.stopPropagation();
+    const pid = String(profileId || '').trim();
+    if (!pid || rotatingProfiles.has(pid) || rotatingAll || rotatingStuck) return;
+    rotatingProfiles.add(pid);
+    renderDrawerList(true);
+    try {
+      const res = await fetch(`/api/profiles/${encodeURIComponent(pid)}/rotate-device-id`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reloadIfStuck: true })
+      });
+      const data = await res.json();
+      if (!data || !data.success) {
+        throw new Error((data && data.error) || 'Rotate profile device failed');
+      }
+      if (Array.isArray(data.deviceGroups)) cachedGroups = data.deviceGroups;
+      if (data.customIpConfig) cachedCustomConfig = data.customIpConfig;
+      const list = typeof currentProfiles !== 'undefined' && Array.isArray(currentProfiles) ? currentProfiles : cachedProfiles;
+      const target = list.find(p => p && p.id === pid);
+      if (target && data.deviceId) {
+        target.deviceId = data.deviceId;
+        if (data.machineId) target.machineId = data.machineId;
+      }
+      if (typeof fetchProfiles === 'function') fetchProfiles();
+      if (typeof showToast === 'function') {
+        const shortDev = data.deviceId ? data.deviceId.slice(0, 8) + '...' : '';
+        showToast(`🎲 สุ่มเลข Device ใหม่เฉพาะ "${target?.name || pid}" เรียบร้อย (${shortDev}) · แยกเดี่ยวไม่กระทบจออื่น`, 'success');
+      }
+    } catch (e) {
+      if (typeof showToast === 'function') {
+        showToast(`❌ สุ่ม Device เฉพาะจอไม่สำเร็จ: ${e.message}`, 'error');
+      }
+    } finally {
+      rotatingProfiles.delete(pid);
+      renderDrawerList(true);
+    }
+  }
+
+  async function rotateStuckProfiles() {
+    if (rotatingStuck || rotatingAll) return;
+    rotatingStuck = true;
+    renderDrawerList(true);
+    try {
+      const res = await fetch('/api/device-groups/rotate-stuck', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      const data = await res.json();
+      if (!data || !data.success) {
+        throw new Error((data && data.error) || 'Rotate stuck failed');
+      }
+      if (Array.isArray(data.deviceGroups)) cachedGroups = data.deviceGroups;
+      if (data.customIpConfig) cachedCustomConfig = data.customIpConfig;
+      const rotated = Array.isArray(data.rotatedProfiles) ? data.rotatedProfiles : [];
+      if (typeof fetchProfiles === 'function') fetchProfiles();
+      if (typeof showToast === 'function') {
+        if (rotated.length === 0) {
+          showToast('✅ ไม่พบจอที่ติดจำกัด 2 จอ / ติดคุก / Device ซ้ำในขณะนี้ครับ', 'info');
+        } else {
+          const names = rotated.slice(0, 4).map(x => x.name || x.id).join(', ');
+          const extra = rotated.length > 4 ? ` และอีก ${rotated.length - 4} จอ` : '';
+          showToast(`🎯 สุ่มเลข Device ใหม่เฉพาะจอที่ติด ${rotated.length} จอ (${names}${extra}) เรียบร้อย · ไม่กระทบจออื่น!`, 'success');
+        }
+      }
+    } catch (e) {
+      if (typeof showToast === 'function') {
+        showToast(`❌ สุ่มเฉพาะจอที่ติดไม่สำเร็จ: ${e.message}`, 'error');
+      }
+    } finally {
+      rotatingStuck = false;
+      renderDrawerList(true);
+    }
   }
 
   async function rotateSingleGroup(groupIndex, event) {
@@ -1232,6 +1331,8 @@
                     const accountId = p.account || (state && state.username) || 'ยังไม่ตั้งไอดี';
                     const portrait = (typeof getPortraitSrc === 'function') ? getPortraitSrc(p, state) : '';
                     const isOnline = Boolean(p.isRunning);
+                    const stuckInfo = getProfileStuckInfo(p);
+                    const isRotProf = rotatingProfiles.has(p.id) || rotatingStuck;
                     return `
                       <div class="dv-member-row ${isOnline ? 'is-online' : ''}" data-profile-id="${esc(p.id)}" title="คลิกเพื่อเลื่อนไปหาการ์ดของ ${esc(p.name)}">
                         <div class="dv-member-left">
@@ -1243,6 +1344,7 @@
                             <div class="dv-member-title">
                               <span>${esc(p.name || p.id)}</span>
                               ${found ? `<span style="font-size:10px;color:#64748b;font-family:'JetBrains Mono',monospace;">#${found.orderIndex}</span>` : ''}
+                              ${stuckInfo ? `<span style="font-size:10px;padding:1px 6px;border-radius:999px;background:${stuckInfo.bg};color:${stuckInfo.color};border:1px solid ${stuckInfo.border};font-weight:700;">${stuckInfo.label}</span>` : ''}
                             </div>
                             <div class="dv-member-sub">
                               <span>🆔 <b class="dv-member-account">${esc(accountId)}</b></span>
@@ -1250,8 +1352,9 @@
                             </div>
                           </div>
                         </div>
-                        <div class="dv-member-right">
+                        <div class="dv-member-right" style="display:flex;align-items:center;gap:5px;">
                           <span class="dv-status-dot ${isOnline ? 'online' : 'offline'}">${isOnline ? '🟢 ออนไลน์' : '⚪ ออฟไลน์'}</span>
+                          <button type="button" class="dv-btn dv-btn-xs" data-rotate-profile="${esc(p.id)}" ${isRotProf ? 'disabled' : ''} title="สุ่มเลข Device ใหม่เฉพาะจอนี้ (แยกเดี่ยว ไม่กระทบจออื่น)" style="padding:2px 6px;font-size:10.5px;${stuckInfo ? 'border-color:rgba(251,191,36,0.65);background:rgba(245,158,11,0.2);color:#fde68a;' : ''}">${isRotProf ? '⏳' : '🎲'}</button>
                           <button type="button" class="dv-remove-member-btn" data-remove-custom-pid="${esc(p.id)}" title="ถอดจอนี้ออกจากวงพิเศษ (กลับเข้ากลุ่มอัตโนมัติ)">✕ ถอดออก</button>
                         </div>
                       </div>
@@ -1523,6 +1626,14 @@
       });
     });
 
+    bodyEl.querySelectorAll('[data-rotate-profile]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const pid = btn.getAttribute('data-rotate-profile');
+        if (pid) rotateSingleProfile(pid, e);
+      });
+    });
+
     bodyEl.querySelectorAll('[data-remove-custom-pid]').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -1580,6 +1691,7 @@
     const sumGroups = document.getElementById('dv-summary-groups');
     const sumProfiles = document.getElementById('dv-summary-profiles');
     const sumOnline = document.getElementById('dv-summary-online');
+    const rotateStuckBtn = document.getElementById('dv-rotate-stuck-btn');
     const rotateAllBtn = document.getElementById('dv-rotate-all-btn');
     const reIpAllBtn = document.getElementById('dv-reip-all-btn');
     const headerTitleEl = document.getElementById('dv-header-title-text');
@@ -1714,6 +1826,17 @@
       `;
     }
 
+    const stuckCount = list.filter(p => Boolean(getProfileStuckInfo(p))).length;
+    if (rotateStuckBtn) {
+      rotateStuckBtn.classList.toggle('dv-hidden', activeTab === 'unban');
+      rotateStuckBtn.disabled = rotatingStuck || rotatingAll || list.length === 0;
+      rotateStuckBtn.textContent = rotatingStuck
+        ? '⏳ กำลังสุ่มจอที่ติด...'
+        : (stuckCount > 0 ? `🎯 Random จอที่ติด (${stuckCount})` : '🎯 Random จอที่ติด');
+      rotateStuckBtn.style.borderColor = stuckCount > 0 ? 'rgba(248,113,113,0.75)' : 'rgba(251,191,36,0.45)';
+      rotateStuckBtn.style.background = stuckCount > 0 ? 'rgba(239,68,68,0.22)' : 'rgba(245,158,11,0.12)';
+      rotateStuckBtn.style.color = stuckCount > 0 ? '#fecaca' : '#fde68a';
+    }
     if (rotateAllBtn) {
       rotateAllBtn.classList.toggle('dv-hidden', activeTab === 'custom' || activeTab === 'unban');
       rotateAllBtn.disabled = rotatingAll || totalAutoGroups === 0;
@@ -1822,6 +1945,8 @@
           const portrait = (typeof getPortraitSrc === 'function') ? getPortraitSrc(p, state) : '';
           const isOnline = Boolean(p.isRunning);
           const ipSlotNo = (grp.ipSlotStart || 1) + slotIdx;
+          const stuckInfo = getProfileStuckInfo(p);
+          const isRotProf = rotatingProfiles.has(p.id) || rotatingStuck;
 
           return `
             <div class="dv-member-row ${isOnline ? 'is-online' : ''}" data-profile-id="${esc(p.id)}" title="คลิกเพื่อเลื่อนไปยังการ์ดของ ${esc(p.name)}">
@@ -1837,6 +1962,7 @@
                   <div class="dv-member-title">
                     <span>${esc(p.name || p.id)}</span>
                     <span style="font-size:10px;color:#64748b;font-family:'JetBrains Mono',monospace;">#${m.orderIndex}</span>
+                    ${stuckInfo ? `<span style="font-size:10px;padding:1px 6px;border-radius:999px;background:${stuckInfo.bg};color:${stuckInfo.color};border:1px solid ${stuckInfo.border};font-weight:700;">${stuckInfo.label}</span>` : ''}
                   </div>
                   <div class="dv-member-sub">
                     <span>🆔 <b class="dv-member-account">${esc(accountId)}</b></span>
@@ -1844,8 +1970,9 @@
                   </div>
                 </div>
               </div>
-              <div class="dv-member-right">
+              <div class="dv-member-right" style="display:flex;align-items:center;gap:5px;">
                 <span class="dv-status-dot ${isOnline ? 'online' : 'offline'}">${isOnline ? '🟢 ออนไลน์' : '⚪ ออฟไลน์'}</span>
+                <button type="button" class="dv-btn dv-btn-xs" data-rotate-profile="${esc(p.id)}" ${isRotProf ? 'disabled' : ''} title="สุ่มเลข Device ใหม่เฉพาะจอนี้ (แยกเดี่ยว ไม่กระทบจออื่น)" style="padding:2px 6px;font-size:10.5px;${stuckInfo ? 'border-color:rgba(251,191,36,0.65);background:rgba(245,158,11,0.2);color:#fde68a;' : ''}">${isRotProf ? '⏳' : '🎲'}</button>
               </div>
             </div>
           `;
@@ -1858,6 +1985,7 @@
                 <span class="dv-group-title-badge">${grpPlat === 'android' ? '📱' : '🖥️'} Group #${gIdx}</span>
                 <span class="dv-group-subdevice-badge">Device ${grp.deviceIndexInIp}/${grp.devicesPerIp}</span>
                 <span class="dv-group-slots-badge">${grp.members.length} / ${grp.maxScreens} จอ</span>
+                ${grp.isIsolated ? `<span style="font-size:10px;padding:2px 7px;border-radius:999px;background:rgba(16,185,129,0.18);border:1px solid rgba(52,211,153,0.45);color:#6ee7b7;font-weight:700;">🔒 แยกเฉพาะจอ</span>` : ''}
                 ${onlineInGroup > 0 ? `<span class="dv-group-online-badge">🟢 ออนไลน์ ${onlineInGroup} จอ</span>` : ''}
               </div>
               <div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap;">
@@ -1937,6 +2065,14 @@
         const curIp = btn.getAttribute('data-reip-cur-ip') || '';
         const curId = btn.getAttribute('data-reip-cur-id') || '';
         reIpAutoBlock(ipIdx, pids, curIp, curId, e);
+      });
+    });
+
+    bodyEl.querySelectorAll('[data-rotate-profile]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const pid = btn.getAttribute('data-rotate-profile');
+        if (pid) rotateSingleProfile(pid, e);
       });
     });
 

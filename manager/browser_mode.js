@@ -719,13 +719,20 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
         }
       }
       const devKey = `pelican_${profileId}__aetheria_device`;
+      const ncDevKey = `pelican_${profileId}__nc__nightcamp.online.device`;
       const incomingDev = typeof entries[devKey] === 'string' ? entries[devKey].trim() : '';
+      let effectiveDev = '';
       if (profileDeviceIds.has(profileId)) {
-        merged[devKey] = profileDeviceIds.get(profileId);
+        effectiveDev = profileDeviceIds.get(profileId);
+        merged[devKey] = effectiveDev;
       } else if (UUID_V4_RE.test(incomingDev)) {
+        effectiveDev = incomingDev;
         profileDeviceIds.set(profileId, incomingDev);
         usedDeviceIds.add(incomingDev.toLowerCase());
         merged[devKey] = incomingDev;
+      }
+      if (effectiveDev) {
+        merged[ncDevKey] = JSON.stringify(String(effectiveDev).replace(/-/g, ''));
       }
       const machKey = `pelican_${profileId}__aetheria_machine`;
       const incomingMach = typeof entries[machKey] === 'string' ? entries[machKey].trim().toLowerCase() : '';
@@ -741,13 +748,56 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
     } catch (_) {}
   }
 
-  function mintUniqueDeviceId() {
-    let cand = '';
-    do {
-      cand = crypto.randomUUID();
-    } while (usedDeviceIds.has(cand.toLowerCase()));
-    usedDeviceIds.add(cand.toLowerCase());
-    return cand;
+  let historicalDevicesSeeded = false;
+  function seedHistoricalDeviceIdsOnce() {
+    if (historicalDevicesSeeded) return;
+    historicalDevicesSeeded = true;
+    try {
+      if (!storageDir || !fs.existsSync(storageDir)) return;
+      const files = fs.readdirSync(storageDir).filter(f => f.endsWith('.json') && !f.endsWith('.tmp') && !f.startsWith('_'));
+      for (const f of files) {
+        try {
+          const data = JSON.parse(fs.readFileSync(path.join(storageDir, f), 'utf8'));
+          if (!data || typeof data !== 'object') continue;
+          for (const [k, v] of Object.entries(data)) {
+            if (typeof v !== 'string') continue;
+            if (k === 'aetheria.device' || k.endsWith('__aetheria_device')) {
+              const s = v.trim().toLowerCase();
+              if (UUID_V4_RE.test(s)) usedDeviceIds.add(s);
+            } else if (k === 'aetheria.machine' || k.endsWith('__aetheria_machine')) {
+              const s = v.trim().toLowerCase();
+              if (SHA256_HEX_RE.test(s)) usedMachineIds.add(s);
+            }
+          }
+        } catch (_) {}
+      }
+    } catch (_) {}
+  }
+
+  function mintUniqueDeviceId(opts = {}) {
+    seedHistoricalDeviceIdsOnce();
+    const avoidModels = opts && opts.avoidModels instanceof Set && opts.avoidModels.size > 0 ? opts.avoidModels : null;
+    const plat = opts && opts.platform ? normalizeDevicePlatform(opts.platform, 'pc') : 'pc';
+    let fallbackCand = '';
+    const maxTries = avoidModels ? 28 : 1;
+    for (let attempt = 0; attempt < maxTries; attempt++) {
+      let cand = '';
+      do {
+        cand = crypto.randomUUID();
+      } while (usedDeviceIds.has(cand.toLowerCase()));
+      if (!fallbackCand) fallbackCand = cand;
+      if (!avoidModels) {
+        usedDeviceIds.add(cand.toLowerCase());
+        return cand;
+      }
+      const spec = resolveDeviceSpec(cand, plat);
+      if (!avoidModels.has(spec.model)) {
+        usedDeviceIds.add(cand.toLowerCase());
+        return cand;
+      }
+    }
+    usedDeviceIds.add(fallbackCand.toLowerCase());
+    return fallbackCand;
   }
 
   function mintUniqueMachineId(seed) {
@@ -785,9 +835,11 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
   function getOrderedProfileIds(extraProfileId) {
     const now = Date.now();
     let liveList = [];
+    let hasLiveLoader = false;
     let liveSig = '';
     try {
       if (typeof loadProfiles === 'function') {
+        hasLiveLoader = true;
         liveList = loadProfiles() || [];
         liveSig = liveList.map(p => (p && p.id) || '').join('|');
       }
@@ -797,23 +849,27 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
       const ordered = [];
       const addId = (pid) => {
         const id = typeof pid === 'string' ? pid.trim() : '';
-        if (!id || id.startsWith('_') || seen.has(id)) return;
+        if (!id || id.startsWith('_') || id.includes('__') || seen.has(id)) return;
         seen.add(id);
         ordered.push(id);
       };
       for (const p of liveList) {
         if (p && p.id) addId(p.id);
       }
-      try {
-        if (storageDir && fs.existsSync(storageDir)) {
-          const files = fs.readdirSync(storageDir)
-            .filter(f => f.endsWith('.json') && !f.endsWith('.tmp') && !f.startsWith('_'))
-            .map(f => f.slice(0, -5))
-            .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-          for (const pid of files) addId(pid);
-        }
-      } catch (_) {}
-      for (const pid of profileDeviceIds.keys()) addId(pid);
+      // Only fall back to scanning _browser_storage/*.json when loadProfiles() is unavailable/empty;
+      // NEVER resurrect deleted/ghost storage files (e.g. old af_* or *_nc.json) into live Device Groups!
+      if (!hasLiveLoader || ordered.length === 0) {
+        try {
+          if (storageDir && fs.existsSync(storageDir)) {
+            const files = fs.readdirSync(storageDir)
+              .filter(f => f.endsWith('.json') && !f.endsWith('.tmp') && !f.startsWith('_') && !f.includes('__'))
+              .map(f => f.slice(0, -5))
+              .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+            for (const pid of files) addId(pid);
+          }
+        } catch (_) {}
+        for (const pid of profileDeviceIds.keys()) addId(pid);
+      }
       orderedProfileIdsCache = ordered;
       orderedProfileIdsCacheSet = seen;
       orderedProfileIdsCacheAt = now;
@@ -858,9 +914,10 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
     return null;
   }
 
-  function buildDeviceGroupLayout(orderedIds, screensPerIp) {
+  function buildDeviceGroupLayout(orderedIds, screensPerIp, isolatedDevices = null) {
     const list = Array.isArray(orderedIds) ? orderedIds : [];
     const perIp = Math.max(1, Math.min(20, Number(screensPerIp) || getScreensPerIp() || MAX_SCREENS_PER_DEVICE));
+    const isoMap = (isolatedDevices && typeof isolatedDevices === 'object') ? isolatedDevices : {};
     if (list.length === 0) return [];
 
     // Group strictly by IP first so a Device Group NEVER spans across two different Proxy IPs.
@@ -961,20 +1018,32 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
       const bucket = ipBuckets[ipIdx];
       const ipSlice = bucket.profileIds;
       if (ipSlice.length === 0) continue;
-      const effectiveBlockCap = Math.max(perIp, ipSlice.length);
-      const devicesPerIp = Math.ceil(effectiveBlockCap / MAX_SCREENS_PER_DEVICE);
-      const deviceSubSizes = [];
-      for (let sub = 0; sub < devicesPerIp; sub++) {
-        deviceSubSizes.push(Math.min(MAX_SCREENS_PER_DEVICE, Math.max(1, effectiveBlockCap - sub * MAX_SCREENS_PER_DEVICE)));
+      const normalPids = ipSlice.filter(pid => !isoMap[pid]);
+      const isolatedPids = ipSlice.filter(pid => Boolean(isoMap[pid]));
+      const subBuckets = [];
+      for (let i = 0; i < normalPids.length; i += MAX_SCREENS_PER_DEVICE) {
+        const chunk = normalPids.slice(i, i + MAX_SCREENS_PER_DEVICE);
+        if (chunk.length > 0) {
+          subBuckets.push({
+            profileIds: chunk,
+            maxScreens: Math.min(MAX_SCREENS_PER_DEVICE, Math.max(1, perIp)),
+            isIsolated: false
+          });
+        }
       }
-
-      for (let sub = 0; sub < devicesPerIp; sub++) {
-        const subStart = sub * MAX_SCREENS_PER_DEVICE;
-        const subEnd = Math.min(effectiveBlockCap, (sub + 1) * MAX_SCREENS_PER_DEVICE);
-        const groupPids = ipSlice.slice(subStart, subEnd);
-        if (groupPids.length === 0) break;
+      for (const isoPid of isolatedPids) {
+        subBuckets.push({
+          profileIds: [isoPid],
+          maxScreens: 1,
+          isIsolated: true
+        });
+      }
+      const devicesPerIp = Math.max(1, subBuckets.length);
+      const deviceSubSizes = subBuckets.map(sb => sb.maxScreens);
+      let runningSlot = 1;
+      for (let sub = 0; sub < subBuckets.length; sub++) {
+        const sb = subBuckets[sub];
         globalGroupIdx++;
-        const subMax = deviceSubSizes[sub];
         layout.push({
           groupIndex: globalGroupIdx,
           ipIndex: ipIdx + 1,
@@ -982,15 +1051,17 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
           devicesPerIp,
           screensPerIp: perIp,
           deviceSubSizes,
-          maxScreens: subMax,
-          maxScreensPerDevice: MAX_SCREENS_PER_DEVICE,
-          ipSlotStart: subStart + 1,
+          maxScreens: sb.maxScreens,
+          maxScreensPerDevice: sb.isIsolated ? 1 : MAX_SCREENS_PER_DEVICE,
+          isIsolated: sb.isIsolated,
+          ipSlotStart: runningSlot,
           ipProfileIds: ipSlice,
-          profileIds: groupPids,
+          profileIds: sb.profileIds,
           leaseProxyId: bucket.proxyId || null,
           leaseProxyIp: bucket.proxyIp || null,
           leaseProxyPort: bucket.proxyPort || null
         });
+        runningSlot += sb.profileIds.length;
       }
     }
     return layout;
@@ -1110,7 +1181,36 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
       });
     }
 
-    const normalized = { version: 1, defaultPlatformMode, jailAutoCloseMode, autoGroupPlatforms, ipGroups };
+    const isolatedDevices = {};
+    const seenIsoDevs = new Set();
+    if (raw && raw.isolatedDevices && typeof raw.isolatedDevices === 'object' && !Array.isArray(raw.isolatedDevices)) {
+      for (const [rawPid, entry] of Object.entries(raw.isolatedDevices)) {
+        const pid = String(rawPid || '').trim();
+        if (!pid || !entry || typeof entry !== 'object' || seenAssignedPids.has(pid)) {
+          changed = true;
+          continue;
+        }
+        let devId = typeof entry.deviceId === 'string' ? entry.deviceId.trim() : '';
+        if (!UUID_V4_RE.test(devId) || seenIsoDevs.has(devId.toLowerCase())) {
+          devId = mintUniqueDeviceId();
+          changed = true;
+        } else {
+          usedDeviceIds.add(devId.toLowerCase());
+        }
+        seenIsoDevs.add(devId.toLowerCase());
+        const rawMach = typeof entry.machineId === 'string' ? entry.machineId.trim().toLowerCase() : '';
+        const machId = getOrMintMachineIdForDevice(devId, rawMach);
+        const plat = normalizeDevicePlatform(entry.platform, defaultPlatformMode === 'android' ? 'android' : 'pc');
+        isolatedDevices[pid] = {
+          deviceId: devId,
+          machineId: machId,
+          platform: plat,
+          rotatedAt: Number(entry.rotatedAt) || Date.now()
+        };
+      }
+    }
+
+    const normalized = { version: 1, defaultPlatformMode, jailAutoCloseMode, autoGroupPlatforms, isolatedDevices, ipGroups };
     customIpConfigCache = normalized;
     if (changed && customIpFile && fs.existsSync(customIpFile)) {
       saveCustomIpDeviceConfig(normalized);
@@ -1125,6 +1225,9 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
       jailAutoCloseMode: normalizeJailAutoCloseMode(cfg?.jailAutoCloseMode),
       autoGroupPlatforms: (cfg?.autoGroupPlatforms && typeof cfg.autoGroupPlatforms === 'object' && !Array.isArray(cfg.autoGroupPlatforms))
         ? { ...cfg.autoGroupPlatforms }
+        : {},
+      isolatedDevices: (cfg?.isolatedDevices && typeof cfg.isolatedDevices === 'object' && !Array.isArray(cfg.isolatedDevices))
+        ? { ...cfg.isolatedDevices }
         : {},
       ipGroups: Array.isArray(cfg?.ipGroups) ? cfg.ipGroups : []
     };
@@ -1233,18 +1336,44 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
     };
   }
 
-  async function syncProfileDeviceIdentity(pid, deviceId, machineId, pushToLiveWindow = true) {
+  async function syncProfileDeviceIdentity(pid, deviceId, machineId, pushToLiveWindow = true, opts = {}) {
     const devKey = `pelican_${pid}__aetheria_device`;
+    const ncDevKey = `pelican_${pid}__nc__nightcamp.online.device`;
     const machKey = `pelican_${pid}__aetheria_machine`;
+    const ncDevVal = JSON.stringify(String(deviceId).replace(/-/g, ''));
     profileDeviceIds.set(pid, deviceId);
     profileMachineIds.set(pid, machineId);
     profileDeviceSpecs.delete(pid);
-    saveProfileStorage(pid, { [devKey]: deviceId, [machKey]: machineId });
+    saveProfileStorage(pid, { [devKey]: deviceId, [ncDevKey]: ncDevVal, [machKey]: machineId });
     if (pushToLiveWindow) {
       const c = clients.get(pid);
       if (c && c.sessionId) {
         await ensureSessionHooks(c.sessionId, pid, c).catch(() => {});
-        await evaluate(c, profileInitScript(pid), 4500).catch(() => {});
+        const spec = ensureProfileDeviceSpec(pid);
+        const reloadIfStuck = Boolean(opts && opts.reloadIfStuck);
+        await evaluate(c, `(() => {
+          try {
+            window.__pmDeviceId = ${JSON.stringify(deviceId)};
+            window.__pmMachineId = ${JSON.stringify(machineId)};
+            window.__pmDeviceSpec = ${JSON.stringify(spec || null)};
+            const __rawSet = (window.__pmRawStorage && window.__pmRawStorage.set) || Storage.prototype.setItem;
+            if (window.localStorage) {
+              __rawSet.call(window.localStorage, ${JSON.stringify(devKey)}, ${JSON.stringify(deviceId)});
+              __rawSet.call(window.localStorage, ${JSON.stringify(ncDevKey)}, ${JSON.stringify(ncDevVal)});
+              __rawSet.call(window.localStorage, ${JSON.stringify(machKey)}, ${JSON.stringify(machineId)});
+            }
+            if (${reloadIfStuck} && window.NC && window.NC.OnlineLobby && window.NC.OnlineLobby.entered !== true) {
+              const msgEl = document.querySelector('body > .cs-root .cs-msg');
+              if (msgEl) msgEl.textContent = '';
+              if (typeof window.NC.OnlineLobby.restart === 'function') {
+                setTimeout(() => { try { window.NC.OnlineLobby.restart(); } catch (_) {} }, 250);
+              } else {
+                setTimeout(() => { try { location.reload(); } catch (_) {} }, 250);
+              }
+            }
+          } catch (_) {}
+          return { ok: true, deviceId: window.__pmDeviceId };
+        })()`, 4500).catch(() => {});
       }
     }
   }
@@ -1536,6 +1665,7 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
             if (idx !== -1) dg.profileIds.splice(idx, 1);
           }
         }
+        if (cfg.isolatedDevices && cfg.isolatedDevices[pid]) delete cfg.isolatedDevices[pid];
         targetDg.profileIds.push(pid);
         affected.add(pid);
       }
@@ -1602,6 +1732,14 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
         }
       }
     }
+    if (cfg.isolatedDevices && typeof cfg.isolatedDevices === 'object') {
+      for (const pid of Object.keys(cfg.isolatedDevices)) {
+        if (!validSet.has(String(pid))) {
+          delete cfg.isolatedDevices[pid];
+          changed = true;
+        }
+      }
+    }
     if (changed) {
       saveCustomIpDeviceConfig(cfg);
       rebalanceDeviceGroups(null, true);
@@ -1609,11 +1747,37 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
     return changed;
   }
 
+  function extractNcDeviceUuid(rawVal) {
+    if (typeof rawVal !== 'string' || !rawVal.trim()) return '';
+    let s = rawVal.trim();
+    try {
+      const parsed = JSON.parse(s);
+      if (typeof parsed === 'string') s = parsed.trim();
+    } catch (_) {}
+    s = s.replace(/^"+|"+$/g, '').toLowerCase();
+    if (/^[0-9a-f]{32}$/.test(s)) {
+      return `${s.slice(0, 8)}-${s.slice(8, 12)}-${s.slice(12, 16)}-${s.slice(16, 20)}-${s.slice(20)}`;
+    }
+    return UUID_V4_RE.test(s) ? s : '';
+  }
+
+  function collectIpBlockModels(ipProfileIds, excludePid) {
+    const models = new Set();
+    for (const pid of (ipProfileIds || [])) {
+      if (!pid || pid === excludePid) continue;
+      const spec = profileDeviceSpecs.get(pid);
+      if (spec && spec.model) models.add(spec.model);
+    }
+    return models;
+  }
+
   function rebalanceDeviceGroups(extraProfileId, forceRecheck = false) {
     try {
+      seedHistoricalDeviceIdsOnce();
       const orderedIds = getOrderedProfileIds(extraProfileId);
       const customCfg = loadCustomIpDeviceConfig();
       const customMap = buildCustomProfileMap(customCfg);
+      const isoMap = (customCfg.isolatedDevices && typeof customCfg.isolatedDevices === 'object') ? customCfg.isolatedDevices : {};
       const autoOrderedIds = orderedIds.filter(pid => !customMap.has(pid));
       const perIp = getScreensPerIp();
       const proxyEnabled = Boolean(screenProxy && typeof screenProxy.isEnabled === 'function' && screenProxy.isEnabled());
@@ -1623,7 +1787,8 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
             return l ? `${pid}@${l.ipKey}` : pid;
           }).join(',')
         : 'direct';
-      const customSig = `${customCfg.defaultPlatformMode || 'pc'}::${JSON.stringify(customCfg.autoGroupPlatforms || {})}::` + customCfg.ipGroups
+      const isoSig = Object.keys(isoMap).sort().map(pid => `${pid}=${isoMap[pid]?.deviceId || ''}:${isoMap[pid]?.platform || 'pc'}`).join(',');
+      const customSig = `${customCfg.defaultPlatformMode || 'pc'}::${JSON.stringify(customCfg.autoGroupPlatforms || {})}::iso:${isoSig}::` + customCfg.ipGroups
         .map(ig => `${ig.id}:${ig.deviceGroups.map(d => `${d.id}=${d.deviceId}:${d.platform || 'pc'}:${d.profileIds.join(',')}`).join(';')}`)
         .join('|');
       const sig = `${perIp}::${orderedIds.join('|')}::${leaseSig}::${customSig}`;
@@ -1634,17 +1799,24 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
       lastGroupedOrderSignature = sig;
 
       const rawByProfile = new Map();
+      const ncDevOwners = new Map(); // devLower -> Set<pid> (tracks live/disk nc__nightcamp.online.device owners!)
       for (const pid of orderedIds) {
         const data = loadProfileStorage(pid);
         rawByProfile.set(pid, data);
         if (typeof data['aetheria.device'] === 'string' && data['aetheria.device'].trim()) {
           usedDeviceIds.add(data['aetheria.device'].trim().toLowerCase());
         }
+        const ncUuid = extractNcDeviceUuid(data[`pelican_${pid}__nc__nightcamp.online.device`]);
+        if (ncUuid) {
+          usedDeviceIds.add(ncUuid);
+          if (!ncDevOwners.has(ncUuid)) ncDevOwners.set(ncUuid, new Set());
+          ncDevOwners.get(ncUuid).add(pid);
+        }
       }
 
       const claimedDevices = new Set();
 
-      // Apply isolated Custom IP/Device identities first so auto-groups never collide with them
+      // 1. Apply isolated Custom IP/Device identities first so auto-groups never collide with them
       for (const [pid, entry] of customMap.entries()) {
         const groupDev = entry.dg.deviceId;
         const groupMach = entry.dg.machineId;
@@ -1653,9 +1825,12 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
         const prevMemDev = profileDeviceIds.get(pid) || '';
         const prevMemMach = profileMachineIds.get(pid) || '';
         const devKey = `pelican_${pid}__aetheria_device`;
+        const ncDevKey = `pelican_${pid}__nc__nightcamp.online.device`;
         const machKey = `pelican_${pid}__aetheria_machine`;
+        const expectedNcDev = JSON.stringify(String(groupDev).replace(/-/g, ''));
         const diskData = rawByProfile.get(pid) || loadProfileStorage(pid);
         const diskDev = typeof diskData[devKey] === 'string' ? diskData[devKey].trim() : '';
+        const diskNcDev = typeof diskData[ncDevKey] === 'string' ? diskData[ncDevKey].trim() : '';
         const diskMach = typeof diskData[machKey] === 'string' ? diskData[machKey].trim().toLowerCase() : '';
         const hasLegacyRaw = Object.prototype.hasOwnProperty.call(diskData, 'aetheria.device') || Object.prototype.hasOwnProperty.call(diskData, 'aetheria.machine');
 
@@ -1664,8 +1839,8 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
         profileDeviceGroupIndex.set(pid, -1);
         profileDeviceSpecs.set(pid, spec);
 
-        if (diskDev !== groupDev || diskMach !== groupMach || hasLegacyRaw) {
-          saveProfileStorage(pid, { [devKey]: groupDev, [machKey]: groupMach });
+        if (diskDev !== groupDev || diskNcDev !== expectedNcDev || diskMach !== groupMach || hasLegacyRaw) {
+          saveProfileStorage(pid, { [devKey]: groupDev, [ncDevKey]: expectedNcDev, [machKey]: groupMach });
         }
 
         if (prevMemDev && (prevMemDev !== groupDev || prevMemMach !== groupMach)) {
@@ -1677,57 +1852,93 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
         }
       }
 
-      const layout = buildDeviceGroupLayout(autoOrderedIds, perIp);
+      // 2. Reserve per-profile isolated devices BEFORE auto-groups so auto-groups can NEVER steal or collide with them!
+      for (const pid of autoOrderedIds) {
+        const iso = isoMap[pid];
+        if (iso && UUID_V4_RE.test(iso.deviceId)) {
+          claimedDevices.add(iso.deviceId.toLowerCase());
+          usedDeviceIds.add(iso.deviceId.toLowerCase());
+        }
+      }
+
+      const layout = buildDeviceGroupLayout(autoOrderedIds, perIp, isoMap);
+      const modelsByIpIndex = new Map();
 
       for (const grp of layout) {
         const groupPids = grp.profileIds;
+        const groupPidSet = new Set(groupPids);
+        if (!modelsByIpIndex.has(grp.ipIndex)) modelsByIpIndex.set(grp.ipIndex, new Set());
+        const ipUsedModels = modelsByIpIndex.get(grp.ipIndex);
         let groupDev = '';
         let candidateMach = '';
+        let grpPlatform = resolveAutoGroupPlatform(customCfg, grp.groupIndex, grp.deviceIndexInIp, grp.devicesPerIp);
 
-        for (const pid of groupPids) {
-          const memDev = profileDeviceIds.get(pid) || '';
-          const diskData = rawByProfile.get(pid) || {};
-          const diskDev = typeof diskData[`pelican_${pid}__aetheria_device`] === 'string'
-            ? diskData[`pelican_${pid}__aetheria_device`].trim()
-            : '';
-          const cand = UUID_V4_RE.test(memDev) ? memDev : (UUID_V4_RE.test(diskDev) ? diskDev : '');
-          if (cand && !claimedDevices.has(cand.toLowerCase())) {
+        if (grp.isIsolated && groupPids.length === 1 && isoMap[groupPids[0]]) {
+          const iso = isoMap[groupPids[0]];
+          groupDev = iso.deviceId;
+          candidateMach = iso.machineId;
+          grpPlatform = normalizeDevicePlatform(iso.platform, grpPlatform);
+        } else {
+          for (const pid of groupPids) {
+            const memDev = profileDeviceIds.get(pid) || '';
+            const diskData = rawByProfile.get(pid) || {};
+            const diskDev = typeof diskData[`pelican_${pid}__aetheria_device`] === 'string'
+              ? diskData[`pelican_${pid}__aetheria_device`].trim()
+              : '';
+            const cand = UUID_V4_RE.test(memDev) ? memDev : (UUID_V4_RE.test(diskDev) ? diskDev : '');
+            const candLow = cand.toLowerCase();
+            if (!cand || claimedDevices.has(candLow)) continue;
+            // Collision guard: if >=2 OTHER active profiles outside this group are STILL holding this nc__nightcamp.online.device
+            // (or this group has 2 screens and an outside running client ALSO holds it -> 3-way collision!), NEVER reuse it!
+            const owners = ncDevOwners.get(candLow);
+            let outsideOwners = 0;
+            if (owners) {
+              for (const opid of owners) {
+                if (!groupPidSet.has(opid)) outsideOwners++;
+              }
+            }
+            if (outsideOwners > 0 && (outsideOwners + groupPids.length) > MAX_SCREENS_PER_DEVICE) {
+              continue;
+            }
             groupDev = cand;
             break;
           }
-        }
 
-        for (const pid of groupPids) {
-          const memMach = profileMachineIds.get(pid) || '';
-          const diskData = rawByProfile.get(pid) || {};
-          const diskMach = typeof diskData[`pelican_${pid}__aetheria_machine`] === 'string'
-            ? diskData[`pelican_${pid}__aetheria_machine`].trim().toLowerCase()
-            : '';
-          const candM = SHA256_HEX_RE.test(memMach) ? memMach : (SHA256_HEX_RE.test(diskMach) ? diskMach : '');
-          if (candM) {
-            candidateMach = candM;
-            break;
+          for (const pid of groupPids) {
+            const memMach = profileMachineIds.get(pid) || '';
+            const diskData = rawByProfile.get(pid) || {};
+            const diskMach = typeof diskData[`pelican_${pid}__aetheria_machine`] === 'string'
+              ? diskData[`pelican_${pid}__aetheria_machine`].trim().toLowerCase()
+              : '';
+            const candM = SHA256_HEX_RE.test(memMach) ? memMach : (SHA256_HEX_RE.test(diskMach) ? diskMach : '');
+            if (candM) {
+              candidateMach = candM;
+              break;
+            }
           }
-        }
 
-        if (!groupDev) {
-          groupDev = mintUniqueDeviceId();
-        } else {
-          usedDeviceIds.add(groupDev.toLowerCase());
+          if (!groupDev) {
+            groupDev = mintUniqueDeviceId({ avoidModels: ipUsedModels, platform: grpPlatform });
+          } else {
+            usedDeviceIds.add(groupDev.toLowerCase());
+          }
         }
         claimedDevices.add(groupDev.toLowerCase());
 
         const groupMach = getOrMintMachineIdForDevice(groupDev, candidateMach);
-        const grpPlatform = resolveAutoGroupPlatform(customCfg, grp.groupIndex, grp.deviceIndexInIp, grp.devicesPerIp);
         const spec = { ...resolveDeviceSpec(groupDev, grpPlatform), deviceId: groupDev };
+        ipUsedModels.add(spec.model);
 
         for (const pid of groupPids) {
           const prevMemDev = profileDeviceIds.get(pid) || '';
           const prevMemMach = profileMachineIds.get(pid) || '';
           const devKey = `pelican_${pid}__aetheria_device`;
+          const ncDevKey = `pelican_${pid}__nc__nightcamp.online.device`;
           const machKey = `pelican_${pid}__aetheria_machine`;
+          const expectedNcDev = JSON.stringify(String(groupDev).replace(/-/g, ''));
           const diskData = rawByProfile.get(pid) || {};
           const diskDev = typeof diskData[devKey] === 'string' ? diskData[devKey].trim() : '';
+          const diskNcDev = typeof diskData[ncDevKey] === 'string' ? diskData[ncDevKey].trim() : '';
           const diskMach = typeof diskData[machKey] === 'string' ? diskData[machKey].trim().toLowerCase() : '';
           const hasLegacyRaw = Object.prototype.hasOwnProperty.call(diskData, 'aetheria.device') || Object.prototype.hasOwnProperty.call(diskData, 'aetheria.machine');
 
@@ -1736,8 +1947,8 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
           profileDeviceGroupIndex.set(pid, grp.groupIndex);
           profileDeviceSpecs.set(pid, spec);
 
-          if (diskDev !== groupDev || diskMach !== groupMach || hasLegacyRaw) {
-            saveProfileStorage(pid, { [devKey]: groupDev, [machKey]: groupMach });
+          if (diskDev !== groupDev || diskNcDev !== expectedNcDev || diskMach !== groupMach || hasLegacyRaw) {
+            saveProfileStorage(pid, { [devKey]: groupDev, [ncDevKey]: expectedNcDev, [machKey]: groupMach });
           }
 
           if (prevMemDev && (prevMemDev !== groupDev || prevMemMach !== groupMach)) {
@@ -1801,6 +2012,11 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
         profileDeviceSpecs.set(profileId, spec);
         return spec;
       }
+      if (cfg.isolatedDevices && cfg.isolatedDevices[profileId]) {
+        const spec = { ...resolveDeviceSpec(devId, cfg.isolatedDevices[profileId].platform || 'pc'), deviceId: devId };
+        profileDeviceSpecs.set(profileId, spec);
+        return spec;
+      }
     }
     const gIdx = profileId ? (profileDeviceGroupIndex.get(profileId) || 1) : 1;
     const perIp = getScreensPerIp();
@@ -1817,9 +2033,10 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
     rebalanceDeviceGroups(null, false);
     const customCfg = loadCustomIpDeviceConfig();
     const customMap = buildCustomProfileMap(customCfg);
+    const isoMap = (customCfg.isolatedDevices && typeof customCfg.isolatedDevices === 'object') ? customCfg.isolatedDevices : {};
     const orderedIds = getOrderedProfileIds().filter(pid => !customMap.has(pid));
     const perIp = getScreensPerIp();
-    const layout = buildDeviceGroupLayout(orderedIds, perIp);
+    const layout = buildDeviceGroupLayout(orderedIds, perIp, isoMap);
     let poolItems = [];
     try {
       if (screenProxy && typeof screenProxy.loadPool === 'function') {
@@ -1854,7 +2071,10 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
       const firstPid = grp.profileIds[0];
       const deviceId = firstPid ? ensureProfileDeviceId(firstPid) : '';
       const machineId = firstPid ? ensureProfileMachineId(firstPid) : '';
-      const platform = resolveAutoGroupPlatform(customCfg, grp.groupIndex, grp.deviceIndexInIp, grp.devicesPerIp);
+      const isoEntry = (grp.isIsolated && firstPid && isoMap[firstPid]) ? isoMap[firstPid] : null;
+      const platform = isoEntry
+        ? normalizeDevicePlatform(isoEntry.platform, 'pc')
+        : resolveAutoGroupPlatform(customCfg, grp.groupIndex, grp.deviceIndexInIp, grp.devicesPerIp);
       const spec = resolveDeviceSpec(deviceId, platform);
       let activeSnap = grp.leaseProxyIp
         ? { proxyId: grp.leaseProxyId, ip: grp.leaseProxyIp, proxyPort: grp.leaseProxyPort }
@@ -1876,6 +2096,7 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
         devicesPerIp: grp.devicesPerIp,
         screensPerIp: grp.screensPerIp,
         deviceSubSizes: grp.deviceSubSizes,
+        isIsolated: Boolean(grp.isIsolated),
         ipSlotStart: grp.ipSlotStart,
         ipProfileIds: grp.ipProfileIds,
         proxyId: (activeSnap && activeSnap.proxyId) || (poolItem ? (poolItem.proxyId || null) : null),
@@ -1894,6 +2115,115 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
         profileIds: grp.profileIds
       };
     });
+  }
+
+  async function rotateSingleProfileDeviceId(profileId, opts = {}) {
+    initDeviceIdsFromStorage();
+    const pid = String(profileId || '').trim();
+    if (!pid) return null;
+    rebalanceDeviceGroups(pid, false);
+    const cfg = loadCustomIpDeviceConfig();
+
+    // Case 1: Profile belongs to a Custom IP Group -> rotate ONLY this profile (splitting it if shared!)
+    for (const ig of cfg.ipGroups) {
+      const customDg = (ig.deviceGroups || []).find(d => Array.isArray(d.profileIds) && d.profileIds.includes(pid));
+      if (customDg) {
+        const plat = normalizeDevicePlatform(customDg.platform, 'pc');
+        const avoidModels = new Set();
+        for (const otherDg of (ig.deviceGroups || [])) {
+          if (otherDg && otherDg.deviceId) {
+            avoidModels.add(resolveDeviceSpec(otherDg.deviceId, otherDg.platform || 'pc').model);
+          }
+        }
+        const nextDev = mintUniqueDeviceId({ avoidModels, platform: plat });
+        const nextMach = mintUniqueMachineId(`single-custom:${pid}:${nextDev.toLowerCase()}:${Date.now()}`);
+        deviceMachineMap.set(nextDev.toLowerCase(), nextMach);
+        let targetDg = customDg;
+        if (customDg.profileIds.length > 1) {
+          customDg.profileIds = customDg.profileIds.filter(x => x !== pid);
+          const newDg = {
+            id: `cdg_${crypto.randomBytes(4).toString('hex')}`,
+            name: `Device #${ig.deviceGroups.length + 1} (แยกเดี่ยว)`,
+            platform: plat,
+            deviceId: nextDev,
+            machineId: nextMach,
+            profileIds: [pid]
+          };
+          ig.deviceGroups.push(newDg);
+          targetDg = newDg;
+        } else {
+          customDg.deviceId = nextDev;
+          customDg.machineId = nextMach;
+        }
+        saveCustomIpDeviceConfig(cfg);
+        await syncProfileDeviceIdentity(pid, nextDev, nextMach, true, { reloadIfStuck: Boolean(opts.reloadIfStuck) });
+        rebalanceDeviceGroups(null, true);
+        const spec = resolveDeviceSpec(nextDev, plat);
+        return {
+          groupIndex: -1,
+          isCustom: true,
+          isIsolated: true,
+          ipGroupId: ig.id,
+          deviceGroupId: targetDg.id,
+          platform: spec.platform,
+          deviceModel: spec.model,
+          deviceGpu: spec.gpu,
+          deviceTouch: spec.touch,
+          deviceId: nextDev,
+          machineId: nextMach,
+          profileIds: [pid]
+        };
+      }
+    }
+
+    // Case 2: Profile is in Auto Groups -> isolate ONLY this profile onto its own guaranteed-unique Device ID
+    // without touching or overwriting its group partner or ANY other screen!
+    const customMap = buildCustomProfileMap(cfg);
+    const orderedIds = getOrderedProfileIds(pid).filter(id => !customMap.has(id));
+    const perIp = getScreensPerIp();
+    const layoutBefore = buildDeviceGroupLayout(orderedIds, perIp, cfg.isolatedDevices || {});
+    const oldGrp = layoutBefore.find(g => g.profileIds.includes(pid)) || null;
+    const plat = (cfg.isolatedDevices && cfg.isolatedDevices[pid]?.platform)
+      || (oldGrp ? resolveAutoGroupPlatform(cfg, oldGrp.groupIndex, oldGrp.deviceIndexInIp, oldGrp.devicesPerIp) : (cfg.defaultPlatformMode === 'android' ? 'android' : 'pc'));
+    const avoidModels = collectIpBlockModels(oldGrp ? oldGrp.ipProfileIds : orderedIds, pid);
+    const assigned = mintUniqueDeviceId({ avoidModels, platform: plat });
+    const assignedMach = mintUniqueMachineId(`single-profile:${pid}:${assigned.toLowerCase()}:${Date.now()}`);
+    deviceMachineMap.set(assigned.toLowerCase(), assignedMach);
+    const spec = resolveDeviceSpec(assigned, plat);
+
+    if (!cfg.isolatedDevices || typeof cfg.isolatedDevices !== 'object') cfg.isolatedDevices = {};
+    cfg.isolatedDevices[pid] = {
+      deviceId: assigned,
+      machineId: assignedMach,
+      platform: spec.platform,
+      rotatedAt: Date.now()
+    };
+    saveCustomIpDeviceConfig(cfg);
+    await syncProfileDeviceIdentity(pid, assigned, assignedMach, true, { reloadIfStuck: Boolean(opts.reloadIfStuck) });
+    rebalanceDeviceGroups(null, true);
+
+    const freshLayout = buildDeviceGroupLayout(orderedIds, perIp, cfg.isolatedDevices);
+    const newGrp = freshLayout.find(g => g.profileIds.includes(pid)) || oldGrp;
+    return {
+      groupIndex: newGrp ? newGrp.groupIndex : 1,
+      ipIndex: newGrp ? newGrp.ipIndex : 1,
+      deviceIndexInIp: newGrp ? newGrp.deviceIndexInIp : 1,
+      devicesPerIp: newGrp ? newGrp.devicesPerIp : 1,
+      screensPerIp: perIp,
+      deviceSubSizes: newGrp ? newGrp.deviceSubSizes : [1],
+      isIsolated: true,
+      ipSlotStart: newGrp ? newGrp.ipSlotStart : 1,
+      ipProfileIds: newGrp ? newGrp.ipProfileIds : [pid],
+      platform: spec.platform,
+      deviceModel: spec.model,
+      deviceGpu: spec.gpu,
+      deviceTouch: spec.touch,
+      deviceId: assigned,
+      machineId: assignedMach,
+      maxScreens: 1,
+      maxScreensPerDevice: 1,
+      profileIds: [pid]
+    };
   }
 
   async function rotateDeviceGroup(target) {
@@ -1927,10 +2257,11 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
     }
 
     const customMap = buildCustomProfileMap(cfg);
+    const isoMap = (cfg.isolatedDevices && typeof cfg.isolatedDevices === 'object') ? cfg.isolatedDevices : {};
     const orderedIds = getOrderedProfileIds().filter(pid => !customMap.has(pid));
     if (orderedIds.length === 0) return null;
     const perIp = getScreensPerIp();
-    const layout = buildDeviceGroupLayout(orderedIds, perIp);
+    const layout = buildDeviceGroupLayout(orderedIds, perIp, isoMap);
     if (layout.length === 0) return null;
 
     let targetGrp = null;
@@ -1951,11 +2282,25 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
     if (!targetGrp) return null;
 
     const groupPids = targetGrp.profileIds;
-    const assigned = mintUniqueDeviceId();
+    const isoEntry = (targetGrp.isIsolated && groupPids.length === 1 && isoMap[groupPids[0]]) ? isoMap[groupPids[0]] : null;
+    const grpPlat = isoEntry
+      ? normalizeDevicePlatform(isoEntry.platform, 'pc')
+      : resolveAutoGroupPlatform(cfg, targetGrp.groupIndex, targetGrp.deviceIndexInIp, targetGrp.devicesPerIp);
+    const avoidModels = collectIpBlockModels(targetGrp.ipProfileIds, groupPids[0]);
+    const assigned = mintUniqueDeviceId({ avoidModels, platform: grpPlat });
     const assignedMach = mintUniqueMachineId('device-group:' + assigned.toLowerCase() + ':' + Date.now());
     deviceMachineMap.set(assigned.toLowerCase(), assignedMach);
-    const grpPlat = resolveAutoGroupPlatform(cfg, targetGrp.groupIndex, targetGrp.deviceIndexInIp, targetGrp.devicesPerIp);
     const spec = resolveDeviceSpec(assigned, grpPlat);
+
+    if (isoEntry) {
+      cfg.isolatedDevices[groupPids[0]] = {
+        deviceId: assigned,
+        machineId: assignedMach,
+        platform: spec.platform,
+        rotatedAt: Date.now()
+      };
+      saveCustomIpDeviceConfig(cfg);
+    }
 
     for (const pid of groupPids) {
       await syncProfileDeviceIdentity(pid, assigned, assignedMach, true);
@@ -1970,6 +2315,7 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
       devicesPerIp: targetGrp.devicesPerIp,
       screensPerIp: targetGrp.screensPerIp,
       deviceSubSizes: targetGrp.deviceSubSizes,
+      isIsolated: Boolean(targetGrp.isIsolated),
       ipSlotStart: targetGrp.ipSlotStart,
       ipProfileIds: targetGrp.ipProfileIds,
       platform: spec.platform,
@@ -1984,20 +2330,18 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
     };
   }
 
-  async function rotateProfileDeviceId(profileId) {
-    initDeviceIdsFromStorage();
-    if (!profileId) return null;
-    rebalanceDeviceGroups(profileId, false);
-    const res = await rotateDeviceGroup(profileId);
+  async function rotateProfileDeviceId(profileId, opts = {}) {
+    const res = await rotateSingleProfileDeviceId(profileId, opts);
     return res ? res.deviceId : null;
   }
 
   async function rotateAllDeviceIds() {
     initDeviceIdsFromStorage();
     rebalanceDeviceGroups(null, false);
-    const customMap = buildCustomProfileMap(loadCustomIpDeviceConfig());
+    const cfg = loadCustomIpDeviceConfig();
+    const customMap = buildCustomProfileMap(cfg);
     const orderedIds = getOrderedProfileIds().filter(pid => !customMap.has(pid));
-    const layout = buildDeviceGroupLayout(orderedIds, getScreensPerIp());
+    const layout = buildDeviceGroupLayout(orderedIds, getScreensPerIp(), cfg.isolatedDevices || {});
     const rotatedByProfile = {};
     const groups = [];
     for (let g = 1; g <= layout.length; g++) {
@@ -5710,7 +6054,7 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
     return { flushed: activeClients.length };
   }
 
-  return { launch, stop, stopAll, isOpen, hasProxyContext, ensureProxyListening, evalByPort, rediscover, start, dispose, findBrowser, rebalanceDeviceGroups, ensureProfileDeviceId, ensureProfileMachineId, ensureProfileDeviceGroupIndex, ensureProfileDeviceSpec, resolveDeviceSpec, getDeviceGroupsSnapshot, rotateDeviceGroup, rotateProfileDeviceId, rotateAllDeviceIds, getCustomIpDeviceConfig, getProfileIpIsolationMeta, mutateCustomIpDevices, pruneDeletedProfilesFromCustomGroups, applyProxyModeToOpenWindows, syncAssetCacheToOpenWindows, harvestAllFromBrowserLevelDb, flushAllClientStorage, launchUnbanSession, stopUnbanSession, stopAllUnbanSessions, getUnbanStatus, setUnbanCallback, addProfilesToUnbanPool, removeProfileFromUnbanPool, rotateUnbanDevice, setUnbanProxyMode, loadUnbanConfig, saveUnbanConfig, status:()=>Object.fromEntries(diagnostics) };
+  return { launch, stop, stopAll, isOpen, hasProxyContext, ensureProxyListening, evalByPort, rediscover, start, dispose, findBrowser, rebalanceDeviceGroups, ensureProfileDeviceId, ensureProfileMachineId, ensureProfileDeviceGroupIndex, ensureProfileDeviceSpec, resolveDeviceSpec, getDeviceGroupsSnapshot, rotateDeviceGroup, rotateSingleProfileDeviceId, rotateProfileDeviceId, rotateAllDeviceIds, getCustomIpDeviceConfig, getProfileIpIsolationMeta, mutateCustomIpDevices, pruneDeletedProfilesFromCustomGroups, applyProxyModeToOpenWindows, syncAssetCacheToOpenWindows, harvestAllFromBrowserLevelDb, flushAllClientStorage, launchUnbanSession, stopUnbanSession, stopAllUnbanSessions, getUnbanStatus, setUnbanCallback, addProfilesToUnbanPool, removeProfileFromUnbanPool, rotateUnbanDevice, setUnbanProxyMode, loadUnbanConfig, saveUnbanConfig, status:()=>Object.fromEntries(diagnostics) };
 }
 
 module.exports = { createBrowserMode, findBrowser, HEALTH_JS, MAX_SCREENS_PER_DEVICE, resolveDeviceSpec, extractPelicanStorageFromLevelDb, mergeAuthConfigString, mergeSellConfigString };

@@ -8544,7 +8544,14 @@ async function recordProfileJailedAndStop(profile, state) {
           }).catch(() => {});
         }
       }
-      if (typeof browserMode !== 'undefined' && browserMode && typeof browserMode.rotateDeviceGroup === 'function') {
+      if (typeof browserMode !== 'undefined' && browserMode && typeof browserMode.rotateSingleProfileDeviceId === 'function') {
+        browserMode.rotateSingleProfileDeviceId(pid).then(() => {
+          if (windowStates[pid]) {
+            delete windowStates[pid].syncedDeviceId;
+            delete windowStates[pid].syncedMachineId;
+          }
+        }).catch(() => {});
+      } else if (typeof browserMode !== 'undefined' && browserMode && typeof browserMode.rotateDeviceGroup === 'function') {
         browserMode.rotateDeviceGroup(pid).then(grp => {
           if (grp && Array.isArray(grp.profileIds)) {
             for (const gpid of grp.profileIds) {
@@ -8574,6 +8581,39 @@ async function recordProfileJailedAndStop(profile, state) {
     }
   }
   return newlyJailed;
+}
+
+const deviceLimitAutoRotateTracker = new Map(); // pid -> { lastAt, recent: number[] }
+function isProfileDeviceLimitStuck(state) {
+  if (!state || typeof state !== 'object') return false;
+  if (state.screenPhase === 'in_game') return false;
+  if (state.screenPhase === 'char_select_limit') return true;
+  const msg = [state.screenDetail, state.screenError, state.screenPhaseLabel, state.botStatus]
+    .filter(Boolean)
+    .join(' ');
+  return /เครื่องนี้เปิดเกมครบ|เครื่องนี้เล่นพร้อมกันได้สูงสุด|ออกจากตัวละครอื่นก่อน|already has \d+ game windows/i.test(msg);
+}
+
+function maybeAutoRotateDeviceLimitStuckProfile(profile, state) {
+  if (!profile || !profile.id || !isProfileDeviceLimitStuck(state)) return false;
+  const pid = String(profile.id);
+  const now = Date.now();
+  const prev = deviceLimitAutoRotateTracker.get(pid) || { lastAt: 0, recent: [] };
+  const recent = prev.recent.filter(ts => (now - ts) < 10 * 60 * 1000);
+  if ((now - prev.lastAt) < 60 * 1000 || recent.length >= 3) return false;
+  recent.push(now);
+  deviceLimitAutoRotateTracker.set(pid, { lastAt: now, recent });
+  if (typeof browserMode !== 'undefined' && browserMode && typeof browserMode.rotateSingleProfileDeviceId === 'function') {
+    console.warn(`[DeviceLimit] 🔑 ตรวจพบจอ "${profile.name || pid}" ติดข้อความจำกัด 2 จอ -> สุ่ม Device ID ใหม่เฉพาะจอนี้โดยไม่กระทบจออื่น`);
+    browserMode.rotateSingleProfileDeviceId(pid, { reloadIfStuck: true }).then(() => {
+      if (windowStates[pid]) {
+        delete windowStates[pid].syncedDeviceId;
+        delete windowStates[pid].syncedMachineId;
+      }
+    }).catch(() => {});
+    return true;
+  }
+  return false;
 }
 
 function isAccountBannedState(state) {
@@ -8637,7 +8677,14 @@ async function recordProfileBannedAndBlockIp(profile, state) {
           }
         }).catch(() => {});
       }
-      if (typeof browserMode !== 'undefined' && browserMode && typeof browserMode.rotateDeviceGroup === 'function') {
+      if (typeof browserMode !== 'undefined' && browserMode && typeof browserMode.rotateSingleProfileDeviceId === 'function') {
+        browserMode.rotateSingleProfileDeviceId(pid).then(() => {
+          if (windowStates[pid]) {
+            delete windowStates[pid].syncedDeviceId;
+            delete windowStates[pid].syncedMachineId;
+          }
+        }).catch(() => {});
+      } else if (typeof browserMode !== 'undefined' && browserMode && typeof browserMode.rotateDeviceGroup === 'function') {
         browserMode.rotateDeviceGroup(pid).then(grp => {
           if (grp && Array.isArray(grp.profileIds)) {
             for (const gpid of grp.profileIds) {
@@ -8711,16 +8758,12 @@ function clearProfileJailStatus(profileId, resetDismissed = false) {
   }
   if (changed) {
     saveProfiles(fresh);
-    if (unjailedPids.length > 0 && typeof browserMode !== 'undefined' && browserMode && typeof browserMode.rotateDeviceGroup === 'function') {
+    if (unjailedPids.length > 0 && typeof browserMode !== 'undefined' && browserMode && typeof browserMode.rotateSingleProfileDeviceId === 'function') {
       for (const upid of unjailedPids) {
-        browserMode.rotateDeviceGroup(upid).then(grp => {
-          if (grp && Array.isArray(grp.profileIds)) {
-            for (const gpid of grp.profileIds) {
-              if (windowStates[gpid]) {
-                delete windowStates[gpid].syncedDeviceId;
-                delete windowStates[gpid].syncedMachineId;
-              }
-            }
+        browserMode.rotateSingleProfileDeviceId(upid).then(() => {
+          if (windowStates[upid]) {
+            delete windowStates[upid].syncedDeviceId;
+            delete windowStates[upid].syncedMachineId;
           }
         }).catch(() => {});
       }
@@ -11411,6 +11454,9 @@ const server = http.createServer(async (req, res) => {
             p.bannedAt = null;
             p.banReason = null;
           }
+          if (isProfileDeviceLimitStuck(liveState)) {
+            maybeAutoRotateDeviceLimitStuckProfile(p, liveState);
+          }
           if (liveState.map) {
             if (isJailMapName(liveState.map)) {
               if (!p.jailDismissedAt) {
@@ -11975,6 +12021,118 @@ const server = http.createServer(async (req, res) => {
   }
   // ====================== END UNBAN MODE API ======================
 
+  // POST /api/device-groups/rotate-stuck (Rotate Device ID ONLY for stuck/jailed/banned/colliding screens)
+  if (req.method === "POST" && pathname === "/api/device-groups/rotate-stuck") {
+    let body = "";
+    req.on("data", chunk => body += chunk);
+    req.on("end", async () => {
+      try {
+        const payload = JSON.parse(body || "{}");
+        const explicitIds = Array.isArray(payload.profileIds)
+          ? payload.profileIds.map(x => String(x || "").trim()).filter(Boolean)
+          : [];
+        const allProfiles = (loadProfiles() || []).filter(p => p && p.id);
+        const targets = [];
+        const seenTarget = new Set();
+
+        const getCachedLive = (p) => {
+          const cached = p.debugPort ? clientStateCacheByPort.get(p.debugPort) : null;
+          return (cached && cached.state) || p.liveState || null;
+        };
+
+        if (explicitIds.length > 0) {
+          for (const pid of explicitIds) {
+            const p = allProfiles.find(x => x.id === pid);
+            if (p && !seenTarget.has(p.id)) {
+              seenTarget.add(p.id);
+              targets.push({ profile: p, reason: "selected" });
+            }
+          }
+        } else {
+          // 1. Screens stuck on 2-screen device cap, jailed, or banned
+          for (const p of allProfiles) {
+            const live = getCachedLive(p);
+            if (isProfileDeviceLimitStuck(live)) {
+              seenTarget.add(p.id);
+              targets.push({ profile: p, reason: "device_limit" });
+            } else if (p.isJailed || (live && (live.charSelectInJail || isJailMapName(live.map)))) {
+              seenTarget.add(p.id);
+              targets.push({ profile: p, reason: "jailed" });
+            } else if (p.isBanned || isAccountBannedState(live)) {
+              seenTarget.add(p.id);
+              targets.push({ profile: p, reason: "banned" });
+            }
+          }
+          // 2. Also detect any deviceId currently shared by >2 profiles (collision) -> rotate ONLY the overflow non-in-game profile(s)!
+          const byDev = new Map();
+          for (const p of allProfiles) {
+            const dev = typeof browserMode.ensureProfileDeviceId === "function" ? browserMode.ensureProfileDeviceId(p.id) : "";
+            if (!dev) continue;
+            const key = dev.toLowerCase();
+            if (!byDev.has(key)) byDev.set(key, []);
+            byDev.get(key).push(p);
+          }
+          for (const [, list] of byDev.entries()) {
+            if (list.length <= 2) continue;
+            const sorted = list.slice().sort((a, b) => {
+              const la = getCachedLive(a);
+              const lb = getCachedLive(b);
+              const aIn = Boolean(la && la.screenPhase === "in_game");
+              const bIn = Boolean(lb && lb.screenPhase === "in_game");
+              if (aIn !== bIn) return aIn ? -1 : 1;
+              return 0;
+            });
+            for (const extraP of sorted.slice(2)) {
+              if (!seenTarget.has(extraP.id)) {
+                seenTarget.add(extraP.id);
+                targets.push({ profile: extraP, reason: "duplicate_device" });
+              }
+            }
+          }
+        }
+
+        const rotatedProfiles = [];
+        for (const t of targets) {
+          const pid = t.profile.id;
+          const resRot = typeof browserMode.rotateSingleProfileDeviceId === "function"
+            ? await browserMode.rotateSingleProfileDeviceId(pid, { reloadIfStuck: true })
+            : null;
+          if (resRot) {
+            if (windowStates[pid]) {
+              delete windowStates[pid].syncedDeviceId;
+              delete windowStates[pid].syncedMachineId;
+            }
+            rotatedProfiles.push({
+              id: pid,
+              name: t.profile.name || pid,
+              reason: t.reason,
+              deviceId: resRot.deviceId,
+              machineId: resRot.machineId,
+              deviceModel: resRot.deviceModel
+            });
+          }
+        }
+
+        const groups = typeof browserMode.getDeviceGroupsSnapshot === "function"
+          ? browserMode.getDeviceGroupsSnapshot()
+          : [];
+        const customIpConfig = typeof browserMode.getCustomIpDeviceConfig === "function"
+          ? browserMode.getCustomIpDeviceConfig()
+          : null;
+        return sendJSON({
+          success: true,
+          rotatedCount: rotatedProfiles.length,
+          rotatedProfiles,
+          deviceGroups: groups,
+          customIpConfig
+        });
+      } catch (e) {
+        return sendJSON({ success: false, error: e.message }, 400);
+      }
+    });
+    return;
+  }
+
   // POST /api/device-groups/rotate
   if (req.method === "POST" && pathname === "/api/device-groups/rotate") {
     let body = "";
@@ -11984,9 +12142,11 @@ const server = http.createServer(async (req, res) => {
         const payload = JSON.parse(body || "{}");
         const target = payload.groupIndex || payload.profileId || payload.deviceId;
         if (!target) return sendJSON({ success: false, error: "Missing groupIndex or profileId" }, 400);
-        const grp = typeof browserMode.rotateDeviceGroup === "function"
-          ? await browserMode.rotateDeviceGroup(target)
-          : null;
+        const grp = (payload.singleOnly && payload.profileId && typeof browserMode.rotateSingleProfileDeviceId === "function")
+          ? await browserMode.rotateSingleProfileDeviceId(payload.profileId, { reloadIfStuck: Boolean(payload.reloadIfStuck) })
+          : (typeof browserMode.rotateDeviceGroup === "function"
+              ? await browserMode.rotateDeviceGroup(target)
+              : null);
         if (!grp) return sendJSON({ success: false, error: "Device group not found" }, 404);
         for (const pid of (grp.profileIds || [])) {
           if (windowStates[pid]) {
@@ -12005,40 +12165,49 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // POST /api/profiles/:id/rotate-device-id
+  // POST /api/profiles/:id/rotate-device-id (Always rotate ONLY this single profile without affecting other screens!)
   if (req.method === "POST" && pathname.match(/^\/api\/profiles\/[^/]+\/rotate-device-id$/)) {
     const id = pathname.split("/")[3];
-    const profiles = loadProfiles();
-    const profile = profiles.find(p => p.id === id);
-    if (!profile) return sendJSON({ success: false, error: "Profile not found" }, 404);
-    const grp = typeof browserMode.rotateDeviceGroup === "function"
-      ? await browserMode.rotateDeviceGroup(id)
-      : null;
-    const newDeviceId = grp ? grp.deviceId : (typeof browserMode.rotateProfileDeviceId === "function"
-      ? await browserMode.rotateProfileDeviceId(id)
-      : null);
-    if (grp && Array.isArray(grp.profileIds)) {
-      for (const pid of grp.profileIds) {
-        if (windowStates[pid]) {
-          delete windowStates[pid].syncedDeviceId;
-          delete windowStates[pid].syncedMachineId;
+    let body = "";
+    req.on("data", chunk => body += chunk);
+    req.on("end", async () => {
+      try {
+        let payload = {};
+        try { payload = JSON.parse(body || "{}"); } catch (_) {}
+        const profiles = loadProfiles();
+        const profile = profiles.find(p => p.id === id);
+        if (!profile) return sendJSON({ success: false, error: "Profile not found" }, 404);
+        const reloadIfStuck = payload.reloadIfStuck !== false;
+        const grp = typeof browserMode.rotateSingleProfileDeviceId === "function"
+          ? await browserMode.rotateSingleProfileDeviceId(id, { reloadIfStuck })
+          : (typeof browserMode.rotateDeviceGroup === "function" ? await browserMode.rotateDeviceGroup(id) : null);
+        const newDeviceId = grp ? grp.deviceId : (typeof browserMode.rotateProfileDeviceId === "function"
+          ? await browserMode.rotateProfileDeviceId(id, { reloadIfStuck })
+          : null);
+        if (windowStates[id]) {
+          delete windowStates[id].syncedDeviceId;
+          delete windowStates[id].syncedMachineId;
         }
+        const groups = typeof browserMode.getDeviceGroupsSnapshot === "function"
+          ? browserMode.getDeviceGroupsSnapshot()
+          : [];
+        const customIpConfig = typeof browserMode.getCustomIpDeviceConfig === "function"
+          ? browserMode.getCustomIpDeviceConfig()
+          : null;
+        return sendJSON({
+          success: true,
+          profileId: id,
+          deviceId: newDeviceId,
+          machineId: grp ? grp.machineId : null,
+          group: grp,
+          deviceGroups: groups,
+          customIpConfig
+        });
+      } catch (e) {
+        return sendJSON({ success: false, error: e.message }, 400);
       }
-    } else if (windowStates[id]) {
-      delete windowStates[id].syncedDeviceId;
-      delete windowStates[id].syncedMachineId;
-    }
-    const groups = typeof browserMode.getDeviceGroupsSnapshot === "function"
-      ? browserMode.getDeviceGroupsSnapshot()
-      : [];
-    return sendJSON({
-      success: true,
-      profileId: id,
-      deviceId: newDeviceId,
-      machineId: grp ? grp.machineId : null,
-      group: grp,
-      deviceGroups: groups
     });
+    return;
   }
 
   // POST /api/profiles/rotate-all-device-ids
