@@ -9658,6 +9658,7 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
   <!-- TAB 1: 🚀 บอท & เควส -->
   <div id="p-nc-pane-bot" style="display:flex; flex-direction:column; gap:8px;">
     ${isCentral ? `
+    <button type="button" class="p-btn" id="p-btn-central-return-camp" title="หยุดบอทชั่วคราวแล้วสั่งวาร์ปกลับค่ายกลางป่า (camp) ทุกจอที่ออนไลน์ทันที" style="margin: 0; width: 100%; font-size: 11px; padding: 7px 8px; font-weight: bold; border-radius: 6px; background: linear-gradient(135deg, #d97706, #b45309); color: #fff; border: 1px solid #fbbf24; cursor: pointer;">🏕️ กลับบ้าน / กลับเมือง (Camp) ทุกจอ</button>
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
       <button type="button" class="p-btn" id="p-btn-central-start-bot" style="margin: 0; font-size: 11px; padding: 8px 6px; font-weight: bold; border-radius: 6px; background: linear-gradient(135deg, #16a34a, #15803d); color: #fff; border: 1px solid #4ade80; cursor: pointer;">▶️ เริ่มบอททุกจอ</button>
       <button type="button" class="p-btn" id="p-btn-central-stop-bot" style="margin: 0; font-size: 11px; padding: 8px 6px; font-weight: bold; border-radius: 6px; background: linear-gradient(135deg, #dc2626, #b91c1c); color: #fff; border: 1px solid #f87171; cursor: pointer;">⏹️ หยุดบอททุกจอ</button>
@@ -9683,6 +9684,7 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
       </div>
     </div>
 
+    <button type="button" class="p-btn" id="p-btn-nc-return-camp" ${isOnline ? '' : 'disabled'} title="หยุดบอทชั่วคราวแล้ววาร์ปกลับค่ายกลางป่า (camp) ทันที" style="width: 100%; margin: 0; font-size: 11px; padding: 7px 10px; font-weight: bold; border-radius: 6px; background: linear-gradient(135deg, #d97706, #b45309); border: 1px solid #fbbf24; color: #fff; cursor: ${isOnline ? 'pointer' : 'not-allowed'}; opacity: ${isOnline ? '1' : '0.55'};">🏕️ กลับบ้าน / กลับเมือง (Camp)</button>
     <button type="button" class="p-btn" id="p-btn-toggle-bot" ${isOnline ? '' : 'disabled'} style="width: 100%; font-size: 12px; padding: 8px 10px; font-weight: bold; border-radius: 6px; cursor: ${isOnline ? 'pointer' : 'not-allowed'}; opacity: ${isOnline ? '1' : '0.55'};">${isRunningBotMode ? '⏹️ STOP BOT (หยุดทำงาน)' : (isRunningGatherMode ? '▶️ START BOT (สลับเป็นโหมดบอท)' : '▶️ START BOT (เริ่มทำงาน)')}</button>
 
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
@@ -9698,10 +9700,15 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
         <input type="checkbox" id="p-nc-smart-autoquest-enabled" ${smartQuestChecked ? 'checked' : ''} style="accent-color:#22c55e;">
         <span>🧭 เปิด Smart Auto-Quest (ทำเควสอัตโนมัติ - ใหญ่สุด)</span>
       </label>
-      <label style="display:flex; align-items:center; gap:5px; font-size:10.5px; font-weight:700; color:#7dd3fc; cursor:pointer;" title="ออโต้สกิลครบทั้งแถบ 1 + แถบ 2 (16 ช่อง) + พระใช้แสงเยียวยาใส่มอนธาตุมืด/ซอมบี้รอบตัวอัตโนมัติ + เก็บของไว/ไม่เดินวน + ใช้ตั๋ว Premium ในกระเป๋าอัตโนมัติ">
-        <input type="checkbox" id="p-nc-upgrade-ai-enabled" ${state?.upgradeBotAiEnabled !== false ? 'checked' : ''} style="accent-color:#0ea5e9;">
-        <span>🧠 Upgrade BOT AI (ออโต้สกิลแถบ 1+2 / พระฮีลซอมบี้ / เก็บของไว)</span>
-      </label>
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:6px; border-top:1px solid rgba(255,255,255,0.08); padding-top:5px;">
+        <label style="display:flex; align-items:center; gap:5px; font-size:10.5px; font-weight:700; color:#7dd3fc; cursor:pointer; min-width:0; flex:1;" title="ออโต้สกิลครบทั้งแถบ 1 + แถบ 2 (16 ช่อง) + พระใช้แสงเยียวยาใส่มอนธาตุมืด/ซอมบี้รอบตัวอัตโนมัติ + เก็บของไว/ไม่เดินวน + ใช้ตั๋ว Premium ในกระเป๋าอัตโนมัติ">
+          <input type="checkbox" id="p-nc-upgrade-ai-enabled" ${state?.upgradeBotAiEnabled !== false ? 'checked' : ''} style="accent-color:#0ea5e9; flex-shrink:0;">
+          <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">🧠 Upgrade BOT AI</span>
+        </label>
+        <button type="button" id="p-btn-nc-toggle-upgrade-ai" title="ย่อ/ขยายเมนูย่อยของ Upgrade BOT AI" style="padding:2px 8px; border-radius:4px; border:1px solid rgba(56,189,248,0.48); background:rgba(2,6,23,0.65); color:#bae6fd; font-size:9.5px; font-weight:700; cursor:pointer; white-space:nowrap; flex-shrink:0;">${localStorage.getItem('pm_nc_upgrade_ai_collapsed') !== 'false' ? '▶ แสดง' : '▼ ซ่อน'}</button>
+      </div>
+      <div id="p-nc-upgrade-ai-summary" style="display:${localStorage.getItem('pm_nc_upgrade_ai_collapsed') !== 'false' ? 'block' : 'none'}; font-size:9px; color:#93c5fd; padding-left:18px; line-height:1.3; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">👑 Premium · 🎁 Event · ⚰️ Respawn · ⚔️ Gear · 🔨 ซ่อม (กด "แสดง" เพื่อตั้งค่า)</div>
+      <div id="p-nc-upgrade-ai-subpanel" style="display:${localStorage.getItem('pm_nc_upgrade_ai_collapsed') !== 'false' ? 'none' : 'flex'}; flex-direction:column; gap:6px;">
       <label style="display:flex; align-items:center; gap:5px; font-size:9.8px; font-weight:600; color:#fde68a; cursor:pointer; padding-left:18px;" title="เมื่อเปิด Upgrade BOT AI จะกดใช้ไอเทมที่ได้ Premium ทั้งหมดในกระเป๋าอัตโนมัติ (ตั๋วบัตรกองไฟ 12 ชม./1/3/7/14/15/30 วัน และตั๋ว AUTO Premium รวมถึงแบบผูกตัว)">
         <input type="checkbox" id="p-nc-auto-use-premium-items" ${state?.autoUsePremiumItemsEnabled !== false ? 'checked' : ''} style="accent-color:#f59e0b;">
         <span>👑 ใช้ไอเทม Premium ในกระเป๋าทั้งหมดอัตโนมัติ</span>
@@ -9803,6 +9810,7 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
           <button type="button" id="p-btn-nc-repair-now" title="สั่งกลับค่ายไปซ่อมอุปกรณ์ที่ป๋าหมูหริ่งทันที (หากเงินไม่พอจะเบิกจากคลังร่วมให้อัตโนมัติ)" style="padding:3px 8px; border:1px solid #fbbf24; border-radius:4px; background:linear-gradient(135deg,#d97706,#b45309); color:#fff; font-size:9.5px; font-weight:700; cursor:pointer; white-space:nowrap;">🔨 ซ่อมทันที</button>
         </div>
         <div id="p-nc-durability-status" style="font-size:9.5px; color:#a7f3d0; padding-left:18px; line-height:1.3;">${escapeHTML(state?.durabilitySummary?.summaryText || '🛡️ ความทนอุปกรณ์: พร้อมตรวจสอบ (เบิกคลังร่วมอัตโนมัติ)')}</div>
+      </div>
       </div>
 
       <div style="display:flex; flex-direction:column; gap:4px; border-top:1px solid rgba(255,255,255,0.08); padding-top:5px;">
@@ -10709,6 +10717,15 @@ async function openWebBotHUD(profileId) {
   if (tabTrainerBtn) tabTrainerBtn.onclick = () => switchTab('trainer');
 
   // Central actions
+  const centralReturnCampBtn = hudEl.querySelector('#p-btn-central-return-camp');
+  if (centralReturnCampBtn) {
+    centralReturnCampBtn.onclick = async () => {
+      await sendWebHudAction('__central__', {
+        type: 'eval',
+        code: `(typeof window.__warpBackToCampNow === 'function' ? window.__warpBackToCampNow() : false)`
+      });
+    };
+  }
   const centralStartBtn = hudEl.querySelector('#p-btn-central-start-bot');
   if (centralStartBtn) centralStartBtn.onclick = () => setBotOnAllClients(true, centralStartBtn);
 
@@ -10774,6 +10791,32 @@ async function openWebBotHUD(profileId) {
   if (centralTestLoginBtn) centralTestLoginBtn.onclick = () => applyCentralAuthSettings(hudEl, { triggerNow: true, btn: centralTestLoginBtn });
 
   // Single screen actions
+  const returnCampBtn = hudEl.querySelector('#p-btn-nc-return-camp');
+  if (returnCampBtn) {
+    returnCampBtn.onclick = async () => {
+      try {
+        await sendWebHudAction(profileId, {
+          type: 'eval',
+          code: `(typeof window.__warpBackToCampNow === 'function' ? window.__warpBackToCampNow() : false)`
+        });
+        showToast('🏕️ สั่งกลับเมือง / ค่ายกลางป่า (camp) แล้ว!', 'success');
+        setTimeout(() => { fetchProfiles(); updateActiveWebHuds(); }, 350);
+      } catch (_) {}
+    };
+  }
+  const toggleUpgradeAiBtn = hudEl.querySelector('#p-btn-nc-toggle-upgrade-ai');
+  const upgradeAiSubpanel = hudEl.querySelector('#p-nc-upgrade-ai-subpanel');
+  const upgradeAiSummary = hudEl.querySelector('#p-nc-upgrade-ai-summary');
+  if (toggleUpgradeAiBtn && upgradeAiSubpanel) {
+    toggleUpgradeAiBtn.onclick = () => {
+      const nextCollapsed = upgradeAiSubpanel.style.display !== 'none';
+      upgradeAiSubpanel.style.display = nextCollapsed ? 'none' : 'flex';
+      if (upgradeAiSummary) upgradeAiSummary.style.display = nextCollapsed ? 'block' : 'none';
+      toggleUpgradeAiBtn.textContent = nextCollapsed ? '▶ แสดง' : '▼ ซ่อน';
+      try { localStorage.setItem('pm_nc_upgrade_ai_collapsed', nextCollapsed ? 'true' : 'false'); } catch (_) {}
+    };
+  }
+
   const toggleBotBtn = hudEl.querySelector('#p-btn-toggle-bot');
   if (toggleBotBtn) {
     toggleBotBtn.onclick = async () => {
@@ -12341,6 +12384,30 @@ function populateWebHudData(profileId, data) {
   const botRunModeNow = String(st.botRunMode || 'bot') === 'gather' ? 'gather' : 'bot';
   const isRunningBotNow = Boolean(isBotRunning && botRunModeNow !== 'gather');
   const isRunningGatherNow = Boolean(isBotRunning && botRunModeNow === 'gather');
+
+  const retCampBtn = hud.querySelector('#p-btn-nc-return-camp');
+  if (retCampBtn) {
+    retCampBtn.disabled = !isOnline;
+    retCampBtn.style.opacity = isOnline ? '1' : '0.55';
+    retCampBtn.style.cursor = isOnline ? 'pointer' : 'not-allowed';
+  }
+  const uaiSumEl = hud.querySelector('#p-nc-upgrade-ai-summary');
+  if (uaiSumEl) {
+    const parts = [];
+    if (st.autoUsePremiumItemsEnabled !== false) parts.push('👑 Premium');
+    if (st.autoClaimEventsEnabled !== false) parts.push('🎁 Event');
+    const bOn = [];
+    if (st.autoUseBoostConfig?.exp) bOn.push('EXP');
+    if (st.autoUseBoostConfig?.job) bOn.push('Job');
+    if (st.autoUseBoostConfig?.drop) bOn.push('Drop');
+    if (st.autoUseBoostConfig?.warmth) bOn.push('×2');
+    if (st.autoUseBoostConfig?.gather) bOn.push('ป่า');
+    if (bOn.length) parts.push('✨ ' + bOn.join('/'));
+    if (st.autoRespawnEnabled !== false) parts.push('⚰️ Respawn');
+    if (st.smartGearEnabled !== false) parts.push('⚔️ Gear');
+    if ((st.sellConfig?.autoRepair ?? st.autoRepairEnabled) !== false) parts.push('🔨 ซ่อม');
+    uaiSumEl.textContent = parts.length ? parts.join(' · ') : 'ซ่อนเมนูย่อยอยู่ (กด "แสดง" เพื่อตั้งค่า)';
+  }
 
   const btn = hud.querySelector('#p-btn-toggle-bot');
   if (btn) {
