@@ -7777,23 +7777,23 @@ function switchMainTab(tabName) {
 window.switchMainTab = switchMainTab;
 
 // ==========================================
-// 🌾 SECRET AUTO FARM LV.20 & AUTO-TRADE DASHBOARD
+// 💎 SECRET AUTO FARM · SEASON PASS 20 MOON-GEM RUSH DASHBOARD
 // ==========================================
 (() => {
   let secretAutoFarmUnlocked = false;
   let afConfig = {
-    serverName: "Nightfall",
-    receiverProfileId: "",
-    concurrency: 3,
-    targetLevel: 45,
-    tradeChannel: 1,
-    completionAction: "pass",
     running: false,
-    totalTradedCoins: 0,
-    completedCount: 0,
+    vaultRushEnabled: true,
+    depositPassCoins: true,
+    autoLaunchClosed: true,
+    totalCycles: 0,
+    totalGemsEarned: 0,
+    totalCoinsDeposited: 0,
     lastStatusText: ""
   };
   let afProfiles = [];
+  let afAvailableMainProfiles = [];
+  let afPullSelectedIds = new Set();
   let afLoadBusy = false;
   let afEventsBound = false;
 
@@ -7846,21 +7846,21 @@ window.switchMainTab = switchMainTab;
     }
   };
 
-  async function saveAutoFarmConfig(extraPatch = {}) {
-    const serverEl = document.getElementById("af-cfg-server");
-    const recEl = document.getElementById("af-cfg-receiver");
-    const concEl = document.getElementById("af-cfg-concurrency");
-    const lvEl = document.getElementById("af-cfg-target-lv");
-    const chEl = document.getElementById("af-cfg-trade-ch");
-    const compEl = document.getElementById("af-cfg-completion");
+  const escHtml = (s) => String(s == null ? "" : s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 
+  async function saveAutoFarmConfig(extraPatch = {}) {
+    const vaultCb = document.getElementById("af-cfg-vault-rush");
+    const depCb = document.getElementById("af-cfg-deposit-coins");
+    const launchCb = document.getElementById("af-cfg-auto-launch");
     const payload = {
-      serverName: (serverEl && serverEl.value.trim()) || afConfig.serverName || "Nightfall",
-      receiverProfileId: (recEl && recEl.value) || afConfig.receiverProfileId || "",
-      concurrency: Math.max(1, Math.min(15, Number(concEl && concEl.value) || 3)),
-      targetLevel: Math.max(5, Math.min(99, Number(lvEl && lvEl.value) || 45)),
-      tradeChannel: Math.max(1, Math.min(20, Number(chEl && chEl.value) || 1)),
-      completionAction: (compEl && compEl.value) || "pass",
+      vaultRushEnabled: vaultCb ? Boolean(vaultCb.checked) : afConfig.vaultRushEnabled !== false,
+      depositPassCoins: depCb ? Boolean(depCb.checked) : afConfig.depositPassCoins !== false,
+      autoLaunchClosed: launchCb ? Boolean(launchCb.checked) : afConfig.autoLaunchClosed !== false,
       ...extraPatch
     };
     const res = await fetch(`${API_BASE}/api/autofarm/config`, {
@@ -7870,53 +7870,160 @@ window.switchMainTab = switchMainTab;
     }).then(r => r.json());
     if (res && res.success) {
       afConfig = res.config || afConfig;
-      await loadAutoFarmDashboard(false);
-      if (typeof showToast === "function") showToast("💾 บันทึกตั้งค่าระบบ Auto Farm เรียบร้อยแล้ว", "success");
+      if (typeof showToast === "function") showToast("💾 บันทึกตั้งค่า Gem Rush เรียบร้อยแล้ว", "success");
     }
+  }
+
+  function renderPullModalList() {
+    const listEl = document.getElementById("af-pull-list");
+    const cntEl = document.getElementById("af-pull-selected-count");
+    const q = String(document.getElementById("af-pull-search")?.value || "").trim().toLowerCase();
+    if (!listEl) return;
+
+    const filtered = afAvailableMainProfiles.filter(p => {
+      if (!q) return true;
+      const hay = `${p.name || ""} ${p.charName || ""} ${p.account || ""} ${p.serverName || ""}`.toLowerCase();
+      return hay.includes(q);
+    });
+
+    if (filtered.length === 0) {
+      listEl.innerHTML = `<div style="text-align:center;padding:28px;color:#94a3b8;font-size:13px;">ไม่พบโปรไฟล์ที่ตรงกับการค้นหา</div>`;
+    } else {
+      listEl.innerHTML = filtered.map(p => {
+        const disabled = Boolean(p.alreadyPulled);
+        const checked = !disabled && afPullSelectedIds.has(p.id);
+        const lv = Number(p.baseLv) || 0;
+        const lvColor = lv >= 45 ? "#34d399" : (lv > 0 ? "#fbbf24" : "#94a3b8");
+        const lvBg = lv >= 45 ? "rgba(16,185,129,0.16)" : "rgba(148,163,184,0.14)";
+        return `
+          <label style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 12px;border-radius:10px;border:1px solid ${checked ? "rgba(56,189,248,0.55)" : "rgba(148,163,184,0.18)"};background:${checked ? "rgba(14,165,233,0.12)" : "rgba(2,6,23,0.55)"};cursor:${disabled ? "not-allowed" : "pointer"};opacity:${disabled ? "0.55" : "1"};">
+            <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+              <input type="checkbox" data-af-pull-id="${escHtml(p.id)}" ${checked ? "checked" : ""} ${disabled ? "disabled" : ""} style="width:17px;height:17px;accent-color:#38bdf8;flex-shrink:0;">
+              <div style="min-width:0;">
+                <div style="font-size:13px;font-weight:800;color:#f8fafc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                  ${escHtml(p.name || p.id)} ${p.charName ? `<span style="color:#7dd3fc;">· ${escHtml(p.charName)}</span>` : ""}
+                </div>
+                <div style="font-size:11px;color:#94a3b8;margin-top:2px;">
+                  ${p.account ? `📧 ${escHtml(p.account)}` : "ไม่มีอีเมล"}${p.serverName ? ` · 🌐 ${escHtml(p.serverName)}` : ""}
+                </div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+              <span style="padding:2px 8px;border-radius:6px;font-size:11px;font-weight:800;background:${lvBg};color:${lvColor};">
+                ${lv > 0 ? `Lv.${lv}` : "รอเช็ก Lv"}
+              </span>
+              <span style="padding:2px 7px;border-radius:6px;font-size:10.5px;font-weight:700;background:${p.isRunning ? "rgba(16,185,129,0.2)" : "rgba(100,116,139,0.2)"};color:${p.isRunning ? "#34d399" : "#94a3b8"};">
+                ${p.isRunning ? "🟢 เปิดอยู่" : "⚪ ปิด"}
+              </span>
+              ${disabled ? `<span style="padding:2px 7px;border-radius:6px;font-size:10.5px;font-weight:800;background:rgba(56,189,248,0.18);color:#7dd3fc;">ดึงแล้ว</span>` : ""}
+            </div>
+          </label>
+        `;
+      }).join("");
+
+      listEl.querySelectorAll("input[data-af-pull-id]").forEach(cb => {
+        cb.onchange = () => {
+          const pid = cb.getAttribute("data-af-pull-id");
+          if (cb.checked) afPullSelectedIds.add(pid);
+          else afPullSelectedIds.delete(pid);
+          renderPullModalList();
+        };
+      });
+    }
+
+    if (cntEl) cntEl.textContent = `เลือกแล้ว ${afPullSelectedIds.size} โปรไฟล์`;
+    const confirmBtn = document.getElementById("af-pull-confirm");
+    if (confirmBtn) confirmBtn.disabled = afPullSelectedIds.size === 0;
+  }
+
+  function openPullModal() {
+    afPullSelectedIds.clear();
+    const modal = document.getElementById("af-pull-modal");
+    if (modal) modal.style.display = "flex";
+    const searchEl = document.getElementById("af-pull-search");
+    if (searchEl) searchEl.value = "";
+    loadAutoFarmDashboard(true).then(() => renderPullModalList());
+  }
+
+  function closePullModal() {
+    const modal = document.getElementById("af-pull-modal");
+    if (modal) modal.style.display = "none";
   }
 
   function bindAutoFarmEvents() {
     if (afEventsBound) return;
     afEventsBound = true;
 
-    const bindChange = (id) => {
+    ["af-cfg-vault-rush", "af-cfg-deposit-coins", "af-cfg-auto-launch"].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.addEventListener("change", () => saveAutoFarmConfig().catch(() => {}));
-    };
-    bindChange("af-cfg-server");
-    bindChange("af-cfg-receiver");
-    bindChange("af-cfg-concurrency");
-    bindChange("af-cfg-target-lv");
-    bindChange("af-cfg-trade-ch");
-    bindChange("af-cfg-completion");
+    });
 
-    const saveBtn = document.getElementById("af-btn-save-cfg");
-    if (saveBtn) saveBtn.onclick = () => saveAutoFarmConfig().catch(() => {});
+    const openPullBtn = document.getElementById("af-btn-open-pull");
+    if (openPullBtn) openPullBtn.onclick = openPullModal;
 
-    const addBtn = document.getElementById("af-btn-add-profiles");
-    if (addBtn) {
-      addBtn.onclick = async () => {
-        const cntEl = document.getElementById("af-add-count");
-        const srvEl = document.getElementById("af-cfg-server");
-        const count = Math.max(1, Math.min(50, Number(cntEl && cntEl.value) || 1));
-        const serverName = (srvEl && srvEl.value.trim()) || afConfig.serverName || "Nightfall";
-        addBtn.disabled = true;
+    const closePullBtn = document.getElementById("af-pull-modal-close");
+    if (closePullBtn) closePullBtn.onclick = closePullModal;
+    const cancelPullBtn = document.getElementById("af-pull-cancel");
+    if (cancelPullBtn) cancelPullBtn.onclick = closePullModal;
+    const pullModal = document.getElementById("af-pull-modal");
+    if (pullModal) {
+      pullModal.addEventListener("click", (e) => {
+        if (e.target === pullModal) closePullModal();
+      });
+    }
+
+    const pullSearch = document.getElementById("af-pull-search");
+    if (pullSearch) pullSearch.addEventListener("input", renderPullModalList);
+
+    const selLv45Btn = document.getElementById("af-pull-sel-lv45");
+    if (selLv45Btn) {
+      selLv45Btn.onclick = () => {
+        afPullSelectedIds.clear();
+        for (const p of afAvailableMainProfiles) {
+          if (!p.alreadyPulled && (Number(p.baseLv) || 0) >= 45) afPullSelectedIds.add(p.id);
+        }
+        renderPullModalList();
+      };
+    }
+    const selAllBtn = document.getElementById("af-pull-sel-all");
+    if (selAllBtn) {
+      selAllBtn.onclick = () => {
+        for (const p of afAvailableMainProfiles) {
+          if (!p.alreadyPulled) afPullSelectedIds.add(p.id);
+        }
+        renderPullModalList();
+      };
+    }
+    const selNoneBtn = document.getElementById("af-pull-sel-none");
+    if (selNoneBtn) {
+      selNoneBtn.onclick = () => {
+        afPullSelectedIds.clear();
+        renderPullModalList();
+      };
+    }
+
+    const confirmPullBtn = document.getElementById("af-pull-confirm");
+    if (confirmPullBtn) {
+      confirmPullBtn.onclick = async () => {
+        const ids = Array.from(afPullSelectedIds);
+        if (ids.length === 0) return;
+        confirmPullBtn.disabled = true;
         try {
-          const res = await fetch(`${API_BASE}/api/autofarm/profiles`, {
+          const res = await fetch(`${API_BASE}/api/autofarm/profiles/pull`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ count, serverName })
+            body: JSON.stringify({ profileIds: ids })
           }).then(r => r.json());
           if (res && res.success) {
-            if (typeof showToast === "function") {
-              showToast(`➕ สร้างโปรไฟล์ Auto-Gen (@gmail.com + ชื่อตัวละคร) จำนวน ${res.createdCount} โปรไฟล์แล้ว!`, "success");
-            }
+            if (typeof showToast === "function") showToast(`➕ ดึง ${res.addedCount} โปรไฟล์จากหน้าหลักเข้าหน้า Auto Farm แล้ว`, "success");
+            closePullModal();
             await loadAutoFarmDashboard(true);
           } else if (typeof showToast === "function") {
-            showToast(res?.error || "เพิ่มโปรไฟล์ไม่สำเร็จ", "error");
+            showToast(res?.error || "ดึงโปรไฟล์ไม่สำเร็จ", "error");
           }
         } finally {
-          addBtn.disabled = false;
+          confirmPullBtn.disabled = false;
         }
       };
     }
@@ -7936,11 +8043,16 @@ window.switchMainTab = switchMainTab;
           if (res && res.success) {
             afConfig = res.config || afConfig;
             if (typeof showToast === "function") {
-              showToast(afConfig.running ? `🚀 เริ่มรันคิว Auto Farm Lv.${afConfig.targetLevel || 45} อัตโนมัติแล้ว!` : "⏸ หยุดพักคิว Auto Farm แล้ว", "info");
+              showToast(
+                afConfig.running
+                  ? "💎 เริ่มรันระบบปั๊มเพชรจันทร์ (20 เพชร/รอบ) แล้ว!"
+                  : "🛑 หยุด Gem Rush แล้ว — กำลังพากลับตัวหลัก & บอทปกติทุกจอ",
+                "info"
+              );
             }
             await loadAutoFarmDashboard(true);
           } else if (typeof showToast === "function") {
-            showToast(res?.error || "ไม่สามารถสลับสถานะ Auto Farm ได้", "error");
+            showToast(res?.error || "ไม่สามารถสลับสถานะระบบได้", "error");
           }
         } finally {
           toggleBtn.disabled = false;
@@ -7948,77 +8060,51 @@ window.switchMainTab = switchMainTab;
       };
     }
 
-    const stopCloseBtn = document.getElementById("af-btn-stop-close");
-    if (stopCloseBtn) {
-      stopCloseBtn.onclick = async () => {
-        if (!window.confirm("ยืนยันหยุดระบบ Auto Farm และปิดหน้าต่างเกมในหมวด Auto Farm ทั้งหมดหรือไม่?")) return;
-        stopCloseBtn.disabled = true;
-        try {
-          const res = await fetch(`${API_BASE}/api/autofarm/toggle`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ running: false, closeAllWindows: true })
-          }).then(r => r.json());
-          if (res && res.success) {
-            afConfig = res.config || afConfig;
-            if (typeof showToast === "function") showToast("⏹ หยุดระบบและปิดหน้าต่าง Auto Farm ทั้งหมดแล้ว", "info");
-            await loadAutoFarmDashboard(true);
-          }
-        } finally {
-          stopCloseBtn.disabled = false;
-        }
-      };
-    }
-
-    const delPassedBtn = document.getElementById("af-btn-delete-passed");
-    if (delPassedBtn) {
-      delPassedBtn.onclick = async () => {
-        const passedCnt = afProfiles.filter(p => !p.isReceiver && p.passed).length;
-        if (passedCnt === 0) {
-          if (typeof showToast === "function") showToast("ยังไม่มีโปรไฟล์ที่ประทับตรา PASS", "info");
+    const rmIneligBtn = document.getElementById("af-btn-remove-ineligible");
+    if (rmIneligBtn) {
+      rmIneligBtn.onclick = async () => {
+        const cnt = afProfiles.filter(p => Boolean(p.ineligibleReason)).length;
+        if (cnt === 0) {
+          if (typeof showToast === "function") showToast("ไม่มีจอที่ไม่ผ่านเงื่อนไข", "info");
           return;
         }
-        if (!window.confirm(`ยืนยันลบโปรไฟล์ที่เทรดเงินเสร็จแล้ว (PASS) จำนวน ${passedCnt} โปรไฟล์หรือไม่? (ไม่ลบตัวรับเงิน)`)) return;
-        const res = await fetch(`${API_BASE}/api/autofarm/profiles/bulk-delete`, {
+        const res = await fetch(`${API_BASE}/api/autofarm/profiles/bulk-remove`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ mode: "passed" })
+          body: JSON.stringify({ mode: "ineligible" })
         }).then(r => r.json());
         if (res && res.success) {
-          if (typeof showToast === "function") showToast(`🧹 ลบโปรไฟล์ที่ PASS แล้ว ${res.deletedCount} โปรไฟล์เรียบร้อย`, "success");
+          if (typeof showToast === "function") showToast(`🧹 ถอดจอที่ไม่ผ่านเงื่อนไขออก ${res.removedCount} จอแล้ว (ไม่ลบโปรไฟล์หลัก)`, "success");
           await loadAutoFarmDashboard(true);
         }
       };
     }
 
-    const delFarmersBtn = document.getElementById("af-btn-delete-farmers");
-    if (delFarmersBtn) {
-      delFarmersBtn.onclick = async () => {
-        const farmerCnt = afProfiles.filter(p => !p.isReceiver).length;
-        if (farmerCnt === 0) {
-          if (typeof showToast === "function") showToast("ไม่มีโปรไฟล์ตัวฟาร์มให้ลบ", "info");
-          return;
-        }
-        if (!window.confirm(`ยืนยันลบโปรไฟล์ตัวฟาร์มทั้งหมด ${farmerCnt} โปรไฟล์หรือไม่? (ระบบจะเก็บโปรไฟล์ตัวรับเงินไว้)`)) return;
-        const res = await fetch(`${API_BASE}/api/autofarm/profiles/bulk-delete`, {
+    const rmAllBtn = document.getElementById("af-btn-remove-all");
+    if (rmAllBtn) {
+      rmAllBtn.onclick = async () => {
+        if (afProfiles.length === 0) return;
+        if (!window.confirm(`ยืนยันถอดโปรไฟล์ทั้ง ${afProfiles.length} จอออกจากหน้า Auto Farm และพากลับตัวหลักหรือไม่? (ไม่ลบโปรไฟล์หลักจากหน้าแรก)`)) return;
+        const res = await fetch(`${API_BASE}/api/autofarm/profiles/bulk-remove`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ mode: "all_farmers" })
+          body: JSON.stringify({ mode: "all" })
         }).then(r => r.json());
         if (res && res.success) {
-          if (typeof showToast === "function") showToast(`🗑️ ลบโปรไฟล์ตัวฟาร์มทั้งหมด ${res.deletedCount} โปรไฟล์แล้ว (เก็บตัวรับเงินไว้)`, "success");
+          if (typeof showToast === "function") showToast(`⏏ ถอดออก ${res.removedCount} จอและสั่งพากลับบอทหลักเรียบร้อย`, "info");
           await loadAutoFarmDashboard(true);
         }
       };
     }
   }
 
-  const escHtml = (s) => String(s == null ? "" : s)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
+  function formatCycleMs(ms) {
+    const s = Math.round((Number(ms) || 0) / 1000);
+    if (!s) return "";
+    const m = Math.floor(s / 60);
+    const r = s % 60;
+    return m > 0 ? `${m}น. ${r}วิ` : `${r}วิ`;
+  }
 
   function renderAutoFarmDashboard() {
     bindAutoFarmEvents();
@@ -8028,10 +8114,10 @@ window.switchMainTab = switchMainTab;
     const runBadge = document.getElementById("af-run-badge");
     if (runBadge) {
       if (afConfig.running) {
-        runBadge.textContent = "🟢 กำลังรันฟาร์มอัตโนมัติ";
-        runBadge.style.background = "rgba(16,185,129,0.22)";
-        runBadge.style.color = "#6ee7b7";
-        runBadge.style.borderColor = "rgba(16,185,129,0.5)";
+        runBadge.textContent = "💎 กำลังปั๊มเพชรจันทร์";
+        runBadge.style.background = "rgba(14,165,233,0.22)";
+        runBadge.style.color = "#7dd3fc";
+        runBadge.style.borderColor = "rgba(56,189,248,0.55)";
       } else {
         runBadge.textContent = "⏸ หยุดพัก";
         runBadge.style.background = "rgba(148,163,184,0.18)";
@@ -8042,8 +8128,8 @@ window.switchMainTab = switchMainTab;
 
     const toggleBtn = document.getElementById("af-btn-toggle-run");
     if (toggleBtn) {
-      toggleBtn.textContent = afConfig.running ? "⏸ หยุดพักคิว Auto Farm" : "▶ เริ่มรันระบบ Auto Farm";
-      toggleBtn.className = afConfig.running ? "btn btn-warning" : "btn btn-success";
+      toggleBtn.textContent = afConfig.running ? "🛑 หยุด & กลับบอทหลัก" : "▶ เริ่มรันปั๊มเพชรจันทร์";
+      toggleBtn.className = afConfig.running ? "btn btn-danger" : "btn btn-success";
     }
 
     const statusText = document.getElementById("af-status-text");
@@ -8051,151 +8137,150 @@ window.switchMainTab = switchMainTab;
       statusText.textContent = afConfig.lastStatusText;
     }
 
-    const receiverProf = afProfiles.find(p => p.id === afConfig.receiverProfileId) || afProfiles.find(p => p.isReceiver) || afProfiles[0] || null;
-    const activeFarmers = afProfiles.filter(p => (!receiverProf || p.id !== receiverProf.id) && !p.passed && p.isRunning);
-    const waitingFarmers = afProfiles.filter(p => (!receiverProf || p.id !== receiverProf.id) && !p.passed && !p.isRunning);
-    const passedFarmers = afProfiles.filter(p => (!receiverProf || p.id !== receiverProf.id) && p.passed);
-
-    const mRec = document.getElementById("af-metric-receiver");
-    if (mRec) {
-      if (receiverProf) {
-        const rName = (receiverProf.liveState && receiverProf.liveState.charName) || receiverProf.lastCharName || receiverProf.charName || receiverProf.name;
-        const rZeny = (receiverProf.liveState && receiverProf.liveState.screenPhase === "in_game" && receiverProf.liveState.zeny != null)
-          ? receiverProf.liveState.zeny
-          : (receiverProf.lastZeny != null ? receiverProf.lastZeny : (receiverProf.liveState && receiverProf.liveState.zeny != null ? receiverProf.liveState.zeny : 0));
-        const rOnline = receiverProf.isRunning ? " 🟢" : " ⚪";
-        mRec.textContent = `${rName}${rOnline} • 💰 ${Number(rZeny || 0).toLocaleString()}`;
-      } else {
-        mRec.textContent = "ยังไม่มีโปรไฟล์";
-      }
-    }
-    const mQueue = document.getElementById("af-metric-queue");
-    if (mQueue) mQueue.textContent = `เปิด ${activeFarmers.length}/${afConfig.concurrency || 3} • รอคิว ${waitingFarmers.length} ID`;
-    const mPassed = document.getElementById("af-metric-passed");
-    if (mPassed) mPassed.textContent = `${passedFarmers.length} / ${Math.max(0, afProfiles.length - (receiverProf ? 1 : 0))} โปรไฟล์`;
-    const mCoins = document.getElementById("af-metric-coins");
-    if (mCoins) mCoins.textContent = `${Number(afConfig.totalTradedCoins || 0).toLocaleString()} เหรียญ`;
-
-    // Sync config inputs if user is not actively typing in them
-    const syncInput = (id, val) => {
+    const syncCb = (id, val) => {
       const el = document.getElementById(id);
-      if (el && document.activeElement !== el && val !== undefined && val !== null) {
-        el.value = String(val);
-      }
+      if (el && document.activeElement !== el) el.checked = Boolean(val);
     };
-    syncInput("af-cfg-server", afConfig.serverName || "Nightfall");
-    syncInput("af-cfg-concurrency", afConfig.concurrency || 3);
-    syncInput("af-cfg-target-lv", afConfig.targetLevel || 45);
-    syncInput("af-cfg-trade-ch", afConfig.tradeChannel || 1);
-    syncInput("af-cfg-completion", afConfig.completionAction || "pass");
+    syncCb("af-cfg-vault-rush", afConfig.vaultRushEnabled !== false);
+    syncCb("af-cfg-deposit-coins", afConfig.depositPassCoins !== false);
+    syncCb("af-cfg-auto-launch", afConfig.autoLaunchClosed !== false);
 
-    const recSelect = document.getElementById("af-cfg-receiver");
-    if (recSelect && document.activeElement !== recSelect) {
-      recSelect.innerHTML = "";
-      if (afProfiles.length === 0) {
-        const opt = document.createElement("option");
-        opt.value = "";
-        opt.textContent = "-- เพิ่มโปรไฟล์ก่อน (จอ 1 จะเป็นตัวรับเงิน) --";
-        recSelect.appendChild(opt);
-      } else {
-        afProfiles.forEach((p, idx) => {
-          const opt = document.createElement("option");
-          opt.value = p.id;
-          const cName = (p.liveState && p.liveState.charName) || p.lastCharName || p.charName || p.name;
-          opt.textContent = `จอ ${idx + 1}: ${cName} (${p.account || "auto"})`;
-          if (receiverProf && p.id === receiverProf.id) opt.selected = true;
-          recSelect.appendChild(opt);
-        });
-      }
-    }
+    const ineligibleCount = afProfiles.filter(p => Boolean(p.ineligibleReason)).length;
+    const rushingCount = afProfiles.filter(p => !p.ineligibleReason && p.isRunning && (p.gemRush?.enabled || afConfig.running)).length;
+
+    const mGems = document.getElementById("af-metric-gems");
+    if (mGems) mGems.textContent = `${Number(afConfig.totalGemsEarned || 0).toLocaleString()} เพชร`;
+    const mCycles = document.getElementById("af-metric-cycles");
+    if (mCycles) mCycles.textContent = `${Number(afConfig.totalCycles || 0).toLocaleString()} รอบ`;
+    const mActive = document.getElementById("af-metric-active");
+    if (mActive) mActive.textContent = `กำลังวิ่ง ${rushingCount}/${afProfiles.length} จอ · ไม่ผ่าน ${ineligibleCount}`;
+    const mCoins = document.getElementById("af-metric-coins");
+    if (mCoins) mCoins.textContent = `${Number(afConfig.totalCoinsDeposited || 0).toLocaleString()} เหรียญ`;
 
     const grid = document.getElementById("af-profiles-grid");
     if (!grid) return;
     if (afProfiles.length === 0) {
       grid.innerHTML = `
-        <div style="grid-column:1/-1;text-align:center;padding:42px 20px;background:rgba(15,23,42,0.65);border:1.5px dashed rgba(148,163,184,0.28);border-radius:14px;color:#94a3b8;">
-          <div style="font-size:34px;margin-bottom:8px;">🌾</div>
-          <div style="font-size:15px;font-weight:800;color:#e2e8f0;margin-bottom:4px;">ยังไม่มีโปรไฟล์ในคิวระบบ Auto Farm</div>
-          <div style="font-size:12.5px;">เลือกเซิร์ฟเวอร์ กรอกจำนวนโปรไฟล์ที่ต้องการ (เช่น 20 โปรไฟล์) แล้วกดปุ่ม <b>"➕ สร้างโปรไฟล์เข้าคิว"</b> ด้านบนได้เลยครับ (จอที่ 1 จะถูกตั้งเป็นตัวรับเงินเทรดอัตโนมัติ)</div>
+        <div style="grid-column:1/-1;text-align:center;padding:44px 20px;background:rgba(15,23,42,0.65);border:1.5px dashed rgba(56,189,248,0.32);border-radius:14px;color:#94a3b8;">
+          <div style="font-size:36px;margin-bottom:8px;">💎</div>
+          <div style="font-size:15.5px;font-weight:800;color:#e0f2fe;margin-bottom:6px;">ยังไม่ได้ดึงโปรไฟล์เข้ามาในหน้า Auto Farm</div>
+          <div style="font-size:12.5px;max-width:560px;margin:0 auto 14px;line-height:1.5;">
+            กดปุ่ม <b>"➕ ดึงโปรไฟล์จากหน้าหลัก"</b> ด้านบนเพื่อเลือก ID ที่ต้องการให้ปั๊มเพชรจันทร์ 20/รอบ<br>
+            (ไอดีต้องมีตัวละคร Lv.45+ และช่องว่างอย่างน้อย 1 ช่อง · หากไม่เข้าเงื่อนไขระบบจะแปะป้ายแดงและปล่อยกลับไปทำงานบอทปกติทันที)
+          </div>
+          <button type="button" class="btn btn-primary btn-sm" style="padding:8px 16px;font-weight:800;" onclick="document.getElementById('af-btn-open-pull')?.click()">
+            ➕ ดึงโปรไฟล์จากหน้าหลักเดี๋ยวนี้
+          </button>
         </div>
       `;
       return;
     }
 
     grid.innerHTML = afProfiles.map((p, idx) => {
-      const isRec = Boolean(receiverProf && p.id === receiverProf.id);
       const live = p.liveState || null;
-      const rawChar = (live && live.charName && live.charName !== "Traveler") ? live.charName : (p.lastCharName || p.charName || "");
-      const charName = rawChar || (p.isRunning ? "กำลังสุ่มสร้างตัวละคร..." : "⏳ รอสุ่มสร้างตัวละคร");
-      const baseLv = (live && live.baseLv != null && live.baseLv > 1) ? live.baseLv : (p.lastBaseLv || (live && live.baseLv) || 1);
-      const jobLv = (live && live.jobLv != null) ? live.jobLv : null;
-      const className = (live && (live.jobName || live.className)) || p.jobClass || "นักธนู";
-      const zeny = (live && live.zeny != null && (live.screenPhase === "in_game" || Number(live.zeny) > 0))
-        ? live.zeny
-        : (p.lastZeny != null ? p.lastZeny : (live && live.zeny != null ? live.zeny : null));
-      const displayEmail = (live && live.authConfig && (live.authConfig.registerDone || live.authConfig.verifiedLoginAt) && live.authConfig.username)
-        ? live.authConfig.username
-        : (p.account || (p.isRunning ? "กำลังสุ่มสมัคร @gmail.com..." : "⏳ รอสุ่มสมัคร @gmail ตอนเปิดจอ"));
-      const displayPass = (live && live.authConfig && (live.authConfig.registerDone || live.authConfig.verifiedLoginAt) && live.authConfig.password)
-        ? live.authConfig.password
-        : (p.loginPassword || (p.account ? "********" : "⏳ รอยืนยันหลังสมัครสำเร็จ"));
-      const mapName = (live && live.map) ? live.map : (p.isRunning ? "กำลังเข้าเกม..." : "รอเปิดจอ");
+      const gr = p.gemRush || null;
+      const inelig = String(p.ineligibleReason || "");
+      const isNoLv45 = inelig === "no_lv45";
+      const isSlotsFull = inelig === "slots_full";
+      const isIneligible = Boolean(inelig);
+
+      const mainChar = p.returnCharName || p.lastCharName || p.charName || p.name || "ไม่ทราบชื่อ";
+      const liveChar = (live && live.charName) || mainChar;
+      const activeTemp = p.tempCharName || (gr && gr.tempCharName) || "";
+      const showingTemp = Boolean(activeTemp && liveChar === activeTemp);
+      const baseLv = (live && live.baseLv != null) ? live.baseLv : (p.lastBaseLv || 1);
+      const mapName = (live && live.map) ? live.map : (p.isRunning ? "กำลังโหลด..." : "ปิดจออยู่");
       const chText = (live && live.channel) ? ` • CH.${live.channel}` : "";
       const hpPct = (live && live.hpMax > 0) ? Math.min(100, Math.max(0, Math.round((live.hp / live.hpMax) * 100))) : (p.isRunning ? 100 : 0);
       const spPct = (live && live.spMax > 0) ? Math.min(100, Math.max(0, Math.round((live.sp / live.spMax) * 100))) : (p.isRunning ? 100 : 0);
-      const hpText = (live && live.hpMax > 0) ? `${live.hp}/${live.hpMax}` : (p.isRunning ? "100%" : "--");
-      const spText = (live && live.spMax > 0) ? `${live.sp}/${live.spMax}` : (p.isRunning ? "100%" : "--");
-      const weightPct = (live && live.weightPct != null) ? `${live.weightPct}%` : "--";
-      const afStatus = (live && live.autoFarmLv20 && live.autoFarmLv20.statusText)
-        || (live && live.botStatus)
-        || (isRec
-          ? (p.isRunning ? `👑 เปิดร้านตลาดกลางรอรับเงินอยู่` : "👑 ตัวรับเงินหลัก (กำลังเปิดจอค้างไว้รอรับเงิน...)")
-          : (p.passed ? `✅ ดึงของตลาดกลางโอนเงินสำเร็จ (${Number(p.tradedCoins || 0).toLocaleString()} เหรียญ)` : "⏳ รอคิวเปิดจอ (จะสุ่มสมัคร ID & สร้างตัวละครตอนเปิดจอ)..."));
+      const hpText = (live && live.hpMax > 0) ? `${live.hp}/${live.hpMax}` : (p.isRunning ? "--" : "--");
+      const spText = (live && live.spMax > 0) ? `${live.sp}/${live.spMax}` : (p.isRunning ? "--" : "--");
+      const liveGems = (p.lastGems != null) ? Number(p.lastGems) : null;
       const isZeroRender = Boolean((p.windowState && p.windowState.zeroRender) || (live && live.zeroRender));
-      const borderColor = isRec
-        ? "rgba(251,191,36,0.65)"
-        : (p.passed ? "rgba(16,185,129,0.65)" : (p.isRunning ? "rgba(56,189,248,0.55)" : "rgba(148,163,184,0.22)"));
 
-      const passOverlayHtml = p.passed ? `
-        <div style="position:absolute;inset:0;pointer-events:none;display:flex;align-items:center;justify-content:center;z-index:12;background:rgba(2,6,23,0.28);border-radius:14px;">
-          <div style="transform:rotate(-16deg);background:linear-gradient(135deg,rgba(5,150,105,0.94),rgba(16,185,129,0.94));border:2.5px solid #a7f3d0;color:#ffffff;padding:8px 28px;border-radius:10px;font-size:22px;font-weight:900;letter-spacing:2px;box-shadow:0 12px 30px rgba(0,0,0,0.65),0 0 24px rgba(16,185,129,0.55);text-transform:uppercase;">
-            ✅ PASS
-            <div style="font-size:10.5px;font-weight:800;letter-spacing:0.3px;color:#d1fae5;text-align:center;margin-top:1px;">
-              เทรด ${Number(p.tradedCoins || 0).toLocaleString()} เหรียญแล้ว
+      const statusText = (gr && gr.statusText) || p.statusText || (p.isRunning ? "พร้อมเช็กตัวละคร Lv.45+" : "ปิดจออยู่ · รอเริ่มรัน");
+      const borderColor = isNoLv45
+        ? "rgba(239,68,68,0.72)"
+        : (isSlotsFull
+          ? "rgba(245,158,11,0.72)"
+          : (gr?.enabled ? "rgba(56,189,248,0.68)" : (p.isRunning ? "rgba(16,185,129,0.45)" : "rgba(148,163,184,0.22)")));
+
+      // Diagonal Stamp Overlay (replaces old green PASS stamp!)
+      const stampOverlayHtml = isNoLv45 ? `
+        <div style="position:absolute;inset:0;pointer-events:none;display:flex;align-items:center;justify-content:center;z-index:12;background:rgba(15,23,42,0.44);border-radius:14px;">
+          <div style="transform:rotate(-11deg);background:linear-gradient(135deg,rgba(185,28,28,0.95),rgba(220,38,38,0.95));border:2.5px solid #fecaca;color:#ffffff;padding:9px 20px;border-radius:11px;text-align:center;box-shadow:0 12px 32px rgba(0,0,0,0.72),0 0 24px rgba(239,68,68,0.55);max-width:92%;">
+            <div style="font-size:17px;font-weight:900;letter-spacing:0.3px;">❌ ไม่มีตัวละครเลเวล 45</div>
+            <div style="font-size:11px;font-weight:700;color:#fee2e2;margin-top:2px;">
+              ${p.maxSlotLv ? `สูงสุด Lv.${p.maxSlotLv} · ` : ""}กลับไปทำงานบอทปกติแล้ว
             </div>
           </div>
+        </div>
+      ` : (isSlotsFull ? `
+        <div style="position:absolute;inset:0;pointer-events:none;display:flex;align-items:center;justify-content:center;z-index:12;background:rgba(15,23,42,0.42);border-radius:14px;">
+          <div style="transform:rotate(-11deg);background:linear-gradient(135deg,rgba(180,83,9,0.95),rgba(217,119,6,0.95));border:2.5px solid #fde68a;color:#ffffff;padding:9px 20px;border-radius:11px;text-align:center;box-shadow:0 12px 32px rgba(0,0,0,0.72),0 0 24px rgba(245,158,11,0.5);max-width:92%;">
+            <div style="font-size:17px;font-weight:900;letter-spacing:0.3px;">⚠️ ช่องตัวละครเต็ม</div>
+            <div style="font-size:11px;font-weight:700;color:#fef3c7;margin-top:2px;">
+              ต้องเว้นว่างอย่างน้อย 1 ช่อง · กลับบอทปกติแล้ว
+            </div>
+          </div>
+        </div>
+      ` : "");
+
+      const dailyBadgesHtml = (!isIneligible && gr && (gr.huntProgress || gr.jellyProgress || gr.sunProgress || gr.passLv > 0)) ? `
+        <div style="display:flex;flex-wrap:wrap;gap:5px;font-size:10.5px;font-weight:800;">
+          ${gr.huntProgress ? `<span style="padding:2px 7px;border-radius:6px;background:rgba(16,185,129,0.16);color:#6ee7b7;border:1px solid rgba(16,185,129,0.32);">🟢 สไลม์ ${escHtml(gr.huntProgress)}</span>` : ""}
+          ${gr.jellyProgress ? `<span style="padding:2px 7px;border-radius:6px;background:rgba(56,189,248,0.16);color:#7dd3fc;border:1px solid rgba(56,189,248,0.32);">🍃 เจล ${escHtml(gr.jellyProgress)}</span>` : ""}
+          ${gr.sunProgress ? `<span style="padding:2px 7px;border-radius:6px;background:rgba(251,191,36,0.16);color:#fde68a;border:1px solid rgba(251,191,36,0.32);">☀️ แดด ${escHtml(gr.sunProgress)}</span>` : ""}
+          <span style="padding:2px 7px;border-radius:6px;background:rgba(168,85,247,0.2);color:#d8b4fe;border:1px solid rgba(168,85,247,0.38);">🎫 พาส Lv.${Number(gr.passLv || 0)}/2</span>
         </div>
       ` : "";
 
       return `
-        <div class="profile-card" style="position:relative;overflow:hidden;border:1.5px solid ${borderColor};background:linear-gradient(160deg,rgba(15,23,42,0.96),rgba(9,14,28,0.96));border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:10px;">
-          ${passOverlayHtml}
+        <div class="profile-card" style="position:relative;overflow:hidden;border:1.5px solid ${borderColor};background:linear-gradient(160deg,rgba(15,23,42,0.96),rgba(9,14,28,0.96));border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:9px;">
+          ${stampOverlayHtml}
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
-            <div>
+            <div style="min-width:0;">
               <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-                <span style="padding:2px 8px;border-radius:6px;font-size:11px;font-weight:800;background:${isRec ? "rgba(245,158,11,0.22)" : "rgba(56,189,248,0.16)"};color:${isRec ? "#fde68a" : "#7dd3fc"};border:1px solid ${isRec ? "rgba(251,191,36,0.45)" : "rgba(56,189,248,0.35)"};">
-                  ${isRec ? `👑 จอ ${idx + 1} • ตัวรับเงินเทรด` : `🌾 จอ ${idx + 1} • ตัวฟาร์ม`}
+                <span style="padding:2px 8px;border-radius:6px;font-size:11px;font-weight:800;background:rgba(56,189,248,0.18);color:#7dd3fc;border:1px solid rgba(56,189,248,0.38);">
+                  💎 #${idx + 1} · ${escHtml(p.name)}
                 </span>
-                <span style="padding:2px 7px;border-radius:6px;font-size:10.5px;font-weight:700;background:rgba(148,163,184,0.15);color:#cbd5e1;">
-                  🌐 ${escHtml(p.serverName || afConfig.serverName || "Nightfall")}
-                </span>
+                ${p.serverName ? `<span style="padding:2px 7px;border-radius:6px;font-size:10.5px;font-weight:700;background:rgba(148,163,184,0.15);color:#cbd5e1;">🌐 ${escHtml(p.serverName)}</span>` : ""}
                 <span style="padding:2px 7px;border-radius:6px;font-size:10.5px;font-weight:800;background:${p.isRunning ? "rgba(16,185,129,0.2)" : "rgba(100,116,139,0.2)"};color:${p.isRunning ? "#34d399" : "#94a3b8"};">
                   ${p.isRunning ? `🟢 ออนไลน์ :${p.port || ""}` : "⚪ ปิดจอ"}
                 </span>
               </div>
-              <div style="font-size:15.5px;font-weight:800;color:#f8fafc;margin-top:6px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-                <span>👤 ${escHtml(charName)}</span>
-                <span style="font-size:12px;color:#38bdf8;font-weight:800;">Lv.${baseLv}/${afConfig.targetLevel || 20}${jobLv != null ? ` • Job.${jobLv}` : ""}</span>
-                <span style="font-size:11px;color:#cbd5e1;background:rgba(51,65,85,0.65);padding:1px 6px;border-radius:5px;">${escHtml(className)}</span>
+              <div style="font-size:14.5px;font-weight:800;color:#f8fafc;margin-top:6px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                <span>${showingTemp ? "⚡ ตัวรัช:" : "👑 ตัวหลัก:"} ${escHtml(liveChar)}</span>
+                <span style="font-size:12px;color:#38bdf8;font-weight:800;">Lv.${baseLv}</span>
+                ${showingTemp ? `<span style="font-size:10.5px;color:#fde68a;background:rgba(245,158,11,0.18);padding:1px 6px;border-radius:5px;">หลัก: ${escHtml(mainChar)}</span>` : ""}
               </div>
+              ${p.account ? `<div style="font-size:11px;color:#94a3b8;margin-top:2px;font-family:monospace;">📧 ${escHtml(p.account)}</div>` : ""}
             </div>
             <div style="text-align:right;flex-shrink:0;">
-              <div style="font-size:14px;font-weight:900;color:#fbbf24;">💰 ${zeny != null ? Number(zeny).toLocaleString() : "0"}</div>
+              <div style="font-size:14px;font-weight:900;color:#38bdf8;">💎 ${liveGems != null ? liveGems.toLocaleString() : "--"} เพชร</div>
               <div style="font-size:11px;color:#94a3b8;">📍 ${escHtml(mapName)}${escHtml(chText)}</div>
             </div>
           </div>
 
-          <!-- HP / SP / WEIGHT BARS (CLIENT CARD STATS) -->
+          <!-- GEM RUSH COUNTERS -->
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;background:rgba(2,6,23,0.55);border:1px solid rgba(56,189,248,0.18);border-radius:9px;padding:7px 9px;font-size:11px;text-align:center;">
+            <div>
+              <div style="color:#94a3b8;font-size:10px;">🔄 รอบสำเร็จ</div>
+              <div style="color:#34d399;font-weight:900;font-size:13px;">${Number(p.cycles || 0)} รอบ</div>
+            </div>
+            <div>
+              <div style="color:#94a3b8;font-size:10px;">💎 ปั๊มได้</div>
+              <div style="color:#38bdf8;font-weight:900;font-size:13px;">+${Number(p.gemsEarned || 0).toLocaleString()}</div>
+            </div>
+            <div>
+              <div style="color:#94a3b8;font-size:10px;">💰 ฝากคลังร่วม</div>
+              <div style="color:#fbbf24;font-weight:900;font-size:13px;">${Number(p.totalCoinsDeposited || 0).toLocaleString()}g</div>
+            </div>
+          </div>
+
+          ${dailyBadgesHtml}
+
+          <!-- HP / SP BAR -->
           <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:center;background:rgba(2,6,23,0.45);border:1px solid rgba(148,163,184,0.14);border-radius:8px;padding:6px 9px;font-size:10.5px;">
             <div>
               <div style="display:flex;justify-content:space-between;color:#fca5a5;font-weight:700;margin-bottom:2px;">
@@ -8214,61 +8299,37 @@ window.switchMainTab = switchMainTab;
               </div>
             </div>
             <div style="text-align:right;color:#cbd5e1;font-weight:700;padding-left:4px;">
-              <div>⚖️ น้ำหนัก</div>
-              <div style="color:#f8fafc;">${escHtml(weightPct)}</div>
+              <div>⏱️ รอบล่าสุด</div>
+              <div style="color:#f8fafc;">${p.lastCycleMs ? escHtml(formatCycleMs(p.lastCycleMs)) : "--"}</div>
             </div>
           </div>
 
-          <!-- EMAIL & PASSWORD BOX -->
-          <div style="background:rgba(2,6,23,0.65);border:1px solid rgba(148,163,184,0.18);border-radius:9px;padding:8px 10px;font-size:11.5px;display:flex;justify-content:space-between;align-items:center;gap:8px;">
-            <div style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
-              <div style="color:#cbd5e1;">📧 <span style="font-family:monospace;color:${p.account ? "#f8fafc" : "#94a3b8"};font-weight:700;">${escHtml(displayEmail)}</span></div>
-              <div style="color:#94a3b8;margin-top:2px;">🔑 <span style="font-family:monospace;color:${p.loginPassword ? "#a7f3d0" : "#64748b"};">${escHtml(displayPass)}</span></div>
-            </div>
-            <div style="display:flex;gap:4px;flex-shrink:0;">
-              <button type="button" class="btn btn-secondary btn-sm" style="padding:4px 7px;font-size:11px;" title="แก้ไข ID / รหัส / ชื่อตัวละคร / เซิร์ฟเวอร์" onclick="window.__afEditProfile('${p.id}')">
-                ✏️ แก้ไข
-              </button>
-              <button type="button" class="btn btn-secondary btn-sm" style="padding:4px 7px;font-size:11px;" onclick="window.__afCopyCreds('${escHtml(displayEmail)}','${escHtml(displayPass)}','${escHtml(charName)}')">
-                📋 คัดลอก
-              </button>
-            </div>
+          <!-- LIVE GEM RUSH STATUS -->
+          <div style="background:${isIneligible ? "rgba(239,68,68,0.12)" : "rgba(14,165,233,0.12)"};border:1px solid ${isIneligible ? "rgba(239,68,68,0.35)" : "rgba(56,189,248,0.3)"};border-radius:8px;padding:7px 10px;font-size:11.5px;color:${isIneligible ? "#fca5a5" : "#bae6fd"};font-weight:600;">
+            ${escHtml(statusText)}
           </div>
 
-          <!-- LIVE BOT STATUS -->
-          <div style="background:${isRec ? "rgba(245,158,11,0.12)" : "rgba(15,118,110,0.14)"};border:1px solid ${isRec ? "rgba(251,191,36,0.32)" : "rgba(20,184,166,0.28)"};border-radius:8px;padding:7px 10px;font-size:11.5px;color:${isRec ? "#fde68a" : "#99f6e4"};font-weight:600;">
-            ${escHtml(afStatus)}
-          </div>
-
-          <!-- ACTION BUTTONS -->
+          <!-- ACTION BUTTONS (above stamp overlay z-index:15 so always clickable) -->
           <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:auto;position:relative;z-index:15;">
             ${p.isRunning ? `
-              <button type="button" class="btn btn-danger btn-sm" style="flex:1;padding:6px 8px;font-size:11.5px;" onclick="stopClient('${p.id}').then(()=>window.loadAutoFarmDashboard(true))">
-                ⏹ ปิดจอ
-              </button>
-              <button type="button" class="btn btn-secondary btn-sm" style="padding:6px 8px;font-size:11.5px;" onclick="focusWindow('${p.id}')">
+              <button type="button" class="btn btn-secondary btn-sm" style="flex:1;padding:6px 8px;font-size:11.5px;" onclick="focusWindow('${escHtml(p.id)}')">
                 🖥️ แสดงภาพ
               </button>
-              <button type="button" class="btn btn-secondary btn-sm" style="padding:6px 8px;font-size:11.5px;" onclick="toggleWindow('${p.id}').then(()=>window.loadAutoFarmDashboard(true))">
+              <button type="button" class="btn btn-secondary btn-sm" style="padding:6px 8px;font-size:11.5px;" onclick="toggleWindow('${escHtml(p.id)}').then(()=>window.loadAutoFarmDashboard(true))">
                 ${isZeroRender ? "⚡ เปิดกราฟิก" : "⚡ พักกราฟิก"}
               </button>
             ` : `
-              <button type="button" class="btn btn-primary btn-sm" style="flex:1;padding:6px 8px;font-size:11.5px;" onclick="launchClient('${p.id}').then(()=>setTimeout(()=>window.loadAutoFarmDashboard(true),1200))">
+              <button type="button" class="btn btn-primary btn-sm" style="flex:1;padding:6px 8px;font-size:11.5px;" onclick="launchClient('${escHtml(p.id)}').then(()=>setTimeout(()=>window.loadAutoFarmDashboard(true),1200))">
                 🚀 เปิดจอนี้
               </button>
             `}
-            ${!isRec ? `
-              <button type="button" class="btn btn-secondary btn-sm" style="padding:6px 8px;font-size:11px;" title="ตั้งโปรไฟล์นี้เป็นตัวรับเงินเทรด" onclick="window.__afSetReceiver('${p.id}')">
-                👑 ตั้งรับเงิน
+            ${isIneligible ? `
+              <button type="button" class="btn btn-secondary btn-sm" style="padding:6px 9px;font-size:11px;color:#fcd34d;border-color:rgba(251,191,36,0.4);" title="ตรวจสอบเงื่อนไข Lv.45+ และช่องว่างใหม่อีกครั้ง" onclick="window.__afRecheckProfile('${escHtml(p.id)}')">
+                🔄 เช็กใหม่
               </button>
             ` : ""}
-            ${p.passed ? `
-              <button type="button" class="btn btn-secondary btn-sm" style="padding:6px 8px;font-size:11px;color:#fcd34d;" title="ล้างสถานะ PASS เพื่อนำกลับเข้าคิวฟาร์มใหม่" onclick="window.__afResetPass('${p.id}')">
-                🔄 รีเซ็ต PASS
-              </button>
-            ` : ""}
-            <button type="button" class="btn btn-danger btn-sm" style="padding:6px 8px;font-size:11px;" title="ลบโปรไฟล์นี้" onclick="window.__afDeleteProfile('${p.id}','${escHtml(charName)}')">
-              🗑️
+            <button type="button" class="btn btn-danger btn-sm" style="padding:6px 9px;font-size:11px;" title="ถอดออกจากหน้า Auto Farm และพากลับตัวหลัก (ไม่ลบโปรไฟล์หลัก)" onclick="window.__afRemoveProfile('${escHtml(p.id)}','${escHtml(p.name)}')">
+              ⏏ ถอดออก
             </button>
           </div>
         </div>
@@ -8276,62 +8337,23 @@ window.switchMainTab = switchMainTab;
     }).join("");
   }
 
-  window.__afEditProfile = async function (profileId) {
-    const p = afProfiles.find(x => x.id === profileId);
-    if (!p) return;
-    const newAccount = window.prompt("📧 แก้ไข E-mail / ID (เว้นว่างเพื่อให้บอทสุ่มสมัครใหม่):", p.account || "");
-    if (newAccount === null) return;
-    const newPass = window.prompt("🔑 แก้ไขรหัสผ่าน:", p.loginPassword || "");
-    if (newPass === null) return;
-    const newChar = window.prompt("👤 แก้ไขชื่อตัวละคร:", p.lastCharName || p.charName || "");
-    if (newChar === null) return;
-    const newServer = window.prompt("🌐 เซิร์ฟเวอร์ (Nightfall, Moonlight, Stardust, Sunflare):", p.serverName || afConfig.serverName || "Nightfall");
-    if (newServer === null) return;
-    const res = await fetch(`${API_BASE}/api/autofarm/profiles/${encodeURIComponent(profileId)}/update`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        account: newAccount.trim(),
-        loginPassword: newPass.trim(),
-        charName: newChar.trim(),
-        serverName: newServer.trim() || "Nightfall"
-      })
-    }).then(r => r.json());
-    if (res && res.success) {
-      if (typeof showToast === "function") showToast("✅ บันทึกข้อมูลโปรไฟล์เรียบร้อยแล้ว", "success");
-      await loadAutoFarmDashboard(true);
-    }
-  };
-
-  window.__afCopyCreds = function (email, pass, charName) {
-    const txt = `${email}:${pass} (${charName})`;
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(txt).catch(() => {});
-    }
-    if (typeof showToast === "function") showToast(`📋 คัดลอก ${txt} แล้ว`, "info");
-  };
-
-  window.__afSetReceiver = async function (profileId) {
-    await saveAutoFarmConfig({ receiverProfileId: profileId });
-  };
-
-  window.__afResetPass = async function (profileId) {
-    const res = await fetch(`${API_BASE}/api/autofarm/profiles/${encodeURIComponent(profileId)}/reset-pass`, {
+  window.__afRecheckProfile = async function (profileId) {
+    const res = await fetch(`${API_BASE}/api/autofarm/profiles/${encodeURIComponent(profileId)}/recheck`, {
       method: "POST"
     }).then(r => r.json());
     if (res && res.success) {
-      if (typeof showToast === "function") showToast("🔄 รีเซ็ตสถานะ PASS เรียบร้อยแล้ว", "success");
+      if (typeof showToast === "function") showToast("🔄 ล้างป้ายแจ้งเตือนและสั่งตรวจเงื่อนไข Lv.45+ ใหม่แล้ว", "success");
       await loadAutoFarmDashboard(true);
     }
   };
 
-  window.__afDeleteProfile = async function (profileId, charName) {
-    if (!window.confirm(`ยืนยันลบโปรไฟล์ "${charName}" ออกจากหน้า Auto Farm หรือไม่?`)) return;
+  window.__afRemoveProfile = async function (profileId, label) {
+    if (!window.confirm(`ถอด "${label}" ออกจากหน้า Auto Farm และพากลับไปทำงานบอทหลักตามปกติหรือไม่? (โปรไฟล์หลักจะยังอยู่ครบตามเดิม)`)) return;
     const res = await fetch(`${API_BASE}/api/autofarm/profiles/${encodeURIComponent(profileId)}`, {
       method: "DELETE"
     }).then(r => r.json());
     if (res && res.success) {
-      if (typeof showToast === "function") showToast(`🗑️ ลบโปรไฟล์ "${charName}" แล้ว`, "info");
+      if (typeof showToast === "function") showToast(`⏏ ถอด "${label}" ออกและสั่งพากลับบอทหลักแล้ว`, "info");
       await loadAutoFarmDashboard(true);
     }
   };
@@ -8344,7 +8366,12 @@ window.switchMainTab = switchMainTab;
       if (res && res.success) {
         afConfig = res.config || afConfig;
         afProfiles = Array.isArray(res.profiles) ? res.profiles : [];
+        afAvailableMainProfiles = Array.isArray(res.availableMainProfiles) ? res.availableMainProfiles : [];
         renderAutoFarmDashboard();
+        const modal = document.getElementById("af-pull-modal");
+        if (modal && modal.style.display === "flex") {
+          renderPullModalList();
+        }
       }
     } catch (_) {
     } finally {

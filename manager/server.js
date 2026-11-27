@@ -2424,17 +2424,14 @@ let autoFarmStateCache = null;
 
 function getDefaultAutoFarmConfig() {
   return {
-    serverName: "Nightfall",
-    receiverProfileId: "",
-    concurrency: 3,
-    targetLevel: 45,
-    tradeChannel: 1,
-    completionAction: "pass", // 'pass' | 'delete'
-    planId: "default_archer_wolf",
     running: false,
-    totalTradedCoins: 0,
-    completedCount: 0,
-    lastStatusText: "พร้อมเริ่มระบบ Auto Farm Lv.45"
+    vaultRushEnabled: true,
+    depositPassCoins: true,
+    autoLaunchClosed: true,
+    totalCycles: 0,
+    totalGemsEarned: 0,
+    totalCoinsDeposited: 0,
+    lastStatusText: "พร้อมดึงโปรไฟล์จากหน้าหลักเพื่อปั๊มเพชรจันทร์ (20 เพชร/รอบ)"
   };
 }
 
@@ -2446,72 +2443,38 @@ function loadAutoFarmState() {
   if (fs.existsSync(AUTOFARM_STATE_FILE)) {
     try {
       const raw = JSON.parse(fs.readFileSync(AUTOFARM_STATE_FILE, "utf8"));
-      if (raw && typeof raw === "object") parsed = raw;
+      if (raw && typeof raw === "object" && raw.schemaVersion === 2 && Array.isArray(raw.entries)) {
+        parsed = raw;
+      }
     } catch (_) {}
   }
   const state = {
+    schemaVersion: 2,
     config: { ...getDefaultAutoFarmConfig(), ...(parsed && parsed.config ? parsed.config : {}) },
-    profiles: Array.isArray(parsed && parsed.profiles) ? parsed.profiles.map(p => ({ ...p, isAutoFarmProfile: true })) : []
+    entries: Array.isArray(parsed && parsed.entries) ? parsed.entries.filter(e => e && e.profileId) : []
   };
-  if (state.profiles.length > 0 && (!state.config.receiverProfileId || !state.profiles.some(p => p.id === state.config.receiverProfileId))) {
-    const existingRec = state.profiles.find(p => p.isReceiver) || state.profiles[0];
-    state.config.receiverProfileId = existingRec.id;
-  }
-  for (const p of state.profiles) {
-    p.isReceiver = (p.id === state.config.receiverProfileId);
-  }
   autoFarmStateCache = state;
   return state;
 }
 
 function saveAutoFarmState(state) {
   if (!state || typeof state !== "object") return;
-  if (!Array.isArray(state.profiles)) state.profiles = [];
+  state.schemaVersion = 2;
+  if (!Array.isArray(state.entries)) state.entries = [];
   if (!state.config || typeof state.config !== "object") state.config = getDefaultAutoFarmConfig();
-  if (state.profiles.length > 0 && (!state.config.receiverProfileId || !state.profiles.some(p => p.id === state.config.receiverProfileId))) {
-    const rec = state.profiles.find(p => p.isReceiver) || state.profiles[0];
-    state.config.receiverProfileId = rec.id;
-  }
-  for (const p of state.profiles) {
-    p.isAutoFarmProfile = true;
-    p.isReceiver = (p.id === state.config.receiverProfileId);
-  }
   autoFarmStateCache = state;
   try { writeJsonAtomic(AUTOFARM_STATE_FILE, state); } catch (_) {}
 }
 
 function loadAllRuntimeProfiles() {
-  const reg = loadProfiles() || [];
-  const af = loadAutoFarmState().profiles || [];
-  return [...reg, ...af];
+  return loadProfiles() || [];
 }
 
 function saveAllRuntimeProfiles(mixedList, options = {}) {
   if (!Array.isArray(mixedList)) return;
-  const reg = [];
-  const afMap = new Map();
-  for (const p of mixedList) {
-    if (!p || !p.id) continue;
-    if (p.isAutoFarmProfile || String(p.id).startsWith("af_")) {
-      afMap.set(p.id, { ...p, isAutoFarmProfile: true });
-    } else {
-      reg.push(p);
-    }
-  }
+  const reg = mixedList.filter(p => p && p.id && !p.isAutoFarmProfile && !String(p.id).startsWith("af_"));
   if (reg.length > 0 || options.allowEmpty) {
     saveProfiles(reg, options);
-  }
-  if (afMap.size > 0) {
-    const afState = loadAutoFarmState();
-    let afChanged = false;
-    afState.profiles = afState.profiles.map(existing => {
-      if (afMap.has(existing.id)) {
-        afChanged = true;
-        return { ...existing, ...afMap.get(existing.id), isAutoFarmProfile: true };
-      }
-      return existing;
-    });
-    if (afChanged) saveAutoFarmState(afState);
   }
 }
 
@@ -14239,94 +14202,144 @@ public class PmFocus {
   // 🌾 SECRET AUTO FARM LV.20 & AUTO-TRADE ORCHESTRATOR API
   // ==========================================
   if (pathname.startsWith("/api/autofarm/")) {
-    // GET /api/autofarm/state
+    // GET /api/autofarm/state — Season Pass 20-Gem Rush dashboard (pulls existing main profiles)
     if (req.method === "GET" && pathname === "/api/autofarm/state") {
       const afState = loadAutoFarmState();
+      const mainProfiles = loadProfiles() || [];
+      const mainMap = new Map(mainProfiles.map(p => [p.id, p]));
       let afDirty = false;
+
+      // Drop entries referencing removed main profiles (never touches profiles.json!)
+      const validEntries = afState.entries.filter(e => e && mainMap.has(e.profileId));
+      if (validEntries.length !== afState.entries.length) {
+        afState.entries = validEntries;
+        afDirty = true;
+      }
+
       const enriched = await mapWithConcurrency(
-        afState.profiles,
-        8,
-        async (p) => {
+        afState.entries,
+        10,
+        async (entry) => {
+          const p = mainMap.get(entry.profileId);
           const isBrowserOpen = Boolean(browserMode && typeof browserMode.isOpen === "function" && browserMode.isOpen(p.id));
-          let alive = isBrowserOpen;
           let liveState = null;
-          if (p.debugPort && alive) {
+          if (p.debugPort && isBrowserOpen) {
             liveState = await queryClientState(p.debugPort).catch(() => null);
             if (!liveState || liveState.error) {
               const recentCached = clientStateCacheByPort.get(p.debugPort);
               if (recentCached && recentCached.state && (Date.now() - recentCached.ts < 180000)) {
                 liveState = { ...JSON.parse(JSON.stringify(recentCached.state)), _cachedFallback: true };
-              } else {
-                liveState = {
-                  isOnline: true,
-                  isBotRunning: false,
-                  screenPhase: "loading",
-                  screenPhaseLabel: "⏳ กำลังโหลดหน้าเกม...",
-                  botStatus: "⏳ กำลังโหลดหน้าเกม...",
-                  charName: p.lastCharName || p.charName || "",
-                  charClass: p.lastCharClass || p.charClass || "Archer",
-                  map: "ไม่ทราบแมพ",
-                  zeny: p.lastZeny ?? null,
-                  _syntheticLoading: true
-                };
-              }
-            } else {
-              if (liveState.authConfig && (liveState.authConfig.registerDone || liveState.authConfig.verifiedLoginAt) && liveState.authConfig.username) {
-                const confirmedEmail = String(liveState.authConfig.username).trim();
-                if (confirmedEmail && confirmedEmail !== p.account) {
-                  p.account = confirmedEmail;
-                  afDirty = true;
-                }
-                if (liveState.authConfig.password && String(liveState.authConfig.password).trim() !== credentials.getPassword(p.id)) {
-                  credentials.setPassword(p.id, String(liveState.authConfig.password).trim());
-                }
-              }
-              if (liveState.charName && !isPlaceholderCharName(liveState.charName) && liveState.charName !== p.lastCharName) {
-                p.lastCharName = liveState.charName;
-                p.charName = liveState.charName;
-                p.name = p.isReceiver ? `👑 ตัวรับเงิน (${liveState.charName})` : `🌾 ฟาร์ม (${liveState.charName})`;
-                p.autoRegister = false;
-                afDirty = true;
-              }
-              if (liveState.charClass && liveState.charClass !== p.lastCharClass) {
-                p.lastCharClass = liveState.charClass;
-              }
-              if (liveState.zeny != null && (liveState.screenPhase === "in_game" || Number(liveState.zeny) > 0)) {
-                if (p.lastZeny !== Number(liveState.zeny)) {
-                  p.lastZeny = Number(liveState.zeny);
-                  afDirty = true;
-                }
-              }
-              if (liveState.baseLv != null && (liveState.screenPhase === "in_game" || Number(liveState.baseLv) > 1)) {
-                if (p.lastBaseLv !== Number(liveState.baseLv)) {
-                  p.lastBaseLv = Number(liveState.baseLv);
-                  afDirty = true;
-                }
-              }
-              if (liveState.zeroRender !== undefined) {
-                windowStates[p.id] = { isHidden: Boolean(liveState.zeroRender), zeroRender: Boolean(liveState.zeroRender), updatedAt: Date.now() };
               }
             }
           }
+
+          const gr = liveState && liveState.gemRush ? liveState.gemRush : null;
+          if (gr) {
+            if (Number(gr.cycles) > (Number(entry.cycles) || 0)) {
+              const delta = Number(gr.cycles) - (Number(entry.cycles) || 0);
+              entry.cycles = Number(gr.cycles);
+              entry.gemsEarned = Math.max(Number(gr.gemsEarned) || 0, (Number(entry.gemsEarned) || 0) + delta * 20);
+              afDirty = true;
+            } else if (Number(gr.gemsEarned) > (Number(entry.gemsEarned) || 0)) {
+              entry.gemsEarned = Number(gr.gemsEarned);
+              afDirty = true;
+            }
+            if (Number(gr.totalCoinsDeposited) > (Number(entry.totalCoinsDeposited) || 0)) {
+              entry.totalCoinsDeposited = Number(gr.totalCoinsDeposited);
+              afDirty = true;
+            }
+            if (gr.ineligibleReason && entry.ineligibleReason !== gr.ineligibleReason) {
+              entry.eligible = false;
+              entry.ineligibleReason = gr.ineligibleReason;
+              afDirty = true;
+            } else if (gr.eligible === true && entry.eligible !== true && !gr.ineligibleReason) {
+              entry.eligible = true;
+              entry.ineligibleReason = "";
+              afDirty = true;
+            }
+            if (Number(gr.maxSlotLv) > 0 && entry.maxSlotLv !== Number(gr.maxSlotLv)) {
+              entry.maxSlotLv = Number(gr.maxSlotLv);
+              afDirty = true;
+            }
+            if (gr.emptySlotsCount !== undefined) entry.emptySlotsCount = Number(gr.emptySlotsCount) || 0;
+            if (gr.totalSlotsCount !== undefined) entry.totalSlotsCount = Number(gr.totalSlotsCount) || 0;
+            if (gr.lastCycleMs > 0) entry.lastCycleMs = Number(gr.lastCycleMs);
+            if (gr.returnCharName) entry.returnCharName = gr.returnCharName;
+            if (gr.tempCharName !== undefined) entry.tempCharName = gr.tempCharName || "";
+            if (gr.phase) entry.phase = gr.phase;
+            if (gr.statusText) entry.statusText = gr.statusText;
+            if (typeof gr.liveGems === "number") entry.lastGems = gr.liveGems;
+            entry.updatedAt = Date.now();
+          }
+
           return {
-            ...p,
+            id: p.id,
+            profileId: p.id,
+            name: p.name || p.id,
+            account: p.account || "",
+            serverName: p.serverName || "",
+            charName: p.lastCharName || p.charName || "",
+            lastCharName: p.lastCharName || p.charName || "",
+            lastCharClass: p.lastCharClass || p.charClass || "",
+            lastBaseLv: Number(liveState?.baseLv || p.lastBaseLv || 0) || null,
+            lastZeny: liveState?.zeny != null ? Number(liveState.zeny) : (p.lastZeny ?? null),
             port: p.debugPort,
-            isRunning: alive,
-            loginPassword: credentials.getPassword(p.id) || "",
-            hasLoginPassword: Boolean(credentials.getPassword(p.id)),
+            debugPort: p.debugPort,
+            isRunning: isBrowserOpen,
             liveState,
-            screenProxy: screenProxy.getProfileLeaseSnapshot(p.id),
-            windowState: windowStates[p.id] || { isHidden: false, zeroRender: false }
+            windowState: windowStates[p.id] || { isHidden: false, zeroRender: false },
+            addedAt: entry.addedAt || 0,
+            eligible: entry.eligible ?? null,
+            ineligibleReason: entry.ineligibleReason || "",
+            maxSlotLv: Number(entry.maxSlotLv) || 0,
+            emptySlotsCount: Number(entry.emptySlotsCount) || 0,
+            totalSlotsCount: Number(entry.totalSlotsCount) || 0,
+            cycles: Number(entry.cycles) || 0,
+            gemsEarned: Number(entry.gemsEarned) || 0,
+            totalCoinsDeposited: Number(entry.totalCoinsDeposited) || 0,
+            lastCycleMs: Number(entry.lastCycleMs) || 0,
+            lastGems: typeof liveState?.gems === "number" ? liveState.gems : (entry.lastGems ?? null),
+            tempCharName: gr ? (gr.tempCharName || "") : (entry.tempCharName || ""),
+            returnCharName: entry.returnCharName || p.lastCharName || p.charName || "",
+            phase: gr ? (gr.phase || "idle") : (entry.phase || "idle"),
+            statusText: gr ? (gr.statusText || "") : (entry.statusText || ""),
+            gemRush: gr
           };
         }
       );
-      if (typeof afDirty !== "undefined" && afDirty) {
-        saveAutoFarmState(afState);
+
+      const totCycles = afState.entries.reduce((s, e) => s + (Number(e.cycles) || 0), 0);
+      const totGems = afState.entries.reduce((s, e) => s + (Number(e.gemsEarned) || 0), 0);
+      const totCoins = afState.entries.reduce((s, e) => s + (Number(e.totalCoinsDeposited) || 0), 0);
+      if (afState.config.totalCycles !== totCycles || afState.config.totalGemsEarned !== totGems || afState.config.totalCoinsDeposited !== totCoins) {
+        afState.config.totalCycles = totCycles;
+        afState.config.totalGemsEarned = totGems;
+        afState.config.totalCoinsDeposited = totCoins;
+        afDirty = true;
       }
+      if (afDirty) saveAutoFarmState(afState);
+
+      const pulledSet = new Set(afState.entries.map(e => e.profileId));
+      const availableMainProfiles = mainProfiles.map(p => {
+        const isOpen = Boolean(browserMode && typeof browserMode.isOpen === "function" && browserMode.isOpen(p.id));
+        const cached = p.debugPort ? clientStateCacheByPort.get(p.debugPort)?.state : null;
+        return {
+          id: p.id,
+          name: p.name || p.id,
+          account: p.account || "",
+          charName: cached?.charName || p.lastCharName || p.charName || "",
+          baseLv: Number(cached?.baseLv || p.lastBaseLv || 0) || null,
+          serverName: cached?.serverName || p.serverName || "",
+          isRunning: isOpen,
+          alreadyPulled: pulledSet.has(p.id)
+        };
+      });
+
       return sendJSON({
         success: true,
         config: afState.config,
-        profiles: enriched
+        profiles: enriched,
+        availableMainProfiles
       });
     }
 
@@ -14338,32 +14351,20 @@ public class PmFocus {
         try {
           const data = JSON.parse(body || "{}");
           const afState = loadAutoFarmState();
-          if (data.serverName !== undefined) afState.config.serverName = String(data.serverName || "Nightfall").trim();
-          if (data.receiverProfileId !== undefined) afState.config.receiverProfileId = String(data.receiverProfileId || "").trim();
-          if (data.concurrency !== undefined) afState.config.concurrency = Math.max(1, Math.min(20, Number(data.concurrency) || 3));
-          if (data.targetLevel !== undefined) afState.config.targetLevel = Math.max(1, Math.min(99, Number(data.targetLevel) || 45));
-          if (data.tradeChannel !== undefined) afState.config.tradeChannel = Math.max(1, Math.min(20, Number(data.tradeChannel) || 1));
-          if (data.completionAction !== undefined) afState.config.completionAction = data.completionAction === "delete" ? "delete" : "pass";
-          if (data.planId !== undefined) afState.config.planId = String(data.planId || "default_archer_wolf").trim();
-          // Propagate serverName to all non-passed Auto-Farm profiles and re-seed their storage
-          if (data.serverName) {
-            const recProf = afState.profiles.find(p => p.id === afState.config.receiverProfileId) || afState.profiles.find(p => p.isReceiver) || afState.profiles[0] || null;
-            const recChar = recProf ? (recProf.lastCharName || recProf.charName || "") : "";
-            for (const p of afState.profiles) {
-              if (!p.passed) {
-                p.serverName = afState.config.serverName;
-                seedAutoFarmBrowserStorage(p, (recProf && p.id === recProf.id) ? "receiver" : "farmer", recChar, afState.config);
-                if (p.debugPort && browserMode && typeof browserMode.isOpen === "function" && browserMode.isOpen(p.id)) {
-                  evalProfilePort(p.debugPort, `(() => {
-                    if (typeof window.__setAuthConfig === 'function') window.__setAuthConfig({ serverName: ${JSON.stringify(afState.config.serverName)} });
-                    return true;
-                  })()`, 2000).catch(() => {});
-                }
-              }
+          if (data.vaultRushEnabled !== undefined) afState.config.vaultRushEnabled = Boolean(data.vaultRushEnabled);
+          if (data.depositPassCoins !== undefined) afState.config.depositPassCoins = Boolean(data.depositPassCoins);
+          if (data.autoLaunchClosed !== undefined) afState.config.autoLaunchClosed = Boolean(data.autoLaunchClosed);
+          saveAutoFarmState(afState);
+
+          // Push updated options to any currently-open pulled clients
+          const mainMap = new Map((loadProfiles() || []).map(p => [p.id, p]));
+          for (const e of afState.entries) {
+            const p = mainMap.get(e.profileId);
+            if (p && p.debugPort && browserMode.isOpen(p.id)) {
+              evalProfilePort(p.debugPort, `if (typeof window.__setGemRushConfig === 'function') window.__setGemRushConfig({ vaultRushEnabled: ${afState.config.vaultRushEnabled}, depositPassCoins: ${afState.config.depositPassCoins} });`, 2000).catch(() => {});
             }
           }
-          saveAutoFarmState(afState);
-          return sendJSON({ success: true, config: afState.config, profiles: afState.profiles });
+          return sendJSON({ success: true, config: afState.config });
         } catch (e) {
           return sendJSON({ success: false, error: e.message }, 400);
         }
@@ -14371,82 +14372,49 @@ public class PmFocus {
       return;
     }
 
-    // POST /api/autofarm/profiles (Create 1 or batch N Auto-Generated profiles)
-    if (req.method === "POST" && pathname === "/api/autofarm/profiles") {
+    // POST /api/autofarm/profiles/pull — Pull selected existing profiles from Main Profiles into Auto Farm
+    if (req.method === "POST" && pathname === "/api/autofarm/profiles/pull") {
       let body = "";
       req.on("data", c => { body += c; if (Buffer.byteLength(body, "utf8") > 65536) req.destroy(); });
       req.on("end", () => {
         try {
           const data = JSON.parse(body || "{}");
-          const count = Math.max(1, Math.min(50, Number(data.count) || 1));
+          const ids = Array.isArray(data.profileIds) ? data.profileIds.map(String) : [];
           const afState = loadAutoFarmState();
-          const allRuntime = loadAllRuntimeProfiles();
-          const usedEmails = new Set(allRuntime.map(p => String(p.account || "").trim().toLowerCase()).filter(Boolean));
-          const usedChars = new Set(allRuntime.map(p => String(p.charName || p.lastCharName || "").trim().toLowerCase()).filter(Boolean));
-          let maxPort = Math.max(49099, ...allRuntime.map(p => Number(p.debugPort) || 0));
-          const { genUserId, genPassword, genCharName } = require("./auth_sync");
-          const created = [];
-          const serverName = String(data.serverName || afState.config.serverName || "Nightfall").trim();
+          const mainProfiles = loadProfiles() || [];
+          const mainMap = new Map(mainProfiles.map(p => [p.id, p]));
+          const existingSet = new Set(afState.entries.map(e => e.profileId));
+          let addedCount = 0;
 
-          for (let i = 0; i < count; i++) {
-            maxPort += 1;
-            let newId = "af_" + Date.now() + "_" + (afState.profiles.length + 1) + "_" + Math.floor(Math.random() * 1000);
-            while (afState.profiles.some(p => p.id === newId)) {
-              newId = "af_" + Date.now() + "_" + Math.floor(Math.random() * 10000);
-            }
-            // Same as Aetheria: Do NOT pre-generate email/password/charName on queue creation unless explicitly provided!
-            // Instead, leave them blank so the bot generates & verifies them live during signup/character creation (and auto-rerolls if duplicate),
-            // then confirms the verified ID/Pass/CharName back to the profile card!
-            const hasExplicitAccount = Boolean(count === 1 && data.account && String(data.account).trim());
-            const email = hasExplicitAccount
-              ? (String(data.account).trim().includes("@") ? String(data.account).trim() : String(data.account).trim() + "@gmail.com")
-              : "";
-            const pw = (count === 1 && data.loginPassword && String(data.loginPassword).trim())
-              ? String(data.loginPassword).trim()
-              : "";
-            const cName = (count === 1 && data.charName && String(data.charName).trim())
-              ? String(data.charName).trim().slice(0, 12)
-              : "";
-
-            const seqNum = afState.profiles.length + 1;
-            const isFirstReceiver = afState.profiles.length === 0 || (count === 1 && data.isReceiver === true);
-            const prof = {
-              id: newId,
-              isAutoFarmProfile: true,
-              name: isFirstReceiver
-                ? (cName ? `👑 ตัวรับเงิน (${cName})` : `👑 ตัวรับเงิน (รอสุ่มสมัคร)`)
-                : (cName ? `🌾 ฟาร์ม #${seqNum} (${cName})` : `🌾 ฟาร์ม #${seqNum} (รอคิวสมัคร)`),
-              account: email,
-              charName: cName,
-              serverName,
-              debugPort: maxPort,
-              autoLoginEnabled: true,
-              autoResumeBot: true,
-              autoRegister: !(count === 1 && data.autoRegister === false),
-              generatedAccount: !hasExplicitAccount,
-              charClass: "Archer",
-              isReceiver: isFirstReceiver,
-              passed: false,
-              passedAt: 0,
-              tradedCoins: 0,
-              createdAt: Date.now()
-            };
-            if (pw) credentials.setPassword(newId, pw);
-            afState.profiles.push(prof);
-            if (isFirstReceiver) {
-              afState.config.receiverProfileId = newId;
-            }
-            seedAutoFarmBrowserStorage(prof, isFirstReceiver ? "receiver" : "farmer", "", afState.config);
-            created.push(prof);
+          for (const pid of ids) {
+            if (!mainMap.has(pid) || existingSet.has(pid)) continue;
+            const mp = mainMap.get(pid);
+            afState.entries.push({
+              profileId: pid,
+              addedAt: Date.now(),
+              eligible: null,
+              ineligibleReason: "",
+              maxSlotLv: Number(mp.lastBaseLv) || 0,
+              emptySlotsCount: 0,
+              totalSlotsCount: 0,
+              cycles: 0,
+              gemsEarned: 0,
+              totalCoinsDeposited: 0,
+              lastCycleMs: 0,
+              tempCharName: "",
+              returnCharName: mp.lastCharName || mp.charName || "",
+              phase: "idle",
+              statusText: "รอเช็กตัวละคร Lv.45+ เมื่อเริ่มรัน",
+              updatedAt: Date.now()
+            });
+            existingSet.add(pid);
+            addedCount++;
           }
           saveAutoFarmState(afState);
-          return sendJSON({
-            success: true,
-            createdCount: created.length,
-            created,
-            config: afState.config,
-            profiles: afState.profiles
-          });
+          if (afState.config.running && addedCount > 0) {
+            setImmediate(() => runAutoFarmOrchestratorTick().catch(() => {}));
+          }
+          return sendJSON({ success: true, addedCount, totalEntries: afState.entries.length, config: afState.config });
         } catch (e) {
           return sendJSON({ success: false, error: e.message }, 400);
         }
@@ -14454,7 +14422,7 @@ public class PmFocus {
       return;
     }
 
-    // POST /api/autofarm/toggle (Start / Stop Auto Farm Queue Orchestrator)
+    // POST /api/autofarm/toggle — Start / Stop Season Pass 20-Gem Rush across pulled profiles
     if (req.method === "POST" && pathname === "/api/autofarm/toggle") {
       let body = "";
       req.on("data", c => { body += c; if (Buffer.byteLength(body, "utf8") > 16384) req.destroy(); });
@@ -14463,19 +14431,31 @@ public class PmFocus {
           const data = JSON.parse(body || "{}");
           const afState = loadAutoFarmState();
           const nextRunning = data.running !== undefined ? Boolean(data.running) : !afState.config.running;
-          if (nextRunning && afState.profiles.length === 0) {
-            return sendJSON({ success: false, error: "กรุณาเพิ่มโปรไฟล์ในหน้า Auto Farm อย่างน้อย 2 โปรไฟล์ (ตัวรับเงิน 1 + ตัวฟาร์ม 1) ก่อนกดเริ่มระบบ" }, 400);
+          if (nextRunning && afState.entries.length === 0) {
+            return sendJSON({ success: false, error: "กรุณากด '➕ ดึงโปรไฟล์จากหน้าหลัก' อย่างน้อย 1 จอก่อนเริ่มรันระบบ" }, 400);
           }
+
           afState.config.running = nextRunning;
           afState.config.lastStatusText = nextRunning
-            ? "🚀 เริ่มรันระบบ Auto Farm Lv.20 & เทรดเงินอัตโนมัติแล้ว..."
-            : "⏹ หยุดระบบ Auto Farm ชั่วคราว";
+            ? "💎 กำลังตรวจสอบเงื่อนไข Lv.45+ และเริ่มปั๊มเพชรจันทร์ (20 เพชร/รอบ)..."
+            : "🛑 กำลังหยุด Gem Rush และพาทุกจอกลับไปทำงานตัวหลักตามปกติ...";
           saveAutoFarmState(afState);
+
+          const mainMap = new Map((loadProfiles() || []).map(p => [p.id, p]));
           if (nextRunning) {
             setImmediate(() => runAutoFarmOrchestratorTick().catch(() => {}));
-          } else if (data.closeAllWindows) {
-            for (const p of afState.profiles) {
-              await stopSingleProfile(p.id).catch(() => {});
+          } else {
+            // Stop cleanly on every pulled client and restore their main character & normal main bot!
+            for (const entry of afState.entries) {
+              const p = mainMap.get(entry.profileId);
+              if (!p) continue;
+              seedGemRushBrowserStorage(p, false, afState.config);
+              if (p.debugPort && browserMode.isOpen(p.id)) {
+                await evalProfilePort(p.debugPort, `(() => {
+                  if (typeof window.__stopGemRushAndRestore === 'function') return window.__stopGemRushAndRestore({ cleanupTemp: true });
+                  return true;
+                })()`, 3000).catch(() => {});
+              }
             }
           }
           return sendJSON({ success: true, running: afState.config.running, config: afState.config });
@@ -14486,91 +14466,63 @@ public class PmFocus {
       return;
     }
 
-    // POST /api/autofarm/profiles/:id/reset-pass (Reset PASS stamp or set as Receiver)
-    if (req.method === "POST" && pathname.match(/^\/api\/autofarm\/profiles\/[^/]+\/reset-pass$/)) {
-      const id = pathname.split("/")[4];
+    // POST /api/autofarm/profiles/:id/recheck — Clear ineligible stamp & re-check Lv.45+ / empty slot
+    if (req.method === "POST" && pathname.match(/^\/api\/autofarm\/profiles\/[^/]+\/recheck$/)) {
+      const id = decodeURIComponent(pathname.split("/")[4]);
       const afState = loadAutoFarmState();
-      const target = afState.profiles.find(p => p.id === id);
-      if (!target) return sendJSON({ success: false, error: "ไม่พบโปรไฟล์นี้" }, 404);
-      target.passed = false;
-      target.passedAt = 0;
+      const entry = afState.entries.find(e => e.profileId === id);
+      if (!entry) return sendJSON({ success: false, error: "ไม่พบโปรไฟล์นี้ในหน้า Auto Farm" }, 404);
+      entry.eligible = null;
+      entry.ineligibleReason = "";
+      entry.statusText = "🔍 กำลังตรวจสอบเงื่อนไข Lv.45+ ใหม่...";
+      entry.updatedAt = Date.now();
       saveAutoFarmState(afState);
-      if (target.debugPort && browserMode.isOpen(target.id)) {
-        await evalProfilePort(target.debugPort, `if (typeof window.__setAutoFarmLv20Config === 'function') window.__setAutoFarmLv20Config({ tradeCompleted: false });`, 2500).catch(() => {});
-      }
-      return sendJSON({ success: true, profile: target });
-    }
 
-    // POST /api/autofarm/profiles/:id/update (Update individual Auto-Farm card account/password/charName/serverName)
-    if (req.method === "POST" && pathname.match(/^\/api\/autofarm\/profiles\/[^/]+\/update$/)) {
-      const id = pathname.split("/")[4];
-      let body = "";
-      req.on("data", c => { body += c; if (Buffer.byteLength(body, "utf8") > 32768) req.destroy(); });
-      req.on("end", () => {
-        try {
-          const data = JSON.parse(body || "{}");
-          const afState = loadAutoFarmState();
-          const target = afState.profiles.find(p => p.id === id);
-          if (!target) return sendJSON({ success: false, error: "ไม่พบโปรไฟล์นี้" }, 404);
-          if (data.account !== undefined) target.account = String(data.account || "").trim();
-          if (data.loginPassword !== undefined && String(data.loginPassword || "").trim()) {
-            credentials.setPassword(target.id, String(data.loginPassword || "").trim());
-          }
-          if (data.charName !== undefined && String(data.charName || "").trim()) {
-            target.charName = String(data.charName || "").trim();
-            target.lastCharName = String(data.charName || "").trim();
-          }
-          if (data.serverName !== undefined && String(data.serverName || "").trim()) {
-            target.serverName = String(data.serverName || "").trim();
-          }
-          const recProf = afState.profiles.find(p => p.id === afState.config.receiverProfileId) || afState.profiles.find(p => p.isReceiver) || afState.profiles[0] || null;
-          const recChar = recProf ? (recProf.lastCharName || recProf.charName || "") : "";
-          seedAutoFarmBrowserStorage(target, (recProf && target.id === recProf.id) ? "receiver" : "farmer", recChar, afState.config);
-          saveAutoFarmState(afState);
-          return sendJSON({ success: true, profile: target });
-        } catch (e) {
-          return sendJSON({ success: false, error: e.message }, 400);
+      const p = (loadProfiles() || []).find(x => x.id === id);
+      if (p && p.debugPort && browserMode.isOpen(p.id)) {
+        if (afState.config.running) {
+          await evalProfilePort(p.debugPort, `if (typeof window.__setGemRushConfig === 'function') window.__setGemRushConfig({ enabled: true, resetIneligible: true, vaultRushEnabled: ${afState.config.vaultRushEnabled !== false}, depositPassCoins: ${afState.config.depositPassCoins !== false} });`, 3000).catch(() => {});
+        } else {
+          const chk = await evalProfilePort(p.debugPort, `(() => {
+            if (typeof window.__setGemRushConfig === 'function') window.__setGemRushConfig({ resetIneligible: true });
+            return typeof window.__checkGemRushEligibility === 'function';
+          })()`, 2500).catch(() => null);
+          void chk;
         }
-      });
-      return;
+      }
+      return sendJSON({ success: true, entry });
     }
 
-    // POST /api/autofarm/profiles/bulk-delete (Delete passed or all non-receiver profiles)
-    if (req.method === "POST" && pathname === "/api/autofarm/profiles/bulk-delete") {
+    // POST /api/autofarm/profiles/bulk-remove — Remove ineligible or all entries from Auto Farm (NEVER deletes main profiles!)
+    if (req.method === "POST" && pathname === "/api/autofarm/profiles/bulk-remove") {
       let body = "";
       req.on("data", c => { body += c; if (Buffer.byteLength(body, "utf8") > 32768) req.destroy(); });
       req.on("end", async () => {
         try {
           const data = JSON.parse(body || "{}");
-          const mode = String(data.mode || "passed"); // 'passed' | 'all_farmers' | 'selected'
-          const afState = loadAutoFarmState();
-          const recId = afState.config.receiverProfileId;
+          const mode = String(data.mode || "ineligible"); // 'ineligible' | 'all' | 'selected'
           const selectedSet = new Set(Array.isArray(data.ids) ? data.ids.map(String) : []);
-          const toDelete = afState.profiles.filter(p => {
-            if (p.id === recId || p.isReceiver) return false; // NEVER auto-delete receiver profile!
-            if (mode === "passed") return Boolean(p.passed);
-            if (mode === "all_farmers") return true;
-            if (mode === "selected") return selectedSet.has(p.id);
+          const afState = loadAutoFarmState();
+          const mainMap = new Map((loadProfiles() || []).map(p => [p.id, p]));
+          const toRemove = afState.entries.filter(e => {
+            if (mode === "ineligible") return Boolean(e.ineligibleReason);
+            if (mode === "all") return true;
+            if (mode === "selected") return selectedSet.has(e.profileId);
             return false;
           });
-          for (const p of toDelete) {
-            await stopSingleProfile(p.id).catch(() => {});
-            try { credentials.setPassword(p.id, ""); } catch (_) {}
-            try {
-              const bsFile = path.join(SESSIONS_DIR, "_browser_storage", `${p.id}.json`);
-              if (fs.existsSync(bsFile)) fs.unlinkSync(bsFile);
-            } catch (_) {}
-            delete windowStates[p.id];
+          for (const e of toRemove) {
+            const p = mainMap.get(e.profileId);
+            if (!p) continue;
+            seedGemRushBrowserStorage(p, false, afState.config);
+            if (p.debugPort && browserMode.isOpen(p.id)) {
+              await evalProfilePort(p.debugPort, `if (typeof window.__stopGemRushAndRestore === 'function') window.__stopGemRushAndRestore({ cleanupTemp: true });`, 2500).catch(() => {});
+            }
           }
-          const delSet = new Set(toDelete.map(p => p.id));
-          afState.profiles = afState.profiles.filter(p => !delSet.has(p.id));
+          const rmSet = new Set(toRemove.map(e => e.profileId));
+          afState.entries = afState.entries.filter(e => !rmSet.has(e.profileId));
+          if (afState.entries.length === 0) afState.config.running = false;
           saveAutoFarmState(afState);
-          return sendJSON({
-            success: true,
-            deletedCount: toDelete.length,
-            config: afState.config,
-            profiles: afState.profiles
-          });
+          return sendJSON({ success: true, removedCount: toRemove.length, config: afState.config });
         } catch (e) {
           return sendJSON({ success: false, error: e.message }, 400);
         }
@@ -14578,22 +14530,23 @@ public class PmFocus {
       return;
     }
 
-    // DELETE /api/autofarm/profiles/:id
+    // DELETE /api/autofarm/profiles/:id — Remove profile from Auto Farm tab ONLY (returns to normal main bot; NEVER deletes main profile!)
     if (req.method === "DELETE" && pathname.match(/^\/api\/autofarm\/profiles\/[^/]+$/)) {
-      const id = pathname.split("/")[4];
+      const id = decodeURIComponent(pathname.split("/")[4]);
       const afState = loadAutoFarmState();
-      const idx = afState.profiles.findIndex(p => p.id === id);
-      if (idx === -1) return sendJSON({ success: false, error: "Profile not found" }, 404);
-      await stopSingleProfile(id).catch(() => {});
-      try { credentials.setPassword(id, ""); } catch (_) {}
-      try {
-        const bsFile = path.join(SESSIONS_DIR, "_browser_storage", `${id}.json`);
-        if (fs.existsSync(bsFile)) fs.unlinkSync(bsFile);
-      } catch (_) {}
-      delete windowStates[id];
-      afState.profiles.splice(idx, 1);
+      const idx = afState.entries.findIndex(e => e.profileId === id);
+      if (idx === -1) return sendJSON({ success: false, error: "ไม่พบโปรไฟล์นี้ในหน้า Auto Farm" }, 404);
+      const p = (loadProfiles() || []).find(x => x.id === id);
+      if (p) {
+        seedGemRushBrowserStorage(p, false, afState.config);
+        if (p.debugPort && browserMode.isOpen(p.id)) {
+          await evalProfilePort(p.debugPort, `if (typeof window.__stopGemRushAndRestore === 'function') window.__stopGemRushAndRestore({ cleanupTemp: true });`, 3000).catch(() => {});
+        }
+      }
+      afState.entries.splice(idx, 1);
+      if (afState.entries.length === 0) afState.config.running = false;
       saveAutoFarmState(afState);
-      return sendJSON({ success: true, config: afState.config, profiles: afState.profiles });
+      return sendJSON({ success: true, config: afState.config });
     }
   }
 
@@ -15464,7 +15417,7 @@ function resolveNightcampServerUrl(serverName) {
   return KNOWN_NC_SERVER_URLS.nightfall;
 }
 
-function seedAutoFarmBrowserStorage(profile, role, receiverCharName, afConfig) {
+function seedGemRushBrowserStorage(profile, enableRush, afConfig) {
   if (!profile || !profile.id) return;
   try {
     const bsDir = path.join(SESSIONS_DIR, "_browser_storage");
@@ -15475,51 +15428,26 @@ function seedAutoFarmBrowserStorage(profile, role, receiverCharName, afConfig) {
       try { data = JSON.parse(fs.readFileSync(bsFile, "utf8")) || {}; } catch (_) { data = {}; }
     }
     const pfx = `pelican_${profile.id}__`;
-    const pw = credentials.getPassword(profile.id) || "";
-    const chosenServerName = profile.serverName || (afConfig && afConfig.serverName) || "Nightfall";
-    const chosenServerUrl = resolveNightcampServerUrl(chosenServerName);
-    const authObj = {
-      enabled: true,
-      username: profile.account || "",
-      password: pw,
-      serverName: chosenServerName,
-      charName: profile.lastCharName || profile.charName || "",
-      autoResumeBot: true,
-      register: Boolean(profile.autoRegister && !profile.lastCharName),
-      registerDone: Boolean(!profile.autoRegister || profile.lastCharName),
-      autoCreateChar: true,
-      generatedUser: true,
-      lastManagerPushAt: Date.now()
+    const key = `${pfx}gem_rush_state_v1`;
+    let prev = {};
+    if (data[key]) {
+      try { prev = JSON.parse(data[key]) || {}; } catch (_) { prev = {}; }
+    }
+    const nextObj = {
+      ...prev,
+      enabled: Boolean(enableRush),
+      vaultRushEnabled: afConfig?.vaultRushEnabled !== false,
+      depositPassCoins: afConfig?.depositPassCoins !== false,
+      phase: enableRush ? (prev.phase && prev.phase !== "idle" ? prev.phase : "checking") : "idle",
+      updatedAt: Date.now()
     };
-    const afObj = {
-      enabled: true,
-      role: role || (profile.isReceiver ? "receiver" : "farmer"),
-      targetLevel: Number(afConfig && afConfig.targetLevel) || 45,
-      receiverCharName: receiverCharName || "",
-      tradeChannel: Number(afConfig && afConfig.tradeChannel) || 1,
-      tradeCompleted: Boolean(profile.passed)
-    };
-    data[`${pfx}auth_cfg`] = JSON.stringify(authObj);
-    data[`${pfx}autofarm_lv20_cfg`] = JSON.stringify(afObj);
-    data[`${pfx}nc__nightcamp.online.server`] = chosenServerUrl;
-    data[`${pfx}nc__nightcamp.online.lastPlayed`] = chosenServerUrl;
-    data[`${pfx}auto_loop`] = "true";
-    data[`${pfx}plan_enabled`] = "true";
-    data[`${pfx}smart_auto_quest`] = "true";
+    if (enableRush) {
+      nextObj.eligible = null;
+      nextObj.ineligibleReason = "";
+    }
+    data[key] = JSON.stringify(nextObj);
     writeJsonAtomic(bsFile, data);
   } catch (_) {}
-}
-
-async function launchAutoFarmProfile(profile, role, receiverCharName, afConfig) {
-  if (!profile || !profile.id) return false;
-  seedAutoFarmBrowserStorage(profile, role, receiverCharName, afConfig);
-  const readyProf = await ensureUsableDebugPort(profile.id);
-  const targetProf = readyProf || profile;
-  await browserMode.launch(targetProf);
-  setTimeout(() => scriptCoordinator.cycle?.().catch(() => {}), 2000);
-  setTimeout(() => authSync.syncOne(loadAllRuntimeProfiles().find(x => x.id === targetProf.id) || targetProf).catch(() => {}), 2200);
-  setTimeout(() => authSync.syncOne(loadAllRuntimeProfiles().find(x => x.id === targetProf.id) || targetProf).catch(() => {}), 5000);
-  return true;
 }
 
 let autoFarmTickBusy = false;
@@ -15529,188 +15457,127 @@ async function runAutoFarmOrchestratorTick() {
   if (!afState || !afState.config || !afState.config.running) return;
   autoFarmTickBusy = true;
   try {
-    const profiles = afState.profiles;
-    if (!Array.isArray(profiles) || profiles.length === 0) {
+    const mainProfiles = loadProfiles() || [];
+    const mainMap = new Map(mainProfiles.map(p => [p.id, p]));
+    const entries = Array.isArray(afState.entries) ? afState.entries : [];
+    if (entries.length === 0) {
       afState.config.running = false;
-      afState.config.lastStatusText = "⚠️ ยังไม่มีโปรไฟล์ในหน้า Auto Farm";
+      afState.config.lastStatusText = "⚠️ ยังไม่ได้ดึงโปรไฟล์จากหน้าหลักเข้าหน้า Auto Farm";
       saveAutoFarmState(afState);
       return;
     }
-    const receiverProfile = profiles.find(p => p.id === afState.config.receiverProfileId) || profiles.find(p => p.isReceiver) || profiles[0];
-    afState.config.receiverProfileId = receiverProfile.id;
-    receiverProfile.isReceiver = true;
 
     let stateChanged = false;
-    const targetLevel = Math.max(1, Number(afState.config.targetLevel) || 45);
-    const tradeChannel = Math.max(1, Number(afState.config.tradeChannel) || 1);
+    let launchedThisTick = false;
+    let activeCount = 0;
+    let ineligibleCount = 0;
+    let waitingCount = 0;
 
-    // 1. Ensure Receiver Profile (จอ 1) is ALWAYS Open First & Staying Online Waiting to Receive Coins
-    if (!browserMode.isOpen(receiverProfile.id)) {
-      afState.config.lastStatusText = `👑 กำลังเปิดจอตัวรับเงิน (จอ 1): ${receiverProfile.lastCharName || receiverProfile.charName || receiverProfile.name}...`;
-      saveAutoFarmState(afState);
-      await launchAutoFarmProfile(receiverProfile, "receiver", "", afState.config).catch(() => {});
-      return;
-    } else if (receiverProfile.debugPort) {
-      const recLive = await queryClientState(receiverProfile.debugPort).catch(() => null);
-      if (recLive && !recLive.error) {
-        if (recLive.authConfig && (recLive.authConfig.registerDone || recLive.authConfig.verifiedLoginAt) && recLive.authConfig.username) {
-          const confirmedEmail = String(recLive.authConfig.username).trim();
-          if (confirmedEmail && confirmedEmail !== receiverProfile.account) {
-            receiverProfile.account = confirmedEmail;
-            stateChanged = true;
-          }
-          if (recLive.authConfig.password && String(recLive.authConfig.password).trim() !== credentials.getPassword(receiverProfile.id)) {
-            credentials.setPassword(receiverProfile.id, String(recLive.authConfig.password).trim());
-          }
+    for (const entry of entries) {
+      if (!entry || !entry.profileId) continue;
+      const prof = mainMap.get(entry.profileId);
+      if (!prof) continue;
+
+      // Already marked ineligible (< Lv.45 or full slots) -> leave alone so its normal main bot keeps running!
+      if (entry.ineligibleReason) {
+        ineligibleCount++;
+        continue;
+      }
+
+      if (!browserMode.isOpen(prof.id)) {
+        waitingCount++;
+        if (afState.config.autoLaunchClosed !== false && !launchedThisTick) {
+          launchedThisTick = true;
+          seedGemRushBrowserStorage(prof, true, afState.config);
+          const readyProf = await ensureUsableDebugPort(prof.id);
+          const targetProf = readyProf || prof;
+          entry.statusText = "🚀 กำลังเปิดหน้าต่างเกมเพื่อตรวจสอบ Lv.45+...";
+          entry.updatedAt = Date.now();
+          stateChanged = true;
+          await browserMode.launch(targetProf).catch(() => {});
+          setTimeout(() => scriptCoordinator.cycle?.().catch(() => {}), 2000);
         }
-        if (recLive.charName && recLive.charName !== "Traveler" && recLive.charName !== receiverProfile.lastCharName) {
-          receiverProfile.lastCharName = recLive.charName;
-          receiverProfile.charName = recLive.charName;
-          receiverProfile.name = `👑 ตัวรับเงิน (${recLive.charName})`;
-          receiverProfile.autoRegister = false;
+        continue;
+      }
+
+      if (!prof.debugPort) continue;
+      const live = await queryClientState(prof.debugPort).catch(() => null);
+      if (!live || live.error) continue;
+
+      const gr = live.gemRush || null;
+      if (gr) {
+        if (Number(gr.cycles) > (Number(entry.cycles) || 0)) {
+          const delta = Number(gr.cycles) - (Number(entry.cycles) || 0);
+          entry.cycles = Number(gr.cycles);
+          entry.gemsEarned = Math.max(Number(gr.gemsEarned) || 0, (Number(entry.gemsEarned) || 0) + delta * 20);
           stateChanged = true;
         }
-        if (recLive.zeny != null && (recLive.screenPhase === "in_game" || Number(recLive.zeny) > 0)) {
-          receiverProfile.lastZeny = Number(recLive.zeny);
+        if (Number(gr.totalCoinsDeposited) > (Number(entry.totalCoinsDeposited) || 0)) {
+          entry.totalCoinsDeposited = Number(gr.totalCoinsDeposited);
+          stateChanged = true;
         }
-        if (recLive.baseLv != null && (recLive.screenPhase === "in_game" || Number(recLive.baseLv) > 1)) {
-          receiverProfile.lastBaseLv = Number(recLive.baseLv);
+        if (gr.ineligibleReason) {
+          entry.eligible = false;
+          entry.ineligibleReason = gr.ineligibleReason;
+          entry.maxSlotLv = Number(gr.maxSlotLv) || 0;
+          entry.emptySlotsCount = Number(gr.emptySlotsCount) || 0;
+          entry.totalSlotsCount = Number(gr.totalSlotsCount) || 0;
+          entry.phase = "idle";
+          entry.statusText = gr.statusText || (gr.ineligibleReason === "no_lv45" ? "❌ ไม่มีตัวละครเลเวล 45 — กลับบอทปกติแล้ว" : "⚠️ ช่องตัวละครเต็ม — กลับบอทปกติแล้ว");
+          entry.updatedAt = Date.now();
+          ineligibleCount++;
+          stateChanged = true;
+          continue;
         }
-        if (Array.isArray(recLive.autoFarmLv20?.marketListings)) {
-          afState.config.receiverMarketListings = recLive.autoFarmLv20.marketListings;
+        if (gr.eligible === true && entry.eligible !== true) {
+          entry.eligible = true;
+          entry.maxSlotLv = Number(gr.maxSlotLv) || 0;
+          stateChanged = true;
         }
-        await evalProfilePort(receiverProfile.debugPort, `(() => {
-          if (typeof window.__setAutoFarmLv20Config === 'function') {
-            window.__setAutoFarmLv20Config({
+        if (gr.phase) entry.phase = gr.phase;
+        if (gr.statusText) entry.statusText = gr.statusText;
+        if (gr.tempCharName !== undefined) entry.tempCharName = gr.tempCharName || "";
+        if (gr.returnCharName) entry.returnCharName = gr.returnCharName;
+        if (typeof gr.liveGems === "number") entry.lastGems = gr.liveGems;
+        entry.updatedAt = Date.now();
+      }
+
+      // Engage Gem Rush on this eligible open client if not yet enabled!
+      if (!gr || !gr.enabled) {
+        await evalProfilePort(prof.debugPort, `(() => {
+          if (typeof window.__setGemRushConfig === 'function') {
+            window.__setGemRushConfig({
               enabled: true,
-              role: 'receiver',
-              targetLevel: ${targetLevel},
-              tradeChannel: ${tradeChannel}
+              vaultRushEnabled: ${afState.config.vaultRushEnabled !== false},
+              depositPassCoins: ${afState.config.depositPassCoins !== false}
             });
-          }
-          if (!window.__isBotRunning && typeof window.startMasterBot === 'function') {
-            window.__autoLoopEnabled = true;
-            window.__isBotRunning = true;
-            window.startMasterBot();
           }
           return true;
         })()`, 2500).catch(() => {});
       }
+      activeCount++;
     }
 
-    const receiverCharName = String(receiverProfile.lastCharName || receiverProfile.charName || "").trim();
-    const receiverMarketListings = Array.isArray(afState.config.receiverMarketListings) ? afState.config.receiverMarketListings : [];
+    const totCycles = entries.reduce((s, e) => s + (Number(e.cycles) || 0), 0);
+    const totGems = entries.reduce((s, e) => s + (Number(e.gemsEarned) || 0), 0);
+    const totCoins = entries.reduce((s, e) => s + (Number(e.totalCoinsDeposited) || 0), 0);
+    afState.config.totalCycles = totCycles;
+    afState.config.totalGemsEarned = totGems;
+    afState.config.totalCoinsDeposited = totCoins;
 
-    // 2. Check Open Farmer Profiles for Completion & Sync Config
-    const toDeleteIds = [];
-    for (const p of profiles) {
-      if (!p || p.id === receiverProfile.id) continue;
-      p.isReceiver = false;
-      if (!browserMode.isOpen(p.id) || !p.debugPort) continue;
-
-      const live = await queryClientState(p.debugPort).catch(() => null);
-      if (!live || live.error) continue;
-
-      if (live.authConfig && (live.authConfig.registerDone || live.authConfig.verifiedLoginAt) && live.authConfig.username) {
-        const confirmedEmail = String(live.authConfig.username).trim();
-        if (confirmedEmail && confirmedEmail !== p.account) {
-          p.account = confirmedEmail;
-          stateChanged = true;
-        }
-        if (live.authConfig.password && String(live.authConfig.password).trim() !== credentials.getPassword(p.id)) {
-          credentials.setPassword(p.id, String(live.authConfig.password).trim());
-        }
-      }
-      if (live.charName && !isPlaceholderCharName(live.charName) && live.charName !== p.lastCharName) {
-        p.lastCharName = live.charName;
-        p.charName = live.charName;
-        p.name = `🌾 ฟาร์ม (${live.charName})`;
-        p.autoRegister = false;
-        stateChanged = true;
-      }
-      if (live.zeny != null && (live.screenPhase === "in_game" || Number(live.zeny) > 0)) p.lastZeny = Number(live.zeny);
-      if (live.baseLv != null && (live.screenPhase === "in_game" || Number(live.baseLv) > 1)) p.lastBaseLv = Number(live.baseLv);
-
-      if (live.autoFarmLv20 && live.autoFarmLv20.tradeCompleted === true && !p.passed) {
-        const traded = Number(live.autoFarmLv20.tradedCoins || 0);
-        afState.config.totalTradedCoins = Number(afState.config.totalTradedCoins || 0) + traded;
-        afState.config.completedCount = Number(afState.config.completedCount || 0) + 1;
-        await stopSingleProfile(p.id).catch(() => {});
-
-        if (afState.config.completionAction === "delete") {
-          toDeleteIds.push(p.id);
-          afState.config.lastStatusText = `🗑️ ${p.lastCharName || p.charName || p.name} ดึงของตลาดกลางโอนเงิน ${traded.toLocaleString()} เหรียญสำเร็จ -> ลบโปรไฟล์อัตโนมัติแล้ว`;
-        } else {
-          p.passed = true;
-          p.passedAt = Date.now();
-          p.tradedCoins = traded;
-          afState.config.lastStatusText = `🏆 ${p.lastCharName || p.charName || p.name} ดึงของตลาดกลางโอนเงิน ${traded.toLocaleString()} เหรียญให้ ${receiverCharName || "ตัวรับเงิน"} สำเร็จ -> PASS!`;
-        }
-        stateChanged = true;
-        continue;
-      }
-
-      await evalProfilePort(p.debugPort, `(() => {
-        if (typeof window.__setAutoFarmLv20Config === 'function') {
-          window.__setAutoFarmLv20Config({
-            enabled: true,
-            role: 'farmer',
-            targetLevel: ${targetLevel},
-            receiverCharName: ${JSON.stringify(receiverCharName)},
-            receiverMarketListings: ${JSON.stringify(receiverMarketListings)},
-            tradeChannel: ${tradeChannel}
-          });
-        }
-        if (!window.__isBotRunning && typeof window.startMasterBot === 'function') {
-          window.__autoLoopEnabled = true;
-          window.__isBotRunning = true;
-          window.startMasterBot();
-        }
-        return true;
-      })()`, 2500).catch(() => {});
-    }
-
-    if (toDeleteIds.length > 0) {
-      for (const delId of toDeleteIds) {
-        try { credentials.setPassword(delId, ""); } catch (_) {}
-        try {
-          const bsFile = path.join(SESSIONS_DIR, "_browser_storage", `${delId}.json`);
-          if (fs.existsSync(bsFile)) fs.unlinkSync(bsFile);
-        } catch (_) {}
-        delete windowStates[delId];
-      }
-      const delSet = new Set(toDeleteIds);
-      afState.profiles = afState.profiles.filter(p => !delSet.has(p.id));
-      stateChanged = true;
-    }
-
-    // 3. Fill Concurrency Slots with Next Un-Passed Farmer Profile
-    const maxConcurrent = Math.max(1, Math.min(20, Number(afState.config.concurrency) || 3));
-    const activeFarmers = afState.profiles.filter(p => p.id !== receiverProfile.id && !p.passed && browserMode.isOpen(p.id));
-    const waitingFarmers = afState.profiles.filter(p => p.id !== receiverProfile.id && !p.passed && !browserMode.isOpen(p.id));
-    const passedFarmers = afState.profiles.filter(p => p.id !== receiverProfile.id && p.passed);
-
-    if (activeFarmers.length < maxConcurrent && waitingFarmers.length > 0) {
-      const nextFarmer = waitingFarmers[0];
-      afState.config.lastStatusText = `🚀 เปิดจอฟาร์มคิวถัดไป: ${nextFarmer.lastCharName || nextFarmer.charName || nextFarmer.name} (กำลังฟาร์ม ${activeFarmers.length + 1}/${maxConcurrent} ID)`;
-      saveAutoFarmState(afState);
-      await launchAutoFarmProfile(nextFarmer, "farmer", receiverCharName, afState.config).catch(() => {});
-      return;
-    }
-
-    if (activeFarmers.length === 0 && waitingFarmers.length === 0 && afState.profiles.length > 1) {
+    if (activeCount === 0 && waitingCount === 0 && ineligibleCount > 0) {
       afState.config.running = false;
-      afState.config.lastStatusText = `🎉 ฟาร์ม Lv.${targetLevel} และเทรดเงินครบทุกโปรไฟล์แล้ว! (สำเร็จ ${passedFarmers.length} ID • รวม ${Number(afState.config.totalTradedCoins || 0).toLocaleString()} เหรียญ)`;
+      afState.config.lastStatusText = `🚫 ไม่มีโปรไฟล์ที่ผ่านเงื่อนไข (ไม่ผ่าน ${ineligibleCount} จอ · กลับไปทำงานบอทปกติแล้ว)`;
       stateChanged = true;
-    } else if (activeFarmers.length > 0) {
-      afState.config.lastStatusText = `🌾 กำลังฟาร์ม ${activeFarmers.length}/${maxConcurrent} ID • รอคิว ${waitingFarmers.length} ID • PASS แล้ว ${passedFarmers.length} ID`;
+    } else {
+      afState.config.lastStatusText = `💎 กำลังปั๊มเพชรจันทร์ ${activeCount} จอ${waitingCount ? ` · รอเปิด ${waitingCount}` : ""}${ineligibleCount ? ` · ไม่ผ่านเงื่อนไข ${ineligibleCount}` : ""} | สะสม ${totGems.toLocaleString()} เพชร (${totCycles} รอบ)`;
     }
 
     if (stateChanged) {
       saveAutoFarmState(afState);
     }
   } catch (err) {
-    console.warn("[AutoFarm Orchestrator] tick error:", err.message);
+    console.warn("[AutoFarm GemRush Orchestrator] tick error:", err.message);
   } finally {
     autoFarmTickBusy = false;
   }
