@@ -9681,6 +9681,32 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
         <input type="checkbox" id="p-nc-auto-claim-events" ${state?.autoClaimEventsEnabled !== false ? 'checked' : ''} style="accent-color:#22c55e;">
         <span>🎁 รับรางวัล Event / กิจกรรมทั้งหมดอัตโนมัติ</span>
       </label>
+      <div style="margin-left:16px; padding:5px 7px; border-radius:5px; background:rgba(15,23,42,0.55); border:1px solid rgba(56,189,248,0.28); display:flex; flex-direction:column; gap:3px;">
+        <div style="font-size:9.6px; font-weight:700; color:#bae6fd;" title="ค่อยๆ กดใช้ใบคูณทีละ 1 ใบเมื่อบัพชนิดนั้นหมดลงแล้วเท่านั้น (ไม่กดรวดเดียวจนหมด · ปิดเป็นค่าเริ่มต้น)">✨ ใช้ใบคูณอัตโนมัติ (ทีละใบเมื่อบัพหมด)</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:3px 6px;">
+          <label style="display:flex; align-items:center; gap:4px; font-size:9.4px; font-weight:600; color:#fde047; cursor:pointer;" title="ใช้ใบคูณ EXP (+50% นาน 30 นาที · รองรับทั้งแบบปกติและผูกตัว) ทีละ 1 ใบเมื่อบัพหมดขณะฟาร์ม">
+            <input type="checkbox" id="p-nc-auto-boost-exp" ${state?.autoUseBoostConfig?.exp === true ? 'checked' : ''} style="accent-color:#eab308;">
+            <span>⭐ EXP (Level)</span>
+          </label>
+          <label style="display:flex; align-items:center; gap:4px; font-size:9.4px; font-weight:600; color:#93c5fd; cursor:pointer;" title="ใช้ใบคูณ Job (+50% นาน 30 นาที · รองรับทั้งแบบปกติและผูกตัว) ทีละ 1 ใบเมื่อบัพหมดขณะฟาร์ม">
+            <input type="checkbox" id="p-nc-auto-boost-job" ${state?.autoUseBoostConfig?.job === true ? 'checked' : ''} style="accent-color:#3b82f6;">
+            <span>📚 Job EXP</span>
+          </label>
+          <label style="display:flex; align-items:center; gap:4px; font-size:9.4px; font-weight:600; color:#86efac; cursor:pointer;" title="ใช้ใบคูณ Drop (+25% นาน 30 นาที) ทีละ 1 ใบเมื่อบัพหมดขณะฟาร์ม">
+            <input type="checkbox" id="p-nc-auto-boost-drop" ${state?.autoUseBoostConfig?.drop === true ? 'checked' : ''} style="accent-color:#22c55e;">
+            <span>🍀 Drop +25%</span>
+          </label>
+          <label style="display:flex; align-items:center; gap:4px; font-size:9.4px; font-weight:600; color:#fdba74; cursor:pointer;" title="ใช้ไออุ่นกองไฟเต็มหลอด (EXP พักผ่อน ×2) ทีละ 1 ใบเมื่อหลอดไออุ่นหมดขณะฟาร์ม">
+            <input type="checkbox" id="p-nc-auto-boost-warmth" ${state?.autoUseBoostConfig?.warmth === true ? 'checked' : ''} style="accent-color:#f97316;">
+            <span>🔥 ไออุ่น (×2)</span>
+          </label>
+          <label style="display:flex; align-items:center; gap:4px; font-size:9.4px; font-weight:600; color:#6ee7b7; cursor:pointer; grid-column:span 2;" title="ใช้ม้วนเก็บของป่า (+50% นาน 2 ชม. สำหรับตัดไม้/ขุดแร่/เก็บผลผลิต) ทีละ 1 ม้วนเมื่อบัพหมด">
+            <input type="checkbox" id="p-nc-auto-boost-gather" ${state?.autoUseBoostConfig?.gather === true ? 'checked' : ''} style="accent-color:#10b981;">
+            <span>🌿 ม้วนเก็บของป่า (+50% · 2 ชม.)</span>
+          </label>
+        </div>
+        <div id="p-nc-auto-boost-status" style="font-size:9px; color:#94a3b8; line-height:1.25;">${isCentral ? '🎛️ สั่งเปิด/ปิดทุกจอที่ออนไลน์พร้อมกัน (แต่ละจอค่อยๆ ใช้ทีละ 1 ใบเมื่อบัพหมด)' : formatManagerAutoBoostSummary(state?.autoBoostSummary)}</div>
+      </div>
       <label style="display:flex; align-items:center; gap:5px; font-size:10.5px; font-weight:700; color:#fda4af; cursor:pointer;" title="ตายแล้วกดกลับค่ายเกิดใหม่ทันที ไม่ต้องรอ 30 วินาที แล้วกลับไปทำเควส/แมพฟาร์มต่อ">
         <input type="checkbox" id="p-nc-autorespawn-enabled" ${state?.autoRespawnEnabled !== false ? 'checked' : ''} style="accent-color:#f43f5e;">
         <span>⚰️ เปิด Auto-Respawn (ตายเกิดใหม่ทันที + ลุยต่อ)</span>
@@ -10793,6 +10819,28 @@ async function openWebBotHUD(profileId) {
     };
   }
 
+  for (const [sel, key] of [
+    ['#p-nc-auto-boost-exp', 'exp'],
+    ['#p-nc-auto-boost-job', 'job'],
+    ['#p-nc-auto-boost-drop', 'drop'],
+    ['#p-nc-auto-boost-warmth', 'warmth'],
+    ['#p-nc-auto-boost-gather', 'gather']
+  ]) {
+    const bCb = hudEl.querySelector(sel);
+    if (bCb) {
+      bCb.onchange = async () => {
+        markCentralControlEdited(bCb);
+        const val = Boolean(bCb.checked);
+        try {
+          await sendWebHudAction(profileId, {
+            type: 'eval',
+            code: `(typeof window.__setAutoUseBoostConfig === 'function' ? window.__setAutoUseBoostConfig({ ${key}: ${val} }) : (window.__autoUseBoostConfig = Object.assign({}, window.__autoUseBoostConfig || {}, { ${key}: ${val} })))`
+          });
+        } catch (_) {}
+      };
+    }
+  }
+
   const respEnableCb = hudEl.querySelector('#p-nc-autorespawn-enabled');
   if (respEnableCb) {
     respEnableCb.onchange = async () => {
@@ -11656,11 +11704,38 @@ function toggleWebHudCollapse(profileId) {
   }
 }
 
+function formatManagerAutoBoostSummary(summary) {
+  if (!summary || typeof summary !== 'object') return '🎒 สถานะใบคูณ: รอข้อมูลจากจอเกม...';
+  const c = summary.counts || {};
+  const lm = summary.leftMin || {};
+  const act = summary.active || {};
+  const stockParts = [];
+  if (c.exp > 0) stockParts.push(`EXP×${c.exp}`);
+  if (c.job > 0) stockParts.push(`Job×${c.job}`);
+  if (c.drop > 0) stockParts.push(`Drop×${c.drop}`);
+  if (c.warmth > 0) stockParts.push(`ไออุ่น×${c.warmth}`);
+  if (c.gather > 0) stockParts.push(`ป่า×${c.gather}`);
+  const activeParts = [];
+  if (act.exp) activeParts.push(`EXP ${lm.exp}น.`);
+  if (act.job) activeParts.push(`Job ${lm.job}น.`);
+  if (act.drop) activeParts.push(`Drop ${lm.drop}น.`);
+  if (act.warmth) activeParts.push('ไออุ่น×2');
+  if (act.gather) activeParts.push(`ป่า ${lm.gather}น.`);
+  const stockTxt = stockParts.length > 0 ? stockParts.join(' · ') : 'ไม่มีใบคูณในกระเป๋า';
+  const actTxt = activeParts.length > 0 ? ` | บัพทำงาน: ${activeParts.join(' · ')}` : '';
+  return `🎒 ${stockTxt}${actTxt}`;
+}
+
 const CENTRAL_HUD_FIELD_SPECS = [
   ['#p-nc-smart-autoquest-enabled', 'bool', st => st.smartAutoQuestEnabled !== false],
   ['#p-nc-upgrade-ai-enabled', 'bool', st => Boolean(st.upgradeBotAiEnabled)],
   ['#p-nc-auto-use-premium-items', 'bool', st => st.autoUsePremiumItemsEnabled !== false],
   ['#p-nc-auto-claim-events', 'bool', st => st.autoClaimEventsEnabled !== false],
+  ['#p-nc-auto-boost-exp', 'bool', st => st.autoUseBoostConfig?.exp === true],
+  ['#p-nc-auto-boost-job', 'bool', st => st.autoUseBoostConfig?.job === true],
+  ['#p-nc-auto-boost-drop', 'bool', st => st.autoUseBoostConfig?.drop === true],
+  ['#p-nc-auto-boost-warmth', 'bool', st => st.autoUseBoostConfig?.warmth === true],
+  ['#p-nc-auto-boost-gather', 'bool', st => st.autoUseBoostConfig?.gather === true],
   ['#p-nc-autorespawn-enabled', 'bool', st => Boolean(st.autoRespawnEnabled)],
   ['#p-nc-smartgear-enabled', 'bool', st => Boolean(st.smartGearEnabled)],
   ['#p-nc-smartgear-wtype', 'select', st => String(st.smartGearWeaponType || 'auto')],
@@ -11915,6 +11990,18 @@ function populateWebHudData(profileId, data) {
   if (typeof st.upgradeBotAiEnabled === 'boolean') setField('#p-nc-upgrade-ai-enabled', st.upgradeBotAiEnabled, true);
   if (typeof st.autoUsePremiumItemsEnabled === 'boolean') setField('#p-nc-auto-use-premium-items', st.autoUsePremiumItemsEnabled, true);
   if (typeof st.autoClaimEventsEnabled === 'boolean') setField('#p-nc-auto-claim-events', st.autoClaimEventsEnabled, true);
+  if (st.autoUseBoostConfig && typeof st.autoUseBoostConfig === 'object') {
+    const abc = st.autoUseBoostConfig;
+    setField('#p-nc-auto-boost-exp', abc.exp === true, true);
+    setField('#p-nc-auto-boost-job', abc.job === true, true);
+    setField('#p-nc-auto-boost-drop', abc.drop === true, true);
+    setField('#p-nc-auto-boost-warmth', abc.warmth === true, true);
+    setField('#p-nc-auto-boost-gather', abc.gather === true, true);
+  }
+  const boostStatusEl = hud.querySelector('#p-nc-auto-boost-status');
+  if (boostStatusEl && st.autoBoostSummary) {
+    boostStatusEl.textContent = formatManagerAutoBoostSummary(st.autoBoostSummary);
+  }
   if (typeof st.autoRespawnEnabled === 'boolean') setField('#p-nc-autorespawn-enabled', st.autoRespawnEnabled, true);
   if (typeof st.smartGearEnabled === 'boolean') setField('#p-nc-smartgear-enabled', st.smartGearEnabled, true);
   if (st.smartGearWeaponType) setField('#p-nc-smartgear-wtype', st.smartGearWeaponType, false);
