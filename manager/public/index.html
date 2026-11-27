@@ -992,6 +992,53 @@
                 </button>
               </div>
             </div>
+
+            <!-- ORGANIC RANDOMIZED PACING & MAIN-CHAR ALTERNATION PANEL (v2.3.48) -->
+            <div style="margin-top:10px;padding:12px 14px;background:linear-gradient(135deg,rgba(88,28,135,0.26),rgba(6,78,59,0.22));border:1px solid rgba(192,132,252,0.42);border-radius:11px;display:flex;flex-direction:column;gap:9px;">
+              <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px;">
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:800;color:#e9d5ff;" title="สุ่มจังหวะเวลาสร้างตัว ทำเควส ฝากเงิน ลบตัว และสลับกลับไปปล่อยตัวหลักฟาร์ม/ขายของระหว่างรอบ เพื่อไม่ให้ Transaction / Log ซ้ำซากจำเจ">
+                  <input type="checkbox" id="af-cfg-organic-mode" checked style="width:17px;height:17px;accent-color:#a855f7;cursor:pointer;">
+                  <span>🎲 โหมดสุ่มจังหวะ & สลับตัวหลัก (Organic Cycle · กัน Log จำเจ)</span>
+                </label>
+                <div style="display:flex;flex-wrap:wrap;align-items:center;gap:5px;font-size:11px;">
+                  <span style="color:#c4b5fd;font-weight:700;">ตั้งค่าเร็ว:</span>
+                  <button type="button" data-af-organic-preset="10,15,1,2,1" class="btn btn-secondary btn-sm" style="padding:3px 9px;font-size:11px;border-color:rgba(16,185,129,0.45);color:#6ee7b7;">🌿 10–15น. (แนะนำ)</button>
+                  <button type="button" data-af-organic-preset="15,25,1,3,1" class="btn btn-secondary btn-sm" style="padding:3px 9px;font-size:11px;border-color:rgba(56,189,248,0.45);color:#7dd3fc;">🍃 15–25น. (ชิล)</button>
+                  <button type="button" data-af-organic-preset="20,35,2,3,1" class="btn btn-secondary btn-sm" style="padding:3px 9px;font-size:11px;border-color:rgba(192,132,252,0.45);color:#e9d5ff;">🌳 20–35น. (เนียนสุด)</button>
+                  <button type="button" data-af-organic-preset="2,4,0,0,0" class="btn btn-secondary btn-sm" style="padding:3px 9px;font-size:11px;border-color:rgba(251,191,36,0.45);color:#fde68a;">⚡ รัชไว (ปิดสุ่ม)</button>
+                </div>
+              </div>
+              <div id="af-organic-subcontrols" style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;font-size:12px;color:#e2e8f0;font-weight:700;">
+                <div style="display:flex;align-items:center;gap:6px;background:rgba(2,6,23,0.55);padding:5px 10px;border-radius:8px;border:1px solid rgba(192,132,252,0.3);">
+                  <span style="color:#d8b4fe;">⏱ เป้าเวลาต่อรอบ:</span>
+                  <input type="number" id="af-cfg-min-cycle-min" value="10" min="2" max="180" style="width:56px;padding:3px 6px;border-radius:6px;border:1px solid #475569;background:#020617;color:#fde68a;font-weight:800;text-align:center;font-size:12px;">
+                  <span style="color:#94a3b8;">ถึง</span>
+                  <input type="number" id="af-cfg-max-cycle-min" value="18" min="2" max="240" style="width:56px;padding:3px 6px;border-radius:6px;border:1px solid #475569;background:#020617;color:#fde68a;font-weight:800;text-align:center;font-size:12px;">
+                  <span style="color:#94a3b8;">นาที (บอทสุ่ม & เฉลี่ยให้เอง)</span>
+                </div>
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;background:rgba(2,6,23,0.55);padding:5px 10px;border-radius:8px;border:1px solid rgba(52,211,153,0.32);color:#a7f3d0;" title="ระหว่างรอบจะสลับกลับตัวหลักไปปล่อยบอทฟาร์ม/ขายของปกติ แล้วค่อยสลับกลับมาทำตัวรองต่อ (ไม่ลบตัวรองทิ้งระหว่างพัก)">
+                  <input type="checkbox" id="af-cfg-alt-main" checked style="width:15px;height:15px;accent-color:#10b981;cursor:pointer;">
+                  <span>👑 สลับตัวหลักไปฟาร์ม/ขายของระหว่างรอบ</span>
+                </label>
+                <div style="display:flex;align-items:center;gap:6px;background:rgba(2,6,23,0.55);padding:5px 10px;border-radius:8px;border:1px solid rgba(148,163,184,0.28);">
+                  <span style="color:#cbd5e1;">🔄 สลับตัวหลัก/รอบ:</span>
+                  <select id="af-cfg-main-breaks" style="padding:3px 7px;border-radius:6px;border:1px solid #475569;background:#020617;color:#7dd3fc;font-weight:700;font-size:11.5px;">
+                    <option value="1,2" selected>สุ่ม 1–2 ครั้ง (แนะนำ)</option>
+                    <option value="1,3">สุ่ม 1–3 ครั้ง</option>
+                    <option value="2,3">สุ่ม 2–3 ครั้ง</option>
+                    <option value="0,2">สุ่ม 0–2 ครั้ง</option>
+                    <option value="1,1">1 ครั้ง</option>
+                  </select>
+                </div>
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;color:#fde68a;" title="เมื่อกดเริ่มพร้อมกันหลายจอ แต่ละจอจะสุ่มปล่อยตัวหลักฟาร์มไปก่อนคนละช่วงเวลา จะได้ไม่สร้างตัวพร้อมกันทุกจอ">
+                  <input type="checkbox" id="af-cfg-stagger-start" checked style="width:15px;height:15px;accent-color:#f59e0b;cursor:pointer;">
+                  <span>🌱 สุ่มเริ่มจากตัวหลักฟาร์มก่อน (กันสร้างตัวพร้อมกัน)</span>
+                </label>
+              </div>
+              <div style="font-size:11px;color:#cbd5e1;line-height:1.45;">
+                💡 <b>ระบบเฉลี่ยอัตโนมัติทุกจอแยกกัน:</b> สุ่มเวลาสร้างตัว, สุ่มจุดฟาร์มสไลม์, สุ่มเดินเล่น/หน่วงเวลาก่อนส่งเควส-ฝากเงิน-ลบตัว และสุ่มจุดสลับกลับตัวหลักไปฟาร์ม/ขายของ (เช่น หลังสร้างตัว / ตีสไลม์ครึ่งทาง / จบเควสแรก / หลังฝาก 3,500g ก่อนลบ / หลังลบก่อนสร้างใหม่)
+              </div>
+            </div>
           </div>
 
           <!-- PULLED PROFILES CARDS GRID -->
@@ -2025,7 +2072,7 @@
   </div>
 
   <script src="image_board_solver.js?v=nc1.9.4"></script>
-  <script src="app.js?v=nc2.3.44"></script>
+  <script src="app.js?v=nc2.3.48"></script>
   <script src="sim_engine.js?v=nc2.3.28b"></script>
   <script src="build_sim_arena.js?v=nc2.3.28b"></script>
   <script src="build_sim.js?v=nc2.3.28b"></script>

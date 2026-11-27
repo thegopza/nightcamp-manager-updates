@@ -7872,6 +7872,12 @@ window.switchMainTab = switchMainTab;
     const gemsCb = document.getElementById("af-cfg-take-gems");
     const depCb = document.getElementById("af-cfg-deposit-coins");
     const launchCb = document.getElementById("af-cfg-auto-launch");
+    const orgCb = document.getElementById("af-cfg-organic-mode");
+    const minIn = document.getElementById("af-cfg-min-cycle-min");
+    const maxIn = document.getElementById("af-cfg-max-cycle-min");
+    const altCb = document.getElementById("af-cfg-alt-main");
+    const brkSel = document.getElementById("af-cfg-main-breaks");
+    const stagCb = document.getElementById("af-cfg-stagger-start");
     let takeGems20 = gemsCb ? Boolean(gemsCb.checked) : afConfig.takeGems20 !== false;
     let depositPassCoins = depCb ? Boolean(depCb.checked) : afConfig.depositPassCoins !== false;
     if (!takeGems20 && !depositPassCoins) {
@@ -7887,11 +7893,28 @@ window.switchMainTab = switchMainTab;
       }
       return;
     }
+    let minCycleMin = minIn ? Math.max(2, Math.min(180, Math.round(Number(minIn.value) || 10))) : (Number(afConfig.minCycleMin) || 10);
+    let maxCycleMin = maxIn ? Math.max(2, Math.min(240, Math.round(Number(maxIn.value) || 18))) : (Number(afConfig.maxCycleMin) || 18);
+    if (maxCycleMin < minCycleMin) {
+      maxCycleMin = minCycleMin;
+      if (maxIn) maxIn.value = String(maxCycleMin);
+    }
+    const brkParts = brkSel ? String(brkSel.value || "1,2").split(",").map(n => Number(n)) : [Number(afConfig.mainBreaksMin ?? 1), Number(afConfig.mainBreaksMax ?? 2)];
+    const mainBreaksMin = Math.max(0, Math.min(4, Number.isFinite(brkParts[0]) ? brkParts[0] : 1));
+    const mainBreaksMax = Math.max(mainBreaksMin, Math.min(4, Number.isFinite(brkParts[1]) ? brkParts[1] : 2));
+
     const payload = {
       vaultRushEnabled: vaultCb ? Boolean(vaultCb.checked) : afConfig.vaultRushEnabled !== false,
       takeGems20,
       depositPassCoins,
       autoLaunchClosed: launchCb ? Boolean(launchCb.checked) : afConfig.autoLaunchClosed !== false,
+      organicModeEnabled: orgCb ? Boolean(orgCb.checked) : afConfig.organicModeEnabled !== false,
+      minCycleMin,
+      maxCycleMin,
+      alternateMainChar: altCb ? Boolean(altCb.checked) : afConfig.alternateMainChar !== false,
+      mainBreaksMin,
+      mainBreaksMax,
+      staggerStartOnMain: stagCb ? Boolean(stagCb.checked) : afConfig.staggerStartOnMain !== false,
       ...extraPatch
     };
     const res = await fetch(`${API_BASE}/api/autofarm/config`, {
@@ -7901,10 +7924,14 @@ window.switchMainTab = switchMainTab;
     }).then(r => r.json());
     if (res && res.success) {
       afConfig = res.config || afConfig;
+      const orgMsg = afConfig.organicModeEnabled !== false
+        ? `🎲 สุ่ม ${afConfig.minCycleMin}–${afConfig.maxCycleMin}น.${afConfig.alternateMainChar !== false ? ` · สลับตัวหลัก ${afConfig.mainBreaksMin}–${afConfig.mainBreaksMax} ครั้ง` : ""}`
+        : "⚡ โหมดรัชไว (ปิดสุ่ม)";
       const modeMsg = (takeGems20 && depositPassCoins)
-        ? "💎 เพชร 20 + 💰 เงิน 3,500g"
-        : (takeGems20 ? "💎 เอาเพชร 20 อย่างเดียว (ไม่แวะฝากเงิน)" : "💰 เอาเงิน 3,500g อย่างเดียว (จบพาส Lv.1 ฝากเงินแล้ววนลบเลย)");
+        ? `💎 เพชร 20 + 💰 3,500g · ${orgMsg}`
+        : (takeGems20 ? `💎 เพชร 20 อย่างเดียว · ${orgMsg}` : `💰 เงิน 3,500g อย่างเดียว · ${orgMsg}`);
       if (typeof showToast === "function") showToast(`💾 บันทึกตั้งค่าแล้ว (${modeMsg})`, "success");
+      renderAutoFarmDashboard();
     }
   }
 
@@ -7988,9 +8015,42 @@ window.switchMainTab = switchMainTab;
     if (afEventsBound) return;
     afEventsBound = true;
 
-    ["af-cfg-take-gems", "af-cfg-deposit-coins", "af-cfg-vault-rush", "af-cfg-auto-launch"].forEach(id => {
+    [
+      "af-cfg-take-gems", "af-cfg-deposit-coins", "af-cfg-vault-rush", "af-cfg-auto-launch",
+      "af-cfg-organic-mode", "af-cfg-min-cycle-min", "af-cfg-max-cycle-min",
+      "af-cfg-alt-main", "af-cfg-main-breaks", "af-cfg-stagger-start"
+    ].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.addEventListener("change", () => saveAutoFarmConfig({}, id).catch(() => {}));
+    });
+
+    document.querySelectorAll("[data-af-organic-preset]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const parts = String(btn.getAttribute("data-af-organic-preset") || "").split(",").map(Number);
+        if (parts.length < 5) return;
+        const [minM, maxM, bMin, bMax, orgOn] = parts;
+        const orgCb = document.getElementById("af-cfg-organic-mode");
+        const minIn = document.getElementById("af-cfg-min-cycle-min");
+        const maxIn = document.getElementById("af-cfg-max-cycle-min");
+        const altCb = document.getElementById("af-cfg-alt-main");
+        const brkSel = document.getElementById("af-cfg-main-breaks");
+        if (orgCb) orgCb.checked = orgOn === 1;
+        if (minIn) minIn.value = String(minM);
+        if (maxIn) maxIn.value = String(maxM);
+        if (altCb) altCb.checked = orgOn === 1 && bMax > 0;
+        if (brkSel && bMax > 0) {
+          const valStr = `${bMin},${bMax}`;
+          if (Array.from(brkSel.options).some(o => o.value === valStr)) brkSel.value = valStr;
+        }
+        saveAutoFarmConfig({
+          organicModeEnabled: orgOn === 1,
+          minCycleMin: minM,
+          maxCycleMin: maxM,
+          alternateMainChar: orgOn === 1 && bMax > 0,
+          mainBreaksMin: bMin,
+          mainBreaksMax: bMax
+        }).catch(() => {});
+      });
     });
 
     const openPullBtn = document.getElementById("af-btn-open-pull");
@@ -8179,6 +8239,23 @@ window.switchMainTab = switchMainTab;
     syncCb("af-cfg-deposit-coins", afConfig.depositPassCoins !== false);
     syncCb("af-cfg-vault-rush", afConfig.vaultRushEnabled !== false);
     syncCb("af-cfg-auto-launch", afConfig.autoLaunchClosed !== false);
+    syncCb("af-cfg-organic-mode", afConfig.organicModeEnabled !== false);
+    syncCb("af-cfg-alt-main", afConfig.alternateMainChar !== false);
+    syncCb("af-cfg-stagger-start", afConfig.staggerStartOnMain !== false);
+    const minIn = document.getElementById("af-cfg-min-cycle-min");
+    if (minIn && document.activeElement !== minIn) minIn.value = String(Number(afConfig.minCycleMin) || 10);
+    const maxIn = document.getElementById("af-cfg-max-cycle-min");
+    if (maxIn && document.activeElement !== maxIn) maxIn.value = String(Number(afConfig.maxCycleMin) || 18);
+    const brkSel = document.getElementById("af-cfg-main-breaks");
+    if (brkSel && document.activeElement !== brkSel) {
+      const wantBrk = `${Number(afConfig.mainBreaksMin ?? 1)},${Number(afConfig.mainBreaksMax ?? 2)}`;
+      if (Array.from(brkSel.options).some(o => o.value === wantBrk)) brkSel.value = wantBrk;
+    }
+    const subCtrl = document.getElementById("af-organic-subcontrols");
+    if (subCtrl) {
+      subCtrl.style.opacity = afConfig.organicModeEnabled !== false ? "1" : "0.48";
+      subCtrl.style.pointerEvents = afConfig.organicModeEnabled !== false ? "auto" : "none";
+    }
 
     const ineligibleCount = afProfiles.filter(p => Boolean(p.ineligibleReason)).length;
     const rushingCount = afProfiles.filter(p => !p.ineligibleReason && !p.manualPaused && (p.gemRush?.enabled || (afConfig.running && p.isRunning))).length;
@@ -8236,6 +8313,34 @@ window.switchMainTab = switchMainTab;
 
       const isCardRunning = Boolean(!isIneligible && !p.manualPaused && (afConfig.running || gr?.enabled));
       const isCardPaused = Boolean(!isIneligible && p.manualPaused);
+      const isMainBreakNow = Boolean(isCardRunning && gr && (gr.phase === "main_break_active" || gr.phase === "leaving_for_main_break" || gr.phase === "lobby_switch_main_break"));
+      const mainBreakLeftSec = (isMainBreakNow && gr?.mainBreakUntil > Date.now()) ? Math.max(1, Math.ceil((gr.mainBreakUntil - Date.now()) / 1000)) : 0;
+      const mainBreakLeftTxt = mainBreakLeftSec >= 60
+        ? `${Math.floor(mainBreakLeftSec / 60)}น.${String(mainBreakLeftSec % 60).padStart(2, "0")}ว.`
+        : (mainBreakLeftSec > 0 ? `${mainBreakLeftSec}ว.` : "");
+
+      const planSum = (!isIneligible && gr && gr.cyclePlanSummary && gr.cyclePlanSummary.organic) ? gr.cyclePlanSummary : null;
+      const organicTimelineHtml = planSum ? `
+        <div style="background:rgba(88,28,135,0.22);border:1px solid rgba(192,132,252,0.34);border-radius:8px;padding:6px 9px;font-size:10.5px;display:flex;flex-direction:column;gap:4px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;color:#e9d5ff;font-weight:800;">
+            <span>🎲 แผนสุ่มรอบนี้ · เป้า ${(Number(planSum.totalTargetMs || 0) / 60000).toFixed(1)} นาที</span>
+            <span style="color:#c4b5fd;font-weight:700;">ผ่านไป ${escHtml(formatCycleMs(planSum.elapsedMs || 0) || "0วิ")}</span>
+          </div>
+          ${Array.isArray(planSum.breaks) && planSum.breaks.length > 0 ? `
+            <div style="display:flex;flex-wrap:wrap;gap:4px;">
+              ${planSum.breaks.map(b => {
+                const bBg = b.active ? "rgba(16,185,129,0.25)" : (b.done ? "rgba(100,116,139,0.22)" : "rgba(168,85,247,0.18)");
+                const bBd = b.active ? "rgba(52,211,153,0.58)" : (b.done ? "rgba(148,163,184,0.25)" : "rgba(192,132,252,0.38)");
+                const bCol = b.active ? "#6ee7b7" : (b.done ? "#94a3b8" : "#e9d5ff");
+                const icon = b.active ? "👑" : (b.done ? "✅" : "⏳");
+                const minLbl = b.plannedSec >= 60 ? `${(b.plannedSec / 60).toFixed(1)}น.` : `${b.plannedSec}ว.`;
+                return `<span style="padding:2px 6px;border-radius:5px;background:${bBg};border:1px solid ${bBd};color:${bCol};font-size:10px;font-weight:700;">${icon} ${escHtml(b.label)} (${minLbl})</span>`;
+              }).join("")}
+            </div>
+          ` : ""}
+        </div>
+      ` : "";
+
       const statusText = (gr && gr.statusText) || p.statusText || (isCardPaused ? "⏸ หยุดพักจอนี้ไว้ชั่วคราว (เข้าร่วมระบบรวมเงิน/ตี้ได้ปกติ)" : (p.isRunning ? "พร้อมเช็กตัวละคร Lv.45+" : "ปิดจออยู่ · รอเริ่มรัน"));
       const borderColor = isNoLv45
         ? "rgba(239,68,68,0.72)"
@@ -8243,7 +8348,9 @@ window.switchMainTab = switchMainTab;
           ? "rgba(245,158,11,0.72)"
           : (isCardPaused
             ? "rgba(245,158,11,0.52)"
-            : (isCardRunning ? "rgba(56,189,248,0.68)" : (p.isRunning ? "rgba(16,185,129,0.45)" : "rgba(148,163,184,0.22)"))));
+            : (isMainBreakNow
+              ? "rgba(16,185,129,0.72)"
+              : (isCardRunning ? "rgba(56,189,248,0.68)" : (p.isRunning ? "rgba(16,185,129,0.45)" : "rgba(148,163,184,0.22)")))));
 
       // Diagonal Stamp Overlay (replaces old green PASS stamp!)
       const stampOverlayHtml = isNoLv45 ? `
@@ -8288,7 +8395,7 @@ window.switchMainTab = switchMainTab;
                 <span style="padding:2px 7px;border-radius:6px;font-size:10.5px;font-weight:800;background:${p.isRunning ? "rgba(16,185,129,0.2)" : "rgba(100,116,139,0.2)"};color:${p.isRunning ? "#34d399" : "#94a3b8"};">
                   ${p.isRunning ? `🟢 ออนไลน์ :${p.port || ""}` : "⚪ ปิดจอ"}
                 </span>
-                ${isCardRunning ? `<span style="padding:2px 7px;border-radius:6px;font-size:10.5px;font-weight:800;background:rgba(56,189,248,0.2);color:#7dd3fc;border:1px solid rgba(56,189,248,0.38);">💎 กำลังรัน</span>` : ""}
+                ${isCardRunning && isMainBreakNow ? `<span style="padding:2px 7px;border-radius:6px;font-size:10.5px;font-weight:800;background:rgba(16,185,129,0.22);color:#6ee7b7;border:1px solid rgba(52,211,153,0.48);">👑 พักตัวหลัก${mainBreakLeftTxt ? ` ${escHtml(mainBreakLeftTxt)}` : ""}</span>` : (isCardRunning ? `<span style="padding:2px 7px;border-radius:6px;font-size:10.5px;font-weight:800;background:rgba(56,189,248,0.2);color:#7dd3fc;border:1px solid rgba(56,189,248,0.38);">💎 กำลังรัน</span>` : "")}
                 ${isCardPaused ? `<span style="padding:2px 7px;border-radius:6px;font-size:10.5px;font-weight:800;background:rgba(245,158,11,0.2);color:#fcd34d;border:1px solid rgba(245,158,11,0.4);">⏸ หยุดพัก</span>` : ""}
               </div>
               <div style="font-size:14.5px;font-weight:800;color:#f8fafc;margin-top:6px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
@@ -8321,6 +8428,7 @@ window.switchMainTab = switchMainTab;
           </div>
 
           ${dailyBadgesHtml}
+          ${organicTimelineHtml}
 
           <!-- HP / SP BAR -->
           <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:center;background:rgba(2,6,23,0.45);border:1px solid rgba(148,163,184,0.14);border-radius:8px;padding:6px 9px;font-size:10.5px;">

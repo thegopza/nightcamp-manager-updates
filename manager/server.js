@@ -2435,10 +2435,37 @@ function getDefaultAutoFarmConfig() {
     takeGems20: true,
     depositPassCoins: true,
     autoLaunchClosed: true,
+    organicModeEnabled: true,
+    minCycleMin: 10,
+    maxCycleMin: 18,
+    alternateMainChar: true,
+    mainBreaksMin: 1,
+    mainBreaksMax: 2,
+    staggerStartOnMain: true,
     totalCycles: 0,
     totalGemsEarned: 0,
     totalCoinsDeposited: 0,
-    lastStatusText: "พร้อมดึงโปรไฟล์จากหน้าหลักเพื่อปั๊มเพชรจันทร์ / เงิน 3,500g"
+    lastStatusText: "พร้อมดึงโปรไฟล์จากหน้าหลักเพื่อปั๊มเพชรจันทร์ / เงิน 3,500g (โหมดสุ่มจังหวะ & สลับตัวหลัก)"
+  };
+}
+
+function buildGemRushSyncFields(afConfig) {
+  const c = afConfig || getDefaultAutoFarmConfig();
+  const minCycleMin = Math.max(2, Math.min(180, Number(c.minCycleMin) || 10));
+  const maxCycleMin = Math.max(minCycleMin, Math.min(240, Number(c.maxCycleMin) || Math.max(minCycleMin, 18)));
+  const mainBreaksMin = Math.max(0, Math.min(4, Number(c.mainBreaksMin ?? 1)));
+  const mainBreaksMax = Math.max(mainBreaksMin, Math.min(4, Number(c.mainBreaksMax ?? Math.max(mainBreaksMin, 2))));
+  return {
+    vaultRushEnabled: c.vaultRushEnabled !== false,
+    takeGems20: c.takeGems20 !== false,
+    depositPassCoins: c.depositPassCoins !== false,
+    organicModeEnabled: c.organicModeEnabled !== false,
+    minCycleMin,
+    maxCycleMin,
+    alternateMainChar: c.alternateMainChar !== false,
+    mainBreaksMin,
+    mainBreaksMax,
+    staggerStartOnMain: c.staggerStartOnMain !== false
   };
 }
 
@@ -14463,14 +14490,40 @@ public class PmFocus {
             afState.config.takeGems20 = true;
           }
           if (data.autoLaunchClosed !== undefined) afState.config.autoLaunchClosed = Boolean(data.autoLaunchClosed);
+          if (data.organicModeEnabled !== undefined) afState.config.organicModeEnabled = Boolean(data.organicModeEnabled);
+          if (data.minCycleMin !== undefined) {
+            const v = Number(data.minCycleMin);
+            if (Number.isFinite(v)) afState.config.minCycleMin = Math.max(2, Math.min(180, Math.round(v)));
+          }
+          if (data.maxCycleMin !== undefined) {
+            const v = Number(data.maxCycleMin);
+            if (Number.isFinite(v)) afState.config.maxCycleMin = Math.max(2, Math.min(240, Math.round(v)));
+          }
+          if ((Number(afState.config.maxCycleMin) || 18) < (Number(afState.config.minCycleMin) || 10)) {
+            afState.config.maxCycleMin = Number(afState.config.minCycleMin) || 10;
+          }
+          if (data.alternateMainChar !== undefined) afState.config.alternateMainChar = Boolean(data.alternateMainChar);
+          if (data.mainBreaksMin !== undefined) {
+            const v = Number(data.mainBreaksMin);
+            if (Number.isFinite(v)) afState.config.mainBreaksMin = Math.max(0, Math.min(4, Math.round(v)));
+          }
+          if (data.mainBreaksMax !== undefined) {
+            const v = Number(data.mainBreaksMax);
+            if (Number.isFinite(v)) afState.config.mainBreaksMax = Math.max(0, Math.min(4, Math.round(v)));
+          }
+          if ((Number(afState.config.mainBreaksMax) ?? 2) < (Number(afState.config.mainBreaksMin) ?? 1)) {
+            afState.config.mainBreaksMax = Number(afState.config.mainBreaksMin) ?? 1;
+          }
+          if (data.staggerStartOnMain !== undefined) afState.config.staggerStartOnMain = Boolean(data.staggerStartOnMain);
           saveAutoFarmState(afState);
 
           // Push updated options to any currently-open pulled clients immediately (live mode switching!)
+          const syncPatchJson = JSON.stringify(buildGemRushSyncFields(afState.config));
           const mainMap = new Map((loadProfiles() || []).map(p => [p.id, p]));
           for (const e of afState.entries) {
             const p = mainMap.get(e.profileId);
             if (p && p.debugPort && browserMode.isOpen(p.id)) {
-              evalProfilePort(p.debugPort, `if (typeof window.__setGemRushConfig === 'function') window.__setGemRushConfig({ vaultRushEnabled: ${afState.config.vaultRushEnabled !== false}, takeGems20: ${afState.config.takeGems20 !== false}, depositPassCoins: ${afState.config.depositPassCoins !== false} });`, 2000).catch(() => {});
+              evalProfilePort(p.debugPort, `if (typeof window.__setGemRushConfig === 'function') window.__setGemRushConfig(${syncPatchJson});`, 2000).catch(() => {});
             }
           }
           return sendJSON({ success: true, config: afState.config });
@@ -14578,15 +14631,18 @@ public class PmFocus {
           const mainMap = new Map((loadProfiles() || []).map(p => [p.id, p]));
           if (nextRunning) {
             const sid = Number(afState.config.sessionId || Date.now());
-            const wVault = afState.config.vaultRushEnabled !== false;
-            const wGems = afState.config.takeGems20 !== false;
-            const wCoins = afState.config.depositPassCoins !== false;
+            const startPatchJson = JSON.stringify({
+              enabled: true,
+              resetCycles: true,
+              sessionId: sid,
+              ...buildGemRushSyncFields(afState.config)
+            });
             await Promise.all(afState.entries.map(async (entry) => {
               const p = mainMap.get(entry.profileId);
               if (!p) return;
               seedGemRushBrowserStorage(p, true, afState.config);
               if (p.debugPort && !entry.ineligibleReason) {
-                await evalProfilePort(p.debugPort, `if (typeof window.__setGemRushConfig === 'function') window.__setGemRushConfig({ enabled: true, resetCycles: true, sessionId: ${sid}, vaultRushEnabled: ${wVault}, takeGems20: ${wGems}, depositPassCoins: ${wCoins} });`, 2500).catch(() => {});
+                await evalProfilePort(p.debugPort, `if (typeof window.__setGemRushConfig === 'function') window.__setGemRushConfig(${startPatchJson});`, 2500).catch(() => {});
               }
             }));
             setImmediate(() => runAutoFarmOrchestratorTick().catch(() => {}));
@@ -14719,12 +14775,16 @@ public class PmFocus {
           saveAutoFarmState(afState);
 
           if (p) {
-            const wVault = afState.config.vaultRushEnabled !== false;
-            const wGems = afState.config.takeGems20 !== false;
-            const wCoins = afState.config.depositPassCoins !== false;
+            const singleStartJson = JSON.stringify({
+              enabled: true,
+              resetCycles: true,
+              resetIneligible: true,
+              sessionId: nowTs,
+              ...buildGemRushSyncFields(afState.config)
+            });
             seedGemRushBrowserStorage(p, true, afState.config);
             if (p.debugPort && browserMode.isOpen(p.id)) {
-              await evalProfilePort(p.debugPort, `if (typeof window.__setGemRushConfig === 'function') window.__setGemRushConfig({ enabled: true, resetCycles: true, resetIneligible: true, sessionId: ${nowTs}, vaultRushEnabled: ${wVault}, takeGems20: ${wGems}, depositPassCoins: ${wCoins} });`, 2500).catch(() => {});
+              await evalProfilePort(p.debugPort, `if (typeof window.__setGemRushConfig === 'function') window.__setGemRushConfig(${singleStartJson});`, 2500).catch(() => {});
             }
           }
           setImmediate(() => runAutoFarmOrchestratorTick().catch(() => {}));
@@ -15716,9 +15776,7 @@ function seedGemRushBrowserStorage(profile, enableRush, afConfig) {
     const nextObj = {
       ...prev,
       enabled: Boolean(enableRush),
-      vaultRushEnabled: afConfig?.vaultRushEnabled !== false,
-      takeGems20: afConfig?.takeGems20 !== false,
-      depositPassCoins: afConfig?.depositPassCoins !== false,
+      ...buildGemRushSyncFields(afConfig),
       phase: enableRush ? (prev.phase && prev.phase !== "idle" ? prev.phase : "checking") : "idle",
       updatedAt: Date.now()
     };
@@ -15921,28 +15979,32 @@ async function runAutoFarmOrchestratorTick() {
         entry.updatedAt = Date.now();
       }
 
-      // Engage Gem Rush on this eligible open client if not yet enabled (or keep target flags in sync!)
-      const wantVault = afState.config.vaultRushEnabled !== false;
-      const wantGems = afState.config.takeGems20 !== false;
-      const wantCoins = afState.config.depositPassCoins !== false;
+      // Engage Gem Rush on this eligible open client if not yet enabled (or keep target & organic pacing flags in sync!)
+      const wantSync = buildGemRushSyncFields(afState.config);
       const flagsDesynced = Boolean(
         gr && gr.enabled && (
-          Boolean(gr.vaultRushEnabled !== false) !== wantVault ||
-          Boolean(gr.takeGems20 !== false) !== wantGems ||
-          Boolean(gr.depositPassCoins !== false) !== wantCoins
+          Boolean(gr.vaultRushEnabled !== false) !== wantSync.vaultRushEnabled ||
+          Boolean(gr.takeGems20 !== false) !== wantSync.takeGems20 ||
+          Boolean(gr.depositPassCoins !== false) !== wantSync.depositPassCoins ||
+          Boolean(gr.organicModeEnabled !== false) !== wantSync.organicModeEnabled ||
+          Number(gr.minCycleMin || 10) !== wantSync.minCycleMin ||
+          Number(gr.maxCycleMin || 18) !== wantSync.maxCycleMin ||
+          Boolean(gr.alternateMainChar !== false) !== wantSync.alternateMainChar ||
+          Number(gr.mainBreaksMin ?? 1) !== wantSync.mainBreaksMin ||
+          Number(gr.mainBreaksMax ?? 2) !== wantSync.mainBreaksMax ||
+          Boolean(gr.staggerStartOnMain !== false) !== wantSync.staggerStartOnMain
         )
       );
       if (!gr || !gr.enabled || flagsDesynced || !grMatchesSession) {
+        const engPatchJson = JSON.stringify({
+          enabled: true,
+          resetCycles: !grMatchesSession,
+          sessionId: wantSessionId,
+          ...wantSync
+        });
         const engRes = await evalProfilePort(prof.debugPort, `(() => {
           if (typeof window.__setGemRushConfig === 'function') {
-            window.__setGemRushConfig({
-              enabled: true,
-              resetCycles: ${!grMatchesSession},
-              sessionId: ${wantSessionId},
-              vaultRushEnabled: ${wantVault},
-              takeGems20: ${wantGems},
-              depositPassCoins: ${wantCoins}
-            });
+            window.__setGemRushConfig(${engPatchJson});
             return { ok: true, ver: window.__nightcampBotVersion || '' };
           }
           return { ok: false, missingHelper: true, ver: window.__nightcampBotVersion || '' };
