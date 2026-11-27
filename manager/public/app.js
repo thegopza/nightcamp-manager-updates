@@ -7784,6 +7784,7 @@ window.switchMainTab = switchMainTab;
   let afConfig = {
     running: false,
     vaultRushEnabled: true,
+    takeGems20: true,
     depositPassCoins: true,
     autoLaunchClosed: true,
     totalCycles: 0,
@@ -7853,13 +7854,30 @@ window.switchMainTab = switchMainTab;
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 
-  async function saveAutoFarmConfig(extraPatch = {}) {
+  async function saveAutoFarmConfig(extraPatch = {}, changedId = "") {
     const vaultCb = document.getElementById("af-cfg-vault-rush");
+    const gemsCb = document.getElementById("af-cfg-take-gems");
     const depCb = document.getElementById("af-cfg-deposit-coins");
     const launchCb = document.getElementById("af-cfg-auto-launch");
+    let takeGems20 = gemsCb ? Boolean(gemsCb.checked) : afConfig.takeGems20 !== false;
+    let depositPassCoins = depCb ? Boolean(depCb.checked) : afConfig.depositPassCoins !== false;
+    if (!takeGems20 && !depositPassCoins) {
+      if (changedId === "af-cfg-take-gems") {
+        takeGems20 = true;
+        if (gemsCb) gemsCb.checked = true;
+      } else {
+        depositPassCoins = true;
+        if (depCb) depCb.checked = true;
+      }
+      if (typeof showToast === "function") {
+        showToast("⚠️ ต้องเปิดอย่างน้อย 1 เป้าหมาย (💎 เพชร 20 หรือ 💰 เงิน 3,500g)", "warning");
+      }
+      return;
+    }
     const payload = {
       vaultRushEnabled: vaultCb ? Boolean(vaultCb.checked) : afConfig.vaultRushEnabled !== false,
-      depositPassCoins: depCb ? Boolean(depCb.checked) : afConfig.depositPassCoins !== false,
+      takeGems20,
+      depositPassCoins,
       autoLaunchClosed: launchCb ? Boolean(launchCb.checked) : afConfig.autoLaunchClosed !== false,
       ...extraPatch
     };
@@ -7870,7 +7888,10 @@ window.switchMainTab = switchMainTab;
     }).then(r => r.json());
     if (res && res.success) {
       afConfig = res.config || afConfig;
-      if (typeof showToast === "function") showToast("💾 บันทึกตั้งค่า Gem Rush เรียบร้อยแล้ว", "success");
+      const modeMsg = (takeGems20 && depositPassCoins)
+        ? "💎 เพชร 20 + 💰 เงิน 3,500g"
+        : (takeGems20 ? "💎 เอาเพชร 20 อย่างเดียว (ไม่แวะฝากเงิน)" : "💰 เอาเงิน 3,500g อย่างเดียว (จบพาส Lv.1 ฝากเงินแล้ววนลบเลย)");
+      if (typeof showToast === "function") showToast(`💾 บันทึกตั้งค่าแล้ว (${modeMsg})`, "success");
     }
   }
 
@@ -7954,9 +7975,9 @@ window.switchMainTab = switchMainTab;
     if (afEventsBound) return;
     afEventsBound = true;
 
-    ["af-cfg-vault-rush", "af-cfg-deposit-coins", "af-cfg-auto-launch"].forEach(id => {
+    ["af-cfg-take-gems", "af-cfg-deposit-coins", "af-cfg-vault-rush", "af-cfg-auto-launch"].forEach(id => {
       const el = document.getElementById(id);
-      if (el) el.addEventListener("change", () => saveAutoFarmConfig().catch(() => {}));
+      if (el) el.addEventListener("change", () => saveAutoFarmConfig({}, id).catch(() => {}));
     });
 
     const openPullBtn = document.getElementById("af-btn-open-pull");
@@ -8141,8 +8162,9 @@ window.switchMainTab = switchMainTab;
       const el = document.getElementById(id);
       if (el && document.activeElement !== el) el.checked = Boolean(val);
     };
-    syncCb("af-cfg-vault-rush", afConfig.vaultRushEnabled !== false);
+    syncCb("af-cfg-take-gems", afConfig.takeGems20 !== false);
     syncCb("af-cfg-deposit-coins", afConfig.depositPassCoins !== false);
+    syncCb("af-cfg-vault-rush", afConfig.vaultRushEnabled !== false);
     syncCb("af-cfg-auto-launch", afConfig.autoLaunchClosed !== false);
 
     const ineligibleCount = afProfiles.filter(p => Boolean(p.ineligibleReason)).length;
@@ -8231,7 +8253,7 @@ window.switchMainTab = switchMainTab;
           ${gr.huntProgress ? `<span style="padding:2px 7px;border-radius:6px;background:rgba(16,185,129,0.16);color:#6ee7b7;border:1px solid rgba(16,185,129,0.32);">🟢 สไลม์ ${escHtml(gr.huntProgress)}</span>` : ""}
           ${gr.jellyProgress ? `<span style="padding:2px 7px;border-radius:6px;background:rgba(56,189,248,0.16);color:#7dd3fc;border:1px solid rgba(56,189,248,0.32);">🍃 เจล ${escHtml(gr.jellyProgress)}</span>` : ""}
           ${gr.sunProgress ? `<span style="padding:2px 7px;border-radius:6px;background:rgba(251,191,36,0.16);color:#fde68a;border:1px solid rgba(251,191,36,0.32);">☀️ แดด ${escHtml(gr.sunProgress)}</span>` : ""}
-          <span style="padding:2px 7px;border-radius:6px;background:rgba(168,85,247,0.2);color:#d8b4fe;border:1px solid rgba(168,85,247,0.38);">🎫 พาส Lv.${Number(gr.passLv || 0)}/2</span>
+          <span style="padding:2px 7px;border-radius:6px;background:rgba(168,85,247,0.2);color:#d8b4fe;border:1px solid rgba(168,85,247,0.38);">🎫 พาส Lv.${Number(gr.passLv || 0)}/${Number(gr.targetPassLv || (afConfig.takeGems20 === false ? 1 : 2))}</span>
         </div>
       ` : "";
 

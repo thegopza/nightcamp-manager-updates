@@ -965,14 +965,18 @@
 
             <!-- OPTIONS & CLEANUP BAR -->
             <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px;padding:11px 14px;background:rgba(2,6,23,0.52);border:1px solid rgba(148,163,184,0.18);border-radius:10px;">
-              <div style="display:flex;flex-wrap:wrap;align-items:center;gap:16px;font-size:12.5px;color:#e2e8f0;font-weight:700;">
+              <div style="display:flex;flex-wrap:wrap;align-items:center;gap:14px;font-size:12.5px;color:#e2e8f0;font-weight:700;">
+                <label style="display:flex;align-items:center;gap:7px;cursor:pointer;padding:4px 10px;border-radius:8px;background:rgba(56,189,248,0.12);border:1px solid rgba(56,189,248,0.35);color:#7dd3fc;" title="รัชให้ถึงพาส Lv.2 เพื่อรับ 20 เพชรจันทร์ก่อนวนลบสร้างตัวใหม่ (หากปิดข้อนี้และเปิดเฉพาะเงิน 3,500g จะจบที่พาส Lv.1 แล้ววนลบเลยไวกว่ามาก)">
+                  <input type="checkbox" id="af-cfg-take-gems" checked style="width:16px;height:16px;accent-color:#38bdf8;cursor:pointer;">
+                  <span>💎 เอาเพชร 20 (พาส Lv.2)</span>
+                </label>
+                <label style="display:flex;align-items:center;gap:7px;cursor:pointer;padding:4px 10px;border-radius:8px;background:rgba(251,191,36,0.12);border:1px solid rgba(251,191,36,0.35);color:#fde68a;" title="รับเงิน 3,500g จากพาส Lv.1 แล้วฝากเข้าคลังร่วมก่อนลบ (Premium) — หากติ๊กเฉพาะข้อนี้ไม่เอาเพชร จะเก็บแค่ 1 เควสรายวัน (พาส Lv.1) แล้วฝากเงินวนลบสร้างใหม่ทันที">
+                  <input type="checkbox" id="af-cfg-deposit-coins" checked style="width:16px;height:16px;accent-color:#fbbf24;cursor:pointer;">
+                  <span>💰 เอาเงิน 3,500g ฝากคลังร่วม (พาส Lv.1 · Premium)</span>
+                </label>
                 <label style="display:flex;align-items:center;gap:7px;cursor:pointer;" title="เมื่อเข้าค่ายจะเช็กคลังร่วม หากมีเจลใบไม้หรือประกายแดดจะดึงมาส่งเควสทันที และฝากของที่เหลือเก็บไว้เร่งรอบถัดไป">
                   <input type="checkbox" id="af-cfg-vault-rush" checked style="width:16px;height:16px;accent-color:#38bdf8;cursor:pointer;">
                   <span>🏦 ดึงเจลใบไม้/ประกายแดดจากคลังร่วม (Turbo)</span>
-                </label>
-                <label style="display:flex;align-items:center;gap:7px;cursor:pointer;" title="หากไอดีมี Premium หลังรับพาส Lv.1 (3,500g) จะฝากเหรียญฟรีเข้าคลังร่วมให้อัตโนมัติก่อนลบตัวชั่วคราว">
-                  <input type="checkbox" id="af-cfg-deposit-coins" checked style="width:16px;height:16px;accent-color:#fbbf24;cursor:pointer;">
-                  <span>💰 ฝาก 3,500g เข้าคลังร่วมก่อนลบ (Premium)</span>
                 </label>
                 <label style="display:flex;align-items:center;gap:7px;cursor:pointer;" title="หากจอที่ดึงมายังปิดอยู่ ระบบจะช่วยเปิดจอให้อัตโนมัติเมื่อกดเริ่มรัน">
                   <input type="checkbox" id="af-cfg-auto-launch" checked style="width:16px;height:16px;accent-color:#10b981;cursor:pointer;">
@@ -2021,7 +2025,7 @@
   </div>
 
   <script src="image_board_solver.js?v=nc1.9.4"></script>
-  <script src="app.js?v=nc2.3.37"></script>
+  <script src="app.js?v=nc2.3.37b"></script>
   <script src="sim_engine.js?v=nc2.3.28b"></script>
   <script src="build_sim_arena.js?v=nc2.3.28b"></script>
   <script src="build_sim.js?v=nc2.3.28b"></script>

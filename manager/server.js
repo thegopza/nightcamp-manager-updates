@@ -2432,12 +2432,13 @@ function getDefaultAutoFarmConfig() {
   return {
     running: false,
     vaultRushEnabled: true,
+    takeGems20: true,
     depositPassCoins: true,
     autoLaunchClosed: true,
     totalCycles: 0,
     totalGemsEarned: 0,
     totalCoinsDeposited: 0,
-    lastStatusText: "พร้อมดึงโปรไฟล์จากหน้าหลักเพื่อปั๊มเพชรจันทร์ (20 เพชร/รอบ)"
+    lastStatusText: "พร้อมดึงโปรไฟล์จากหน้าหลักเพื่อปั๊มเพชรจันทร์ / เงิน 3,500g"
   };
 }
 
@@ -14247,11 +14248,10 @@ public class PmFocus {
           const gr = liveState && liveState.gemRush ? liveState.gemRush : null;
           if (gr) {
             if (Number(gr.cycles) > (Number(entry.cycles) || 0)) {
-              const delta = Number(gr.cycles) - (Number(entry.cycles) || 0);
               entry.cycles = Number(gr.cycles);
-              entry.gemsEarned = Math.max(Number(gr.gemsEarned) || 0, (Number(entry.gemsEarned) || 0) + delta * 20);
               afDirty = true;
-            } else if (Number(gr.gemsEarned) > (Number(entry.gemsEarned) || 0)) {
+            }
+            if (Number(gr.gemsEarned) > (Number(entry.gemsEarned) || 0)) {
               entry.gemsEarned = Number(gr.gemsEarned);
               afDirty = true;
             }
@@ -14363,16 +14363,20 @@ public class PmFocus {
           const data = JSON.parse(body || "{}");
           const afState = loadAutoFarmState();
           if (data.vaultRushEnabled !== undefined) afState.config.vaultRushEnabled = Boolean(data.vaultRushEnabled);
+          if (data.takeGems20 !== undefined) afState.config.takeGems20 = Boolean(data.takeGems20);
           if (data.depositPassCoins !== undefined) afState.config.depositPassCoins = Boolean(data.depositPassCoins);
+          if (afState.config.takeGems20 === false && afState.config.depositPassCoins === false) {
+            afState.config.takeGems20 = true;
+          }
           if (data.autoLaunchClosed !== undefined) afState.config.autoLaunchClosed = Boolean(data.autoLaunchClosed);
           saveAutoFarmState(afState);
 
-          // Push updated options to any currently-open pulled clients
+          // Push updated options to any currently-open pulled clients immediately (live mode switching!)
           const mainMap = new Map((loadProfiles() || []).map(p => [p.id, p]));
           for (const e of afState.entries) {
             const p = mainMap.get(e.profileId);
             if (p && p.debugPort && browserMode.isOpen(p.id)) {
-              evalProfilePort(p.debugPort, `if (typeof window.__setGemRushConfig === 'function') window.__setGemRushConfig({ vaultRushEnabled: ${afState.config.vaultRushEnabled}, depositPassCoins: ${afState.config.depositPassCoins} });`, 2000).catch(() => {});
+              evalProfilePort(p.debugPort, `if (typeof window.__setGemRushConfig === 'function') window.__setGemRushConfig({ vaultRushEnabled: ${afState.config.vaultRushEnabled !== false}, takeGems20: ${afState.config.takeGems20 !== false}, depositPassCoins: ${afState.config.depositPassCoins !== false} });`, 2000).catch(() => {});
             }
           }
           return sendJSON({ success: true, config: afState.config });
@@ -14492,7 +14496,7 @@ public class PmFocus {
       const p = (loadProfiles() || []).find(x => x.id === id);
       if (p && p.debugPort && browserMode.isOpen(p.id)) {
         if (afState.config.running) {
-          await evalProfilePort(p.debugPort, `if (typeof window.__setGemRushConfig === 'function') window.__setGemRushConfig({ enabled: true, resetIneligible: true, vaultRushEnabled: ${afState.config.vaultRushEnabled !== false}, depositPassCoins: ${afState.config.depositPassCoins !== false} });`, 3000).catch(() => {});
+          await evalProfilePort(p.debugPort, `if (typeof window.__setGemRushConfig === 'function') window.__setGemRushConfig({ enabled: true, resetIneligible: true, vaultRushEnabled: ${afState.config.vaultRushEnabled !== false}, takeGems20: ${afState.config.takeGems20 !== false}, depositPassCoins: ${afState.config.depositPassCoins !== false} });`, 3000).catch(() => {});
         } else {
           const chk = await evalProfilePort(p.debugPort, `(() => {
             if (typeof window.__setGemRushConfig === 'function') window.__setGemRushConfig({ resetIneligible: true });
@@ -15458,6 +15462,7 @@ function seedGemRushBrowserStorage(profile, enableRush, afConfig) {
       ...prev,
       enabled: Boolean(enableRush),
       vaultRushEnabled: afConfig?.vaultRushEnabled !== false,
+      takeGems20: afConfig?.takeGems20 !== false,
       depositPassCoins: afConfig?.depositPassCoins !== false,
       phase: enableRush ? (prev.phase && prev.phase !== "idle" ? prev.phase : "checking") : "idle",
       updatedAt: Date.now()
@@ -15528,9 +15533,11 @@ async function runAutoFarmOrchestratorTick() {
       const gr = live.gemRush || null;
       if (gr) {
         if (Number(gr.cycles) > (Number(entry.cycles) || 0)) {
-          const delta = Number(gr.cycles) - (Number(entry.cycles) || 0);
           entry.cycles = Number(gr.cycles);
-          entry.gemsEarned = Math.max(Number(gr.gemsEarned) || 0, (Number(entry.gemsEarned) || 0) + delta * 20);
+          stateChanged = true;
+        }
+        if (Number(gr.gemsEarned) > (Number(entry.gemsEarned) || 0)) {
+          entry.gemsEarned = Number(gr.gemsEarned);
           stateChanged = true;
         }
         if (Number(gr.totalCoinsDeposited) > (Number(entry.totalCoinsDeposited) || 0)) {
@@ -15563,14 +15570,25 @@ async function runAutoFarmOrchestratorTick() {
         entry.updatedAt = Date.now();
       }
 
-      // Engage Gem Rush on this eligible open client if not yet enabled!
-      if (!gr || !gr.enabled) {
+      // Engage Gem Rush on this eligible open client if not yet enabled (or keep target flags in sync!)
+      const wantVault = afState.config.vaultRushEnabled !== false;
+      const wantGems = afState.config.takeGems20 !== false;
+      const wantCoins = afState.config.depositPassCoins !== false;
+      const flagsDesynced = Boolean(
+        gr && gr.enabled && (
+          Boolean(gr.vaultRushEnabled !== false) !== wantVault ||
+          Boolean(gr.takeGems20 !== false) !== wantGems ||
+          Boolean(gr.depositPassCoins !== false) !== wantCoins
+        )
+      );
+      if (!gr || !gr.enabled || flagsDesynced) {
         const engRes = await evalProfilePort(prof.debugPort, `(() => {
           if (typeof window.__setGemRushConfig === 'function') {
             window.__setGemRushConfig({
               enabled: true,
-              vaultRushEnabled: ${afState.config.vaultRushEnabled !== false},
-              depositPassCoins: ${afState.config.depositPassCoins !== false}
+              vaultRushEnabled: ${wantVault},
+              takeGems20: ${wantGems},
+              depositPassCoins: ${wantCoins}
             });
             return { ok: true, ver: window.__nightcampBotVersion || '' };
           }
@@ -15592,12 +15610,16 @@ async function runAutoFarmOrchestratorTick() {
     afState.config.totalGemsEarned = totGems;
     afState.config.totalCoinsDeposited = totCoins;
 
+    const modeBadgeTxt = (afState.config.takeGems20 !== false && afState.config.depositPassCoins !== false)
+      ? "💎 เพชร 20 + 💰 3,500g"
+      : (afState.config.takeGems20 !== false ? "💎 เพชร 20 อย่างเดียว" : "💰 เงิน 3,500g อย่างเดียว (พาส Lv.1)");
+
     if (activeCount === 0 && waitingCount === 0 && ineligibleCount > 0) {
       afState.config.running = false;
       afState.config.lastStatusText = `🚫 ไม่มีโปรไฟล์ที่ผ่านเงื่อนไข (ไม่ผ่าน ${ineligibleCount} จอ · กลับไปทำงานบอทปกติแล้ว)`;
       stateChanged = true;
     } else {
-      afState.config.lastStatusText = `💎 กำลังปั๊มเพชรจันทร์ ${activeCount} จอ${waitingCount ? ` · รอเปิด ${waitingCount}` : ""}${ineligibleCount ? ` · ไม่ผ่านเงื่อนไข ${ineligibleCount}` : ""} | สะสม ${totGems.toLocaleString()} เพชร (${totCycles} รอบ)`;
+      afState.config.lastStatusText = `${modeBadgeTxt} · กำลังรัช ${activeCount} จอ${waitingCount ? ` · รอเปิด ${waitingCount}` : ""}${ineligibleCount ? ` · ไม่ผ่าน ${ineligibleCount}` : ""} | สะสม ${totGems.toLocaleString()} เพชร · ${totCoins.toLocaleString()}g (${totCycles} รอบ)`;
     }
 
     if (stateChanged) {
