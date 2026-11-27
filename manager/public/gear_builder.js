@@ -54,23 +54,54 @@
     ['spPct', 'SP% (spPct)']
   ];
 
-  const CLASS_ALLOWED_WTYPES = {
-    puppeteer: ['puppet', 'wire'],
-    showmaster: ['puppet', 'wire'],
-    archmage: ['staff', 'wand'],
-    astral: ['staff', 'wand'],
-    paladin: ['sword', 'mace', 'spear', 'axe'],
-    dawnwarden: ['sword', 'mace', 'spear', 'axe'],
-    bishop: ['wand', 'staff', 'mace'],
-    starsaint: ['wand', 'staff', 'mace'],
-    bard: ['harp', 'bow'],
-    maestro: ['harp', 'bow'],
-    ranger: ['bow', 'crossbow'],
-    moonsniper: ['bow', 'crossbow'],
-    assassin: ['dagger', 'katar', 'dualsword'],
-    shinobi: ['dagger', 'katana'],
-    reaper: ['scythe'],
-    gunslinger: ['pistol', 'shotgun', 'rifle']
+  // Fallback map if an older catalog is cached; live catalog provides authoritative `jobWeapons` & `jobShields` for all 46 jobs.
+  const FALLBACK_JOB_WEAPONS = {
+    traveler: ['sword', 'gsword', 'spear', 'axe', 'staff', 'orb', 'bow', 'dagger', 'mace', 'lance'],
+    knight: ['sword', 'gsword', 'spear', 'axe'],
+    paladin: ['mace', 'sword', 'gsword', 'spear', 'axe'],
+    dawnwarden: ['mace', 'sword', 'gsword', 'spear', 'axe'],
+    dragonknight: ['lance', 'sword', 'gsword', 'spear', 'axe'],
+    dragonbound: ['lance', 'sword', 'gsword', 'spear', 'axe'],
+    swordmaster: ['dsword', 'sword', 'gsword', 'spear', 'axe'],
+    starblade: ['dsword', 'sword', 'gsword', 'spear', 'axe'],
+    berserker: ['gaxe', 'hammer', 'sword', 'gsword', 'spear', 'axe'],
+    bloodmoon: ['gaxe', 'hammer', 'sword', 'gsword', 'spear', 'axe'],
+    mage: ['staff', 'orb'],
+    archmage: ['staff', 'orb'],
+    astral: ['staff', 'orb'],
+    firemage: ['staff', 'orb'],
+    starcore: ['staff', 'orb'],
+    icemage: ['staff', 'orb'],
+    winterlord: ['staff', 'orb'],
+    warlock: ['lantern', 'staff', 'orb'],
+    hexlord: ['lantern', 'staff', 'orb'],
+    archer: ['bow'],
+    ranger: ['xbow', 'bow'],
+    moonsniper: ['xbow', 'bow'],
+    wolfhunter: ['bow'],
+    packalpha: ['bow'],
+    bard: ['instrument', 'whip', 'bow'],
+    maestro: ['instrument', 'whip', 'bow'],
+    gunslinger: ['pistol', 'shotgun', 'bow'],
+    outlaw: ['pistol', 'shotgun', 'bow'],
+    rogue: ['dagger', 'sword'],
+    assassin: ['katar', 'dagger', 'sword'],
+    eclipse: ['katar', 'dagger', 'sword'],
+    shinobi: ['huuma', 'dagger', 'sword'],
+    shadowlord: ['huuma', 'dagger', 'sword'],
+    reaper: ['scythe', 'sickle', 'dagger', 'sword'],
+    harvester: ['scythe', 'sickle', 'dagger', 'sword'],
+    puppeteer: ['puppet', 'wire', 'dagger', 'sword'],
+    showmaster: ['puppet', 'wire', 'dagger', 'sword'],
+    priest: ['staff', 'mace'],
+    bishop: ['book', 'staff', 'mace'],
+    starsaint: ['book', 'staff', 'mace'],
+    monk: ['knuckle', 'qstaff', 'staff', 'mace'],
+    meteorfist: ['knuckle', 'qstaff', 'staff', 'mace'],
+    lightkeeper: ['torch', 'staff', 'mace'],
+    beacon: ['torch', 'staff', 'mace'],
+    wisp: ['bell', 'staff', 'mace'],
+    starshepherd: ['bell', 'staff', 'mace']
   };
 
   const PRESETS = {
@@ -119,7 +150,7 @@
       startClass: 'bishop',
       reserveCoins: 50000,
       steps: [
-        { id: 'sg_bi_wpn', type: 'buy_equip', slot: 'weapon', mode: 'flex', wtype: 'wand', itemName: 'คทามือเดียว Lv.40+ (หายากขึ้นไป)', minItemLv: 40, minRarity: 'rare', minGrade: 0, minRefine: 0, minLevel: 40, minCoins: 0, maxBuyPrice: 6000 },
+        { id: 'sg_bi_wpn', type: 'buy_equip', slot: 'weapon', mode: 'flex', wtype: 'book', itemName: 'คัมภีร์ Lv.40+ (หายากขึ้นไป)', minItemLv: 40, minRarity: 'rare', minGrade: 0, minRefine: 0, minLevel: 40, minCoins: 0, maxBuyPrice: 6000 },
         { id: 'sg_bi_top', type: 'buy_equip', slot: 'top', mode: 'flex', itemName: 'เสื้อ Lv.38+ (หายากขึ้นไป)', minItemLv: 38, minRarity: 'rare', minGrade: 0, minRefine: 0, minLevel: 38, minCoins: 0, maxBuyPrice: 3000 },
         { id: 'sg_bi_pants', type: 'buy_equip', slot: 'pants', mode: 'flex', itemName: 'กางเกง Lv.38+ (หายากขึ้นไป)', minItemLv: 38, minRarity: 'rare', minGrade: 0, minRefine: 0, minLevel: 38, minCoins: 0, maxBuyPrice: 3000 }
       ]
@@ -129,7 +160,7 @@
       startClass: 'bard',
       reserveCoins: 50000,
       steps: [
-        { id: 'sg_bd_wpn', type: 'buy_equip', slot: 'weapon', mode: 'flex', wtype: 'harp', itemName: 'พิณ Lv.40+ (หายากขึ้นไป)', minItemLv: 40, minRarity: 'rare', minGrade: 0, minRefine: 0, minLevel: 40, minCoins: 0, maxBuyPrice: 8000 },
+        { id: 'sg_bd_wpn', type: 'buy_equip', slot: 'weapon', mode: 'flex', wtype: 'instrument', itemName: 'เครื่องดนตรี Lv.40+ (หายากขึ้นไป)', minItemLv: 40, minRarity: 'rare', minGrade: 0, minRefine: 0, minLevel: 40, minCoins: 0, maxBuyPrice: 8000 },
         { id: 'sg_bd_top', type: 'buy_equip', slot: 'top', mode: 'flex', itemName: 'เสื้อ Lv.38+ (หายากขึ้นไป)', minItemLv: 38, minRarity: 'rare', minGrade: 0, minRefine: 0, minLevel: 38, minCoins: 0, maxBuyPrice: 3000 },
         { id: 'sg_bd_pants', type: 'buy_equip', slot: 'pants', mode: 'flex', itemName: 'กางเกง Lv.38+ (หายากขึ้นไป)', minItemLv: 38, minRarity: 'rare', minGrade: 0, minRefine: 0, minLevel: 38, minCoins: 0, maxBuyPrice: 3000 }
       ]
@@ -197,10 +228,69 @@
     return p.gearPlan;
   }
 
+  function renderAtlasIcon(ic, size, fallbackHtml) {
+    if (!ic || !Array.isArray(ic) || ic.length < 2 || !catalog || !catalog.atlas) {
+      return fallbackHtml;
+    }
+    const kind = ic[0];
+    const idx = Number(ic[1]);
+    const m = catalog.atlas[kind];
+    if (!m || !Number.isFinite(idx) || idx < 0) return fallbackHtml;
+    const k = size / m.cell;
+    const rows = Math.ceil(m.n / m.cols);
+    const v = catalog.atlasV ? `?v=${encodeURIComponent(catalog.atlasV)}` : '';
+    const file = `wiki/atlases/wiki_${kind === 'h128' ? 'hats128' : kind}.webp${v}`;
+    const bx = -((idx % m.cols) * m.cell * k);
+    const by = -(Math.floor(idx / m.cols) * m.cell * k);
+    const bw = m.cols * m.cell * k;
+    const bh = rows * m.cell * k;
+    return `<i style="display:inline-block;width:${size}px;height:${size}px;flex-shrink:0;background:url('${file}') ${bx}px ${by}px/${bw}px ${bh}px no-repeat;image-rendering:auto;"></i>`;
+  }
+
+  function getRuneTierIc(r, tier) {
+    if (!r || !r.ic) return null;
+    if (Array.isArray(r.ic) && Array.isArray(r.ic[0])) {
+      const idx = Math.max(0, Math.min(r.ic.length - 1, (Number(tier) || 1) - 1));
+      return r.ic[idx] || r.ic[0] || null;
+    }
+    return Array.isArray(r.ic) ? r.ic : null;
+  }
+
+  function getAllowedWeaponTypesForClasses(classIds, cat) {
+    const out = new Set();
+    const map = (cat && cat.jobWeapons) || FALLBACK_JOB_WEAPONS;
+    for (const c of (classIds || [])) {
+      const key = String(c || '').toLowerCase();
+      const arr = map[key] || FALLBACK_JOB_WEAPONS[key] || [];
+      arr.forEach(w => out.add(w));
+    }
+    return out;
+  }
+
+  function getEffectiveFilterClasses() {
+    const g = gp();
+    const sc = String(g?.startClass || '').toLowerCase();
+    const planClasses = getPlanTargetClassIds();
+    if (sc && sc !== 'traveler') return [sc];
+    return planClasses;
+  }
+
+  function canClassesEquipShield(classIds, cat) {
+    if (!classIds || !classIds.length) return true;
+    const map = (cat && cat.jobShields) || null;
+    if (!map) return true;
+    // Check highest target class (e.g. class3 -> class2 -> class1)
+    const primary = String(classIds[classIds.length - 1] || '').toLowerCase();
+    if (primary && Object.prototype.hasOwnProperty.call(map, primary)) {
+      return Boolean(map[primary]);
+    }
+    return classIds.some(c => map[String(c || '').toLowerCase()] !== false);
+  }
+
   async function loadCatalog() {
     if (catalog) return catalog;
     if (!catalogPromise) {
-      catalogPromise = fetch('nightcamp_gear_catalog.json?v=nc2.3.19')
+      catalogPromise = fetch('nightcamp_gear_catalog.json?v=nc2.3.38', { cache: 'no-cache' })
         .then(r => r.ok ? r.json() : null)
         .catch(() => null)
         .then(data => {
@@ -326,7 +416,11 @@
     };
     modal.querySelector('#gb-start-class').onchange = e => {
       const g = gp();
-      if (g) g.startClass = e.target.value;
+      if (g) {
+        g.startClass = e.target.value;
+        renderBoard();
+        renderPicker();
+      }
     };
     modal.querySelector('#gb-reserve-coins').onchange = e => {
       const g = gp();
@@ -369,6 +463,7 @@
       const filledCls = step ? 'filled' : '';
       let title = 'ยังไม่ได้ตั้ง (Smart Gear)';
       let subBadge = '';
+      let iconHtml = `<span style="font-size:18px;">${s.icon}</span>`;
       if (step) {
         title = step.itemName || step.itemId || (step.mode === 'flex' ? `${step.wtype || s.label} Lv.${step.minItemLv || 1}+` : s.label);
         const parts = [];
@@ -376,10 +471,16 @@
         if (forge.refine > 0) parts.push(`+${forge.refine}`);
         if (step.maxBuyPrice > 0) parts.push(`≤${Number(step.maxBuyPrice).toLocaleString()}g`);
         subBadge = parts.join(' · ');
+        if (step.itemId && catalog && Array.isArray(catalog.items)) {
+          const itemMeta = catalog.items.find(x => x.id === step.itemId);
+          if (itemMeta && itemMeta.ic) {
+            iconHtml = renderAtlasIcon(itemMeta.ic, 28, iconHtml);
+          }
+        }
       }
       return `
         <div class="gb-slot ${filledCls} ${activeCls}" data-panel="${esc(s.key)}">
-          <div class="gb-slot-icon"><span style="font-size:18px;">${s.icon}</span></div>
+          <div class="gb-slot-icon">${iconHtml}</div>
           <div class="gb-slot-text">
             <small>${esc(s.label)} ${step ? '<span style="color:#4ade80;">🔒</span>' : ''}</small>
             <b style="${step ? 'color:#f8fafc;' : ''}">${esc(title)}</b>
@@ -389,13 +490,16 @@
       `;
     };
 
+    const effClasses = getEffectiveFilterClasses();
     const targetClasses = getPlanTargetClassIds();
-    const classTitle = targetClasses[1] || targetClasses[0] || 'traveler';
+    const classTitle = effClasses[effClasses.length - 1] || targetClasses[targetClasses.length - 1] || 'traveler';
+    const classThName = (catalog && catalog.jobs && catalog.jobs[classTitle]?.name) || '';
     board.innerHTML = `
       <div class="gb-col">${LEFT_SLOTS.map(slotCardHtml).join('')}</div>
       <div class="gb-figure nc-gb-center">
         <div class="nc-gb-avatar-badge">🛡️</div>
-        <div class="nc-gb-class-name">${esc(classTitle.toUpperCase())}</div>
+        <div class="nc-gb-class-name">${esc(classThName || classTitle.toUpperCase())}</div>
+        ${classThName ? `<div style="font-size:10px;color:#94a3b8;margin-top:-2px;">${esc(classTitle.toUpperCase())}</div>` : ''}
         <div class="nc-gb-lock-note">คลิกช่องเพื่อเลือกของ<br>ช่องที่ตั้งไว้จะ <b>🔒 ล็อก</b><br>ไม่ให้ Smart Gear ทับ</div>
       </div>
       <div class="gb-col">${RIGHT_SLOTS.map(slotCardHtml).join('')}</div>
@@ -451,6 +555,7 @@
     if (!box) return;
     const cat = catalog || { items: [], runes: [], cards: [], wtypes: {}, skills: [] };
     const planClasses = getPlanTargetClassIds();
+    const effClasses = getEffectiveFilterClasses();
 
     if (activePanel === 'basic_runes') {
       const bm = getBasicRuneMeta(cat);
@@ -459,17 +564,6 @@
       const hasC2OrC3 = Boolean(planObj.class2Target || planObj.class3Target);
       const showGun = !hasPlanClasses || planClasses.some(c => bm.gunJobs.has(c)) || (!hasC2OrC3 && planClasses.includes('archer'));
       const showFire = !hasPlanClasses || planClasses.some(c => bm.fireJobs.has(c)) || (!hasC2OrC3 && planClasses.includes('mage'));
-      const qLow = searchQ.trim().toLowerCase();
-
-      const basicRunesList = (cat.runes || []).filter(r => {
-        if (!r || !r.k) return false;
-        const isUniv = bm.universalSet.has(r.k);
-        const isGun = bm.gunSet.has(r.k);
-        const isFire = bm.fireSet.has(r.k);
-        if (!isUniv && !(showGun && isGun) && !(showFire && isFire)) return false;
-        if (qLow && !(`${r.name} ${r.k} ${(r.t || []).join(' ')}`).toLowerCase().includes(qLow)) return false;
-        return true;
-      });
 
       const badgeForBasicRune = (r) => {
         if (bm.gunSet.has(r.k)) {
@@ -504,48 +598,66 @@
           </label>
         </div>
         <input type="text" id="gb-search-input" class="gb-search" placeholder="ค้นหารูนตีปกติ เช่น รูนสายฟ้าแตก, รูนไฟลาม, รูนเงาตีซ้ำ, รูนดาบพายุหมุน..." value="${esc(searchQ)}">
-        <div class="gb-list">
-          ${basicRunesList.length === 0 ? '<div class="gb-empty">ไม่พบรูนตีปกติที่ตรงกับคำค้นหา</div>' : basicRunesList.map(r => `
+        <div class="gb-list" id="gb-picker-list"></div>
+      `;
+
+      const updateBasicRuneList = () => {
+        const listEl = box.querySelector('#gb-picker-list');
+        if (!listEl) return;
+        const qLow = searchQ.trim().toLowerCase();
+        const basicRunesList = (cat.runes || []).filter(r => {
+          if (!r || !r.k) return false;
+          const isUniv = bm.universalSet.has(r.k);
+          const isGun = bm.gunSet.has(r.k);
+          const isFire = bm.fireSet.has(r.k);
+          if (!isUniv && !(showGun && isGun) && !(showFire && isFire)) return false;
+          if (qLow && !(`${r.name} ${r.k} ${(r.t || []).join(' ')}`).toLowerCase().includes(qLow)) return false;
+          return true;
+        });
+        listEl.innerHTML = basicRunesList.length === 0
+          ? '<div class="gb-empty">ไม่พบรูนตีปกติที่ตรงกับคำค้นหา</div>'
+          : basicRunesList.map(r => `
             <div class="gb-item">
-              <div class="gb-item-icon">⚔️</div>
+              <div class="gb-item-icon">${renderAtlasIcon(getRuneTierIc(r, basicRuneTargetTier), 28, '⚔️')}</div>
               <div class="gb-item-body">
                 <b style="color:#bae6fd;">${esc(r.name)} <small style="color:#94a3b8;">(${esc(r.k)})</small>${badgeForBasicRune(r)}</b>
                 <small>${esc((r.t && r.t[Math.max(0, basicRuneTargetTier - 1)]) || '')}</small>
               </div>
               <button type="button" class="gb-pick" data-add-basic-rune="${esc(r.k)}">+ เพิ่ม</button>
             </div>
-          `).join('')}
-        </div>
-      `;
+          `).join('');
+        listEl.querySelectorAll('[data-add-basic-rune]').forEach(btn => {
+          btn.onclick = () => {
+            const g = gp();
+            if (!g) return;
+            const rk = btn.dataset.addBasicRune;
+            const isAllowed = bm.universalSet.has(rk) || (showGun && bm.gunSet.has(rk)) || (showFire && bm.fireSet.has(rk));
+            if (!isAllowed) return;
+            const rMeta = (cat.runes || []).find(x => x.k === rk);
+            const unlockLv = basicRuneTargetSlot === 0 ? bm.slot0Lv : bm.slot1Lv;
+            g.steps.push({
+              id: uid(),
+              type: 'buy_rune',
+              runeKind: rk,
+              itemName: `${rMeta ? rMeta.name : rk} (ขั้น ${'I'.repeat(basicRuneTargetTier)})`,
+              tier: basicRuneTargetTier,
+              skillId: bm.id,
+              skillSlot: basicRuneTargetSlot,
+              minQualityPct: 0,
+              minLevel: unlockLv,
+              minCoins: 0,
+              maxBuyPrice: 12000
+            });
+            renderBoard();
+            renderSteps();
+          };
+        });
+      };
+
       box.querySelector('#gb-basic-rune-slot').onchange = e => { basicRuneTargetSlot = Math.max(0, Math.min(1, Number(e.target.value) || 0)); };
-      box.querySelector('#gb-basic-rune-tier').onchange = e => { basicRuneTargetTier = Math.max(1, Math.min(3, Number(e.target.value) || 1)); renderPicker(); };
-      box.querySelector('#gb-search-input').oninput = e => { searchQ = e.target.value; renderPicker(); };
-      box.querySelectorAll('[data-add-basic-rune]').forEach(btn => {
-        btn.onclick = () => {
-          const g = gp();
-          if (!g) return;
-          const rk = btn.dataset.addBasicRune;
-          const isAllowed = bm.universalSet.has(rk) || (showGun && bm.gunSet.has(rk)) || (showFire && bm.fireSet.has(rk));
-          if (!isAllowed) return;
-          const rMeta = (cat.runes || []).find(x => x.k === rk);
-          const unlockLv = basicRuneTargetSlot === 0 ? bm.slot0Lv : bm.slot1Lv;
-          g.steps.push({
-            id: uid(),
-            type: 'buy_rune',
-            runeKind: rk,
-            itemName: `${rMeta ? rMeta.name : rk} (ขั้น ${'I'.repeat(basicRuneTargetTier)})`,
-            tier: basicRuneTargetTier,
-            skillId: bm.id,
-            skillSlot: basicRuneTargetSlot,
-            minQualityPct: 0,
-            minLevel: unlockLv,
-            minCoins: 0,
-            maxBuyPrice: 12000
-          });
-          renderBoard();
-          renderSteps();
-        };
-      });
+      box.querySelector('#gb-basic-rune-tier').onchange = e => { basicRuneTargetTier = Math.max(1, Math.min(3, Number(e.target.value) || 1)); updateBasicRuneList(); };
+      box.querySelector('#gb-search-input').oninput = e => { searchQ = e.target.value; updateBasicRuneList(); };
+      updateBasicRuneList();
       return;
     }
 
@@ -558,12 +670,6 @@
       }
       const selSk = activeSkills.find(s => s.id === runeTargetSkillId) || null;
       const fitSet = new Set(selSk ? selSk.fits : []);
-      const qLow = searchQ.trim().toLowerCase();
-      const runesList = (cat.runes || []).filter(r => {
-        if (selSk && !fitSet.has(r.k)) return false;
-        if (qLow && !(`${r.name} ${r.k} ${(r.t || []).join(' ')}`).toLowerCase().includes(qLow)) return false;
-        return true;
-      });
 
       box.innerHTML = `
         <div class="gb-picker-title"><b>🔮 เพิ่มรูนสกิล (ซื้อตลาดกลาง + ฝังลงสกิลอัตโนมัติ)</b></div>
@@ -588,56 +694,64 @@
           </label>
         </div>
         <input type="text" id="gb-search-input" class="gb-search" placeholder="ค้นหารูน เช่น รูนหนัก, รูนประหาร, รูนก้อง, รูนเจาะเกราะ..." value="${esc(searchQ)}">
-        <div class="gb-list">
-          ${runesList.length === 0 ? '<div class="gb-empty">ไม่พบรูนที่เข้ากับสกิลนี้</div>' : runesList.map(r => `
+        <div class="gb-list" id="gb-picker-list"></div>
+      `;
+
+      const updateSkillRuneList = () => {
+        const listEl = box.querySelector('#gb-picker-list');
+        if (!listEl) return;
+        const qLow = searchQ.trim().toLowerCase();
+        const runesList = (cat.runes || []).filter(r => {
+          if (selSk && !fitSet.has(r.k)) return false;
+          if (qLow && !(`${r.name} ${r.k} ${(r.t || []).join(' ')}`).toLowerCase().includes(qLow)) return false;
+          return true;
+        });
+        listEl.innerHTML = runesList.length === 0
+          ? '<div class="gb-empty">ไม่พบรูนที่เข้ากับสกิลนี้</div>'
+          : runesList.map(r => `
             <div class="gb-item">
-              <div class="gb-item-icon">🔮</div>
+              <div class="gb-item-icon">${renderAtlasIcon(getRuneTierIc(r, runeTargetTier), 28, '🔮')}</div>
               <div class="gb-item-body">
                 <b style="color:#e9d5ff;">${esc(r.name)} <small style="color:#94a3b8;">(${esc(r.k)})</small></b>
                 <small>${esc((r.t && r.t[Math.max(0, runeTargetTier - 1)]) || '')}</small>
               </div>
               <button type="button" class="gb-pick" data-add-rune="${esc(r.k)}">+ เพิ่ม</button>
             </div>
-          `).join('')}
-        </div>
-      `;
+          `).join('');
+        listEl.querySelectorAll('[data-add-rune]').forEach(btn => {
+          btn.onclick = () => {
+            const g = gp();
+            if (!g || !runeTargetSkillId) return;
+            const rk = btn.dataset.addRune;
+            const rMeta = (cat.runes || []).find(x => x.k === rk);
+            g.steps.push({
+              id: uid(),
+              type: 'buy_rune',
+              runeKind: rk,
+              itemName: `${rMeta ? rMeta.name : rk} (ขั้น ${'I'.repeat(runeTargetTier)})`,
+              tier: runeTargetTier,
+              skillId: runeTargetSkillId,
+              skillSlot: runeTargetSlot,
+              minQualityPct: 0,
+              minLevel: 20,
+              minCoins: 0,
+              maxBuyPrice: 12000
+            });
+            renderBoard();
+            renderSteps();
+          };
+        });
+      };
+
       box.querySelector('#gb-rune-skill').onchange = e => { runeTargetSkillId = e.target.value; renderPicker(); };
       box.querySelector('#gb-rune-slot').onchange = e => { runeTargetSlot = Number(e.target.value) || 0; };
-      box.querySelector('#gb-rune-tier').onchange = e => { runeTargetTier = Number(e.target.value) || 1; renderPicker(); };
-      box.querySelector('#gb-search-input').oninput = e => { searchQ = e.target.value; renderPicker(); };
-      box.querySelectorAll('[data-add-rune]').forEach(btn => {
-        btn.onclick = () => {
-          const g = gp();
-          if (!g || !runeTargetSkillId) return;
-          const rk = btn.dataset.addRune;
-          const rMeta = (cat.runes || []).find(x => x.k === rk);
-          g.steps.push({
-            id: uid(),
-            type: 'buy_rune',
-            runeKind: rk,
-            itemName: `${rMeta ? rMeta.name : rk} (ขั้น ${'I'.repeat(runeTargetTier)})`,
-            tier: runeTargetTier,
-            skillId: runeTargetSkillId,
-            skillSlot: runeTargetSlot,
-            minQualityPct: 0,
-            minLevel: 20,
-            minCoins: 0,
-            maxBuyPrice: 12000
-          });
-          renderBoard();
-          renderSteps();
-        };
-      });
+      box.querySelector('#gb-rune-tier').onchange = e => { runeTargetTier = Number(e.target.value) || 1; updateSkillRuneList(); };
+      box.querySelector('#gb-search-input').oninput = e => { searchQ = e.target.value; updateSkillRuneList(); };
+      updateSkillRuneList();
       return;
     }
 
     if (activePanel === 'cards') {
-      const qLow = searchQ.trim().toLowerCase();
-      const cardsList = (cat.cards || []).filter(c => {
-        if (!qLow) return true;
-        return (`${c.name} ${c.mon} ${(c.pas || []).join(' ')} ${c.act || ''}`).toLowerCase().includes(qLow);
-      }).slice(0, 60);
-
       box.innerHTML = `
         <div class="gb-picker-title"><b>🃏 เพิ่มการ์ดวิชามอน (ซื้อตลาดกลาง + เรียน/อัปเลเวล 1–10 + ติดตั้งช่องอัตโนมัติ)</b></div>
         <div class="nc-gb-mini-grid">
@@ -665,10 +779,22 @@
           💡 การ์ดใช้ซ้ำเพื่ออัปเลเวลได้สูงสุด <b style="color:#fde68a;">Lv.10 (ตัน)</b> · บอทจะซื้อและกดใช้ให้ครบตามเลเวลเป้าหมายแล้วหยุดซื้อให้อัตโนมัติ
         </div>
         <input type="text" id="gb-search-input" class="gb-search" placeholder="ค้นหาการ์ด หรือเอฟเฟกต์ เช่น ตีเบิ้ล, ดูดเลือด, คูลดาวน์, คริ, หุ่นร้อยเชือก..." value="${esc(searchQ)}">
-        <div class="gb-list">
-          ${cardsList.length === 0 ? '<div class="gb-empty">ไม่พบการ์ดที่ค้นหา</div>' : cardsList.map(c => `
+        <div class="gb-list" id="gb-picker-list"></div>
+      `;
+
+      const updateCardList = () => {
+        const listEl = box.querySelector('#gb-picker-list');
+        if (!listEl) return;
+        const qLow = searchQ.trim().toLowerCase();
+        const cardsList = (cat.cards || []).filter(c => {
+          if (!qLow) return true;
+          return (`${c.name} ${c.mon} ${(c.pas || []).join(' ')} ${c.act || ''}`).toLowerCase().includes(qLow);
+        }).slice(0, 80);
+        listEl.innerHTML = cardsList.length === 0
+          ? '<div class="gb-empty">ไม่พบการ์ดที่ค้นหา</div>'
+          : cardsList.map(c => `
             <div class="gb-item">
-              <div class="gb-item-icon">${c.boss ? '👑' : '🃏'}</div>
+              <div class="gb-item-icon">${renderAtlasIcon(c.ic || c.cardIc, 28, c.boss ? '👑' : '🃏')}</div>
               <div class="gb-item-body">
                 <b style="color:${c.boss ? '#fbbf24' : '#e2e8f0'};">${esc(c.name)} ${c.boss ? '<span style="font-size:10px;color:#f59e0b;">[BOSS]</span>' : ''}</b>
                 <small style="color:#86efac;">${esc((c.pas || []).join(' · '))}</small>
@@ -676,53 +802,64 @@
               </div>
               <button type="button" class="gb-pick" data-add-card="${esc(c.mon)}">+ เพิ่ม</button>
             </div>
-          `).join('')}
-        </div>
-      `;
+          `).join('');
+        listEl.querySelectorAll('[data-add-card]').forEach(btn => {
+          btn.onclick = () => {
+            const g = gp();
+            if (!g) return;
+            const mon = btn.dataset.addCard;
+            const cMeta = (cat.cards || []).find(x => x.mon === mon);
+            g.steps.push({
+              id: uid(),
+              type: 'buy_card',
+              monType: mon,
+              cardName: cMeta ? cMeta.name : `bl_card_${mon}`,
+              equipMode: cardTargetMode,
+              slotIndex: cardTargetSlot,
+              targetLevel: clampCardTargetLevel(cardTargetLevel),
+              minLevel: 20,
+              minCoins: 0,
+              maxBuyPrice: 25000
+            });
+            renderBoard();
+            renderSteps();
+          };
+        });
+      };
+
       box.querySelector('#gb-card-mode').onchange = e => { cardTargetMode = e.target.value; renderPicker(); };
       box.querySelector('#gb-card-slot').onchange = e => { cardTargetSlot = Number(e.target.value) || 0; };
       box.querySelector('#gb-card-target-lv').onchange = e => { cardTargetLevel = clampCardTargetLevel(e.target.value); };
-      box.querySelector('#gb-search-input').oninput = e => { searchQ = e.target.value; renderPicker(); };
-      box.querySelectorAll('[data-add-card]').forEach(btn => {
-        btn.onclick = () => {
-          const g = gp();
-          if (!g) return;
-          const mon = btn.dataset.addCard;
-          const cMeta = (cat.cards || []).find(x => x.mon === mon);
-          g.steps.push({
-            id: uid(),
-            type: 'buy_card',
-            monType: mon,
-            cardName: cMeta ? cMeta.name : `bl_card_${mon}`,
-            equipMode: cardTargetMode,
-            slotIndex: cardTargetSlot,
-            targetLevel: clampCardTargetLevel(cardTargetLevel),
-            minLevel: 20,
-            minCoins: 0,
-            maxBuyPrice: 25000
-          });
-          renderBoard();
-          renderSteps();
-        };
-      });
+      box.querySelector('#gb-search-input').oninput = e => { searchQ = e.target.value; updateCardList(); };
+      updateCardList();
       return;
     }
 
     // Equipment slot picker (Exact OR Flex mode)
     const rawSlot = (activePanel === 'acc1' || activePanel === 'acc2') ? 'acc' : activePanel;
-    const allowedWtSet = new Set();
-    for (const c of planClasses) {
-      (CLASS_ALLOWED_WTYPES[c] || []).forEach(w => allowedWtSet.add(w));
-    }
+    const allowedWtSet = getAllowedWeaponTypesForClasses(effClasses.length ? effClasses : planClasses, cat);
+    const allowedWtLabels = Array.from(allowedWtSet).map(w => cat.wtypes?.[w]?.name || w);
+    const shieldAllowed = rawSlot !== 'shield' || canClassesEquipShield(effClasses.length ? effClasses : planClasses, cat);
 
     if (equipPickMode === 'flex') {
-      const wtOpts = Object.entries(cat.wtypes || {}).map(([k, v]) => `<option value="${esc(k)}">${esc(v.name || k)} (${esc(k)})</option>`).join('');
+      const wtEntries = Object.entries(cat.wtypes || {});
+      const orderedWtEntries = allowedWtSet.size > 0
+        ? [
+            ...wtEntries.filter(([k]) => allowedWtSet.has(k)),
+            ...wtEntries.filter(([k]) => !allowedWtSet.has(k))
+          ]
+        : wtEntries;
+      const wtOpts = orderedWtEntries.map(([k, v]) => {
+        const mark = allowedWtSet.has(k) ? '✅ ' : '';
+        return `<option value="${esc(k)}">${mark}${esc(v.name || k)} (${esc(k)})</option>`;
+      }).join('');
       const defaultWt = Array.from(allowedWtSet)[0] || '';
       box.innerHTML = `
         <div class="gb-picker-title" style="display:flex;justify-content:space-between;align-items:center;">
           <b>🎲 โหมดยืดหยุ่น (Flex): ${esc(SLOT_LABEL[activePanel] || activePanel)}</b>
           <button type="button" class="btn btn-secondary btn-sm" id="gb-mode-exact">🎯 สลับไประบุชื่อไอเทม</button>
         </div>
+        ${!shieldAllowed ? '<div style="font-size:11px;color:#fbbf24;background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.35);border-radius:8px;padding:6px 8px;">⚠️ อาชีพเป้าหมายในแผนนี้ถือโล่ไม่ได้ในเกม (เฉพาะอาชีพที่ถือโล่ได้และใช้อาวุธมือเดียว)</div>' : ''}
         <div class="nc-gb-flex-form">
           ${rawSlot === 'weapon' ? `<label>ชนิดอาวุธ: <select id="gb-flex-wt" class="gb-search"><option value="">ทุกชนิดที่อาชีพใส่ได้</option>${wtOpts}</select></label>` : ''}
           <label>Lv. ไอเทมขั้นต่ำ: <input type="number" id="gb-flex-lv" class="gb-search" min="0" max="99" value="40"></label>
@@ -779,76 +916,137 @@
       return;
     }
 
-    const qLow = searchQ.trim().toLowerCase();
-    const list = (cat.items || []).filter(it => {
-      if (it.slot !== rawSlot) return false;
-      if (onlyClassFit && rawSlot === 'weapon' && allowedWtSet.size > 0 && it.wt && !allowedWtSet.has(it.wt)) return false;
-      if (qLow && !(`${it.name} ${it.id} ${it.wsk || ''} ${it.abil || ''}`).toLowerCase().includes(qLow)) return false;
-      return true;
-    }).slice(0, 70);
-
     box.innerHTML = `
       <div class="gb-picker-title" style="display:flex;justify-content:space-between;align-items:center;gap:6px;">
         <b>🎯 เลือกไอเทม: ${esc(SLOT_LABEL[activePanel] || activePanel)}</b>
         <button type="button" class="btn btn-secondary btn-sm" id="gb-mode-flex">🎲 โหมดยืดหยุ่น (Flex)</button>
       </div>
-      <input type="text" id="gb-search-input" class="gb-search" placeholder="ค้นหาชื่อไอเทม, รหัส, หรือสกิลที่เสริม..." value="${esc(searchQ)}">
-      ${rawSlot === 'weapon' && allowedWtSet.size > 0 ? `<label class="gb-only"><input type="checkbox" id="gb-only-fit" ${onlyClassFit ? 'checked' : ''}> แสดงเฉพาะอาวุธที่อาชีพในแผนใช้ได้ (${esc(Array.from(allowedWtSet).join(', '))})</label>` : ''}
-      <div class="gb-list">
-        ${list.length === 0 ? '<div class="gb-empty">ไม่พบไอเทมในหมวดนี้</div>' : list.map(it => {
-          const rm = RARITY_META[it.rar] || RARITY_META.common;
-          const attrs = [];
-          attrs.push(`Lv.${it.lv || 0}`);
-          if (it.atk) attrs.push(`ATK ${it.atk}`);
-          if (it.matk) attrs.push(`MATK ${it.matk}`);
-          if (it.def) attrs.push(`DEF ${it.def}`);
-          if (it.el) attrs.push(`ธาตุ ${it.el}`);
-          if (it.wt && cat.wtypes?.[it.wt]?.name) attrs.push(cat.wtypes[it.wt].name);
-          return `
-            <div class="gb-item">
-              <div class="gb-item-icon">${rm.badge}</div>
-              <div class="gb-item-body">
-                <b style="color:${rm.color};">${esc(it.name)}</b>
-                <div class="gb-attrs">${attrs.map(a => `<span>${esc(a)}</span>`).join('')}</div>
-                ${it.wsk ? `<small style="color:#86efac;display:block;">✨ ${esc(it.wsk)}</small>` : ''}
-                ${it.abil ? `<small style="color:#fde68a;display:block;">⚡ ${esc(it.abil)}</small>` : ''}
-              </div>
-              <button type="button" class="gb-pick" data-add-item="${esc(it.id)}">+ เพิ่ม</button>
-            </div>
-          `;
-        }).join('')}
-      </div>
+      ${!shieldAllowed ? '<div style="font-size:11px;color:#fbbf24;background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.35);border-radius:8px;padding:6px 8px;">⚠️ อาชีพเป้าหมายในแผนนี้ถือโล่ไม่ได้ในเกม (เฉพาะอาชีพที่ถือโล่ได้และใช้อาวุธมือเดียว)</div>' : ''}
+      <input type="text" id="gb-search-input" class="gb-search" placeholder="ค้นหาชื่อไอเทม, ชนิดอาวุธ, รหัส, หรือสกิลที่เสริม..." value="${esc(searchQ)}">
+      ${rawSlot === 'weapon' && allowedWtSet.size > 0 ? `<label class="gb-only"><input type="checkbox" id="gb-only-fit" ${onlyClassFit ? 'checked' : ''}> แสดงเฉพาะอาวุธที่อาชีพในแผนใช้ได้ (${esc(allowedWtLabels.join(', '))})</label>` : ''}
+      <div class="gb-list" id="gb-picker-list"></div>
     `;
-    box.querySelector('#gb-mode-flex').onclick = () => { equipPickMode = 'flex'; renderPicker(); };
-    box.querySelector('#gb-search-input').oninput = e => { searchQ = e.target.value; renderPicker(); };
-    const fitCb = box.querySelector('#gb-only-fit');
-    if (fitCb) fitCb.onchange = e => { onlyClassFit = e.target.checked; renderPicker(); };
-    box.querySelectorAll('[data-add-item]').forEach(btn => {
-      btn.onclick = () => {
-        const g = gp();
-        if (!g) return;
-        const id = btn.dataset.addItem;
-        const it = (cat.items || []).find(x => x.id === id);
-        if (!it) return;
-        const defPrice = it.rar === 'legend' ? 45000 : (it.rar === 'epic' ? 12000 : (it.rar === 'rare' ? 3000 : 1200));
-        g.steps.push({
-          id: uid(),
-          type: 'buy_equip',
-          slot: activePanel,
-          mode: 'exact',
-          itemId: it.id,
-          itemName: it.name,
-          minGrade: 0,
-          minRefine: 0,
-          requiredOpt: '',
-          minLevel: Math.max(1, Number(it.lv) || 1),
-          minCoins: 0,
-          maxBuyPrice: defPrice
+
+    const matchesItemQuery = (it, qLow) => {
+      if (!qLow) return true;
+      const wtName = (it.wt && cat.wtypes?.[it.wt]?.name) || '';
+      return (`${it.name} ${it.id} ${wtName} ${it.wt || ''} ${it.wsk || ''} ${it.abil || ''}`).toLowerCase().includes(qLow);
+    };
+
+    const updateEquipList = () => {
+      const listEl = box.querySelector('#gb-picker-list');
+      if (!listEl) return;
+      const qLow = searchQ.trim().toLowerCase();
+      const list = (cat.items || []).filter(it => {
+        if (it.slot !== rawSlot) return false;
+        if (onlyClassFit && rawSlot === 'weapon' && allowedWtSet.size > 0 && it.wt && !allowedWtSet.has(it.wt)) return false;
+        return matchesItemQuery(it, qLow);
+      }).slice(0, 80);
+
+      if (list.length === 0) {
+        let emptyHtml = '<div class="gb-empty">ไม่พบไอเทมในหมวดนี้';
+        if (qLow) {
+          if (onlyClassFit && rawSlot === 'weapon' && allowedWtSet.size > 0) {
+            const otherWpnCount = (cat.items || []).filter(it => it.slot === 'weapon' && matchesItemQuery(it, qLow)).length;
+            if (otherWpnCount > 0) {
+              emptyHtml += `<div style="margin-top:8px;color:#fbbf24;">พบ <b>${otherWpnCount}</b> รายการในอาวุธอาชีพอื่น</div><button type="button" class="btn btn-secondary btn-sm" id="gb-show-all-wpn" style="margin-top:6px;">🔓 แสดงอาวุธทุกชนิด</button>`;
+            }
+          }
+          // Check if item exists in another equipment slot
+          const otherSlots = new Map();
+          for (const it of (cat.items || [])) {
+            if (it.slot === rawSlot) continue;
+            if (matchesItemQuery(it, qLow)) {
+              const targetPanel = it.slot === 'acc' ? 'acc1' : it.slot;
+              otherSlots.set(targetPanel, (otherSlots.get(targetPanel) || 0) + 1);
+            }
+          }
+          if (otherSlots.size > 0) {
+            const btns = Array.from(otherSlots.entries()).map(([sp, cnt]) =>
+              `<button type="button" class="btn btn-secondary btn-sm" data-jump-slot="${esc(sp)}" style="margin:3px;">${esc(SLOT_LABEL[sp] || sp)} (${cnt})</button>`
+            ).join('');
+            emptyHtml += `<div style="margin-top:8px;color:#7dd3fc;">พบในช่องอื่น:</div><div style="margin-top:4px;display:flex;flex-wrap:wrap;justify-content:center;gap:4px;">${btns}</div>`;
+          }
+        }
+        emptyHtml += '</div>';
+        listEl.innerHTML = emptyHtml;
+        const showAllBtn = listEl.querySelector('#gb-show-all-wpn');
+        if (showAllBtn) {
+          showAllBtn.onclick = () => {
+            onlyClassFit = false;
+            const cb = box.querySelector('#gb-only-fit');
+            if (cb) cb.checked = false;
+            updateEquipList();
+          };
+        }
+        listEl.querySelectorAll('[data-jump-slot]').forEach(btn => {
+          btn.onclick = () => {
+            activePanel = btn.dataset.jumpSlot;
+            renderBoard();
+            renderPicker();
+          };
         });
-        renderBoard();
-        renderSteps();
-      };
-    });
+        return;
+      }
+
+      listEl.innerHTML = list.map(it => {
+        const rm = RARITY_META[it.rar] || RARITY_META.common;
+        const attrs = [];
+        attrs.push(`Lv.${it.lv || 0}`);
+        if (it.atk) attrs.push(`ATK ${it.atk}`);
+        if (it.matk) attrs.push(`MATK ${it.matk}`);
+        if (it.def) attrs.push(`DEF ${it.def}`);
+        if (it.mdef) attrs.push(`MDEF ${it.mdef}`);
+        if (it.el) attrs.push(`ธาตุ ${it.el}`);
+        if (it.wt && cat.wtypes?.[it.wt]?.name) attrs.push(cat.wtypes[it.wt].name);
+        const iconHtml = renderAtlasIcon(it.ic, 28, rm.badge);
+        return `
+          <div class="gb-item">
+            <div class="gb-item-icon" style="border:1px solid ${rm.color}55;">${iconHtml}</div>
+            <div class="gb-item-body">
+              <b style="color:${rm.color};">${esc(it.name)}</b>
+              <div class="gb-attrs">${attrs.map(a => `<span>${esc(a)}</span>`).join('')}</div>
+              ${it.wsk ? `<small style="color:#86efac;display:block;">✨ ${esc(it.wsk)}</small>` : ''}
+              ${it.abil ? `<small style="color:#fde68a;display:block;">⚡ ${esc(it.abil)}</small>` : ''}
+            </div>
+            <button type="button" class="gb-pick" data-add-item="${esc(it.id)}">+ เพิ่ม</button>
+          </div>
+        `;
+      }).join('');
+
+      listEl.querySelectorAll('[data-add-item]').forEach(btn => {
+        btn.onclick = () => {
+          const g = gp();
+          if (!g) return;
+          const id = btn.dataset.addItem;
+          const it = (cat.items || []).find(x => x.id === id);
+          if (!it) return;
+          const defPrice = it.rar === 'legend' ? 45000 : (it.rar === 'epic' ? 12000 : (it.rar === 'rare' ? 3000 : 1200));
+          g.steps.push({
+            id: uid(),
+            type: 'buy_equip',
+            slot: activePanel,
+            mode: 'exact',
+            itemId: it.id,
+            itemName: it.name,
+            minGrade: 0,
+            minRefine: 0,
+            requiredOpt: '',
+            minLevel: Math.max(1, Number(it.lv) || 1),
+            minCoins: 0,
+            maxBuyPrice: defPrice
+          });
+          renderBoard();
+          renderSteps();
+        };
+      });
+    };
+
+    box.querySelector('#gb-mode-flex').onclick = () => { equipPickMode = 'flex'; renderPicker(); };
+    box.querySelector('#gb-search-input').oninput = e => { searchQ = e.target.value; updateEquipList(); };
+    const fitCb = box.querySelector('#gb-only-fit');
+    if (fitCb) fitCb.onchange = e => { onlyClassFit = e.target.checked; updateEquipList(); };
+    updateEquipList();
   }
 
   function renderSteps() {
@@ -863,11 +1061,22 @@
       return;
     }
 
-    const cat = catalog || { runes: [], skills: [], cards: [] };
+    const cat = catalog || { items: [], runes: [], skills: [], cards: [] };
     const bm = getBasicRuneMeta(cat);
     listEl.innerHTML = g.steps.map((s, idx) => {
       const isBasicRune = s.type === 'buy_rune' && (s.skillId === 'bl_basic' || s.skillId === bm.id);
-      const icon = s.type === 'buy_equip' ? '⚔️' : (isBasicRune ? '⚔️' : s.type === 'buy_rune' ? '🔮' : s.type === 'buy_card' ? '🃏' : s.type === 'polish' ? '✨' : '🔨');
+      let icon = s.type === 'buy_equip' ? '⚔️' : (isBasicRune ? '⚔️' : s.type === 'buy_rune' ? '🔮' : s.type === 'buy_card' ? '🃏' : s.type === 'polish' ? '✨' : '🔨');
+      if (s.type === 'buy_equip' && s.itemId) {
+        const im = (cat.items || []).find(x => x.id === s.itemId);
+        if (im && im.ic) icon = renderAtlasIcon(im.ic, 26, icon);
+      } else if (s.type === 'buy_rune' && s.runeKind) {
+        const rm = (cat.runes || []).find(x => x.k === s.runeKind);
+        const ric = getRuneTierIc(rm, s.tier || 1);
+        if (ric) icon = renderAtlasIcon(ric, 26, icon);
+      } else if (s.type === 'buy_card' && s.monType) {
+        const cm = (cat.cards || []).find(x => x.mon === s.monType);
+        if (cm && (cm.ic || cm.cardIc)) icon = renderAtlasIcon(cm.ic || cm.cardIc, 26, icon);
+      }
       let title = '';
       let extraHtml = '';
 
@@ -1103,6 +1312,7 @@
     renderBoard();
     renderSteps();
     await loadCatalog();
+    renderBoard();
     renderPicker();
     renderSteps();
   }

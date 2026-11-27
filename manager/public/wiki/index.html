@@ -1095,7 +1095,7 @@ const SLOT_ORDER = ['weapon', 'hat', 'top', 'pants', 'robe', 'acc', 'glasses', '
 const ST_PCT = new Set(['crit', 'atk', 'skill', 'cdr', 'spd', 'hpPct', 'spPct', 'matk']);
 const ST_ORDER = ['str', 'agi', 'vit', 'int', 'dex', 'luk', 'def', 'mdef', 'hp', 'sp', 'hit', 'flee', 'crit', 'atk', 'skill', 'cdr', 'spd'];
 const ROMAN = ['', 'I', 'II', 'III'];
-const ATL = 'https://play.nightcamp.app/wiki/data/wiki_';
+const ATL = 'atlases/wiki_';
 
 function ico(ic, size) {
   if (!ic) return `<i class="ai" style="width:${size}px;height:${size}px"></i>`;
@@ -1158,7 +1158,7 @@ const fresh = () => ({
   calc: (S && S.calc) || CALC0(),
 });
 
-fetch('data.json').then((r) => r.json()).then((j) => {
+fetch('data.json?v=20261126180659246', { cache: 'no-cache' }).then((r) => r.json()).then((j) => {
   D = j;
   D.monsters = D.monsters || [];
   D.maps = D.maps || [];

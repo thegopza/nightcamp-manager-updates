@@ -13517,20 +13517,33 @@ public class PmFocus {
       if (typeof updateMasterBotUI === 'function') updateMasterBotUI();
       return { success: true, running: true, mode: wantMode };
     })()` : `(() => {
-      if (!window.__isBotRunning) {
-        window.__autoLoopEnabled = false;
-        try { localStorage.setItem('pelican_auto_loop', false); } catch(e){}
-        if (typeof updateMasterBotUI === 'function') updateMasterBotUI();
-        return { success: true, running: false, unchanged: true };
-      }
       window.__autoLoopEnabled = false;
       window.__isBotRunning = false;
       try { localStorage.setItem('pelican_auto_loop', false); } catch(e){}
       if (typeof window.stopMasterBot === 'function') window.stopMasterBot();
+      if (typeof window.__stopGemRushAndRestore === 'function') {
+        try { window.__stopGemRushAndRestore({ cleanupTemp: true, resumeMain: false, manualStop: true }); } catch(_) {}
+      }
       if (typeof window.stopAutoLoop === 'function') window.stopAutoLoop();
       if (typeof updateMasterBotUI === 'function') updateMasterBotUI();
       return { success: true, running: false };
     })()`;
+
+    if (!targetRunning) {
+      try {
+        const afState = loadAutoFarmState();
+        const afEntry = afState && Array.isArray(afState.entries)
+          ? afState.entries.find(e => e && e.profileId === id)
+          : null;
+        if (afEntry) {
+          afEntry.manualPaused = true;
+          afEntry.statusText = "⏸ หยุดจากหน้าบอทปกติแล้ว (กำลังพากลับตัวหลัก)";
+          afEntry.updatedAt = Date.now();
+          seedGemRushBrowserStorage(profile, false, afState.config);
+          saveAutoFarmState(afState);
+        }
+      } catch (_) {}
+    }
 
     try {
       const r = await evalProfilePort(profile.debugPort, code, 6000);
@@ -14451,6 +14464,15 @@ public class PmFocus {
           }
 
           afState.config.running = nextRunning;
+          if (nextRunning) {
+            afState.config.startedAt = Date.now();
+            afState.config.stopEnforceUntil = 0;
+            for (const entry of afState.entries) {
+              if (entry) entry.manualPaused = false;
+            }
+          } else {
+            afState.config.stopEnforceUntil = Date.now() + 60000;
+          }
           afState.config.lastStatusText = nextRunning
             ? "💎 กำลังตรวจสอบเงื่อนไข Lv.45+ และเริ่มปั๊มเพชรจันทร์ (20 เพชร/รอบ)..."
             : "🛑 กำลังหยุด Gem Rush และพาทุกจอกลับไปทำงานตัวหลักตามปกติ...";
@@ -14460,18 +14482,37 @@ public class PmFocus {
           if (nextRunning) {
             setImmediate(() => runAutoFarmOrchestratorTick().catch(() => {}));
           } else {
-            // Stop cleanly on every pulled client and restore their main character & normal main bot!
-            for (const entry of afState.entries) {
+            // Stop cleanly on EVERY pulled client (even if browserMode.isOpen is stale or screen is mid-transition)
+            await Promise.all(afState.entries.map(async (entry) => {
               const p = mainMap.get(entry.profileId);
-              if (!p) continue;
+              if (!p) return;
+              entry.statusText = "🛑 กำลังหยุด Gem Rush และพากลับตัวหลัก...";
+              entry.updatedAt = Date.now();
               seedGemRushBrowserStorage(p, false, afState.config);
-              if (p.debugPort && browserMode.isOpen(p.id)) {
+              if (p.debugPort) {
                 await evalProfilePort(p.debugPort, `(() => {
                   if (typeof window.__stopGemRushAndRestore === 'function') return window.__stopGemRushAndRestore({ cleanupTemp: true });
+                  try {
+                    const raw = localStorage.getItem('pelican_gem_rush_state_v1');
+                    if (raw) {
+                      const obj = JSON.parse(raw);
+                      obj.enabled = false;
+                      obj.phase = 'idle';
+                      localStorage.setItem('pelican_gem_rush_state_v1', JSON.stringify(obj));
+                    }
+                    if (window.__gemRushState) { window.__gemRushState.enabled = false; window.__gemRushState.phase = 'idle'; }
+                    const g = window.NC && window.NC.game;
+                    if (g && window.NC.Auto && window.NC.Auto.on) {
+                      if (typeof window.NC.Auto.stop === 'function') window.NC.Auto.stop(g);
+                      else if (typeof window.NC.Auto.toggle === 'function') window.NC.Auto.toggle(g);
+                    }
+                    if (window.NC && window.NC.Travel && window.NC.Travel.on) window.NC.Travel.stop('หยุด Gem Rush');
+                  } catch (_) {}
                   return true;
-                })()`, 3000).catch(() => {});
+                })()`, 3500).catch(() => {});
               }
-            }
+            }));
+            saveAutoFarmState(afState);
           }
           return sendJSON({ success: true, running: afState.config.running, config: afState.config });
         } catch (e) {
@@ -15480,7 +15521,48 @@ let autoFarmTickBusy = false;
 async function runAutoFarmOrchestratorTick() {
   if (autoFarmTickBusy || TEST_INSTANCE) return;
   const afState = loadAutoFarmState();
-  if (!afState || !afState.config || !afState.config.running) return;
+  if (!afState || !afState.config) return;
+
+  // When stopped, keep enforcing stop for up to 60s on any client that was reloading/connecting during Stop click!
+  if (!afState.config.running) {
+    const enforceUntil = Number(afState.config.stopEnforceUntil || 0);
+    if (!enforceUntil || Date.now() > enforceUntil) return;
+    autoFarmTickBusy = true;
+    try {
+      const mainMap = new Map((loadProfiles() || []).map(p => [p.id, p]));
+      const entries = Array.isArray(afState.entries) ? afState.entries : [];
+      let stillActiveAny = false;
+      for (const entry of entries) {
+        if (!entry || !entry.profileId) continue;
+        const prof = mainMap.get(entry.profileId);
+        if (!prof || !prof.debugPort) continue;
+        const live = await queryClientState(prof.debugPort).catch(() => null);
+        if (!live || live.error) continue;
+        const gr = live.gemRush || null;
+        if (gr && gr.enabled) {
+          stillActiveAny = true;
+          seedGemRushBrowserStorage(prof, false, afState.config);
+          await evalProfilePort(prof.debugPort, `(() => {
+            if (typeof window.__stopGemRushAndRestore === 'function') return window.__stopGemRushAndRestore({ cleanupTemp: true });
+            return false;
+          })()`, 2500).catch(() => {});
+        } else if (gr && gr.statusText) {
+          entry.statusText = gr.statusText;
+          entry.phase = gr.phase || "idle";
+          entry.updatedAt = Date.now();
+        }
+      }
+      if (!stillActiveAny) {
+        afState.config.stopEnforceUntil = 0;
+      }
+      saveAutoFarmState(afState);
+    } catch (_) {
+    } finally {
+      autoFarmTickBusy = false;
+    }
+    return;
+  }
+
   autoFarmTickBusy = true;
   try {
     const mainProfiles = loadProfiles() || [];
@@ -15498,11 +15580,17 @@ async function runAutoFarmOrchestratorTick() {
     let activeCount = 0;
     let ineligibleCount = 0;
     let waitingCount = 0;
+    const runStartedAt = Number(afState.config.startedAt || 0);
 
     for (const entry of entries) {
       if (!entry || !entry.profileId) continue;
       const prof = mainMap.get(entry.profileId);
       if (!prof) continue;
+
+      // Respect manual stop on this specific screen (from main Manager page or in-game STOP BOT button)
+      if (entry.manualPaused) {
+        continue;
+      }
 
       // Already marked ineligible (< Lv.45 or full slots) -> leave alone so its normal main bot keeps running!
       if (entry.ineligibleReason) {
@@ -15531,6 +15619,16 @@ async function runAutoFarmOrchestratorTick() {
       if (!live || live.error) continue;
 
       const gr = live.gemRush || null;
+      // Honor user clicking STOP BOT directly inside the game window while Auto Farm is running!
+      if (gr && !gr.enabled && Number(gr.manualStoppedAt || 0) > 0 && Number(gr.manualStoppedAt || 0) >= runStartedAt) {
+        entry.manualPaused = true;
+        entry.phase = gr.phase || "idle";
+        entry.statusText = gr.statusText || "⏸ ผู้ใช้กดหยุดจากหน้าจอเกมแล้ว";
+        entry.updatedAt = Date.now();
+        seedGemRushBrowserStorage(prof, false, afState.config);
+        stateChanged = true;
+        continue;
+      }
       if (gr) {
         if (Number(gr.cycles) > (Number(entry.cycles) || 0)) {
           entry.cycles = Number(gr.cycles);

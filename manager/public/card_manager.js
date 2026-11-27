@@ -72,6 +72,62 @@
   let isOpen = false;
   let farmPanelOpen = false;
   let pollTimer = null;
+  let iconCatalog = null;
+  let iconCatalogLoading = false;
+  const cardIconMap = new Map();
+  const runeIconMap = new Map();
+
+  function ensureIconCatalog() {
+    if (iconCatalog || iconCatalogLoading) return;
+    iconCatalogLoading = true;
+    fetch('nightcamp_gear_catalog.json?v=nc2.3.38', { cache: 'no-cache' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(cat => {
+        if (!cat || !cat.atlas) return;
+        iconCatalog = cat;
+        for (const c of (cat.cards || [])) {
+          if (c && c.id) cardIconMap.set(c.id, c.ic || c.cardIc || null);
+          if (c && c.mon) cardIconMap.set('bl_card_' + c.mon, c.ic || c.cardIc || null);
+        }
+        for (const r of (cat.runes || [])) {
+          if (r && r.k && r.ic) runeIconMap.set(r.k, r.ic);
+        }
+        if (isOpen) renderList();
+      })
+      .catch(() => {})
+      .finally(() => { iconCatalogLoading = false; });
+  }
+
+  function renderCatalogSprite(ic, size) {
+    if (!ic || !Array.isArray(ic) || ic.length < 2 || !iconCatalog || !iconCatalog.atlas) return '';
+    const kind = ic[0];
+    const idx = Number(ic[1]);
+    const m = iconCatalog.atlas[kind];
+    if (!m || !Number.isFinite(idx) || idx < 0) return '';
+    const k = size / m.cell;
+    const rows = Math.ceil(m.n / m.cols);
+    const v = iconCatalog.atlasV ? `?v=${encodeURIComponent(iconCatalog.atlasV)}` : '';
+    const file = `wiki/atlases/wiki_${kind === 'h128' ? 'hats128' : kind}.webp${v}`;
+    const bx = -((idx % m.cols) * m.cell * k);
+    const by = -(Math.floor(idx / m.cols) * m.cell * k);
+    const bw = m.cols * m.cell * k;
+    const bh = rows * m.cell * k;
+    return `<i style="display:inline-block;width:${size}px;height:${size}px;flex-shrink:0;border-radius:6px;background:rgba(2,6,23,0.72) url('${file}') ${bx}px ${by}px/${bw}px ${bh}px no-repeat;"></i>`;
+  }
+
+  function getItemSpriteHtml(it) {
+    if (!iconCatalog) { ensureIconCatalog(); return ''; }
+    if (activeMode === 'rune') {
+      const m = String(it.id || '').match(/^bl_rune_(.+)_([123])$/);
+      const rk = it.runeKey || (m ? m[1] : '');
+      const tierIdx = Math.max(0, Math.min(2, (Number(it.tier) || (m ? Number(m[2]) : 1)) - 1));
+      const ric = runeIconMap.get(rk);
+      const ic = Array.isArray(ric) && Array.isArray(ric[0]) ? (ric[tierIdx] || ric[0]) : ric;
+      return renderCatalogSprite(ic, 30);
+    }
+    const ic = cardIconMap.get(it.id) || (it.monId ? cardIconMap.get('bl_card_' + it.monId) : null);
+    return renderCatalogSprite(ic, 30);
+  }
 
   const curState = () => modeStates[activeMode];
   const apiUrl = (mode, suffix = '') => `${BASE}/api/${mode === 'rune' ? 'runes' : 'cards'}${suffix}`;
@@ -596,9 +652,10 @@
         ? `${esc(it.categoryLabel || '')} · ${esc(it.effectText || '')}${it.craftNote ? ` <span style="color:#c4b5fd;">(${esc(it.craftNote)})</span>` : ''}`
         : `⚡ วิชา: <b>${esc(it.artName)}</b>${it.passives?.length ? ` · <span style="color:#7dd3fc;">${esc(it.passives.join(' · '))}</span>` : ''} · มอน: ${esc(it.monsterName)}`;
 
+      const spriteHtml = getItemSpriteHtml(it);
       const badgeHtml = activeMode === 'rune'
-        ? `<span class="cd-type-badge rune-tier-${it.tier}">T${it.tier}</span>`
-        : `<span class="cd-type-badge card-el">${esc(it.elementLabel || 'การ์ด')}</span>`;
+        ? `<div style="display:flex;flex-direction:column;align-items:center;gap:3px;">${spriteHtml}<span class="cd-type-badge rune-tier-${it.tier}" style="${spriteHtml ? 'min-width:34px;padding:2px 5px;font-size:9.5px;' : ''}">T${it.tier}</span></div>`
+        : `<div style="display:flex;flex-direction:column;align-items:center;gap:3px;">${spriteHtml}<span class="cd-type-badge card-el" style="${spriteHtml ? 'min-width:38px;padding:2px 5px;font-size:9.5px;' : ''}">${esc(it.elementLabel || 'การ์ด')}</span></div>`;
 
       return `
         <div class="cd-card-row ${checked ? 'selected' : ''} ${isExpensive ? 'high-val' : ''}" data-row-id="${esc(it.id)}">

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "sourceCommit": "7e4e1db05b42c1cb97b452379b611cbe74899394",
+  "sourceCommit": "9229a1ac298bb3898087b0c51b86297e03ac0511",
   "files": [
     {
       "path": "manager/asset_cache.js",
@@ -192,7 +192,7 @@
     },
     {
       "path": "manager/public/card_manager.js",
-      "sha256": "e18362667aa137a3e8a6a75ef3f7b2a3b3acb86268ade47bc2733716c11721a6"
+      "sha256": "355cdf81be70fcb3ddfc6a8221460108c4a18b61db1bfea0871b73ea73a6d6fa"
     },
     {
       "path": "manager/public/config_copy.js",
@@ -224,7 +224,11 @@
     },
     {
       "path": "manager/public/gear_builder.js",
-      "sha256": "94d5a42821a9b86461a267c00d7d6cf6a0fbd1074081a36c25bec1fad9513670"
+      "sha256": "4ce642a639eb955ccedabb2a92843c990b9d90148972d9fd96da1c0aaa19499b"
+    },
+    {
+      "path": "manager/public/nightcamp_gear_catalog.json",
+      "sha256": "f0c7c4d9fe087394f700103f45f7c981bc96b44bc8fcc6a1ca88105b90067fec"
     },
     {
       "path": "manager/public/guild_manager.css",
@@ -240,7 +244,7 @@
     },
     {
       "path": "manager/public/index.html",
-      "sha256": "29a2afc1c1afb6e41447834c82a8157271c6db356c7779a7309d3f8b2f538136"
+      "sha256": "9aa52afa596a3f68862e2b35789c83aabd84fa68db01adbf4d7d0a1d5aaaa352"
     },
     {
       "path": "manager/public/inventory_market.css",
@@ -324,7 +328,31 @@
     },
     {
       "path": "manager/public/update_log.js",
-      "sha256": "ff62d721f7cdf6d29a08a2c0695e76f03aff2e230a687c026ce4523aa9e7ed9b"
+      "sha256": "47814462b965881f88dd78a2630bfc35f34a9376156903c265a961bd851bd56a"
+    },
+    {
+      "path": "manager/public/wiki/atlases/wiki_hats128.webp",
+      "sha256": "3617c305f73ea62313df1450735294b8898215cee386beccc6a327de5b0f8c97"
+    },
+    {
+      "path": "manager/public/wiki/atlases/wiki_items.webp",
+      "sha256": "55616f979d3556cb0d8d289fafb0bd5bd1cf32fd7159ce4be9c37a89acfa8048"
+    },
+    {
+      "path": "manager/public/wiki/atlases/wiki_jobs.webp",
+      "sha256": "156e78828fa5bd503131cb3ba4cdd4db9f6a86123388aa84c6e6d26c3b52985f"
+    },
+    {
+      "path": "manager/public/wiki/atlases/wiki_mats.webp",
+      "sha256": "0c3e53d7cef08291a3947aa3fd097f358f9b91fef49be1095b2f77ccc7c51bb6"
+    },
+    {
+      "path": "manager/public/wiki/atlases/wiki_mons.webp",
+      "sha256": "3ba12d0d817dddb29b6ad1b471e6e72c473a41a77d2a9ae0679ddafcef2f7ae6"
+    },
+    {
+      "path": "manager/public/wiki/atlases/wiki_skills.webp",
+      "sha256": "54985d7400b5f2a51dea59382b58573e55a264ad2d43af9d6871bdd8009c4828"
     },
     {
       "path": "manager/public/wiki/calc.js",
@@ -332,11 +360,11 @@
     },
     {
       "path": "manager/public/wiki/data.json",
-      "sha256": "494c303f161b6604804d47bdcb80d6954b0e5dfa0363b40adeaee693e07ecd29"
+      "sha256": "161c126822f0350d64896789c7777d276bd7a90d81bef04e30b60b8bab5bc604"
     },
     {
       "path": "manager/public/wiki/index.html",
-      "sha256": "d1b400e9b9606eb16d42fa0f1af380471255dfd3f1efe5834d25efefdbb211db"
+      "sha256": "28112c27e12670d94ac517b51ddde60a2c73274e9666bf5b4ff57ddc634ce12d"
     },
     {
       "path": "manager/remote_fleet.js",
@@ -368,7 +396,7 @@
     },
     {
       "path": "manager/server.js",
-      "sha256": "c34cfdd759cb4670da96a12b8d46df47a1a6807e79d2b27a5facd966bcf08096"
+      "sha256": "237f78dea82a08a688706c090353da7ea466d569b15129f603ea1f3dcb5e1e12"
     },
     {
       "path": "manager/sim_api.js",
