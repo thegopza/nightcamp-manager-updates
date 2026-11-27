@@ -15544,16 +15544,22 @@ async function runAutoFarmOrchestratorTick() {
 
       // Engage Gem Rush on this eligible open client if not yet enabled!
       if (!gr || !gr.enabled) {
-        await evalProfilePort(prof.debugPort, `(() => {
+        const engRes = await evalProfilePort(prof.debugPort, `(() => {
           if (typeof window.__setGemRushConfig === 'function') {
             window.__setGemRushConfig({
               enabled: true,
               vaultRushEnabled: ${afState.config.vaultRushEnabled !== false},
               depositPassCoins: ${afState.config.depositPassCoins !== false}
             });
+            return { ok: true, ver: window.__nightcampBotVersion || '' };
           }
-          return true;
-        })()`, 2500).catch(() => {});
+          return { ok: false, missingHelper: true, ver: window.__nightcampBotVersion || '' };
+        })()`, 2500).catch(() => null);
+        if (engRes && engRes.success && engRes.result && engRes.result.missingHelper) {
+          entry.statusText = `⚠️ สคริปต์จอนี้ยังเป็นเวอร์ชันเก่า (v${engRes.result.ver || '?'}) — กดอัปเดตสคริปต์ก่อน`;
+          entry.updatedAt = Date.now();
+          stateChanged = true;
+        }
       }
       activeCount++;
     }
