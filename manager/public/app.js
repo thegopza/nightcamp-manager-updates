@@ -9616,7 +9616,7 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
     : '-- / --';
   const authStatusText = state?.authStatus || (savedEnabled ? (savedServer && savedServer !== '__KEEP__' ? `Auto-Login: พร้อม (${savedServer})` : 'Auto-Login: พร้อมใช้งาน') : 'Auto-Login: ปิดใช้งาน');
   const sellWeightThreshold = Number(sc.weightThreshold || state?.autoSellWeightPct || 65);
-  const smartQuestChecked = state?.smartAutoQuestEnabled !== false;
+  const smartQuestChecked = state?.smartAutoQuestEnabled === true;
 
   return `
 <div class="p-header" id="pelican-drag-handle" style="flex-direction: column; align-items: stretch; gap: 5px; ${isCentral ? 'background: linear-gradient(135deg, #78350f 0%, #451a03 100%); border-bottom: 1px solid rgba(250, 204, 21, 0.45);' : 'background: linear-gradient(135deg, rgba(14, 116, 144, 0.45), rgba(15, 23, 42, 0.95));'}">
@@ -11937,7 +11937,7 @@ function formatManagerAutoBoostSummary(summary) {
 }
 
 const CENTRAL_HUD_FIELD_SPECS = [
-  ['#p-nc-smart-autoquest-enabled', 'bool', st => st.smartAutoQuestEnabled !== false],
+  ['#p-nc-smart-autoquest-enabled', 'bool', st => st.smartAutoQuestEnabled === true],
   ['#p-nc-upgrade-ai-enabled', 'bool', st => Boolean(st.upgradeBotAiEnabled)],
   ['#p-nc-auto-use-premium-items', 'bool', st => st.autoUsePremiumItemsEnabled !== false],
   ['#p-nc-auto-claim-events', 'bool', st => st.autoClaimEventsEnabled !== false],
@@ -13894,7 +13894,10 @@ async function deletePlanProfile(planId) {
     const res = await fetch(`${API_BASE}/api/plan-profiles/${planId}`, { method: 'DELETE' });
     const result = await res.json();
     if (result.success) {
+      if (typeof showToast === 'function') showToast(`🗑️ ลบแผน "${plan.name}" เรียบร้อยแล้ว`, 'success');
       await fetchAndRenderPlanProfiles();
+    } else {
+      alert('ไม่สามารถลบแผนได้: ' + (result.error || 'เกิดข้อผิดพลาด'));
     }
   } catch(e) {
     alert("เกิดข้อผิดพลาดในการลบแผน");

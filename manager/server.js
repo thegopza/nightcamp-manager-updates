@@ -1681,167 +1681,21 @@ function applyV218ArchmagePaladinSkillUpgrade(p) {
 }
 
 function normalizePlansData(raw) {
+  // Respect existing user plans.json 100%:
+  // - NEVER re-add deleted built-in plans!
+  // - NEVER auto-overwrite, migrate, or mutate any existing user plans during Manager updates!
   if (raw && Array.isArray(raw.profiles)) {
-    let migrated = false;
-    // Migrate old Aetheria starter plan ("plan_starter_archer") or old weak Wolf Hunter default plan ("plan_nc_wolfhunter_1_50") to S-Tier Priest -> Bishop plan
-    for (const legacyId of ["plan_starter_archer", "plan_nc_wolfhunter_1_50"]) {
-      const legacyIdx = raw.profiles.findIndex(p => p && p.id === legacyId);
-      if (legacyIdx !== -1) {
-        const ncPlan = buildDefaultNightcampPriestPlan();
-        raw.profiles[legacyIdx] = ncPlan;
-        if (raw.assignments) {
-          for (const k of Object.keys(raw.assignments)) {
-            if (raw.assignments[k] === legacyId) raw.assignments[k] = ncPlan.id;
-          }
-        }
-        migrated = true;
-      }
-    }
-    if (raw.profiles.length === 0) {
-      raw.profiles.push(buildDefaultNightcampPriestPlan());
-      migrated = true;
-    }
-    if (!raw.profiles.some(p => p && p.id === "plan_nc_priest_bishop_1_50")) {
-      raw.profiles.unshift(buildDefaultNightcampPriestPlan());
-      migrated = true;
-    }
-    if (!raw.profiles.some(p => p && p.id === "plan_nc_rogue_puppeteer_1_50")) {
-      raw.profiles.splice(1, 0, buildDefaultNightcampRoguePuppeteerPlan());
-      migrated = true;
-    }
-    if (!raw.profiles.some(p => p && p.id === "plan_nc_priest_lightkeeper_1_50")) {
-      raw.profiles.push(buildDefaultNightcampPriestLightkeeperPlan());
-      migrated = true;
-    }
-    if (!raw.profiles.some(p => p && p.id === "plan_nc_priest_wisp_1_50")) {
-      raw.profiles.push(buildDefaultNightcampPriestWispPlan());
-      migrated = true;
-    }
-    if (!raw.profiles.some(p => p && p.id === "plan_nc_priest_monk_1_50")) {
-      raw.profiles.push(buildDefaultNightcampPriestMonkPlan());
-      migrated = true;
-    }
-    if (!raw.profiles.some(p => p && p.id === "plan_nc_knight_berserker_1_50")) {
-      raw.profiles.push(buildDefaultNightcampKnightBerserkerPlan());
-      migrated = true;
-    }
-    if (!raw.profiles.some(p => p && p.id === "plan_nc_mage_archmage_1_50")) {
-      raw.profiles.push(buildDefaultNightcampMageArchmagePlan());
-      migrated = true;
-    }
-    // 5-Person Party Suite (TEAM1 Slots 1–5)
-    const party5Builders = [
-      ["plan_nc_party5_slot1_tank_paladin", buildDefaultNightcampParty5Slot1PaladinPlan],
-      ["plan_nc_party5_slot2_support_bishop", buildDefaultNightcampParty5Slot2BishopPlan],
-      ["plan_nc_party5_slot3_dps_puppeteer", buildDefaultNightcampParty5Slot3PuppeteerPlan],
-      ["plan_nc_party5_slot4_dps_archmage", buildDefaultNightcampParty5Slot4ArchmagePlan],
-      ["plan_nc_party5_slot5_bard_maestro", buildDefaultNightcampParty5Slot5BardPlan],
-      ["plan_nc_party5_slot5_aura_lightkeeper", buildDefaultNightcampParty5Slot5LightkeeperPlan]
-    ];
-    for (const [pid, builder] of party5Builders) {
-      if (!raw.profiles.some(p => p && p.id === pid)) {
-        raw.profiles.push(builder());
-        migrated = true;
-      }
-    }
-    // Upgrade built-in Party 5, Solo Puppeteer (`plan_1795450519812_17` / `plan_nc_rogue_puppeteer_1_50`), and `plan_nc_*` triggers to the Zombie Farmer (`ซอมบี้ชาวนา`) route
-    const freshBuiltinById = {
-      plan_nc_priest_bishop_1_50: buildDefaultNightcampPriestPlan,
-      plan_nc_rogue_puppeteer_1_50: buildDefaultNightcampRoguePuppeteerPlan,
-      plan_nc_priest_lightkeeper_1_50: buildDefaultNightcampPriestLightkeeperPlan,
-      plan_nc_priest_wisp_1_50: buildDefaultNightcampPriestWispPlan,
-      plan_nc_priest_monk_1_50: buildDefaultNightcampPriestMonkPlan,
-      plan_nc_knight_berserker_1_50: buildDefaultNightcampKnightBerserkerPlan,
-      plan_nc_mage_archmage_1_50: buildDefaultNightcampMageArchmagePlan,
-      plan_nc_party5_slot1_tank_paladin: buildDefaultNightcampParty5Slot1PaladinPlan,
-      plan_nc_party5_slot2_support_bishop: buildDefaultNightcampParty5Slot2BishopPlan,
-      plan_nc_party5_slot3_dps_puppeteer: buildDefaultNightcampParty5Slot3PuppeteerPlan,
-      plan_nc_party5_slot4_dps_archmage: buildDefaultNightcampParty5Slot4ArchmagePlan,
-      plan_nc_party5_slot5_bard_maestro: buildDefaultNightcampParty5Slot5BardPlan,
-      plan_nc_party5_slot5_aura_lightkeeper: buildDefaultNightcampParty5Slot5LightkeeperPlan
+    return {
+      profiles: raw.profiles.filter(p => p && typeof p === "object"),
+      assignments: (raw.assignments && typeof raw.assignments === "object") ? raw.assignments : {},
+      pendingEnable: (raw.pendingEnable && typeof raw.pendingEnable === "object") ? raw.pendingEnable : {},
+      userDisabled: (raw.userDisabled && typeof raw.userDisabled === "object") ? raw.userDisabled : {},
+      deletedBuiltinIds: Array.isArray(raw.deletedBuiltinIds) ? raw.deletedBuiltinIds : [],
+      builtinsSeeded: true
     };
-    for (let i = 0; i < raw.profiles.length; i++) {
-      const p = raw.profiles[i];
-      if (!p || typeof p !== "object") continue;
-      const trigs = Array.isArray(p.triggers) ? p.triggers : [];
-      const hasLegacyMq25 = trigs.some(t => Array.isArray(t?.actions) && t.actions.some(a => a?.untilQuest === "MQ25" || a?.id === "act_nc_aq46"));
-      const hasLegacyPuppet = p.id === "plan_1795450519812_17" && (!p.class3Target || trigs.some(t => t?.id === "puppet_lv12"));
-      const hasZombieRoute = trigs.some(t => t?.id === "trig_nc_lv24" || t?.id === "trig_nc_lv27");
-      const hasResetRounds = Array.isArray(p.skillBuild?.resetRounds) && p.skillBuild.resetRounds.length > 0;
-      if (freshBuiltinById[p.id] && (hasLegacyMq25 || !hasZombieRoute || ((p.id === "plan_nc_rogue_puppeteer_1_50" || p.id === "plan_nc_party5_slot3_dps_puppeteer") && !hasResetRounds))) {
-        const fresh = freshBuiltinById[p.id]();
-        p.triggers = fresh.triggers;
-        if (p.id === "plan_nc_rogue_puppeteer_1_50" || p.id === "plan_nc_party5_slot3_dps_puppeteer") {
-          p.skillBuild = fresh.skillBuild;
-          p.preferredWeaponType = "puppet";
-        }
-        p.updatedAt = Date.now();
-        migrated = true;
-      } else if (hasLegacyPuppet || (p.id === "plan_1795450519812_17" && (!hasZombieRoute || !hasResetRounds))) {
-        const fresh = buildDefaultNightcampRoguePuppeteerPlan();
-        p.name = "🎎 [ลุยเดี่ยวหุ่นเชิด] ฟาร์มเดี่ยว | โจร ➔ นักเชิดหุ่น ➔ จ้าวโรงหุ่นราตรี (ฟาร์มซอมบี้ชาวนายาว + หุ่นรบตีตามทุกฮิต + เชิดมอน 2 ตัว + โรงละครหุ่นเชิด Lv.1–99)";
-        p.description = "บิ้วลุยเดี่ยวหุ่นเชิดสายไม้เชิดหุ่น+โล่ (2 รอบรีสกิล): รอบเริ่มต้นข้ามโนวิซอัปมีดโจร 58 แต้มฟาร์มไว ➔ พอ Job 50 เปลี่ยนนักเชิดหุ่น + รีสกิล #1 ฟรีที่ลุงโกโก้ เท 58 แต้มลง หุ่นรบ Lv.10 (หุ่นโล่เลือด 165% ยั่วยุมอน) + ชักใยหุ่น Lv.10 + ระบำหุ่น Lv.10 + โรงละครหุ่น Lv.5 + เชิดมอน Lv.10 + เชือกชักวิญญาณ Lv.5 ทันทีตั้งแต่ Job 1!";
-        p.autoQuestEnabled = true;
-        p.autoJobChange = true;
-        p.autoStatSkillEnabled = true;
-        p.class1Target = "rogue";
-        p.class1JobLevel = 10;
-        p.class2Target = "puppeteer";
-        p.class2JobLevel = 50;
-        p.class3Target = "showmaster";
-        p.preferredWeaponType = "puppet";
-        p.statBuild = {
-          queue: [
-            { stat: "STR", to: 25 }, { stat: "AGI", to: 25 }, { stat: "VIT", to: 20 }, { stat: "DEX", to: 20 },
-            { stat: "STR", to: 42 }, { stat: "AGI", to: 40 }, { stat: "VIT", to: 32 }, { stat: "DEX", to: 30 }, { stat: "LUK", to: 20 },
-            { stat: "STR", to: 62 }, { stat: "AGI", to: 58 }, { stat: "VIT", to: 45 }, { stat: "DEX", to: 40 },
-            { stat: "STR", to: 80 }, { stat: "AGI", to: 75 }, { stat: "VIT", to: 55 }, { stat: "DEX", to: 45 }, { stat: "LUK", to: 40 }
-          ],
-          targets: { STR: 80, AGI: 75, VIT: 55, INT: 1, DEX: 45, LUK: 40 },
-          priorityOrder: ["STR", "AGI", "VIT", "DEX", "LUK", "INT"]
-        };
-        p.skillBuild = fresh.skillBuild;
-        p.triggers = fresh.triggers;
-        p.updatedAt = Date.now();
-        migrated = true;
-      }
-    }
-    for (const p of raw.profiles) {
-      if (!p || !p.statBuild || !Array.isArray(p.statBuild.queue)) continue;
-      const ext = META_PLAN_STAT_EXTENSIONS[p.id];
-      if (ext) {
-        const q = p.statBuild.queue;
-        let planChanged = false;
-        for (const item of ext.appendQueue) {
-          if (!q.some(x => x && x.stat === item.stat && Number(x.to) >= item.to)) {
-            q.push({ stat: item.stat, to: item.to });
-            planChanged = true;
-          }
-        }
-        if (planChanged) {
-          p.statBuild.targets = { ...(p.statBuild.targets || {}), ...ext.targets };
-          p.updatedAt = Date.now();
-          migrated = true;
-        }
-      }
-    }
-    for (const p of raw.profiles) {
-      if (applyV209BuiltinPlanUpgrade(p)) migrated = true;
-      if (applyV217FastParty5Upgrade(p)) migrated = true;
-      if (applyV218ArchmagePaladinSkillUpgrade(p)) migrated = true;
-    }
-    const result = {
-      profiles: raw.profiles,
-      assignments: raw.assignments || {},
-      pendingEnable: raw.pendingEnable || {}
-    };
-    if (migrated) {
-      try { writeJsonAtomic(PLANS_FILE, result); } catch (_) {}
-      try { writeJsonAtomic(PLANS_BACKUP_FILE, result); } catch (_) {}
-    }
-    return result;
   }
 
+  // First-time install only (when no plans.json exists yet): seed starter plans once, and allow deleting any of them freely.
   const defaultProfiles = [
     buildDefaultNightcampPriestPlan(),
     buildDefaultNightcampRoguePuppeteerPlan(),
@@ -1862,8 +1716,17 @@ function normalizePlansData(raw) {
     applyV217FastParty5Upgrade(p);
     applyV218ArchmagePaladinSkillUpgrade(p);
   });
-    const assignments = {};
-  return { profiles: defaultProfiles, assignments };
+  const seeded = {
+    profiles: defaultProfiles,
+    assignments: {},
+    pendingEnable: {},
+    userDisabled: {},
+    deletedBuiltinIds: [],
+    builtinsSeeded: true
+  };
+  try { writeJsonAtomic(PLANS_FILE, seeded); } catch (_) {}
+  try { writeJsonAtomic(PLANS_BACKUP_FILE, seeded); } catch (_) {}
+  return seeded;
 }
 
 let lastValidPlansCache = null;
@@ -15006,12 +14869,19 @@ public class PmFocus {
     const usedBy = planSync.assignedProfiles(id);
     plansData.profiles.splice(idx, 1);
     planSync.clearClients(usedBy).catch(() => {});
-    // Remove assignments
+    // Remove assignments & record deletion so built-in plans are never re-created
     if (plansData.assignments) {
       Object.keys(plansData.assignments).forEach(cId => {
-        if (plansData.assignments[cId] === id) delete plansData.assignments[cId];
+        if (plansData.assignments[cId] === id) {
+          delete plansData.assignments[cId];
+          if (plansData.pendingEnable) delete plansData.pendingEnable[cId];
+          if (plansData.userDisabled) delete plansData.userDisabled[cId];
+        }
       });
     }
+    if (!Array.isArray(plansData.deletedBuiltinIds)) plansData.deletedBuiltinIds = [];
+    if (!plansData.deletedBuiltinIds.includes(id)) plansData.deletedBuiltinIds.push(id);
+    plansData.builtinsSeeded = true;
 
     savePlans(plansData);
     return sendJSON({ success: true });
