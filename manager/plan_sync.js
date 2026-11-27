@@ -47,13 +47,12 @@ function createPlanSync({ loadPlans, savePlans, loadProfiles, evalProfilePort })
     const profiles = loadProfiles().filter(p => p.debugPort);
     for (const p of profiles) {
       const assignedId = assignments[p.id] || null;
-      const plan = (assignedId ? (data.profiles || []).find(x => x.id === assignedId) : null) || (data.profiles || [])[0] || null;
+      // Only reconcile profiles with an explicit plan assignment — never force data.profiles[0] onto unassigned profiles!
+      const plan = assignedId ? ((data.profiles || []).find(x => x.id === assignedId) || null) : null;
+      if (!plan) continue;
       const r = await evalProfilePort(p.debugPort, `(() => { const c = window.__currentScriptPlan; return typeof window.__applyScriptPlan === 'function' ? { id: c ? c.id : null, u: c ? c.updatedAt || null : null, en: !!window.__planScriptEnabled, userDisabled: localStorage.getItem('pelican_plan_user_disabled') === 'true' } : null; })()`, 4000);
       const cur = r && r.success ? r.result : null;
       if (!cur) continue;   // offline or bot not loaded yet
-      if (!plan) {
-        continue;
-      }
       const enablePending = Boolean(data.pendingEnable && data.pendingEnable[p.id]);
       if (cur.id !== plan.id || (cur.u || null) !== (plan.updatedAt || null) || enablePending) {
         // Assigned while this client was offline -> switch Plan Script on too

@@ -29,6 +29,8 @@ function mergeCMarketRulesDedup(existingRules, incomingRules) {
 
 const IMPORT_JS = (config, mergeCMarketRules = true) => `(() => {
   if (typeof window.importAllBotSettings !== 'function') return { success: false, error: 'บอทในจอนี้ยังไม่พร้อม (กรุณาอัปเดตสคริปต์บอทเป็นเวอร์ชันล่าสุดก่อน)' };
+  const beforeFarmMap = window.__targetFarmMap || 'auto';
+  const beforeGatherMap = String(window.__gatherConfig?.targetMap || '').trim();
   const before = window.__authConfig ? {
     username: window.__authConfig.username,
     password: window.__authConfig.password,
@@ -40,7 +42,14 @@ const IMPORT_JS = (config, mergeCMarketRules = true) => `(() => {
     userEditedAt: window.__authConfig.userEditedAt,
     serverEditedAt: window.__authConfig.serverEditedAt
   } : null;
-  const r = window.importAllBotSettings(${JSON.stringify(config)}, { mergeCMarketRules: ${Boolean(mergeCMarketRules)} });
+  const r = window.importAllBotSettings(${JSON.stringify(config)}, { mergeCMarketRules: ${Boolean(mergeCMarketRules)}, includePlan: false, includeSmartAutoQuest: false });
+  if (window.__targetFarmMap !== beforeFarmMap) {
+    window.__targetFarmMap = beforeFarmMap;
+    try { localStorage.setItem('pelican_target_farm_map', beforeFarmMap); } catch (e) {}
+  }
+  if (window.__gatherConfig && typeof window.__gatherConfig === 'object' && window.__gatherConfig.targetMap !== beforeGatherMap) {
+    window.__gatherConfig.targetMap = beforeGatherMap;
+  }
   if (before && window.__authConfig) {
     for (const [k, v] of Object.entries(before)) {
       if (v !== undefined) window.__authConfig[k] = v;
@@ -55,6 +64,7 @@ const IMPORT_JS = (config, mergeCMarketRules = true) => `(() => {
     if (window.__ncPerfConfig) localStorage.setItem('pelican_nc_perf_cfg', JSON.stringify(window.__ncPerfConfig));
     if (window.__autoMarketSellConfig) localStorage.setItem('pelican_auto_market_sell_cfg', JSON.stringify(window.__autoMarketSellConfig));
     if (window.__marketFilterConfig) localStorage.setItem('pelican_market_filter_cfg', JSON.stringify(window.__marketFilterConfig));
+    if (typeof window.syncAllHudInputsFromConfig === 'function') window.syncAllHudInputsFromConfig();
   } catch (e) {}
   return Object.assign({}, r || { success: true });
 })()`;
@@ -90,9 +100,15 @@ async function handleConfigCopyRoute(req, res, pathname, ctx) {
     sendJSON({ success: false, error: 'อ่านการตั้งค่าจากจอต้นทางไม่สำเร็จ (บอทอาจยังโหลดไม่เสร็จ)' }, 502);
     return true;
   }
-  // Per-window farm map & account-specific identity: NEVER copy!
+  // Per-window farm/gather maps, Plan Script, Smart Auto-Quest & account-specific identity: NEVER copy!
   delete config.targetFarmMap;
   delete config.targetMap;
+  delete config.scriptPlan;
+  delete config.planScriptEnabled;
+  delete config.smartAutoQuestEnabled;
+  if (config.gatherConfig && typeof config.gatherConfig === 'object') {
+    delete config.gatherConfig.targetMap;
+  }
   if (config.authConfig) {
     delete config.authConfig.username;
     delete config.authConfig.password;

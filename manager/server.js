@@ -223,15 +223,21 @@ function sanitizePresetBotConfig(rawCfg) {
   } catch (_) {
     safeCfg = Object.assign({}, rawCfg && typeof rawCfg === "object" ? rawCfg : {});
   }
-  // Strictly strip all per-window farm map & account/character/server identity so a Preset NEVER overwrites another profile's map, login, character, or server!
+  // Strictly strip all per-window farm/gather maps, Plan Script, Smart Auto-Quest & account/character/server identity so a Preset NEVER overwrites another profile's map, plan, login, character, or server!
   if (safeCfg.authConfig && typeof safeCfg.authConfig === "object") {
     safeCfg.authConfig = {
       enabled: safeCfg.authConfig.enabled !== false,
       autoResumeBot: safeCfg.authConfig.autoResumeBot !== false
     };
   }
+  if (safeCfg.gatherConfig && typeof safeCfg.gatherConfig === "object") {
+    delete safeCfg.gatherConfig.targetMap;
+  }
   delete safeCfg.targetFarmMap;
   delete safeCfg.targetMap;
+  delete safeCfg.scriptPlan;
+  delete safeCfg.planScriptEnabled;
+  delete safeCfg.smartAutoQuestEnabled;
   delete safeCfg.username;
   delete safeCfg.password;
   delete safeCfg.account;
@@ -13476,8 +13482,13 @@ public class PmFocus {
     const targetRunning = action === "start" ? true : (action === "stop" ? false : !isRunning);
     const plansData = loadPlans();
     const assignedPlanId = plansData && plansData.assignments ? plansData.assignments[id] : null;
-    const assignedPlan = (assignedPlanId ? (plansData.profiles || []).find(x => x.id === assignedPlanId) : null) || (plansData.profiles || [])[0] || null;
-    const planShouldEnable = Boolean(assignedPlan && (!plansData.userDisabled || !plansData.userDisabled[id]));
+    // Only apply/auto-enable a plan if this profile has an EXPLICIT assignment (NEVER fall back to plansData.profiles[0] and overwrite custom farm maps!)
+    const assignedPlan = assignedPlanId ? ((plansData.profiles || []).find(x => x.id === assignedPlanId) || null) : null;
+    const planShouldEnable = Boolean(
+      assignedPlan &&
+      plansData && plansData.pendingEnable && plansData.pendingEnable[id] &&
+      (!plansData.userDisabled || !plansData.userDisabled[id])
+    );
 
     const code = targetRunning ? `(() => {
       const wantMode = ${JSON.stringify(reqMode)};
@@ -15186,6 +15197,8 @@ public class PmFocus {
           if (profile.debugPort) {
             const codeToRun = `(() => {
               if (typeof window.importAllBotSettings === 'function') {
+                const beforeFarmMap = window.__targetFarmMap || 'auto';
+                const beforeGatherMap = String(window.__gatherConfig?.targetMap || '').trim();
                 const beforeAuth = window.__authConfig ? {
                   username: window.__authConfig.username,
                   password: window.__authConfig.password,
@@ -15197,7 +15210,14 @@ public class PmFocus {
                   userEditedAt: window.__authConfig.userEditedAt,
                   serverEditedAt: window.__authConfig.serverEditedAt
                 } : null;
-                const res = window.importAllBotSettings(${JSON.stringify(presetConfig)}, { mergeCMarketRules: ${Boolean(mergeCMarketRules)} });
+                const res = window.importAllBotSettings(${JSON.stringify(presetConfig)}, { mergeCMarketRules: ${Boolean(mergeCMarketRules)}, includePlan: false, includeSmartAutoQuest: false });
+                if (window.__targetFarmMap !== beforeFarmMap) {
+                  window.__targetFarmMap = beforeFarmMap;
+                  try { localStorage.setItem('pelican_target_farm_map', beforeFarmMap); } catch (e) {}
+                }
+                if (window.__gatherConfig && typeof window.__gatherConfig === 'object' && window.__gatherConfig.targetMap !== beforeGatherMap) {
+                  window.__gatherConfig.targetMap = beforeGatherMap;
+                }
                 if (beforeAuth && window.__authConfig) {
                   for (const [k, v] of Object.entries(beforeAuth)) {
                     if (v !== undefined) window.__authConfig[k] = v;
@@ -15210,6 +15230,7 @@ public class PmFocus {
                   if (window.__potionConfig) localStorage.setItem('pelican_potion_cfg', JSON.stringify(window.__potionConfig));
                   if (window.__gatherConfig) localStorage.setItem('pelican_nc_gather_cfg', JSON.stringify(window.__gatherConfig));
                   if (window.__ncPerfConfig) localStorage.setItem('pelican_nc_perf_cfg', JSON.stringify(window.__ncPerfConfig));
+                  if (typeof window.syncAllHudInputsFromConfig === 'function') window.syncAllHudInputsFromConfig();
                 } catch (e) {}
                 return Object.assign({}, res);
               } else {

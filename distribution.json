@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "sourceCommit": "a89bb445051e6bfc17793881494162d64f2fc1e3",
+  "sourceCommit": "e056ee565f8ef80d014243eec8c9a1f4c83ec80f",
   "files": [
     {
       "path": "manager/asset_cache.js",
@@ -28,7 +28,7 @@
     },
     {
       "path": "manager/config_copy_api.js",
-      "sha256": "d4c58814e73f0f7334bb6f091327caa788bd2b1c25bd5a50b2ca8a207c5f90aa"
+      "sha256": "90749c67cbaedb732be8e2b91f2429bca22f028d3c54e63e10c6f2636295d443"
     },
     {
       "path": "manager/coordinated_coordinator.js",
@@ -116,11 +116,11 @@
     },
     {
       "path": "manager/party_api.js",
-      "sha256": "6b26a1a98a551871e781a8f9ca3476ddc30c037e4534677773fae5c6cf770ac2"
+      "sha256": "f3d405ea029245781d233e160a10f104faa273b5d61a56da556f484b07495e83"
     },
     {
       "path": "manager/plan_sync.js",
-      "sha256": "da1f76905af97c1aaf4a5a984484e708a7e852e65a640f6b9809cb64a06e0beb"
+      "sha256": "8765c7b4da47fe50f2b31b5c5406088357037f0bd1cc5f4b3a408f2abb471c52"
     },
     {
       "path": "manager/premium_api.js",
@@ -144,7 +144,7 @@
     },
     {
       "path": "manager/public/app.js",
-      "sha256": "6f6247a2c296d48516f56e8f230c39c4a77d5cc4dc6c9fccebf5e109a793df74"
+      "sha256": "7247f811f02f335f4bdaafdf1c90aaebd9fa0a08afef30933e2aee24d690d40e"
     },
     {
       "path": "manager/public/assets/updates/ui_v212_bag_rightclick.jpg",
@@ -196,7 +196,7 @@
     },
     {
       "path": "manager/public/config_copy.js",
-      "sha256": "eaa97939232e8978b704628a9c880e00087d7f75db1ee03f9c12d151e96d1ac5"
+      "sha256": "6e7e95f73175400538f65dad96cabf0171ced37b197780e5e90e2f4b36a94cb2"
     },
     {
       "path": "manager/public/device_manager.css",
@@ -240,7 +240,7 @@
     },
     {
       "path": "manager/public/index.html",
-      "sha256": "7eed5349443c484747816f8b9e383da44a0202641c472ca686b0136f6dd0f6e0"
+      "sha256": "4128288bc4879906535350ad1cf3e1949d29ce598e70ab6b1a8dbeab75e731de"
     },
     {
       "path": "manager/public/inventory_market.css",
@@ -324,7 +324,7 @@
     },
     {
       "path": "manager/public/update_log.js",
-      "sha256": "fc136269944df76d4600d3e7951f5fa58563883cd9a8cb1b8bc9b1d4f4128af9"
+      "sha256": "ff62d721f7cdf6d29a08a2c0695e76f03aff2e230a687c026ce4523aa9e7ed9b"
     },
     {
       "path": "manager/public/wiki/calc.js",
@@ -368,7 +368,7 @@
     },
     {
       "path": "manager/server.js",
-      "sha256": "9a815f4ea9ff87065a0329bacb142fe873a9e473c9738e0b7926558bd2279ee1"
+      "sha256": "975dde0f83101dda9c2c4ba64dfd3c2fef08198b8ab8fb79f259dc4b0dcf2bfe"
     },
     {
       "path": "manager/sim_api.js",

@@ -9476,10 +9476,13 @@ const NIGHTCAMP_FARM_MAP_OPTIONS = [
   ["grave2", "[Lv 99] หลุมดาว ชั้น 2 · ใจกลางดาว (grave2)"]
 ];
 
-function renderNightcampFarmMapOptionsHtml(selectedMap, filterText = '') {
-  const cur = String(selectedMap || 'auto');
+function renderNightcampFarmMapOptionsHtml(selectedMap, filterText = '', includeKeepOption = false) {
+  const cur = String(selectedMap || (includeKeepOption ? '__KEEP__' : 'auto'));
   const q = String(filterText || '').trim().toLowerCase();
-  return NIGHTCAMP_FARM_MAP_OPTIONS
+  const keepOpt = includeKeepOption
+    ? `<option value="__KEEP__"${cur === '__KEEP__' ? ' selected' : ''}>🛡️ คงแมพฟาร์มเดิมของแต่ละจอ (ไม่เปลี่ยนแมพ)</option>`
+    : '';
+  return keepOpt + NIGHTCAMP_FARM_MAP_OPTIONS
     .filter(([id, label]) => id === 'auto' || id === cur || !q || id.toLowerCase().includes(q) || label.toLowerCase().includes(q))
     .map(([id, label]) => `<option value="${escapeHTML(id)}"${id === cur ? ' selected' : ''}>${escapeHTML(label)}</option>`)
     .join('');
@@ -9491,10 +9494,13 @@ const NIGHTCAMP_GATHER_MAP_OPTIONS = [
   ...NIGHTCAMP_FARM_MAP_OPTIONS.filter(([id]) => id !== 'auto' && id !== 'homefarm')
 ];
 
-function renderNightcampGatherMapOptionsHtml(selectedMap, filterText = '') {
-  const cur = String(selectedMap || '').trim();
+function renderNightcampGatherMapOptionsHtml(selectedMap, filterText = '', includeKeepOption = false) {
+  const cur = String(selectedMap ?? (includeKeepOption ? '__KEEP__' : '')).trim();
   const q = String(filterText || '').trim().toLowerCase();
-  return NIGHTCAMP_GATHER_MAP_OPTIONS
+  const keepOpt = includeKeepOption
+    ? `<option value="__KEEP__"${cur === '__KEEP__' ? ' selected' : ''}>🛡️ คงแมพเก็บเกี่ยวเดิมของแต่ละจอ (ไม่เปลี่ยนแมพ)</option>`
+    : '';
+  return keepOpt + NIGHTCAMP_GATHER_MAP_OPTIONS
     .filter(([id, label]) => id === '' || id === cur || !q || id.toLowerCase().includes(q) || label.toLowerCase().includes(q))
     .map(([id, label]) => `<option value="${escapeHTML(id)}"${id === cur ? ' selected' : ''}>${escapeHTML(label)}</option>`)
     .join('');
@@ -9667,7 +9673,7 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
 <div class="p-body" id="pelican-content" style="display:flex; flex-direction:column; gap:8px; padding:10px; max-height:78vh; overflow-y:auto; overflow-x:hidden; box-sizing:border-box;">
   ${isCentral ? `
   <div style="background: rgba(250, 204, 21, 0.12); border: 1px solid rgba(250, 204, 21, 0.35); color: #fde68a; padding: 6px 8px; border-radius: 6px; font-size: 10px; line-height: 1.45;">
-    💡 <b>โหมดเมนูส่วนกลาง (เหมือน Aetheria):</b> การเปิดหน้าต่างนี้หรือสลับแท็บจะไม่ทับค่าใดๆ ของแต่ละจอ จนกว่าคุณจะกดปุ่มหรือติ๊กปรับตัวเลือกตัวนั้น ระบบจึงจะส่งเฉพาะคำสั่งนั้นไปทุกจอที่ออนไลน์ทันที
+    🛡️ <b>โหมดเมนูส่วนกลาง (ปลอดภัย):</b> การแก้ตั้งค่าอื่นจะส่งเฉพาะตัวเลือกนั้นไปทุกจอ และ<b>ล็อกแมพฟาร์มประจำ / แมพเก็บเกี่ยว / เซิร์ฟเวอร์</b> ไว้ที่ "คงค่าเดิมของแต่ละจอ" เสมอ (จะเปลี่ยนแมพทุกจอเฉพาะตอนกดปุ่มยืนยันเปลี่ยนแมพเท่านั้น)
   </div>
   ` : ''}
 
@@ -9844,14 +9850,23 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
         <span style="font-size:10px; font-weight:700; color:#e2e8f0;">🗺️ แมพฟาร์มประจำ (เมื่อปิด Auto-Quest):</span>
         <input type="text" id="p-nc-target-farm-map-search" placeholder="🔍 พิมพ์ค้นหาชื่อแมพ หรือ เลเวล (คลิกเพื่อเลือกแมพ)..." autocomplete="off" style="width:100%; background:#090d16; border:1px solid rgba(148,163,184,0.35); color:#e2e8f0; border-radius:4px; font-size:10px; padding:4px 6px; box-sizing:border-box;">
         <div id="p-nc-target-farm-map-results" style="display:none; flex-direction:column; gap:3px; max-height:145px; overflow-y:auto; background:#050811; border:1px solid rgba(56,189,248,0.55); border-radius:5px; padding:4px;"></div>
-        <select id="p-nc-target-farm-map" style="width:100%; background:#090d16; border:1px solid rgba(56,189,248,0.45); color:#fff; border-radius:4px; font-size:10px; padding:4px 5px; cursor:pointer;">
-          ${renderNightcampFarmMapOptionsHtml(state?.targetFarmMap || 'auto')}
+        <select id="p-nc-target-farm-map" style="width:100%; background:#090d16; border:1px solid ${isCentral ? 'rgba(52,211,153,0.55)' : 'rgba(56,189,248,0.45)'}; color:#fff; border-radius:4px; font-size:10px; padding:4px 5px; cursor:pointer;">
+          ${renderNightcampFarmMapOptionsHtml(isCentral ? '__KEEP__' : (state?.targetFarmMap || 'auto'), '', isCentral)}
         </select>
+        ${isCentral ? `
+        <button type="button" id="p-btn-central-apply-farm-map" disabled style="width:100%; padding:5px 8px; border:1px solid rgba(56,189,248,0.45); border-radius:5px; background:rgba(2,132,199,0.22); color:#7dd3fc; font-size:10px; font-weight:700; cursor:not-allowed; opacity:0.55;">
+          🛡️ คงแมพฟาร์มเดิมของแต่ละจออยู่ (เลือกแมพด้านบนก่อนกดยืนยัน)
+        </button>
+        <div id="p-nc-central-farm-map-summary" style="font-size:9.3px; color:#86efac; line-height:1.3;">
+          🛡️ ล็อกป้องกันการเปลี่ยนแมพฟาร์มโดยไม่ตั้งใจ (แก้ตั้งค่าอื่นจะไม่เปลี่ยนแมพของทุกจอ)
+        </div>
+        ` : `
         <div id="p-nc-target-map-hint" style="font-size:9.5px; color:${smartQuestChecked ? '#fcd34d' : '#86efac'}; line-height:1.3;">
           ${smartQuestChecked
             ? '⚠️ ตอนนี้เปิด Smart Auto-Quest อยู่ (เควสใหญ่สุด · หากต้องการฟาร์มแมพนี้ให้ติ๊กปิด Auto-Quest)'
             : '✅ ล็อกแมพฟาร์มประจำทำงานอยู่ (วาร์ป/เดินไปฟาร์ม + ตาย/ขายของเสร็จกลับมาแมพนี้)'}
         </div>
+        `}
       </div>
 
       <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; border-top:1px solid rgba(255,255,255,0.08); padding-top:5px;">
@@ -10189,9 +10204,17 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
         <span style="font-size:9.8px; font-weight:700; color:#fef08a;">🗺️ แมพเป้าหมายสำหรับ Gathering (แยกจากแมพหน้าบอท):</span>
         <input type="text" id="p-nc-gather-target-map-search" placeholder="🔍 พิมพ์ค้นหาเหมือง / ป่า / ชื่อแมพ (คลิกเพื่อเลือก)..." autocomplete="off" style="width:100%; background:#090d16; border:1px solid rgba(251,191,36,0.38); color:#fef3c7; border-radius:4px; font-size:10px; padding:4px 6px; box-sizing:border-box;">
         <div id="p-nc-gather-target-map-results" style="display:none; flex-direction:column; gap:3px; max-height:135px; overflow-y:auto; background:#050811; border:1px solid rgba(251,191,36,0.55); border-radius:5px; padding:4px;"></div>
-        <select id="p-nc-gather-target-map" style="width:100%; background:#090d16; border:1px solid rgba(251,191,36,0.5); color:#fff; border-radius:4px; font-size:10px; padding:4px 5px; cursor:pointer;">
-          ${renderNightcampGatherMapOptionsHtml(gtc.targetMap || '')}
+        <select id="p-nc-gather-target-map" style="width:100%; background:#090d16; border:1px solid ${isCentral ? 'rgba(52,211,153,0.55)' : 'rgba(251,191,36,0.5)'}; color:#fff; border-radius:4px; font-size:10px; padding:4px 5px; cursor:pointer;">
+          ${renderNightcampGatherMapOptionsHtml(isCentral ? '__KEEP__' : (gtc.targetMap || ''), '', isCentral)}
         </select>
+        ${isCentral ? `
+        <button type="button" id="p-btn-central-apply-gather-map" disabled style="width:100%; padding:5px 8px; border:1px solid rgba(251,191,36,0.45); border-radius:5px; background:rgba(217,119,6,0.22); color:#fde68a; font-size:10px; font-weight:700; cursor:not-allowed; opacity:0.55;">
+          🛡️ คงแมพเก็บเกี่ยวเดิมของแต่ละจออยู่ (เลือกแมพด้านบนก่อนกดยืนยัน)
+        </button>
+        <div id="p-nc-central-gather-map-summary" style="font-size:9.3px; color:#86efac; line-height:1.3;">
+          🛡️ ล็อกป้องกันการเปลี่ยนแมพเก็บเกี่ยวโดยไม่ตั้งใจ
+        </div>
+        ` : ''}
       </div>
 
       ${isCentral ? `
@@ -10901,8 +10924,19 @@ async function openWebBotHUD(profileId) {
   const mapHintEl = hudEl.querySelector('#p-nc-target-map-hint');
   if (aqEnableCb) {
     aqEnableCb.onchange = async () => {
-      markCentralControlEdited(aqEnableCb);
       const on = Boolean(aqEnableCb.checked);
+      if (isCentral) {
+        const onlineCnt = currentProfiles.filter(p => p && p.isRunning).length;
+        const msg = on
+          ? `⚠️ ยืนยัน "เปิด Smart Auto-Quest" ให้ทุกจอที่ออนไลน์ (${onlineCnt} จอ)?\n\nการเปิด Smart Auto-Quest จะทำให้ทุกจอย้ายไปทำเควสแทนแมพฟาร์มประจำที่ตั้งแยกไว้`
+          : `ยืนยัน "ปิด Smart Auto-Quest" ให้ทุกจอที่ออนไลน์ (${onlineCnt} จอ)?\n\nแต่ละจอจะกลับไปฟาร์มตามแมพฟาร์มประจำของตัวเอง`;
+        if (!window.confirm(msg)) {
+          aqEnableCb.checked = !on;
+          syncCentralHudMixedStates(hudEl);
+          return;
+        }
+      }
+      markCentralControlEdited(aqEnableCb);
       if (mapHintEl) {
         mapHintEl.textContent = on
           ? '⚠️ ตอนนี้เปิด Smart Auto-Quest อยู่ (เควสใหญ่สุด · หากต้องการฟาร์มแมพนี้ให้ติ๊กปิด Auto-Quest)'
@@ -11070,10 +11104,26 @@ async function openWebBotHUD(profileId) {
   const targetMapSearch = hudEl.querySelector('#p-nc-target-farm-map-search');
   const targetMapRes = hudEl.querySelector('#p-nc-target-farm-map-results');
   const targetMapSel = hudEl.querySelector('#p-nc-target-farm-map');
+  const centralApplyFarmMapBtn = hudEl.querySelector('#p-btn-central-apply-farm-map');
+  const syncCentralFarmMapApplyBtn = () => {
+    if (!isCentral || !centralApplyFarmMapBtn || !targetMapSel) return;
+    const val = String(targetMapSel.value || '__KEEP__');
+    const isKeep = val === '__KEEP__' || val === '__MIXED__';
+    centralApplyFarmMapBtn.disabled = isKeep;
+    centralApplyFarmMapBtn.style.cursor = isKeep ? 'not-allowed' : 'pointer';
+    centralApplyFarmMapBtn.style.opacity = isKeep ? '0.55' : '1';
+    centralApplyFarmMapBtn.style.background = isKeep ? 'rgba(2,132,199,0.22)' : 'linear-gradient(135deg,#0284c7,#0369a1)';
+    centralApplyFarmMapBtn.style.color = isKeep ? '#7dd3fc' : '#fff';
+    const pickedOpt = targetMapSel.options[targetMapSel.selectedIndex];
+    const pickedLabel = pickedOpt ? pickedOpt.textContent : val;
+    centralApplyFarmMapBtn.textContent = isKeep
+      ? '🛡️ คงแมพฟาร์มเดิมของแต่ละจออยู่ (เลือกแมพด้านบนก่อนกดยืนยัน)'
+      : `🗺️ ยืนยันเปลี่ยนแมพฟาร์มทุกจอ ➔ ${pickedLabel}`;
+  };
   const renderManagerMapSearchPopup = (rawQuery) => {
     if (!targetMapRes || !targetMapSel) return;
     const q = String(rawQuery || '').trim().toLowerCase();
-    const curVal = targetMapSel.value || 'auto';
+    const curVal = targetMapSel.value || (isCentral ? '__KEEP__' : 'auto');
     if (!q) {
       targetMapRes.style.display = 'none';
       targetMapRes.innerHTML = '';
@@ -11098,10 +11148,15 @@ async function openWebBotHUD(profileId) {
   };
   if (targetMapSearch && targetMapSel) {
     targetMapSearch.addEventListener('input', () => {
-      const curVal = targetMapSel.value || 'auto';
-      targetMapSel.innerHTML = renderNightcampFarmMapOptionsHtml(curVal, targetMapSearch.value);
-      targetMapSel.value = curVal;
+      const curVal = targetMapSel.value || (isCentral ? '__KEEP__' : 'auto');
+      targetMapSel.innerHTML = renderNightcampFarmMapOptionsHtml(curVal, targetMapSearch.value, isCentral);
+      if (Array.from(targetMapSel.options).some(o => o.value === curVal)) {
+        targetMapSel.value = curVal;
+      } else if (isCentral) {
+        targetMapSel.value = '__KEEP__';
+      }
       renderManagerMapSearchPopup(targetMapSearch.value);
+      syncCentralFarmMapApplyBtn();
     });
   }
   if (targetMapRes && targetMapSel) {
@@ -11111,9 +11166,13 @@ async function openWebBotHUD(profileId) {
       const pickedMap = btn.getAttribute('data-nc-pick-map');
       if (!pickedMap) return;
       if (targetMapSearch) targetMapSearch.value = '';
-      targetMapSel.innerHTML = renderNightcampFarmMapOptionsHtml(pickedMap, '');
+      targetMapSel.innerHTML = renderNightcampFarmMapOptionsHtml(pickedMap, '', isCentral);
       targetMapSel.value = pickedMap;
       renderManagerMapSearchPopup('');
+      if (isCentral) {
+        syncCentralFarmMapApplyBtn();
+        return;
+      }
       try {
         await targetMapSel.onchange?.();
       } catch (_) {}
@@ -11121,13 +11180,20 @@ async function openWebBotHUD(profileId) {
   }
   if (targetMapSel) {
     targetMapSel.onchange = async () => {
-      if (targetMapSel.value === '__MIXED__') return;
-      markCentralControlEdited(targetMapSel);
+      if (targetMapSel.value === '__MIXED__' || targetMapSel.value === '__KEEP__') {
+        syncCentralFarmMapApplyBtn();
+        return;
+      }
+      if (targetMapSearch && targetMapSearch.value) {
+        targetMapSearch.value = '';
+        renderManagerMapSearchPopup('');
+      }
+      if (isCentral) {
+        // Central Menu NEVER broadcasts farm map immediately on select/scroll — require explicit confirm button!
+        syncCentralFarmMapApplyBtn();
+        return;
+      }
       try {
-        if (targetMapSearch && targetMapSearch.value) {
-          targetMapSearch.value = '';
-          renderManagerMapSearchPopup('');
-        }
         const val = JSON.stringify(targetMapSel.value || 'auto');
         await sendWebHudAction(profileId, {
           type: 'eval',
@@ -11136,12 +11202,49 @@ async function openWebBotHUD(profileId) {
       } catch (_) {}
     };
   }
+  if (centralApplyFarmMapBtn && targetMapSel && isCentral) {
+    centralApplyFarmMapBtn.onclick = async () => {
+      const picked = String(targetMapSel.value || '__KEEP__');
+      if (picked === '__KEEP__' || picked === '__MIXED__') return;
+      const onlineCnt = currentProfiles.filter(p => p && p.isRunning).length;
+      if (onlineCnt === 0) {
+        showToast('⚠️ ไม่มีจอเกมที่กำลังออนไลน์', 'warning');
+        return;
+      }
+      const pickedOpt = targetMapSel.options[targetMapSel.selectedIndex];
+      const pickedLabel = pickedOpt ? pickedOpt.textContent : picked;
+      if (!window.confirm(`⚠️ ยืนยันเปลี่ยน "แมพฟาร์มประจำ" ของทุกจอที่ออนไลน์ (${onlineCnt} จอ)?\n\nแมพเป้าหมายใหม่:\n${pickedLabel}\n\n(แมพฟาร์มเดิมของแต่ละจอจะถูกเขียนทับ)`)) {
+        return;
+      }
+      try {
+        await sendWebHudAction('__central__', {
+          type: 'eval',
+          code: `(typeof window.__setTargetFarmMap === 'function' ? window.__setTargetFarmMap(${JSON.stringify(picked)}) : null)`
+        });
+        // Reset back to safe __KEEP__ lock immediately after applying so later config edits can never touch farm maps
+        targetMapSel.innerHTML = renderNightcampFarmMapOptionsHtml('__KEEP__', '', true);
+        targetMapSel.value = '__KEEP__';
+        syncCentralFarmMapApplyBtn();
+      } catch (_) {}
+    };
+  }
 
   const planEnableCb = hudEl.querySelector('#p-nc-plan-enabled');
   if (planEnableCb) {
     planEnableCb.onchange = async () => {
-      markCentralControlEdited(planEnableCb);
       const on = Boolean(planEnableCb.checked);
+      if (isCentral) {
+        const onlineCnt = currentProfiles.filter(p => p && p.isRunning).length;
+        const msg = on
+          ? `⚠️ ยืนยัน "เปิด Plan Script" ให้ทุกจอที่ออนไลน์ (${onlineCnt} จอ)?\n\nการเปิด Plan Script จะทำให้ทุกจอย้ายไปฟาร์มตามแมพในแผนของแต่ละจอ (แทนแมพฟาร์มประจำ)`
+          : `ยืนยัน "ปิด Plan Script" ให้ทุกจอที่ออนไลน์ (${onlineCnt} จอ)?\n\nแต่ละจอจะหยุดย้ายแมพตามแผนและใช้แมพฟาร์มประจำของตัวเองแทน`;
+        if (!window.confirm(msg)) {
+          planEnableCb.checked = !on;
+          syncCentralHudMixedStates(hudEl);
+          return;
+        }
+      }
+      markCentralControlEdited(planEnableCb);
       try {
         if (isCentral) {
           const online = currentProfiles.filter(p => p.isRunning);
@@ -11377,7 +11480,7 @@ async function openWebBotHUD(profileId) {
   const refreshWebHudMarketSuggest = async (qStr) => {
     if (!cmAddSuggest) return;
     const seq = ++hudSuggestSeq;
-    const targetPid = profileId === 'central'
+    const targetPid = isCentral
       ? ((currentProfiles || []).find(p => p && p.isRunning && p.debugPort)?.id || null)
       : profileId;
     if (!targetPid) {
@@ -11591,10 +11694,26 @@ async function openWebBotHUD(profileId) {
   const gatherMapSearch = hudEl.querySelector('#p-nc-gather-target-map-search');
   const gatherMapRes = hudEl.querySelector('#p-nc-gather-target-map-results');
   const gatherMapSel = hudEl.querySelector('#p-nc-gather-target-map');
+  const centralApplyGatherMapBtn = hudEl.querySelector('#p-btn-central-apply-gather-map');
+  const syncCentralGatherMapApplyBtn = () => {
+    if (!isCentral || !centralApplyGatherMapBtn || !gatherMapSel) return;
+    const val = String(gatherMapSel.value ?? '__KEEP__');
+    const isKeep = val === '__KEEP__' || val === '__MIXED__';
+    centralApplyGatherMapBtn.disabled = isKeep;
+    centralApplyGatherMapBtn.style.cursor = isKeep ? 'not-allowed' : 'pointer';
+    centralApplyGatherMapBtn.style.opacity = isKeep ? '0.55' : '1';
+    centralApplyGatherMapBtn.style.background = isKeep ? 'rgba(217,119,6,0.22)' : 'linear-gradient(135deg,#d97706,#b45309)';
+    centralApplyGatherMapBtn.style.color = isKeep ? '#fde68a' : '#fff';
+    const pickedOpt = gatherMapSel.options[gatherMapSel.selectedIndex];
+    const pickedLabel = pickedOpt ? pickedOpt.textContent : (val || 'แมพปัจจุบัน');
+    centralApplyGatherMapBtn.textContent = isKeep
+      ? '🛡️ คงแมพเก็บเกี่ยวเดิมของแต่ละจออยู่ (เลือกแมพด้านบนก่อนกดยืนยัน)'
+      : `🗺️ ยืนยันเปลี่ยนแมพเก็บเกี่ยวทุกจอ ➔ ${pickedLabel}`;
+  };
   const renderManagerGatherMapSearchPopup = (rawQuery) => {
     if (!gatherMapRes || !gatherMapSel) return;
     const q = String(rawQuery || '').trim().toLowerCase();
-    const curVal = gatherMapSel.value || '';
+    const curVal = gatherMapSel.value || (isCentral ? '__KEEP__' : '');
     if (!q) {
       gatherMapRes.style.display = 'none';
       gatherMapRes.innerHTML = '';
@@ -11619,10 +11738,15 @@ async function openWebBotHUD(profileId) {
   };
   if (gatherMapSearch && gatherMapSel) {
     gatherMapSearch.addEventListener('input', () => {
-      const curVal = gatherMapSel.value || '';
-      gatherMapSel.innerHTML = renderNightcampGatherMapOptionsHtml(curVal, gatherMapSearch.value);
-      gatherMapSel.value = curVal;
+      const curVal = gatherMapSel.value ?? (isCentral ? '__KEEP__' : '');
+      gatherMapSel.innerHTML = renderNightcampGatherMapOptionsHtml(curVal, gatherMapSearch.value, isCentral);
+      if (Array.from(gatherMapSel.options).some(o => o.value === curVal)) {
+        gatherMapSel.value = curVal;
+      } else if (isCentral) {
+        gatherMapSel.value = '__KEEP__';
+      }
       renderManagerGatherMapSearchPopup(gatherMapSearch.value);
+      syncCentralGatherMapApplyBtn();
     });
   }
   if (gatherMapRes && gatherMapSel) {
@@ -11631,22 +11755,52 @@ async function openWebBotHUD(profileId) {
       if (!btn) return;
       const pickedMap = btn.getAttribute('data-nc-pick-gmap') || '';
       if (gatherMapSearch) gatherMapSearch.value = '';
-      gatherMapSel.innerHTML = renderNightcampGatherMapOptionsHtml(pickedMap, '');
+      gatherMapSel.innerHTML = renderNightcampGatherMapOptionsHtml(pickedMap, '', isCentral);
       gatherMapSel.value = pickedMap;
       renderManagerGatherMapSearchPopup('');
-      markCentralControlEdited(gatherMapSel);
+      if (isCentral) {
+        syncCentralGatherMapApplyBtn();
+        return;
+      }
       await sendGatherPatch({ targetMap: pickedMap });
     });
   }
   if (gatherMapSel) {
     gatherMapSel.onchange = async () => {
-      if (gatherMapSel.value === '__MIXED__') return;
-      markCentralControlEdited(gatherMapSel);
+      if (gatherMapSel.value === '__MIXED__' || gatherMapSel.value === '__KEEP__') {
+        syncCentralGatherMapApplyBtn();
+        return;
+      }
       if (gatherMapSearch && gatherMapSearch.value) {
         gatherMapSearch.value = '';
         renderManagerGatherMapSearchPopup('');
       }
+      if (isCentral) {
+        // Central Menu NEVER broadcasts gather map immediately on select/scroll — require explicit confirm button!
+        syncCentralGatherMapApplyBtn();
+        return;
+      }
       await sendGatherPatch({ targetMap: gatherMapSel.value || '' });
+    };
+  }
+  if (centralApplyGatherMapBtn && gatherMapSel && isCentral) {
+    centralApplyGatherMapBtn.onclick = async () => {
+      const picked = String(gatherMapSel.value ?? '__KEEP__');
+      if (picked === '__KEEP__' || picked === '__MIXED__') return;
+      const onlineCnt = currentProfiles.filter(p => p && p.isRunning).length;
+      if (onlineCnt === 0) {
+        showToast('⚠️ ไม่มีจอเกมที่กำลังออนไลน์', 'warning');
+        return;
+      }
+      const pickedOpt = gatherMapSel.options[gatherMapSel.selectedIndex];
+      const pickedLabel = pickedOpt ? pickedOpt.textContent : (picked || 'แมพปัจจุบัน');
+      if (!window.confirm(`⚠️ ยืนยันเปลี่ยน "แมพเป้าหมาย Gathering" ของทุกจอที่ออนไลน์ (${onlineCnt} จอ)?\n\nแมพเป้าหมายใหม่:\n${pickedLabel}\n\n(แมพเก็บเกี่ยวเดิมของแต่ละจอจะถูกเขียนทับ)`)) {
+        return;
+      }
+      await sendGatherPatch({ targetMap: picked });
+      gatherMapSel.innerHTML = renderNightcampGatherMapOptionsHtml('__KEEP__', '', true);
+      gatherMapSel.value = '__KEEP__';
+      syncCentralGatherMapApplyBtn();
     };
   }
 
@@ -11978,7 +12132,7 @@ const CENTRAL_HUD_FIELD_SPECS = [
   ['#p-nc-smartgear-wtype', 'select', st => String(st.smartGearWeaponType || 'auto')],
   ['#p-nc-auto-repair', 'bool', st => st.sellConfig?.autoRepair !== false && st.autoRepairEnabled !== false],
   ['#p-nc-repair-pct', 'select', st => String(st.sellConfig?.repairThresholdPct ?? st.repairThresholdPct ?? 25)],
-  ['#p-nc-target-farm-map', 'select', st => String(st.targetFarmMap || 'auto')],
+  // NOTE: Intentionally exclude #p-nc-target-farm-map & #p-nc-gather-target-map so Central Menu stays locked on __KEEP__!
   ['#p-nc-plan-enabled', 'bool', st => Boolean(st.planScriptEnabled)],
   ['#p-nc-pot-hp-en', 'bool', st => st.potionConfig?.hpEnabled !== false],
   ['#p-nc-pot-hp-size', 'select', st => String(st.potionConfig?.hpSize || 'red')],
@@ -12016,7 +12170,6 @@ const CENTRAL_HUD_FIELD_SPECS = [
   ['#p-nc-cm-auto-claim', 'bool', st => st.cmarketAutoSellConfig?.autoClaimMail !== false],
   ['#p-nc-cm-auto-unlist', 'bool', st => st.cmarketAutoSellConfig?.autoUnlistExpired !== false],
   ['#p-nc-gather-enabled', 'bool', st => Boolean(st.gatherConfig?.enabled)],
-  ['#p-nc-gather-target-map', 'select', st => String(st.gatherConfig?.targetMap || '')],
   ['#p-nc-gather-radius', 'select', st => String(st.gatherConfig?.scanRadius ?? 650)],
   ['#p-nc-gather-defend', 'bool', st => st.gatherConfig?.defendOnAggro !== false],
   ['#p-nc-perf-dot-monsters', 'bool', st => st.perfConfig?.dotMonsters !== false],
@@ -12097,6 +12250,32 @@ function syncCentralHudMixedStates(hud) {
         el.value = '';
         el.placeholder = '⚡ หลายค่าต่างกัน (พิมพ์แล้ว Enter ตั้งทุกจอ)';
       }
+    }
+  }
+
+  // Update read-only farm/gather map status lines in Central Menu (dropdowns stay safely locked on __KEEP__)
+  const farmSumEl = hud.querySelector('#p-nc-central-farm-map-summary');
+  if (farmSumEl) {
+    const farmVals = onlineStates.map(st => String(st.targetFarmMap || 'auto'));
+    const uniqF = Array.from(new Set(farmVals));
+    if (uniqF.length <= 1) {
+      const mId = uniqF[0] || 'auto';
+      const found = NIGHTCAMP_FARM_MAP_OPTIONS.find(([id]) => id === mId);
+      farmSumEl.textContent = `🛡️ คงแมพเดิมของแต่ละจออยู่ · ทุกจอตั้งไว้ที่: ${found ? found[1] : mId}`;
+    } else {
+      farmSumEl.textContent = `🛡️ คงแมพเดิมของแต่ละจออยู่ · ออนไลน์แยกฟาร์มอยู่ ${uniqF.length} แมพ (แก้ตั้งค่าอื่นจะไม่กระทบแมพ)`;
+    }
+  }
+  const gatherSumEl = hud.querySelector('#p-nc-central-gather-map-summary');
+  if (gatherSumEl) {
+    const gVals = onlineStates.map(st => String(st.gatherConfig?.targetMap || '').trim());
+    const uniqG = Array.from(new Set(gVals));
+    if (uniqG.length <= 1) {
+      const gId = uniqG[0] || '';
+      const found = NIGHTCAMP_GATHER_MAP_OPTIONS.find(([id]) => id === gId);
+      gatherSumEl.textContent = `🛡️ คงแมพเก็บเดิมอยู่ · ทุกจอตั้งไว้ที่: ${found ? found[1] : (gId || 'แมพปัจจุบัน')}`;
+    } else {
+      gatherSumEl.textContent = `🛡️ คงแมพเก็บเดิมอยู่ · ออนไลน์แยกเก็บอยู่ ${uniqG.length} แมพ`;
     }
   }
 }
@@ -15975,7 +16154,7 @@ function renderPresetsList() {
             ${cmCount > 0 ? `<span class="badge" style="background: rgba(20, 184, 166, 0.16); color: #5eead4; border: 1px solid rgba(45, 212, 191, 0.38); font-size: 9.5px; padding: 1px 6px; border-radius: 4px;">🏪 ตลาดกลาง ${cmCount}</span>` : ''}
             ${(gatherOres + gatherWoods) > 0 ? `<span class="badge" style="background: rgba(202, 138, 4, 0.18); color: #fde68a; border: 1px solid rgba(251, 191, 36, 0.4); font-size: 9.5px; padding: 1px 6px; border-radius: 4px;">⛏️ เก็บเกี่ยว ${gatherOres + gatherWoods}</span>` : ''}
             ${planName ? `<span class="badge" style="background: rgba(245, 158, 11, 0.16); color: #fde68a; border: 1px solid rgba(251, 191, 36, 0.38); font-size: 9.5px; padding: 1px 6px; border-radius: 4px;">📜 ${escapeHTML(planName)}</span>` : ''}
-            <span style="font-size: 10px; color: #34d399; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.25); padding: 1px 5px; border-radius: 3px;">🔒 ปลอดภัย (ไม่รวมแมพฟาร์ม, ID/รหัส/ชื่อตัว/เซิร์ฟ)</span>
+            <span style="font-size: 10px; color: #34d399; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.25); padding: 1px 5px; border-radius: 3px;">🔒 ปลอดภัย (ไม่รวมแมพฟาร์ม/แมพเก็บ/แผน Plan/ID/รหัส/ชื่อตัว/เซิร์ฟ)</span>
           </div>
           <div style="font-size: 11px; color: #94a3b8; margin-top: 5px; line-height: 1.4;">
             ${escapeHTML(preset.description || 'ไม่มีคำอธิบาย')}
@@ -16025,7 +16204,7 @@ function openCopyToModal(presetId) {
 
   const titleEl = document.getElementById('copy-to-preset-title');
   if (titleEl) {
-    titleEl.innerText = `Preset: "${preset.name}" — คงแมพฟาร์มประจำ และ ID/รหัส/ชื่อตัว/เซิร์ฟเดิมของทุกจอ`;
+    titleEl.innerText = `Preset: "${preset.name}" — คงแมพฟาร์ม/แมพเก็บ/แผน Plan/Auto-Quest และ ID/รหัส/ชื่อตัว/เซิร์ฟเดิมของทุกจอ`;
   }
 
   const checklistContainer = document.getElementById('copy-to-profiles-checklist');
@@ -16307,7 +16486,7 @@ async function handleSaveClientPresetSubmit(e) {
     });
     const result = await res.json();
     if (result.success) {
-      alert(`บันทึก "${name}" เข้า Save List ส่วนกลางเรียบร้อย! (ไม่รวมแมพฟาร์ม, ID/รหัส/ชื่อตัว/เซิร์ฟ)`);
+      alert(`บันทึก "${name}" เข้า Save List ส่วนกลางเรียบร้อย! (ไม่รวมแมพฟาร์ม/แมพเก็บ/แผน Plan, ID/รหัส/ชื่อตัว/เซิร์ฟ)`);
       closeSaveClientPresetModal();
       openPresetsModal();
       fetchPresets();

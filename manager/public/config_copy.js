@@ -65,8 +65,8 @@
         <div class="cc-head"><b>📋 คัดลอกการตั้งค่าบอทไปจออื่น</b><button type="button" class="cc-x" data-cc="close">✕</button></div>
         <div class="cc-src">จาก: <b>${esc(sourceName)}</b>${sourceSrv && sourceSrv.key !== 'auto' ? ` <span style="font-size:10.5px; color:#fde68a;">(${esc(sourceSrv.icon)} ${esc(sourceSrv.label)})</span>` : ''}${!sourceOnline ? ` <span style="font-size:10.5px; color:#fca5a5;">(⚪ ออฟไลน์ — เปิดจอต้นทางก่อนคัดลอก)</span>` : ''}</div>
         <div class="cc-info">
-          คัดลอกทุกอย่าง: Smart Auto-Quest, Upgrade BOT AI (ใช้ตั๋ว Premium / รับ Event), Auto-Respawn, Smart Gear, ซ่อมของ, Plan Script, ตั้งค่ายา, ขายของ NPC + <b>Whitelist (ห้ามขาย)</b> + <b>บังคับขาย NPC</b> + ฝากคลัง, <b>รายการขายตลาดกลาง (List ตลาดกลาง)</b>, <b>เก็บเกี่ยว (Gathering)</b>, กราฟิก/ประหยัดไฟ, Auto-Login (เปิด/ปิด, เริ่มบอทต่อ)<br>
-          <span class="no">🔒 ไม่คัดลอก: แมพฟาร์มประจำ, User ID, รหัสผ่าน, ชื่อตัวละคร และเซิร์ฟเวอร์ (จอปลายทางคงของเดิม 100%)</span>
+          คัดลอกทุกอย่าง: Upgrade BOT AI (ใช้ตั๋ว Premium / รับ Event / ใบคูณ), Auto-Respawn, Smart Gear, ซ่อมของ, ตั้งค่ายา, ขายของ NPC + <b>Whitelist (ห้ามขาย)</b> + <b>บังคับขาย NPC</b> + ฝากคลัง, <b>รายการขายตลาดกลาง (List ตลาดกลาง)</b>, <b>รายการแร่/ไม้เก็บเกี่ยว</b>, กราฟิก/ประหยัดไฟ, Auto-Login (เปิด/ปิด, เริ่มบอทต่อ)<br>
+          <span class="no">🔒 ไม่คัดลอก: แมพฟาร์มประจำ, แมพเก็บเกี่ยว, แผน Plan Script, Smart Auto-Quest, User ID, รหัสผ่าน, ชื่อตัวละคร และเซิร์ฟเวอร์ (จอปลายทางคงของเดิม 100%)</span>
         </div>
         <div style="display:flex; flex-direction:column; gap:4px; padding:7px 10px; border-radius:8px; background:rgba(13,148,136,0.12); border:1px solid rgba(45,212,191,0.32); font-size:11px;">
           <div style="font-weight:700; color:#5eead4;">🏪 วิธีคัดลอกรายการ Auto-Sell ตลาดกลาง:</div>

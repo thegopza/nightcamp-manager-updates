@@ -304,10 +304,13 @@ const ACTIONS = {
     try { localStorage.removeItem('pelican_override_farm_map'); } catch (e) {}
     window.__partyForcedMap = map;
     if (typeof window.setPlanManualMap === 'function') window.setPlanManualMap(map);
-    window.__targetFarmMap = map;
-    try { localStorage.setItem('pelican_farm_map', map); } catch (e) {}
-    const sel = document.getElementById('p-target-map-select'); if (sel) sel.value = map;
-    if (typeof window.setTargetFarmMap === 'function') window.setTargetFarmMap(map, ${walkNow ? 'true' : 'false'}, { fromParty: true });
+    if (typeof window.setTargetFarmMap === 'function') {
+      window.setTargetFarmMap(map, ${walkNow ? 'true' : 'false'}, { fromParty: true });
+    } else {
+      window.__targetFarmMap = map;
+      try { localStorage.setItem('pelican_farm_map', map); } catch (e) {}
+      const sel = document.getElementById('p-target-map-select'); if (sel) sel.value = map;
+    }
     return { success: true };
   })()`,
   // Same idea as the zeny consolidation: moveToChannel waits for the cooldown / a free slot by itself;
