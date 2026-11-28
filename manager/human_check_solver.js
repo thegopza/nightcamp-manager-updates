@@ -569,7 +569,7 @@ function createHumanCheckSolver({ dataDir, requestJSON: testRequest, serviceUrl:
     return result;
   }
   async function announcementRequest(route, payload = null, opts = {}) {
-    if (!/^\/v1\/aetheria\/(?:pmheenc\/)?machine\/announcements\/(?:poll|ack)(?:\?.*)?$/.test(route)) {
+    if (!/^\/v1\/aetheria\/(?:pmheenc\/)?machine\/(?:announcements\/(?:poll|ack)|cloud-plans(?:\/(?:upload|download|delete))?)(?:\?.*)?$/.test(route)) {
       throw new Error('Unsupported announcement route');
     }
     if (loggedOutExplicitly || !account?.token) {

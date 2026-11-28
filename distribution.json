@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "sourceCommit": "04a3df843d82cdf7611e65f642fde7ef25f65914",
+  "sourceCommit": "cd979ca26c12c967ff496313cb86b99271f927cf",
   "files": [
     {
       "path": "manager/asset_cache.js",
@@ -79,8 +79,8 @@
     },
     {
       "path": "manager/human_check_solver.js",
-      "sha": "17bc1f5ec518ea8643e4532599a60d92a14762dc",
-      "sha256": "b385404c59cb884c287b5943b0c551b9cb11ee4c35c60fef90c3f7eaf4ceadd2"
+      "sha": "f40758bf59a127f3e29161c7738896664d1cfcbd",
+      "sha256": "ada365814f8ba0525f0ce08a67bb37350f863272ab4838d38261ddde1dbb7b9f"
     },
     {
       "path": "manager/image_board_solver.js",
