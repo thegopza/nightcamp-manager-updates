@@ -32,10 +32,11 @@
     liveHud: null,
     openWin: null,         // null | 'status' | 'equip' | 'skills' | 'cards' | 'boss' | 'buffs' | 'dps'
     winPos: null,          // { left, top } when dragged
-    targetCat: 'boss',
+    dpsOverlayCollapsed: false,
+    targetCat: 'dummy',
     targetId: 'ant_queen',
     targetSearch: '',
-    customDummy: { custom: true, name: 'หุ่นทดสอบ (Custom Dummy)', lv: 65, hp: 500000, def: 30, mdef: 25, el: 'neutral', race: 'formless', boss: true, armBar: 120 },
+    customDummy: { custom: true, isDummy: true, name: 'หุ่นไล่กาฝึกซ้อม (Dummy)', lv: 60, hp: 10000000, def: 0, mdef: 0, el: 'neutral', race: 'formless', boss: true, armBar: 120 },
     env: { night: true, mode: 's2', targetCount: 1, theme: 'poison', bossAttacks: true, godMode: false },
     modal: null,
     keysBound: false,
@@ -180,6 +181,7 @@
   }
 
   function isTabActive() {
+    if (window.__ncBuildSimStandalone) return true;
     const p = document.getElementById('buildsim-pane');
     return !!(p && p.classList.contains('active'));
   }
@@ -232,7 +234,8 @@
           <div class="ncsim-live-pill-bar">
             <span>⏱ <b id="ncsim-t-sec" style="font-family:monospace;">0.0s</b></span>
             <span>🔥 DPS: <b id="ncsim-t-dps" style="color:#fde047;font-family:monospace;font-size:13px;">0</b></span>
-            <span id="ncsim-t-sub" style="color:#94a3b8;font-size:10.5px;">5s: 0 · ฆ่า 0 · แตก 0</span>
+            <span id="ncsim-t-sub" style="color:#94a3b8;font-size:10.5px;">5s: 0 · สูงสุด 0 · คริ 0%</span>
+            <button type="button" class="ncsim-btn ncsim-btn-sm" id="ncsim-q-resetdps" style="padding:2px 7px;font-size:10px;" title="รีเซ็ตตัวเลข DPS โดยไม่ย้ายตัวละคร">🧹 รีเซ็ต DPS</button>
             <button type="button" class="ncsim-btn ncsim-btn-sm" id="ncsim-q-respawn" style="padding:2px 7px;font-size:10px;">🔄 เสกใหม่</button>
             <button type="button" class="ncsim-btn ncsim-btn-sm ncsim-btn-gold" id="ncsim-q-revive" style="display:none;padding:2px 8px;font-size:10px;">❤️ ฟื้นคืนชีพ</button>
           </div>
@@ -250,7 +253,8 @@
     `;
 
     document.getElementById('ncsim-hud-boss').onclick = () => toggleWindow('boss');
-    document.getElementById('ncsim-q-respawn').onclick = () => { if (arena) { arena.resetCombat(); toast('🔄 เสกบอสใหม่เรียบร้อย!'); } };
+    document.getElementById('ncsim-q-resetdps').onclick = () => { if (arena && arena.resetDpsOnly) { arena.resetDpsOnly(); toast('🧹 รีเซ็ตตัวเลข DPS เรียบร้อย!'); } };
+    document.getElementById('ncsim-q-respawn').onclick = () => { if (arena) { arena.resetCombat(); toast('🔄 เสกเป้าหมายใหม่เรียบร้อย!'); } };
     document.getElementById('ncsim-q-revive').onclick = () => {
       if (arena && state.stats) {
         arena.hero.dead = false;
@@ -295,7 +299,7 @@
       const armPct = b.breakLeft > 0 ? (b.breakLeft / 6) * 100 : (b.arm / Math.max(1, b.maxArm)) * 100;
       bossEl.innerHTML = `
         <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;">
-          <b style="color:${b.boss ? '#fde047' : '#f1f5f9'};">${b.boss ? '👑 ' : '🎯 '}${esc(b.name)} Lv.${b.lv}</b>
+          <b style="color:${hud.isDummyTarget ? '#fde68a' : (b.boss ? '#fde047' : '#f1f5f9')};">${hud.isDummyTarget ? '🌾 ' : (b.boss ? '👑 ' : '🎯 ')}${esc(b.name)} Lv.${b.lv}</b>
           <span style="font-size:10.5px;color:${elI.color};font-weight:700;">${esc(elI.th)} · DEF ${b.def} / MDEF ${b.mdef}${b.breakLeft > 0 ? ' · 💥 เกราะแตก!' : ''}</span>
         </div>
         <div class="ncsim-boss-hp-track">
@@ -325,7 +329,32 @@
     const dpsEl = document.getElementById('ncsim-t-dps');
     if (dpsEl) dpsEl.textContent = hud.avgDps.toLocaleString();
     const subEl = document.getElementById('ncsim-t-sub');
-    if (subEl) subEl.textContent = `5s: ${hud.curDps.toLocaleString()} · ฆ่า ${hud.kills} · แตก ${hud.armorBreaks}`;
+    if (subEl) subEl.textContent = `5s: ${hud.curDps.toLocaleString()} · สูงสุด ${(hud.peakDps || 0).toLocaleString()} · คริ ${(hud.critRatePct || 0).toFixed(0)}%`;
+
+    // Live Floating DPS Meter Overlay (Right side below minimap)
+    const dmAvg = document.getElementById('ncsim-dm-avg');
+    if (dmAvg) dmAvg.textContent = hud.avgDps.toLocaleString();
+    const dm5s = document.getElementById('ncsim-dm-5s');
+    if (dm5s) dm5s.textContent = hud.curDps.toLocaleString();
+    const dmPeak = document.getElementById('ncsim-dm-peak');
+    if (dmPeak) dmPeak.textContent = (hud.peakDps || 0).toLocaleString();
+    const dmMeta = document.getElementById('ncsim-dm-meta');
+    if (dmMeta) dmMeta.textContent = `รวม ${(hud.totalDamage || 0).toLocaleString()} · แรงสุด ${(hud.maxHit || 0).toLocaleString()} · คริ ${(hud.critRatePct || 0).toFixed(1)}%`;
+    const dmBars = document.getElementById('ncsim-dm-bars');
+    if (dmBars) {
+      const br = Array.isArray(hud.breakdown) ? hud.breakdown.slice(0, 5) : [];
+      const totD = Math.max(1, hud.totalDamage || 0);
+      if (br.length === 0) {
+        dmBars.innerHTML = `<div style="font-size:10px;color:#64748b;text-align:center;padding:8px 0;">กด <b>Space</b> หรือ <b>Z (Auto)</b> ตีหุ่นเพื่อวัด DPS สด</div>`;
+      } else {
+        dmBars.innerHTML = br.map(r => {
+          const pct = Math.min(100, (r.totalDmg / totD) * 100);
+          const sdps = hud.elapsedSec > 0.2 ? Math.round(r.totalDmg / hud.elapsedSec) : r.totalDmg;
+          const col = (E && E.ELEMENT_INFO && E.ELEMENT_INFO[r.el]) ? E.ELEMENT_INFO[r.el].color : '#fbbf24';
+          return `<div class="ncsim-dps-bitem"><div class="ncsim-dps-bfill" style="width:${pct.toFixed(1)}%;background:${col};"></div><div class="ncsim-dps-btxt"><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:118px;">${esc(r.name)}</span><span style="font-family:monospace;color:#fde68a;">${sdps.toLocaleString()}/s (${pct.toFixed(0)}%)</span></div></div>`;
+        }).join('');
+      }
+    }
 
     // Hotbar cooldown overlays
     for (const hk of HB_KEYS) {
@@ -458,9 +487,11 @@
     const themes = Object.entries(window.NC_ARENA_THEMES || {})
       .map(([k, v]) => `<option value="${k}" ${state.env.theme === k ? 'selected' : ''}>🗺️ ${esc(v.name.split(' ')[0])}</option>`).join('');
 
+    const isDummyNow = state.targetCat === 'dummy';
     el.innerHTML = `
       <div class="ncsim-menu-bar">
         ${menus.map(([k, ic, lb]) => `<button type="button" class="ncsim-mbtn ${state.openWin === k ? 'active' : ''}" data-open-win="${k}"><span class="ncsim-mbtn-ic">${ic}</span><span class="ncsim-mbtn-lb">${lb}</span></button>`).join('')}
+        <button type="button" class="ncsim-mbtn ${isDummyNow ? 'active' : ''}" id="ncsim-m-dummy" title="เสกหุ่นไล่กาฝึกซ้อม (Training Dummy) ทดสอบ DPS ทันที"><span class="ncsim-mbtn-ic">🌾</span><span class="ncsim-mbtn-lb">หุ่นไล่กา</span></button>
         <button type="button" class="ncsim-mbtn gold" id="ncsim-m-import" title="ดึงตัวละครจากจอเกมจริง"><span class="ncsim-mbtn-ic">📥</span><span class="ncsim-mbtn-lb">จอจริง</span></button>
         <button type="button" class="ncsim-mbtn" id="ncsim-m-mcp" title="ตั้งค่าเชื่อมต่อ MCP AI"><span class="ncsim-mbtn-ic">🤖</span><span class="ncsim-mbtn-lb">MCP AI</span></button>
       </div>
@@ -478,17 +509,69 @@
           </div>
         </div>
       </div>
+
+      <!-- LIVE FLOATING DPS METER & SCARECROW DUMMY PRESETS -->
+      <div class="ncsim-dps-panel" id="ncsim-dps-panel">
+        <div class="ncsim-dps-head">
+          <span>🔥 Live DPS Meter</span>
+          <div style="display:flex;gap:3px;">
+            <button type="button" class="ncsim-btn ncsim-btn-sm" id="ncsim-dm-rst" style="padding:1px 6px;font-size:9.5px;" title="รีเซ็ต DPS">🧹</button>
+            <button type="button" class="ncsim-btn ncsim-btn-sm" id="ncsim-dm-tab" style="padding:1px 6px;font-size:9.5px;" title="เปิดหน้าวิเคราะห์เทียบ A/B [Tab]">📊</button>
+            <button type="button" class="ncsim-btn ncsim-btn-sm" id="ncsim-dm-fold" style="padding:1px 6px;font-size:9.5px;" title="ย่อ/ขยาย">${state.dpsOverlayCollapsed ? '▼' : '▲'}</button>
+          </div>
+        </div>
+        <div class="ncsim-dps-big-grid">
+          <div class="ncsim-dps-cell"><div class="ncsim-dps-cell-lbl">เฉลี่ย/วิ</div><div class="ncsim-dps-cell-val" id="ncsim-dm-avg">0</div></div>
+          <div class="ncsim-dps-cell"><div class="ncsim-dps-cell-lbl">5วิ ล่าสุด</div><div class="ncsim-dps-cell-val" id="ncsim-dm-5s" style="color:#4ade80;">0</div></div>
+          <div class="ncsim-dps-cell"><div class="ncsim-dps-cell-lbl">สูงสุด</div><div class="ncsim-dps-cell-val" id="ncsim-dm-peak" style="color:#fb923c;">0</div></div>
+        </div>
+        ${state.dpsOverlayCollapsed ? '' : `
+          <div class="ncsim-dps-meta" id="ncsim-dm-meta">รวม 0 · แรงสุด 0 · คริ 0.0%</div>
+          <div class="ncsim-dps-bars" id="ncsim-dm-bars">
+            <div style="font-size:10px;color:#64748b;text-align:center;padding:8px 0;">กด <b>Space</b> หรือ <b>Z (Auto)</b> ตีหุ่นเพื่อวัด DPS สด</div>
+          </div>
+          <div class="ncsim-dummy-presets">
+            <button type="button" class="ncsim-btn ncsim-btn-sm ${isDummyNow && state.customDummy.def === 0 && state.env.targetCount === 1 ? 'active' : ''}" id="ncsim-dp-0">🌾 หุ่น 0 DEF</button>
+            <button type="button" class="ncsim-btn ncsim-btn-sm ${isDummyNow && state.customDummy.def === 30 && state.env.targetCount === 1 ? 'active' : ''}" id="ncsim-dp-mid">🛡️ หุ่นบอสกลาง</button>
+            <button type="button" class="ncsim-btn ncsim-btn-sm ${isDummyNow && state.customDummy.def === 65 && state.env.targetCount === 1 ? 'active' : ''}" id="ncsim-dp-hi">🏰 หุ่นบอสแข็ง</button>
+            <button type="button" class="ncsim-btn ncsim-btn-sm ${isDummyNow && state.env.targetCount === 3 ? 'active' : ''}" id="ncsim-dp-aoe">🌾×3 ทดสอบ AoE</button>
+          </div>
+        `}
+      </div>
     `;
 
     if (arena) arena.setMinimapCanvas(document.getElementById('ncsim-minimap'));
 
+    const spawnDummyPreset = (name, def, mdef, count = 1) => {
+      state.targetCat = 'dummy';
+      state.customDummy = {
+        custom: true, isDummy: true, name, lv: 60, hp: 10000000,
+        def, mdef, el: 'neutral', race: 'formless', boss: true, armBar: 120
+      };
+      state.env.targetCount = count;
+      recomputeAll(true);
+      toast(`🌾 เสก ${name}${count > 1 ? ` ×${count}` : ''} (DEF ${def} / MDEF ${mdef}) ลงสนามแล้ว!`);
+    };
+
     el.querySelectorAll('[data-open-win]').forEach(btn => { btn.onclick = () => toggleWindow(btn.dataset.openWin); });
+    document.getElementById('ncsim-m-dummy').onclick = () => spawnDummyPreset('หุ่นไล่กาฝึกซ้อม (Dummy)', 0, 0, 1);
     document.getElementById('ncsim-m-import').onclick = openLiveImportModal;
     document.getElementById('ncsim-m-mcp').onclick = openMcpModal;
     document.getElementById('ncsim-map-sel').onchange = (ev) => { state.env.theme = ev.target.value; recomputeAll(false); };
     document.getElementById('ncsim-mm-night').onclick = () => { state.env.night = !state.env.night; recomputeAll(false); };
     document.getElementById('ncsim-mm-batk').onclick = () => { state.env.bossAttacks = !state.env.bossAttacks; recomputeAll(false); };
     document.getElementById('ncsim-mm-god').onclick = () => { state.env.godMode = !state.env.godMode; recomputeAll(false); };
+    document.getElementById('ncsim-dm-rst').onclick = () => { if (arena && arena.resetDpsOnly) { arena.resetDpsOnly(); toast('🧹 รีเซ็ต DPS Meter แล้ว!'); } };
+    document.getElementById('ncsim-dm-tab').onclick = () => toggleWindow('dps');
+    document.getElementById('ncsim-dm-fold').onclick = () => { state.dpsOverlayCollapsed = !state.dpsOverlayCollapsed; renderHudTopRight(); };
+    const dp0 = document.getElementById('ncsim-dp-0');
+    if (dp0) dp0.onclick = () => spawnDummyPreset('หุ่นไล่กาฝึกซ้อม (0 DEF)', 0, 0, 1);
+    const dpMid = document.getElementById('ncsim-dp-mid');
+    if (dpMid) dpMid.onclick = () => spawnDummyPreset('หุ่นไล่กาบอสกลาง', 30, 25, 1);
+    const dpHi = document.getElementById('ncsim-dp-hi');
+    if (dpHi) dpHi.onclick = () => spawnDummyPreset('หุ่นไล่กาบอสแข็ง', 65, 50, 1);
+    const dpAoe = document.getElementById('ncsim-dp-aoe');
+    if (dpAoe) dpAoe.onclick = () => spawnDummyPreset('หุ่นไล่กา AoE', 20, 15, 3);
   }
 
   function renderHudHotbar() {

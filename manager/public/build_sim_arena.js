@@ -216,6 +216,9 @@
       this.basicCdLeft = 0;
       this.hitCounter = 0;
       this.totalDamage = 0;
+      this.peakDps = 0;
+      this.hitCount = 0;
+      this.critCount = 0;
       this.kills = 0;
       this.armorBreaks = 0;
       this.maxHit = 0;
@@ -380,9 +383,33 @@
       }
     }
 
+    resetDpsOnly() {
+      this.combatElapsed = 0;
+      this.totalDamage = 0;
+      this.peakDps = 0;
+      this.hitCount = 0;
+      this.critCount = 0;
+      this.kills = 0;
+      this.armorBreaks = 0;
+      this.maxHit = 0;
+      this.dmgWindow = [];
+      this.breakdown = Object.create(null);
+      this.log = [];
+      for (const m of this.mobs) {
+        m.hp = m.maxHp;
+        m.hpTrail = m.maxHp;
+        m.arm = m.maxArm;
+        m.breakLeft = 0;
+      }
+      this._emitHud();
+    }
+
     resetCombat() {
       this.combatElapsed = 0;
       this.totalDamage = 0;
+      this.peakDps = 0;
+      this.hitCount = 0;
+      this.critCount = 0;
       this.kills = 0;
       this.armorBreaks = 0;
       this.maxHit = 0;
@@ -453,6 +480,8 @@
           specialTimer: targetSpec.boss ? (4.0 + i * 1.2) : 999,
           statuses: Object.create(null),
           bobOff: i * 1.37,
+          wobble: 0,
+          wobbleVel: 0,
           aggro: true,
         });
       }
@@ -759,16 +788,26 @@
         return;
       }
 
-      // Knockback physics!
-      const kb = (mob.spec.boss ? 45 : 140) * (action.kind === 'basic' ? 0.6 : 1.0);
-      mob.vx += Math.cos(ang) * kb;
-      mob.vy += Math.sin(ang) * kb;
+      const isDummyMob = !!(mob.spec && (mob.spec.isDummy || mob.spec.id === 'custom_dummy'));
+      // Knockback physics (dummies stay planted on their wooden stake & wobble like a scarecrow!)
+      if (isDummyMob) {
+        const dirSign = Math.cos(ang) >= 0 ? 1 : -1;
+        mob.wobbleVel = (mob.wobbleVel || 0) + dirSign * (res.crit ? 14.5 : 9.5);
+      } else {
+        const kb = (mob.spec.boss ? 45 : 140) * (action.kind === 'basic' ? 0.6 : 1.0);
+        mob.vx += Math.cos(ang) * kb;
+        mob.vy += Math.sin(ang) * kb;
+      }
       mob.hitFlash = 0.14;
       mob.aggro = true;
       mob.hp -= finalDmg;
       if (res.crit && isPrimary) this.screenShake = Math.max(this.screenShake, 5);
 
       this.totalDamage += finalDmg;
+      if (isPrimary) {
+        this.hitCount++;
+        if (res.crit) this.critCount++;
+      }
       this.dmgWindow.push({ t: this.combatElapsed, dmg: finalDmg });
       if (finalDmg > this.maxHit) this.maxHit = finalDmg;
 
@@ -854,17 +893,23 @@
       if (mob.hp <= 0) {
         this.kills++;
         this._spawnSparks(mob.x, mob.y - 24, 22, '#fbbf24');
-        this._spawnLootBurst(mob.x, mob.y, mob.spec.boss);
-        this.vfx.push({ type: 'banner', text: `☠️ สังหาร ${mob.spec.name}!`, x: mob.x, y: mob.y - mob.r * 1.8, color: '#fde047', life: 1.2, maxLife: 1.2 });
-        this._pushLog(`☠️ สังหาร ${mob.spec.name} สำเร็จ! (รวม ${this.kills} ตัว)`);
+        if (!isDummyMob) {
+          this._spawnLootBurst(mob.x, mob.y, mob.spec.boss);
+          this.vfx.push({ type: 'banner', text: `☠️ สังหาร ${mob.spec.name}!`, x: mob.x, y: mob.y - mob.r * 1.8, color: '#fde047', life: 1.2, maxLife: 1.2 });
+          this._pushLog(`☠️ สังหาร ${mob.spec.name} สำเร็จ! (รวม ${this.kills} ตัว)`);
+        } else {
+          this.vfx.push({ type: 'banner', text: `🌾 หุ่นไล่การีเซ็ตเลือดเต็ม! (รอบ #${this.kills})`, x: mob.x, y: mob.y - mob.r * 2.0, color: '#fde68a', life: 1.0, maxLife: 1.0 });
+        }
         // Respawn mob smoothly at home spot so testing never stalls
         mob.hp = mob.maxHp;
         mob.hpTrail = mob.maxHp;
         mob.arm = mob.maxArm;
         mob.breakLeft = 0;
-        mob.x = mob.homeX + (Math.random() - 0.5) * 70;
-        mob.y = mob.homeY + (Math.random() - 0.5) * 50;
-        this.vfx.push({ type: 'ring', x: mob.x, y: mob.y, r: 10, maxR: 80, color: '#a78bfa', life: 0.45, maxLife: 0.45, lw: 3 });
+        if (!isDummyMob) {
+          mob.x = mob.homeX + (Math.random() - 0.5) * 70;
+          mob.y = mob.homeY + (Math.random() - 0.5) * 50;
+        }
+        this.vfx.push({ type: 'ring', x: mob.x, y: mob.y, r: 10, maxR: 80, color: isDummyMob ? '#facc15' : '#a78bfa', life: 0.45, maxLife: 0.45, lw: 3 });
       }
     }
 
@@ -1085,6 +1130,17 @@
         for (const sk of Object.keys(m.statuses)) {
           m.statuses[sk] -= dt;
           if (m.statuses[sk] <= 0) delete m.statuses[sk];
+        }
+
+        const isDummyMob = !!(m.spec && (m.spec.isDummy || m.spec.id === 'custom_dummy'));
+        if (isDummyMob) {
+          // Spring-damper wobble physics for Scarecrow Training Dummy (never walks or hits back!)
+          const kSpring = 115, cDamp = 10;
+          const acc = -kSpring * (m.wobble || 0) - cDamp * (m.wobbleVel || 0);
+          m.wobbleVel = (m.wobbleVel || 0) + acc * dt;
+          m.wobble = clamp((m.wobble || 0) + m.wobbleVel * dt, -0.42, 0.42);
+          m.vx = 0; m.vy = 0;
+          continue;
         }
 
         // Knockback friction
@@ -1312,11 +1368,19 @@
       const avgDps = this.combatElapsed > 0.2 ? Math.round(this.totalDamage / this.combatElapsed) : 0;
       const winSum = this.dmgWindow.reduce((s, x) => s + x.dmg, 0);
       const winDur = Math.min(5.0, Math.max(0.5, this.combatElapsed));
+      const curDps = Math.round(winSum / winDur);
+      if (curDps > this.peakDps) this.peakDps = curDps;
       const primaryBoss = this.mobs.find(m => m.spec.boss) || this.mobs[0] || null;
+      const isDummyTarget = !!(primaryBoss && primaryBoss.spec && (primaryBoss.spec.isDummy || primaryBoss.spec.id === 'custom_dummy'));
       this.onTickHud({
         elapsedSec: Math.round(this.combatElapsed * 10) / 10,
         avgDps,
-        curDps: Math.round(winSum / winDur),
+        curDps,
+        peakDps: this.peakDps,
+        hitCount: this.hitCount,
+        critCount: this.critCount,
+        critRatePct: this.hitCount > 0 ? Math.round((this.critCount / this.hitCount) * 1000) / 10 : 0,
+        isDummyTarget,
         totalDamage: this.totalDamage,
         kills: this.kills,
         armorBreaks: this.armorBreaks,
@@ -1665,12 +1729,127 @@
       ctx.fillRect(bx, by + 7, bw * clamp(h.sp / Math.max(1, h.maxSp), 0, 1), 2.5);
     }
 
+    _drawScarecrowDummy(ctx, m) {
+      // Hand-drawn charming Nightcamp Scarecrow Training Dummy (หุ่นไล่กาฝึกซ้อม)
+      const tilt = m.wobble || 0;
+      ctx.save();
+      ctx.translate(m.x, m.y);
+
+      // Ground shadow & wooden base mound
+      ctx.fillStyle = 'rgba(0,0,0,0.48)';
+      ctx.beginPath(); ctx.ellipse(0, 6, 36, 13, 0, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#4a321e';
+      ctx.strokeStyle = '#24170d'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.ellipse(0, 3, 24, 8, 0, 0, TAU); ctx.fill(); ctx.stroke();
+
+      // Pivot entire scarecrow around stake base for hit wobble!
+      ctx.rotate(tilt);
+      if (m.hitFlash > 0) ctx.filter = 'brightness(2.0)';
+
+      // Vertical wooden stake
+      ctx.fillStyle = '#6b4423';
+      ctx.strokeStyle = '#2d1a0b'; ctx.lineWidth = 2;
+      ctx.fillRect(-6, -92, 12, 95);
+      ctx.strokeRect(-6, -92, 12, 95);
+
+      // Horizontal wooden crossbeam (arms)
+      ctx.fillStyle = '#7c502b';
+      ctx.fillRect(-48, -68, 96, 10);
+      ctx.strokeRect(-48, -68, 96, 10);
+
+      // Straw tufts sticking out of both sleeve ends
+      ctx.strokeStyle = '#facc15'; ctx.lineWidth = 2.6;
+      for (let side of [-1, 1]) {
+        for (let k = -1; k <= 1; k++) {
+          ctx.beginPath();
+          ctx.moveTo(side * 46, -63);
+          ctx.lineTo(side * 58, -63 + k * 7);
+          ctx.stroke();
+        }
+      }
+
+      // Straw skirt tufts at waist
+      ctx.strokeStyle = '#eab308'; ctx.lineWidth = 2.4;
+      for (let sx = -18; sx <= 18; sx += 6) {
+        ctx.beginPath();
+        ctx.moveTo(sx, -30);
+        ctx.lineTo(sx * 1.25, -16);
+        ctx.stroke();
+      }
+
+      // Burlap sack shirt / torso
+      ctx.fillStyle = '#a16207';
+      ctx.strokeStyle = '#422006'; ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      ctx.moveTo(-22, -72);
+      ctx.lineTo(22, -72);
+      ctx.lineTo(26, -28);
+      ctx.lineTo(-26, -28);
+      ctx.closePath();
+      ctx.fill(); ctx.stroke();
+
+      // Rope belt tied around waist
+      ctx.strokeStyle = '#fef08a'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(-24, -36); ctx.lineTo(24, -36); ctx.stroke();
+
+      // Red/White Archery Bullseye Target pinned on chest!
+      ctx.fillStyle = '#f8fafc';
+      ctx.strokeStyle = '#991b1b'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(0, -52, 14, 0, TAU); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#ef4444';
+      ctx.beginPath(); ctx.arc(0, -52, 9.5, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#f8fafc';
+      ctx.beginPath(); ctx.arc(0, -52, 5.5, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#dc2626';
+      ctx.beginPath(); ctx.arc(0, -52, 2.5, 0, TAU); ctx.fill();
+
+      // Burlap sack head
+      ctx.fillStyle = '#d9b37c';
+      ctx.strokeStyle = '#451a03'; ctx.lineWidth = 2.2;
+      ctx.beginPath(); ctx.arc(0, -88, 17, 0, TAU); ctx.fill(); ctx.stroke();
+
+      // Cute stitched scarecrow face (winces > < when hit!)
+      ctx.strokeStyle = '#291507'; ctx.lineWidth = 2.1;
+      if (m.hitFlash > 0) {
+        // > < wince eyes
+        ctx.beginPath(); ctx.moveTo(-9, -92); ctx.lineTo(-4, -89); ctx.lineTo(-9, -86); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(9, -92); ctx.lineTo(4, -89); ctx.lineTo(9, -86); ctx.stroke();
+      } else {
+        // Stitched X button eyes
+        ctx.beginPath(); ctx.moveTo(-9, -92); ctx.lineTo(-4, -87); ctx.moveTo(-4, -92); ctx.lineTo(-9, -87); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(4, -92); ctx.lineTo(9, -87); ctx.moveTo(9, -92); ctx.lineTo(4, -87); ctx.stroke();
+      }
+      // Stitched smile
+      ctx.beginPath(); ctx.arc(0, -84, 7, 0.15 * Math.PI, 0.85 * Math.PI); ctx.stroke();
+
+      // Pointed straw farmer hat with red ribbon
+      ctx.fillStyle = '#eab308';
+      ctx.strokeStyle = '#713f12'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.ellipse(0, -101, 29, 8, 0, 0, TAU); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#facc15';
+      ctx.beginPath();
+      ctx.moveTo(-17, -101);
+      ctx.lineTo(2, -128);
+      ctx.lineTo(17, -101);
+      ctx.closePath();
+      ctx.fill(); ctx.stroke();
+      // Red ribbon band
+      ctx.fillStyle = '#dc2626';
+      ctx.fillRect(-15, -106, 30, 5);
+
+      ctx.restore();
+    }
+
     _drawMob(ctx, m) {
       const sp = m.spec;
+      const isDummy = !!(sp.isDummy || sp.id === 'custom_dummy');
       const isBoss = !!sp.boss;
-      const bob = Math.sin(this.time * 4.2 + m.bobOff) * 3;
-      const drawH = isBoss ? 136 : 84;
+      const bob = isDummy ? 0 : Math.sin(this.time * 4.2 + m.bobOff) * 3;
+      const drawH = isDummy ? 132 : (isBoss ? 136 : 84);
 
+      if (isDummy) {
+        this._drawScarecrowDummy(ctx, m);
+      } else {
       // Shadow & Boss Glow Aura
       ctx.fillStyle = 'rgba(0,0,0,0.46)';
       ctx.beginPath(); ctx.ellipse(m.x, m.y + 6, drawH * 0.34, drawH * 0.12, 0, 0, TAU); ctx.fill();
@@ -1707,16 +1886,17 @@
         ctx.fillText(isBoss ? '👑' : '🎯', m.x, m.y - drawH * 0.34 + bob);
       }
       ctx.restore();
+      }
 
-      // Authentic Nightcamp Monster Nameplate ("นางพญามด Lv 50" + "เกราะร้าว"!)
+      // Authentic Nightcamp Monster Nameplate ("นางพญามด Lv 50" / "🌾 หุ่นไล่กา Lv 60")
       ctx.save();
       ctx.textAlign = 'center';
       const nameY = m.y - drawH + 10;
-      ctx.font = `800 ${isBoss ? 12.5 : 11}px "Noto Sans Thai", sans-serif`;
+      ctx.font = `800 ${isBoss || isDummy ? 12.5 : 11}px "Noto Sans Thai", sans-serif`;
       ctx.strokeStyle = 'rgba(10,8,20,0.95)'; ctx.lineWidth = 3.6;
-      const mLabel = `${isBoss ? '👑 ' : ''}${sp.name} Lv ${sp.lv}`;
+      const mLabel = isDummy ? `🌾 ${sp.name} Lv ${sp.lv}` : `${isBoss ? '👑 ' : ''}${sp.name} Lv ${sp.lv}`;
       ctx.strokeText(mLabel, m.x, nameY);
-      ctx.fillStyle = isBoss ? '#fde047' : '#fca5a5';
+      ctx.fillStyle = isDummy ? '#fde68a' : (isBoss ? '#fde047' : '#fca5a5');
       ctx.fillText(mLabel, m.x, nameY);
       if (m.breakLeft > 0) {
         ctx.font = '800 11px "Noto Sans Thai", sans-serif';

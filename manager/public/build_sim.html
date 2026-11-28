@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nightcamp — Build Simulate & DPS Lab</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&family=Noto+Sans+Thai:wght@400;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="build_sim.css?v=nc2.3.53b">
+  <style>
+    /* ============ Standalone full-screen reset ============ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden;
+      background: #0c0f1a;
+      color: #e2e8f0;
+      font-family: 'Plus Jakarta Sans', 'Noto Sans Thai', 'IBM Plex Sans Thai', system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    #ncsim-mount {
+      width: 100vw;
+      height: 100vh;
+      position: relative;
+    }
+    .ncsim-stage {
+      width: 100% !important;
+      height: 100% !important;
+      position: relative !important;
+      overflow: hidden !important;
+      border: none !important;
+      border-radius: 0 !important;
+      min-height: 100vh !important;
+    }
+    .ncsim-world-canvas {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100% !important;
+      height: 100% !important;
+    }
+    /* Toast notification for standalone */
+    .nc-standalone-toast {
+      position: fixed; bottom: 22px; right: 22px; z-index: 130000;
+      background: #161b30; color: #fef3c7;
+      border: 1.5px solid #fbbf24;
+      padding: 10px 16px; border-radius: 11px;
+      font-size: 12.5px; font-weight: 700;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.65);
+      display: none;
+    }
+    /* Minimal button/input styles the sim uses */
+    .ncsim-btn { cursor: pointer; }
+    /* Back to Manager button — bottom-left clear corner */
+    #ncsim-back-btn {
+      position: fixed; bottom: 14px; left: 14px; z-index: 120000;
+      background: rgba(18, 22, 40, 0.90);
+      border: 1.5px solid rgba(251, 191, 36, 0.42);
+      color: #fde68a; padding: 7px 14px;
+      border-radius: 10px; font-size: 12px; font-weight: 800;
+      cursor: pointer; backdrop-filter: blur(6px);
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.55);
+      transition: all 0.15s;
+      font-family: inherit;
+    }
+    #ncsim-back-btn:hover {
+      background: rgba(251, 191, 36, 0.18);
+      border-color: #fbbf24;
+      transform: translateY(-1px);
+    }
+  </style>
+</head>
+<body>
+  <div id="ncsim-mount"></div>
+  <button id="ncsim-back-btn" title="กลับไป Manager">🏠 กลับ Manager</button>
+  <script>
+    // Mark standalone mode so build_sim.js knows to auto-init & treat tab as always active
+    window.__ncBuildSimStandalone = true;
+    document.getElementById('ncsim-back-btn').onclick = function() {
+      if (window.opener && !window.opener.closed) {
+        window.close();
+      } else {
+        window.location.href = '/';
+      }
+    };
+  </script>
+  <script src="sim_engine.js?v=nc2.3.53b"></script>
+  <script src="build_sim_arena.js?v=nc2.3.53b"></script>
+  <script src="build_sim.js?v=nc2.3.53b"></script>
+  <script>
+    // Auto-init when standalone
+    if (window.NCBuildSim && window.NCBuildSim.onTabShown) {
+      window.NCBuildSim.onTabShown();
+    }
+  </script>
+</body>
+</html>

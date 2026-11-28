@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "sourceCommit": "5840ec1c1c8982b519972010c9ba7962d6394ce7",
+  "sourceCommit": "9acabf531ebd172cfa0c4a6008abe432d59c57fc",
   "files": [
     {
       "path": "manager/asset_cache.js",
@@ -16,7 +16,7 @@
     },
     {
       "path": "manager/browser_mode.js",
-      "sha256": "bc6dad1b83758e86bc1b8fb61cd0f057256081737a7d2eb6cf9eca5b741553b7"
+      "sha256": "0a09bc7855a565e484bde0d2e3fbfee005453ca54a835d39e094205e9dcbb68d"
     },
     {
       "path": "manager/captcha_stats.js",
@@ -144,7 +144,7 @@
     },
     {
       "path": "manager/public/app.js",
-      "sha256": "c1eab9c332f7d5a02f3799b71e7d56c7c9d9ff7bdc4f105ddefaa37097a4d4ee"
+      "sha256": "4b2b778e030b9a3c8f655ec2150617b3dfa6f7f0a4f69645c08a9187340513b0"
     },
     {
       "path": "manager/public/assets/updates/ui_v212_bag_rightclick.jpg",
@@ -172,15 +172,19 @@
     },
     {
       "path": "manager/public/build_sim.css",
-      "sha256": "e78346fdfc2923aea85e7ec227eac6451cce7c9afd864ea30403e7bc1059bc4e"
+      "sha256": "12d820a606b4df1e39f8d7c43bbcba750839c4f6e50b1578298ddf26fe5dc0f1"
+    },
+    {
+      "path": "manager/public/build_sim.html",
+      "sha256": "8d0fe037fc32d78db602b36607efa0c97ad51b6cbac48b2724dfe53da44efc69"
     },
     {
       "path": "manager/public/build_sim.js",
-      "sha256": "abcd373f7f2f1e091242969fa5089beb6473f488dcc78a4bb828c982e1888c01"
+      "sha256": "8eca93fb0d7c9941cc32de55c2a8f3eaf15fbb2c783c2832290d195e26680b23"
     },
     {
       "path": "manager/public/build_sim_arena.js",
-      "sha256": "a27e15dc5d68f22a6f83c5007d36b4059c14025364eb2c81b69cf984be1d9cb1"
+      "sha256": "a45ea7c6623f62319afd2d9620167ed88a2f7ea99ea7327b4ca965e1074da275"
     },
     {
       "path": "manager/public/builder_module.js",
@@ -244,7 +248,7 @@
     },
     {
       "path": "manager/public/index.html",
-      "sha256": "041dbd7fd7edf671fbe5e022acc4f9e88193353968fbb61abd1803c12702fab5"
+      "sha256": "8f588e15c8fcc248becd1141ba7e0ea3627ad914fa09b2f0e28376348a112d17"
     },
     {
       "path": "manager/public/inventory_market.css",
@@ -308,7 +312,7 @@
     },
     {
       "path": "manager/public/sim_engine.js",
-      "sha256": "2f4ff4b8b8b875c677b5c18eb78141d5d79892a2e581cdfb0a4513d72930d8e5"
+      "sha256": "e1ed00b2e1330a8b903ad4fcb4ea634a27dd8fd22edc88b0250b59628cbdc639"
     },
     {
       "path": "manager/public/style.css",

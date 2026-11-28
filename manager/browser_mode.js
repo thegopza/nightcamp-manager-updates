@@ -25,37 +25,60 @@ function deriveMachineId(seed) {
 }
 
 const ANDROID_DEVICE_PRESETS = [
-  { model: 'Samsung Galaxy S24 Ultra (SM-S928B)', gpu: 'Adreno 750', ua: 'Mozilla/5.0 (Linux; Android 14; SM-S928B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.6778.135 Mobile Safari/537.36', touch: 5, screen: '384x824', cores: 8 },
-  { model: 'Samsung Galaxy S23 Ultra (SM-S918B)', gpu: 'Adreno 740', ua: 'Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.6778.135 Mobile Safari/537.36', touch: 5, screen: '384x824', cores: 8 },
-  { model: 'Samsung Galaxy S24+ (SM-S926B)', gpu: 'Mali-G720 Immortalis MC12', ua: 'Mozilla/5.0 (Linux; Android 14; SM-S926B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.6778.135 Mobile Safari/537.36', touch: 5, screen: '384x832', cores: 10 },
-  { model: 'Xiaomi 14 Pro (23116PN5BC)', gpu: 'Adreno 750', ua: 'Mozilla/5.0 (Linux; Android 14; 23116PN5BC) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.6778.135 Mobile Safari/537.36', touch: 5, screen: '393x873', cores: 8 },
-  { model: 'Xiaomi 13T Pro (23078PND5G)', gpu: 'Mali-G715 Immortalis MC11', ua: 'Mozilla/5.0 (Linux; Android 14; 23078PND5G) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.6778.135 Mobile Safari/537.36', touch: 5, screen: '393x873', cores: 8 },
-  { model: 'ASUS ROG Phone 8 Pro (AI2401)', gpu: 'Adreno 750', ua: 'Mozilla/5.0 (Linux; Android 14; ASUS_AI2401) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.6778.135 Mobile Safari/537.36', touch: 5, screen: '396x876', cores: 8 },
-  { model: 'OnePlus 12 (CPH2581)', gpu: 'Adreno 750', ua: 'Mozilla/5.0 (Linux; Android 14; CPH2581) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.6778.135 Mobile Safari/537.36', touch: 5, screen: '384x856', cores: 8 },
-  { model: 'Google Pixel 8 Pro (GC3VE)', gpu: 'Mali-G715 Immortalis MC10', ua: 'Mozilla/5.0 (Linux; Android 14; Pixel 8 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.6778.135 Mobile Safari/537.36', touch: 5, screen: '412x892', cores: 9 },
-  { model: 'Vivo X100 Pro (V2309)', gpu: 'Mali-G720 Immortalis MC12', ua: 'Mozilla/5.0 (Linux; Android 14; V2309) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.6778.135 Mobile Safari/537.36', touch: 5, screen: '393x873', cores: 8 },
-  { model: 'OPPO Find X7 Ultra (PHY110)', gpu: 'Adreno 750', ua: 'Mozilla/5.0 (Linux; Android 14; PHY110) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.6778.135 Mobile Safari/537.36', touch: 5, screen: '384x856', cores: 8 },
-  { model: 'POCO F6 Pro (23113RKC6G)', gpu: 'Adreno 740', ua: 'Mozilla/5.0 (Linux; Android 14; 23113RKC6G) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.6778.135 Mobile Safari/537.36', touch: 5, screen: '393x873', cores: 8 },
-  { model: 'Samsung Galaxy A55 5G (SM-A556E)', gpu: 'Adreno 730', ua: 'Mozilla/5.0 (Linux; Android 14; SM-A556E) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.6778.135 Mobile Safari/537.36', touch: 5, screen: '384x832', cores: 8 },
-  { model: 'Realme GT 6 (RMX3851)', gpu: 'Adreno 735', ua: 'Mozilla/5.0 (Linux; Android 14; RMX3851) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.6778.135 Mobile Safari/537.36', touch: 5, screen: '393x873', cores: 8 },
-  { model: 'Samsung Galaxy Tab S9 Ultra (SM-X910)', gpu: 'Adreno 740', ua: 'Mozilla/5.0 (Linux; Android 14; SM-X910) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.6778.135 Safari/537.36', touch: 5, screen: '960x1524', cores: 8 },
-  { model: 'Xiaomi Pad 6S Pro (24018RPACC)', gpu: 'Adreno 740', ua: 'Mozilla/5.0 (Linux; Android 14; 24018RPACC) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.6778.135 Safari/537.36', touch: 5, screen: '1000x1500', cores: 8 },
-  { model: 'RedMagic 9 Pro (NX769J)', gpu: 'Adreno 750', ua: 'Mozilla/5.0 (Linux; Android 14; NX769J) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.6778.135 Mobile Safari/537.36', touch: 5, screen: '400x892', cores: 8 }
+  { model: 'Samsung Galaxy S24 Ultra (SM-S928B)', gpu: 'Adreno (TM) 750', gpuVendor: 'Qualcomm', chromeMajor: '157', chromeFull: '157.0.8103.79', platformVersion: '15.0.0', ua: 'Mozilla/5.0 (Linux; Android 15; SM-S928B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.8103.79 Mobile Safari/537.36', touch: 5, screen: '384x824', cores: 8, deviceMemory: 8, sampleRate: 48000, colorDepth: 24 },
+  { model: 'Samsung Galaxy S23 Ultra (SM-S918B)', gpu: 'Adreno (TM) 740', gpuVendor: 'Qualcomm', chromeMajor: '156', chromeFull: '156.0.8041.62', platformVersion: '14.0.0', ua: 'Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.8041.62 Mobile Safari/537.36', touch: 5, screen: '384x824', cores: 8, deviceMemory: 8, sampleRate: 48000, colorDepth: 24 },
+  { model: 'Samsung Galaxy S24+ (SM-S926B)', gpu: 'Mali-G720-Immortalis MC12', gpuVendor: 'ARM', chromeMajor: '157', chromeFull: '157.0.8103.79', platformVersion: '15.0.0', ua: 'Mozilla/5.0 (Linux; Android 15; SM-S926B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.8103.79 Mobile Safari/537.36', touch: 5, screen: '384x832', cores: 10, deviceMemory: 8, sampleRate: 48000, colorDepth: 24 },
+  { model: 'Xiaomi 14 Pro (23116PN5BC)', gpu: 'Adreno (TM) 750', gpuVendor: 'Qualcomm', chromeMajor: '156', chromeFull: '156.0.8041.62', platformVersion: '14.0.0', ua: 'Mozilla/5.0 (Linux; Android 14; 23116PN5BC) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.8041.62 Mobile Safari/537.36', touch: 5, screen: '393x873', cores: 8, deviceMemory: 8, sampleRate: 48000, colorDepth: 24 },
+  { model: 'Xiaomi 13T Pro (23078PND5G)', gpu: 'Mali-G715-Immortalis MC11', gpuVendor: 'ARM', chromeMajor: '155', chromeFull: '155.0.7982.44', platformVersion: '14.0.0', ua: 'Mozilla/5.0 (Linux; Android 14; 23078PND5G) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.7982.44 Mobile Safari/537.36', touch: 5, screen: '393x873', cores: 8, deviceMemory: 4, sampleRate: 44100, colorDepth: 24 },
+  { model: 'ASUS ROG Phone 8 Pro (AI2401)', gpu: 'Adreno (TM) 750', gpuVendor: 'Qualcomm', chromeMajor: '157', chromeFull: '157.0.8103.79', platformVersion: '15.0.0', ua: 'Mozilla/5.0 (Linux; Android 15; ASUS_AI2401) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.8103.79 Mobile Safari/537.36', touch: 10, screen: '396x876', cores: 8, deviceMemory: 8, sampleRate: 48000, colorDepth: 24 },
+  { model: 'OnePlus 12 (CPH2581)', gpu: 'Adreno (TM) 750', gpuVendor: 'Qualcomm', chromeMajor: '156', chromeFull: '156.0.8041.62', platformVersion: '15.0.0', ua: 'Mozilla/5.0 (Linux; Android 15; CPH2581) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.8041.62 Mobile Safari/537.36', touch: 5, screen: '384x856', cores: 8, deviceMemory: 8, sampleRate: 48000, colorDepth: 24 },
+  { model: 'Google Pixel 8 Pro (GC3VE)', gpu: 'Mali-G715', gpuVendor: 'ARM', chromeMajor: '157', chromeFull: '157.0.8103.79', platformVersion: '15.0.0', ua: 'Mozilla/5.0 (Linux; Android 15; Pixel 8 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.8103.79 Mobile Safari/537.36', touch: 5, screen: '412x892', cores: 9, deviceMemory: 8, sampleRate: 48000, colorDepth: 24 },
+  { model: 'Vivo X100 Pro (V2309)', gpu: 'Mali-G720-Immortalis MC12', gpuVendor: 'ARM', chromeMajor: '155', chromeFull: '155.0.7982.44', platformVersion: '14.0.0', ua: 'Mozilla/5.0 (Linux; Android 14; V2309) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.7982.44 Mobile Safari/537.36', touch: 5, screen: '393x873', cores: 8, deviceMemory: 8, sampleRate: 48000, colorDepth: 24 },
+  { model: 'OPPO Find X7 Ultra (PHY110)', gpu: 'Adreno (TM) 750', gpuVendor: 'Qualcomm', chromeMajor: '156', chromeFull: '156.0.8041.62', platformVersion: '14.0.0', ua: 'Mozilla/5.0 (Linux; Android 14; PHY110) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.8041.62 Mobile Safari/537.36', touch: 5, screen: '384x856', cores: 8, deviceMemory: 8, sampleRate: 48000, colorDepth: 24 },
+  { model: 'POCO F6 Pro (23113RKC6G)', gpu: 'Adreno (TM) 740', gpuVendor: 'Qualcomm', chromeMajor: '155', chromeFull: '155.0.7982.44', platformVersion: '14.0.0', ua: 'Mozilla/5.0 (Linux; Android 14; 23113RKC6G) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.7982.44 Mobile Safari/537.36', touch: 5, screen: '393x873', cores: 8, deviceMemory: 4, sampleRate: 44100, colorDepth: 24 },
+  { model: 'Samsung Galaxy A55 5G (SM-A556E)', gpu: 'Xclipse 530', gpuVendor: 'Samsung', chromeMajor: '156', chromeFull: '156.0.8041.62', platformVersion: '14.0.0', ua: 'Mozilla/5.0 (Linux; Android 14; SM-A556E) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.8041.62 Mobile Safari/537.36', touch: 5, screen: '384x832', cores: 8, deviceMemory: 4, sampleRate: 48000, colorDepth: 24 },
+  { model: 'Realme GT 6 (RMX3851)', gpu: 'Adreno (TM) 735', gpuVendor: 'Qualcomm', chromeMajor: '157', chromeFull: '157.0.8103.79', platformVersion: '14.0.0', ua: 'Mozilla/5.0 (Linux; Android 14; RMX3851) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.8103.79 Mobile Safari/537.36', touch: 5, screen: '393x873', cores: 8, deviceMemory: 4, sampleRate: 48000, colorDepth: 24 },
+  { model: 'Samsung Galaxy Tab S9 Ultra (SM-X910)', gpu: 'Adreno (TM) 740', gpuVendor: 'Qualcomm', chromeMajor: '156', chromeFull: '156.0.8041.62', platformVersion: '14.0.0', ua: 'Mozilla/5.0 (Linux; Android 14; SM-X910) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.8041.62 Safari/537.36', touch: 10, screen: '960x1524', cores: 8, deviceMemory: 8, sampleRate: 48000, colorDepth: 24 },
+  { model: 'Xiaomi Pad 6S Pro (24018RPACC)', gpu: 'Adreno (TM) 740', gpuVendor: 'Qualcomm', chromeMajor: '157', chromeFull: '157.0.8103.79', platformVersion: '14.0.0', ua: 'Mozilla/5.0 (Linux; Android 14; 24018RPACC) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.8103.79 Safari/537.36', touch: 10, screen: '1000x1500', cores: 8, deviceMemory: 8, sampleRate: 48000, colorDepth: 24 },
+  { model: 'RedMagic 9 Pro (NX769J)', gpu: 'Adreno (TM) 750', gpuVendor: 'Qualcomm', chromeMajor: '157', chromeFull: '157.0.8103.79', platformVersion: '15.0.0', ua: 'Mozilla/5.0 (Linux; Android 15; NX769J) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.8103.79 Mobile Safari/537.36', touch: 10, screen: '400x892', cores: 8, deviceMemory: 8, sampleRate: 48000, colorDepth: 24 }
 ];
 
 const PC_DEVICE_PRESETS = [
-  { model: 'Windows PC · RTX 4060', gpu: 'GeForce RTX 4060 Direct3D11 vs_5_0 ps_5_0', ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36', touch: 0, screen: '1920x1080', cores: 12 },
-  { model: 'Windows PC · RTX 3060', gpu: 'GeForce RTX 3060 Direct3D11 vs_5_0 ps_5_0', ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36', touch: 0, screen: '1920x1080', cores: 12 },
-  { model: 'Windows PC · RTX 4070 Super', gpu: 'GeForce RTX 4070 SUPER Direct3D11 vs_5_0 ps_5_0', ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36', touch: 0, screen: '2560x1440', cores: 16 },
-  { model: 'Windows PC · RTX 3070', gpu: 'GeForce RTX 3070 Direct3D11 vs_5_0 ps_5_0', ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36', touch: 0, screen: '1920x1080', cores: 16 },
-  { model: 'Windows PC · RTX 4060 Ti', gpu: 'GeForce RTX 4060 Ti Direct3D11 vs_5_0 ps_5_0', ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36', touch: 0, screen: '1920x1080', cores: 12 },
-  { model: 'Windows PC · Radeon RX 7600', gpu: 'Radeon RX 7600 Direct3D11 vs_5_0 ps_5_0', ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36', touch: 0, screen: '1920x1080', cores: 12 },
-  { model: 'Windows PC · Radeon RX 6700 XT', gpu: 'Radeon RX 6700 XT Direct3D11 vs_5_0 ps_5_0', ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36', touch: 0, screen: '2560x1440', cores: 16 },
-  { model: 'Windows PC · GTX 1660 Super', gpu: 'GeForce GTX 1660 SUPER Direct3D11 vs_5_0 ps_5_0', ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36', touch: 0, screen: '1920x1080', cores: 8 },
-  { model: 'Windows PC · RTX 3050', gpu: 'GeForce RTX 3050 Direct3D11 vs_5_0 ps_5_0', ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36', touch: 0, screen: '1920x1080', cores: 8 },
-  { model: 'Windows PC · Intel Arc A770', gpu: 'Intel Arc A770 Graphics Direct3D11 vs_5_0 ps_5_0', ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36', touch: 0, screen: '1920x1080', cores: 12 },
-  { model: 'Windows PC · Intel Iris Xe', gpu: 'Intel Iris Xe Graphics Direct3D11 vs_5_0 ps_5_0', ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36', touch: 0, screen: '1920x1080', cores: 8 },
-  { model: 'Windows PC · RTX 4070 Ti', gpu: 'GeForce RTX 4070 Ti Direct3D11 vs_5_0 ps_5_0', ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36', touch: 0, screen: '2560x1440', cores: 16 }
+  { model: 'Windows PC · RTX 4060', gpu: 'ANGLE (NVIDIA, NVIDIA GeForce RTX 4060 (0x00002882) Direct3D11 vs_5_0 ps_5_0, D3D11)', gpuVendor: 'Google Inc. (NVIDIA)', chromeMajor: '157', chromeFull: '157.0.8103.79', platformVersion: '15.0.0', ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Safari/537.36', touch: 0, screen: '1920x1080', cores: 12, deviceMemory: 16, sampleRate: 48000, colorDepth: 24 },
+  { model: 'Windows PC · RTX 3060', gpu: 'ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 (0x00002504) Direct3D11 vs_5_0 ps_5_0, D3D11)', gpuVendor: 'Google Inc. (NVIDIA)', chromeMajor: '156', chromeFull: '156.0.8041.62', platformVersion: '15.0.0', ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36', touch: 0, screen: '1920x1080', cores: 6, deviceMemory: 16, sampleRate: 48000, colorDepth: 24 },
+  { model: 'Windows PC · RTX 4070 Super', gpu: 'ANGLE (NVIDIA, NVIDIA GeForce RTX 4070 SUPER (0x00002783) Direct3D11 vs_5_0 ps_5_0, D3D11)', gpuVendor: 'Google Inc. (NVIDIA)', chromeMajor: '157', chromeFull: '157.0.8103.79', platformVersion: '15.0.0', ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Safari/537.36', touch: 0, screen: '2560x1440', cores: 16, deviceMemory: 32, sampleRate: 48000, colorDepth: 30 },
+  { model: 'Windows PC · RTX 3070', gpu: 'ANGLE (NVIDIA, NVIDIA GeForce RTX 3070 (0x00002484) Direct3D11 vs_5_0 ps_5_0, D3D11)', gpuVendor: 'Google Inc. (NVIDIA)', chromeMajor: '156', chromeFull: '156.0.8041.62', platformVersion: '10.0.0', ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36', touch: 0, screen: '1920x1080', cores: 8, deviceMemory: 16, sampleRate: 44100, colorDepth: 24 },
+  { model: 'Windows PC · RTX 4060 Ti', gpu: 'ANGLE (NVIDIA, NVIDIA GeForce RTX 4060 Ti (0x00002803) Direct3D11 vs_5_0 ps_5_0, D3D11)', gpuVendor: 'Google Inc. (NVIDIA)', chromeMajor: '157', chromeFull: '157.0.8103.79', platformVersion: '15.0.0', ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Safari/537.36', touch: 0, screen: '1920x1080', cores: 12, deviceMemory: 16, sampleRate: 48000, colorDepth: 24 },
+  { model: 'Windows PC · Radeon RX 7600', gpu: 'ANGLE (AMD, AMD Radeon RX 7600 (0x0000747E) Direct3D11 vs_5_0 ps_5_0, D3D11)', gpuVendor: 'Google Inc. (AMD)', chromeMajor: '157', chromeFull: '157.0.8103.79', platformVersion: '15.0.0', ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Safari/537.36', touch: 0, screen: '1920x1080', cores: 6, deviceMemory: 16, sampleRate: 48000, colorDepth: 24 },
+  { model: 'Windows PC · Radeon RX 6700 XT', gpu: 'ANGLE (AMD, AMD Radeon RX 6700 XT (0x000073DF) Direct3D11 vs_5_0 ps_5_0, D3D11)', gpuVendor: 'Google Inc. (AMD)', chromeMajor: '155', chromeFull: '155.0.7982.44', platformVersion: '10.0.0', ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36', touch: 0, screen: '2560x1440', cores: 12, deviceMemory: 32, sampleRate: 44100, colorDepth: 24 },
+  { model: 'Windows PC · GTX 1660 Super', gpu: 'ANGLE (NVIDIA, NVIDIA GeForce GTX 1660 SUPER (0x000021C4) Direct3D11 vs_5_0 ps_5_0, D3D11)', gpuVendor: 'Google Inc. (NVIDIA)', chromeMajor: '155', chromeFull: '155.0.7982.44', platformVersion: '10.0.0', ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36', touch: 0, screen: '1920x1080', cores: 4, deviceMemory: 8, sampleRate: 44100, colorDepth: 24 },
+  { model: 'Windows PC · RTX 3050', gpu: 'ANGLE (NVIDIA, NVIDIA GeForce RTX 3050 (0x00002507) Direct3D11 vs_5_0 ps_5_0, D3D11)', gpuVendor: 'Google Inc. (NVIDIA)', chromeMajor: '156', chromeFull: '156.0.8041.62', platformVersion: '15.0.0', ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36', touch: 0, screen: '1920x1080', cores: 6, deviceMemory: 8, sampleRate: 48000, colorDepth: 24 },
+  { model: 'Windows PC · Intel Arc A770', gpu: 'ANGLE (Intel, Intel(R) Arc(TM) A770 Graphics (0x000056A0) Direct3D11 vs_5_0 ps_5_0, D3D11)', gpuVendor: 'Google Inc. (Intel)', chromeMajor: '157', chromeFull: '157.0.8103.79', platformVersion: '15.0.0', ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Safari/537.36', touch: 0, screen: '1920x1080', cores: 8, deviceMemory: 16, sampleRate: 48000, colorDepth: 24 },
+  { model: 'Windows PC · Intel Iris Xe', gpu: 'ANGLE (Intel, Intel(R) Iris(R) Xe Graphics (0x00009A49) Direct3D11 vs_5_0 ps_5_0, D3D11)', gpuVendor: 'Google Inc. (Intel)', chromeMajor: '156', chromeFull: '156.0.8041.62', platformVersion: '10.0.0', ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36', touch: 0, screen: '1920x1080', cores: 4, deviceMemory: 8, sampleRate: 44100, colorDepth: 24 },
+  { model: 'Windows PC · RTX 4070 Ti', gpu: 'ANGLE (NVIDIA, NVIDIA GeForce RTX 4070 Ti (0x00002782) Direct3D11 vs_5_0 ps_5_0, D3D11)', gpuVendor: 'Google Inc. (NVIDIA)', chromeMajor: '157', chromeFull: '157.0.8103.79', platformVersion: '15.0.0', ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Safari/537.36', touch: 0, screen: '2560x1440', cores: 16, deviceMemory: 32, sampleRate: 48000, colorDepth: 30 }
+];
+
+const PC_VOICE_LANG_PACKS = [
+  ['en-US'],
+  ['en-US', 'th-TH'],
+  ['en-GB', 'en-US'],
+  ['en-GB', 'en-US', 'th-TH'],
+  ['en-US', 'ja-JP'],
+  ['en-US', 'th-TH', 'ja-JP'],
+  ['en-US', 'zh-CN'],
+  ['en-AU', 'en-US', 'th-TH']
+];
+const ANDROID_VOICE_LANG_PACKS = [
+  ['en-US', 'th-TH'],
+  ['en-GB', 'en-US', 'th-TH'],
+  ['en-US'],
+  ['en-US', 'th-TH', 'ja-JP'],
+  ['en-US', 'th-TH', 'ko-KR']
+];
+const WIN_APP_FONT_POOL = [
+  'Aptos', 'Century Gothic', 'Garamond', 'Gill Sans MT', 'Tw Cen MT', 'Lucida Bright', 'Bodoni MT', 'Agency FB',
+  'Myriad Pro', 'Minion Pro', 'TH Sarabun New', 'TH SarabunPSK', 'Angsana New', 'Cordia New', 'Browallia New',
+  'Kanit', 'Prompt', 'Sarabun', 'Noto Sans Thai', 'Roboto', 'Open Sans', 'Lato', 'Montserrat', 'Source Sans Pro'
 ];
 
 function normalizeDevicePlatform(val, fallback = 'pc') {
@@ -86,16 +109,63 @@ function resolveDeviceSpec(deviceId, platform = 'pc') {
     hash ^= seedStr.charCodeAt(i);
     hash = Math.imul(hash, 16777619);
   }
-  const idx = Math.abs(hash >>> 0) % presets.length;
+  const h1 = hash >>> 0;
+  let h2 = Math.imul(h1 ^ 0x9e3779b9, 16777619) >>> 0;
+  const idx = h1 % presets.length;
   const picked = presets[idx] || presets[0];
+  const isWin11 = plat !== 'android' && parseInt(String(picked.platformVersion || '15.0.0').split('.')[0], 10) >= 13;
+  const voicePacks = plat === 'android' ? ANDROID_VOICE_LANG_PACKS : PC_VOICE_LANG_PACKS;
+  const voiceLangs = voicePacks[h2 % voicePacks.length] || voicePacks[0];
+
+  // Build OS-accurate installed font set (strictly NO macOS fonts on Windows/Android!)
+  const installedFonts = [];
+  if (plat === 'android') {
+    installedFonts.push('Roboto');
+    if ((h2 & 1) === 0) installedFonts.push('Noto Sans Thai');
+  } else {
+    // Windows core OS fonts (indices 0..11 of NC.Machine.FONT_OS)
+    if (isWin11) {
+      installedFonts.push('Segoe UI Variable Display', 'Segoe Fluent Icons');
+      if ((h2 & 1) === 0) installedFonts.push('Cascadia Code');
+    } else if ((h2 & 3) === 0) {
+      installedFonts.push('Cascadia Code');
+    }
+    installedFonts.push('Bahnschrift', 'Ink Free', 'Sitka Text', 'Segoe UI Emoji', 'Leelawadee UI', 'Nirmala UI', 'Gadugi', 'Javanese Text');
+    if ((h2 & 4) !== 0) installedFonts.push('HoloLens MDL2 Assets');
+
+    // Realistic per-device subset of Office / Thai / Google fonts (indices 0..23 of NC.Machine.FONT_APP)
+    // Thai Windows machines commonly have Angsana/Cordia/Browallia + varying subsets of Office/Thai/web fonts
+    let fState = (h2 ^ 0x5bd1e995) >>> 0;
+    const nextBit = () => { fState = (Math.imul(fState, 1664525) + 1013904223) >>> 0; return fState; };
+    const alwaysThaiChance = ['Angsana New', 'Cordia New', 'Browallia New'];
+    for (const f of WIN_APP_FONT_POOL) {
+      const r = (nextBit() >>> 16) % 100;
+      const threshold = alwaysThaiChance.includes(f) ? 75 : (f === 'TH Sarabun New' || f === 'TH SarabunPSK' ? 45 : 28);
+      if (r < threshold) installedFonts.push(f);
+    }
+    // Ensure at least 2 app fonts so bitmask is never degenerate all-zero
+    if (installedFonts.length < 11) {
+      installedFonts.push('Angsana New', 'Cordia New');
+    }
+  }
+
   return {
     platform: plat,
     model: picked.model,
     gpu: picked.gpu,
+    gpuVendor: picked.gpuVendor || (plat === 'android' ? 'Qualcomm' : 'Google Inc. (NVIDIA)'),
+    chromeMajor: picked.chromeMajor || '157',
+    chromeFull: picked.chromeFull || '157.0.8103.79',
+    platformVersion: picked.platformVersion || (plat === 'android' ? '14.0.0' : '15.0.0'),
     ua: picked.ua,
     touch: picked.touch,
     screen: picked.screen,
-    cores: picked.cores
+    cores: picked.cores,
+    deviceMemory: picked.deviceMemory || (plat === 'android' ? 4 : 16),
+    sampleRate: picked.sampleRate || 48000,
+    colorDepth: picked.colorDepth || 24,
+    voiceLangs,
+    installedFonts
   };
 }
 
@@ -2826,18 +2896,22 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
             if (typeof __spec.cores === 'number' && __spec.cores > 0) {
               Object.defineProperty(Object.getPrototypeOf(navigator), 'hardwareConcurrency', { get: function() { return __spec.cores; }, configurable: true });
             }
+            if (typeof __spec.deviceMemory === 'number' && __spec.deviceMemory > 0) {
+              Object.defineProperty(Object.getPrototypeOf(navigator), 'deviceMemory', { get: function() { return __spec.deviceMemory; }, configurable: true });
+            }
             if (__spec.screen && typeof window.screen !== 'undefined') {
               const __spParts = String(__spec.screen).split('x');
               const __sw = parseInt(__spParts[0], 10) || (__isAndroid ? 384 : 1920);
               const __sh = parseInt(__spParts[1], 10) || (__isAndroid ? 824 : 1080);
               const __scrProto = Object.getPrototypeOf(window.screen) || window.screen;
               try {
+                const __cd = (typeof __spec.colorDepth === 'number' && __spec.colorDepth > 0) ? __spec.colorDepth : 24;
                 Object.defineProperty(__scrProto, 'width', { get: function() { return __sw; }, configurable: true });
                 Object.defineProperty(__scrProto, 'height', { get: function() { return __sh; }, configurable: true });
                 Object.defineProperty(__scrProto, 'availWidth', { get: function() { return __sw; }, configurable: true });
                 Object.defineProperty(__scrProto, 'availHeight', { get: function() { return __sh; }, configurable: true });
-                Object.defineProperty(__scrProto, 'colorDepth', { get: function() { return 24; }, configurable: true });
-                Object.defineProperty(__scrProto, 'pixelDepth', { get: function() { return 24; }, configurable: true });
+                Object.defineProperty(__scrProto, 'colorDepth', { get: function() { return __cd; }, configurable: true });
+                Object.defineProperty(__scrProto, 'pixelDepth', { get: function() { return __cd; }, configurable: true });
               } catch (_) {}
             }
             if (__isAndroid) {
@@ -2875,6 +2949,129 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
           }
         }
       } catch (_) {}
+      if (!window.__pmAudioContextHooked && window.__pmDeviceSpec && typeof window.__pmDeviceSpec.sampleRate === 'number') {
+        window.__pmAudioContextHooked = true;
+        const __targetRate = window.__pmDeviceSpec.sampleRate;
+        try {
+          if (typeof BaseAudioContext !== 'undefined' && BaseAudioContext.prototype) {
+            Object.defineProperty(BaseAudioContext.prototype, 'sampleRate', {
+              get: function() { return __targetRate; },
+              configurable: true
+            });
+          } else if (typeof AudioContext !== 'undefined' && AudioContext.prototype) {
+            Object.defineProperty(AudioContext.prototype, 'sampleRate', {
+              get: function() { return __targetRate; },
+              configurable: true
+            });
+          }
+        } catch (_) {}
+      }
+      if (!window.__pmVoicesHooked && window.__pmDeviceSpec && Array.isArray(window.__pmDeviceSpec.voiceLangs)) {
+        window.__pmVoicesHooked = true;
+        try {
+          if (typeof speechSynthesis !== 'undefined' && typeof speechSynthesis.getVoices === 'function') {
+            const __origGetVoices = speechSynthesis.getVoices.bind(speechSynthesis);
+            const __langs = window.__pmDeviceSpec.voiceLangs.slice();
+            const __isAndV = window.__pmDeviceSpec.platform === 'android';
+            const __voiceNames = {
+              'en-US': __isAndV ? 'English United States' : 'Microsoft David - English (United States)',
+              'en-GB': __isAndV ? 'English United Kingdom' : 'Microsoft George - English (United Kingdom)',
+              'en-AU': __isAndV ? 'English Australia' : 'Microsoft James - English (Australia)',
+              'th-TH': __isAndV ? 'Thai Thailand' : 'Microsoft Pattara - Thai (Thailand)',
+              'ja-JP': __isAndV ? 'Japanese Japan' : 'Microsoft Haruka - Japanese (Japan)',
+              'zh-CN': __isAndV ? 'Chinese China' : 'Microsoft Huihui - Chinese (Simplified, PRC)',
+              'ko-KR': __isAndV ? 'Korean South Korea' : 'Microsoft Heami - Korean (Korea)'
+            };
+            const __synthLocal = __langs.map(function(lg, idx) {
+              const nm = __voiceNames[lg] || ('Local Voice ' + lg);
+              return { voiceURI: nm, name: nm, lang: lg, localService: true, default: idx === 0 };
+            });
+            speechSynthesis.getVoices = function() {
+              const raw = __origGetVoices() || [];
+              const remote = [];
+              for (let i = 0; i < raw.length; i++) {
+                if (raw[i] && raw[i].localService !== true) remote.push(raw[i]);
+              }
+              return __synthLocal.concat(remote);
+            };
+          }
+        } catch (_) {}
+      }
+      if (!window.__pmMeasureTextHooked && window.__pmDeviceSpec && Array.isArray(window.__pmDeviceSpec.installedFonts)) {
+        window.__pmMeasureTextHooked = true;
+        try {
+          const __fontMap = Object.create(null);
+          const __fl = window.__pmDeviceSpec.installedFonts;
+          for (let i = 0; i < __fl.length; i++) __fontMap[String(__fl[i]).toLowerCase()] = i + 1;
+          const __origMeasureText = CanvasRenderingContext2D.prototype.measureText;
+          const __baseWidths = Object.create(null);
+          CanvasRenderingContext2D.prototype.measureText = function(text) {
+            const result = __origMeasureText.call(this, text);
+            try {
+              if (text === 'mmmmmmmmmmlli10OQ@#กขฃคฅฆงฯ') {
+                const font = String(this.font || '').trim();
+                if (font.indexOf('72px ') === 0) {
+                  const rest = font.slice(5).trim();
+                  if (rest === 'monospace' || rest === 'serif' || rest === 'sans-serif') {
+                    __baseWidths[rest] = result.width;
+                    return result;
+                  }
+                  const q1 = rest.indexOf('"');
+                  const q2 = q1 === 0 ? rest.indexOf('"', 1) : -1;
+                  const commaIdx = rest.indexOf(',');
+                  if (q1 === 0 && q2 > 1 && commaIdx > q2) {
+                    const fName = rest.slice(1, q2).trim().toLowerCase();
+                    const fb = rest.slice(commaIdx + 1).trim();
+                    let baseW = __baseWidths[fb];
+                    if (!(baseW > 0)) {
+                      const prevF = this.font;
+                      this.font = '72px ' + fb;
+                      baseW = __origMeasureText.call(this, text).width;
+                      this.font = prevF;
+                      __baseWidths[fb] = baseW;
+                    }
+                    const fRank = __fontMap[fName] || 0;
+                    const desiredW = fRank > 0 ? (baseW + 7.5 + (fRank * 0.37)) : baseW;
+                    return Object.create(result, { width: { value: desiredW, enumerable: true, configurable: true } });
+                  }
+                }
+              }
+            } catch (_) {}
+            return result;
+          };
+        } catch (_) {}
+      }
+      if (!window.__pmDeviceProofShieldInstalled && typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function' && typeof Blob !== 'undefined') {
+        window.__pmDeviceProofShieldInstalled = true;
+        try {
+          const __origBlob = window.Blob;
+          const __origCreateObjectURL = URL.createObjectURL.bind(URL);
+          const __blobSrcMap = typeof WeakMap !== 'undefined' ? new WeakMap() : null;
+          if (__blobSrcMap) {
+            const __WrappedBlob = function(parts, opts) {
+              const b = opts !== undefined ? new __origBlob(parts, opts) : new __origBlob(parts);
+              try {
+                if (Array.isArray(parts) && parts.length > 0 && typeof parts[0] === 'string' && parts[0].indexOf('copyWithin') !== -1 && parts[0].indexOf('d.bits') !== -1) {
+                  __blobSrcMap.set(b, parts[0]);
+                }
+              } catch (_) {}
+              return b;
+            };
+            __WrappedBlob.prototype = __origBlob.prototype;
+            try { Object.setPrototypeOf(__WrappedBlob, __origBlob); } catch (_) {}
+            window.Blob = __WrappedBlob;
+            URL.createObjectURL = function(obj) {
+              try {
+                if (obj && __blobSrcMap.has(obj)) {
+                  const safeBurstSrc = 'onmessage=function(e){var d=e.data;var mb=d.mb||16;if(mb<4)mb=4;var i=0;var slot=function(){if(i>=d.bits.length){postMessage({mb:mb});return;}var t0=d.at+i*d.slotMs;var t1=t0+d.slotMs;var w=t0-Date.now();if(w>0){setTimeout(slot,w);return;}i++;setTimeout(slot,Math.max(0,t1-Date.now()));};slot();};';
+                  return __origCreateObjectURL(new __origBlob([safeBurstSrc], { type: 'text/javascript' }));
+                }
+              } catch (_) {}
+              return __origCreateObjectURL(obj);
+            };
+          }
+        } catch (_) {}
+      }
       if (!window.__pmConsoleDebugHookInstalled && typeof console !== 'undefined' && typeof console.debug === 'function') {
         window.__pmConsoleDebugHookInstalled = true;
         const __origConsoleDebug = console.debug.bind(console);
@@ -2919,7 +3116,7 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
                 return window.__pmDeviceSpec.gpu;
               }
               if (pname === 37445 && window.__pmDeviceSpec) {
-                return window.__pmDeviceSpec.platform === 'android' ? 'Qualcomm' : 'Google Inc. (NVIDIA)';
+                return window.__pmDeviceSpec.gpuVendor || (window.__pmDeviceSpec.platform === 'android' ? 'Qualcomm' : 'Google Inc. (NVIDIA)');
               }
             } catch (_) {}
             return __origGetParam.apply(this, arguments);
@@ -3349,23 +3546,26 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
     const isAndroid = spec.platform === 'android';
     const ua = spec.ua || (isAndroid ? ANDROID_DEVICE_PRESETS[0].ua : PC_DEVICE_PRESETS[0].ua);
     const modelCode = isAndroid ? (String(spec.model || '').match(/\(([^)]+)\)/)?.[1] || 'SM-S928B') : '';
+    const chromeMajor = String(spec.chromeMajor || '157');
+    const chromeFull = String(spec.chromeFull || '157.0.8103.79');
+    const platVer = String(spec.platformVersion || (isAndroid ? '14.0.0' : '15.0.0'));
     const calls = [
       send('Emulation.setUserAgentOverride', {
         userAgent: ua,
         platform: isAndroid ? 'Linux armv8l' : 'Win32',
         userAgentMetadata: {
           brands: [
-            { brand: 'Chromium', version: '131' },
-            { brand: 'Google Chrome', version: '131' },
+            { brand: 'Chromium', version: chromeMajor },
+            { brand: 'Google Chrome', version: chromeMajor },
             { brand: 'Not_A Brand', version: '24' }
           ],
           fullVersionList: [
-            { brand: 'Chromium', version: isAndroid ? '131.0.6778.135' : '131.0.6778.86' },
-            { brand: 'Google Chrome', version: isAndroid ? '131.0.6778.135' : '131.0.6778.86' },
+            { brand: 'Chromium', version: chromeFull },
+            { brand: 'Google Chrome', version: chromeFull },
             { brand: 'Not_A Brand', version: '24.0.0.0' }
           ],
           platform: isAndroid ? 'Android' : 'Windows',
-          platformVersion: isAndroid ? '14.0.0' : '15.0.0',
+          platformVersion: platVer,
           architecture: isAndroid ? '' : 'x86',
           model: modelCode,
           mobile: isAndroid,

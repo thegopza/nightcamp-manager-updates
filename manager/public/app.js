@@ -8590,6 +8590,8 @@ window.switchMainTab = switchMainTab;
 (() => {
   let saved = null;
   try { saved = localStorage.getItem("manager.activeTab"); } catch (e) {}
+  // buildsim now opens in a separate tab; fall back to profiles
+  if (saved === "buildsim") saved = "profiles";
   if (saved && document.querySelector(`.tab-pane[data-pane="${saved}"]`)) switchMainTab(saved);
 })();
 
@@ -8612,6 +8614,8 @@ function initZenyConsolidationEvents() {
   // Main Tab Navigation Listeners
   document.querySelectorAll(".tab-btn").forEach(btn => {
     btn.onclick = () => {
+      const extUrl = btn.getAttribute("data-external");
+      if (extUrl) { window.open(extUrl, '_blank'); return; }
       const tabName = btn.getAttribute("data-tab");
       if (tabName) switchMainTab(tabName);
     };
