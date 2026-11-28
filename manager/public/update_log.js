@@ -9,6 +9,50 @@
 (function () {
   const UPDATE_LOGS = [
     {
+      version: 'v2.3.43',
+      date: '2026-11-29 01:40',
+      type: 'major',
+      title: 'เพิ่มระบบ "🧑 Humanize (จำลองพฤติกรรมมนุษย์)": ปล่อย Idle กลับเมืองยืนพักจนตัวหลุดแล้วกลับเข้าเกมเองตามเวลา + Random Task สุ่มแวะคุย NPC อื่นๆ ในเมืองโดยไม่เสียอะไร',
+      badge: 'HUMANIZE ENGINE · SCHEDULED CAMP IDLE & AUTO-RECONNECT · RANDOM TOWN NPC TASKS · BOT v2.3.59',
+      uiPreviews: [
+        {
+          label: 'UI ใหม่ · เมนู 🧑 Humanize (ปล่อย Idle & Random Task ในเมือง)',
+          title: 'ตั้งค่าปล่อย Idle (เช่น 15–30 นาที ทุก 2–3 ชั่วโมง) และสุ่มแวะคุย NPC อื่นๆ ในค่ายเมื่อกลับเมือง (ค่าเริ่มต้น: ปิด)',
+          desc: 'ในแท็บ "🚀 บอท" ทั้งในหน้าจอเกมและในเมนูบอท/เมนูส่วนกลางของ Manager มีหัวข้อใหม่ "[ ] 🧑 Humanize [▶ แสดง]" ให้เปิดใช้งานได้ตามต้องการ รองรับการตั้งเวลาปล่อยพักจนตัวหลุดและล็อกอินกลับเข้าเกมเองเมื่อครบเวลา รวมถึงการสุ่มเดินแวะคุย NPC ในค่ายโดยไม่เสียเงินหรือไอเทม',
+          img: 'assets/updates/ui_v2343_humanize_idle_random_task.svg',
+          mockupHtml: `
+            <div style="background:rgba(46,16,101,0.36);border:1px solid rgba(168,85,247,0.48);border-radius:9px;padding:9px 11px;display:flex;flex-direction:column;gap:7px;font-family:'Prompt',sans-serif;">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;">
+                <span style="font-size:12px;font-weight:800;color:#e9d5ff;">☑️ 🧑 Humanize (จำลองพฤติกรรมคน · ค่าเริ่มต้น: ปิด)</span>
+                <span style="background:rgba(2,6,23,0.7);border:1px solid rgba(192,132,252,0.5);color:#e9d5ff;border-radius:5px;padding:2px 8px;font-size:10px;font-weight:700;">▼ ซ่อน</span>
+              </div>
+              <div style="background:rgba(15,23,42,0.75);border:1px solid rgba(250,204,21,0.4);border-radius:7px;padding:7px 9px;display:flex;flex-direction:column;gap:5px;">
+                <div style="font-size:11px;font-weight:800;color:#fde047;">☑️ 💤 ปล่อย Idle (กลับเมืองยืนพักจนหลุด แล้วเข้าใหม่เมื่อครบเวลา)</div>
+                <div style="display:flex;align-items:center;justify-content:space-between;font-size:10.5px;color:#e2e8f0;">
+                  <span>⏱️ ปล่อยพักนาน:</span>
+                  <span><b style="background:#050811;border:1px solid #facc15;color:#fde047;padding:1px 8px;border-radius:4px;">15</b> - <b style="background:#050811;border:1px solid #facc15;color:#fde047;padding:1px 8px;border-radius:4px;">30</b> นาที</span>
+                </div>
+                <div style="display:flex;align-items:center;justify-content:space-between;font-size:10.5px;color:#e2e8f0;">
+                  <span>🎲 สุ่มเกิด 1 ครั้งภายใน:</span>
+                  <span><b style="background:#050811;border:1px solid #a855f7;color:#d8b4fe;padding:1px 8px;border-radius:4px;">2</b> - <b style="background:#050811;border:1px solid #a855f7;color:#d8b4fe;padding:1px 8px;border-radius:4px;">3</b> ชั่วโมง</span>
+                </div>
+              </div>
+              <div style="background:rgba(15,23,42,0.75);border:1px solid rgba(56,189,248,0.35);border-radius:7px;padding:7px 9px;display:flex;flex-direction:column;gap:3px;">
+                <div style="font-size:11px;font-weight:800;color:#7dd3fc;">☑️ 🎭 Random Task (แวะคุย NPC อื่นๆ เมื่อกลับเมืองโดยไม่เสียอะไร)</div>
+                <div style="font-size:9.5px;color:#94a3b8;">🔥 นั่งผิงไฟกองไฟค่าย · 🍲 เปิดเมนูเชฟหมี · ⚒️ เปิดดูเตาป๋าหมูหริ่ง · 📋 ส่องป้ายปาร์ตี้/ใบสั่งงาน · 🏪 ส่องตลาดกลาง · 🌿 คุย NPC อาชีพเสริม</div>
+              </div>
+            </div>
+          `
+        }
+      ],
+      features: [
+        '🧑 เพิ่มระบบ "Humanize (จำลองพฤติกรรมคน)" ในแท็บ "🚀 บอท" ทั้งบนหน้าจอในเกม, เมนูบอทรายจอ และเมนูส่วนกลาง (ค่าเริ่มต้น: ปิดไว้ให้ผู้ใช้งานเลือกเปิดเองได้ พร้อมปุ่ม [▶ แสดง / ▼ ซ่อน] พับเก็บเมนูย่อย)',
+        '💤 ระบบ "ปล่อย Idle" (ตั้งเวลาพักเป็นนาที เช่น 15 – 30 นาที และตั้งรอบสุ่มเกิดเป็นชั่วโมง เช่น ทุก 2 – 3 ชั่วโมง): เมื่อครบชั่วโมงขั้นต่ำ (เช่น 2 ชม.) ระบบจะสุ่มนาทีในช่วงชั่วโมงที่ 2–3 เพื่อพากลับเข้าเมือง (ค่ายกลางป่า) มายืนเฉยๆ จนตัวละครหลุดออกจากเซิร์ฟเวอร์ตามธรรมชาติ แล้วพักรอจนครบ 15–30 นาทีจึงล็อกอินกลับเข้าเกมและฟาร์มต่อให้อัตโนมัติ พร้อมปุ่ม "💤 ทดสอบปล่อย Idle ตอนนี้" และปุ่ม "▶️ ยกเลิก Idle / ลุยต่อทันที"',
+        '🎭 ระบบ "Random Task ในเมือง": เมื่อตัวละครกลับเข้าค่ายกลางป่ามาขายของ/ต้มยา/ซ่อมอุปกรณ์ บอทจะไม่ทำแค่ขายของแล้ววาร์ปออกทันที แต่จะสุ่มเดินแวะไปทำกิจกรรมกับ NPC จุดอื่นๆ ในค่าย 1–2 จุดก่อนออกฟาร์ม (เช่น 🔥 นั่งผิงไฟที่กองไฟค่าย, 🍲 เปิดดูเมนูอาหารเชฟหมี, ⚒️ เปิดดูเตาหลอมป๋าหมูหริ่ง, 📋 ส่องกระดานปาร์ตี้และใบสั่งงานค่าย, 🏪 ส่องสินค้าขายดีในตลาดกลาง, 🌿 แวะคุย NPC อาชีพเสริม) โดยไม่เสียเงินหรือไอเทมใดๆ เพื่อให้มีประวัติการทำกิจกรรมหลากหลายเหมือนผู้เล่นจริง'
+      ],
+      fixes: []
+    },
+    {
       version: 'v2.3.42',
       date: '2026-11-29 01:15',
       type: 'major',

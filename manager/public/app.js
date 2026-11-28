@@ -10303,6 +10303,63 @@ function getNightcampHudTemplate(profileId, clientData, profile) {
       </div>
       </div>
 
+      <!-- 🧑 Humanize Engine (Collapsible · Default OFF) -->
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:6px; border-top:1px solid rgba(255,255,255,0.08); padding-top:5px;">
+        <label style="display:flex; align-items:center; gap:5px; font-size:10.5px; font-weight:700; color:#e9d5ff; cursor:pointer; min-width:0; flex:1;" title="จำลองพฤติกรรมมนุษย์: สุ่มกลับเมืองมายืนปล่อย Idle จนตัวหลุดแล้วรอเข้าใหม่ตามเวลา + สุ่มเดินแวะคุย/เปิดดู NPC อื่นๆ ในเมืองเมื่อกลับค่าย (ค่าเริ่มต้น: ปิด)">
+          <input type="checkbox" id="p-nc-humanize-enabled" ${state?.humanizeConfig?.enabled === true ? 'checked' : ''} style="accent-color:#a855f7; flex-shrink:0;">
+          <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">🧑 Humanize (จำลองพฤติกรรมคน)</span>
+        </label>
+        <button type="button" id="p-btn-nc-toggle-humanize" title="ย่อ/ขยายเมนูย่อยของ Humanize" style="padding:2px 8px; border-radius:4px; border:1px solid rgba(192,132,252,0.5); background:rgba(2,6,23,0.65); color:#e9d5ff; font-size:9.5px; font-weight:700; cursor:pointer; white-space:nowrap; flex-shrink:0;">${localStorage.getItem('pm_nc_humanize_collapsed') !== 'false' ? '▶ แสดง' : '▼ ซ่อน'}</button>
+      </div>
+      <div id="p-nc-humanize-summary" style="display:${localStorage.getItem('pm_nc_humanize_collapsed') !== 'false' ? 'block' : 'none'}; font-size:9px; color:#c4b5fd; padding-left:18px; line-height:1.3; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHTML(state?.humanizeSummary?.statusText || '💤 ปล่อย Idle (15–30 นาที · ทุก 2–3 ชม.) · 🎭 Random Task คุย NPC ในเมือง (กด "แสดง" เพื่อตั้งค่า)')}</div>
+      <div id="p-nc-humanize-subpanel" style="display:${localStorage.getItem('pm_nc_humanize_collapsed') !== 'false' ? 'none' : 'flex'}; flex-direction:column; gap:6px; padding-left:10px;">
+        <!-- Sub-feature 1: ปล่อย Idle -->
+        <div style="padding:6px 8px; border-radius:6px; background:rgba(15,23,42,0.68); border:1px solid rgba(192,132,252,0.35); display:flex; flex-direction:column; gap:5px;">
+          <label style="display:flex; align-items:center; gap:5px; font-size:10px; font-weight:700; color:#fde047; cursor:pointer;" title="เมื่อถึงรอบเวลาที่สุ่มไว้ บอทจะกลับเข้าเมืองมายืนเฉยๆ จนตัวหลุดออกจากเซิร์ฟเวอร์ แล้วรอจนครบเวลา Idle จึงล็อกอินกลับเข้าเกมเอง">
+            <input type="checkbox" id="p-nc-humanize-idle-enabled" ${state?.humanizeConfig?.idleEnabled !== false ? 'checked' : ''} style="accent-color:#eab308;">
+            <span>💤 ปล่อย Idle (กลับเมืองยืนพักจนหลุด แล้วเข้าใหม่เมื่อครบเวลา)</span>
+          </label>
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:5px; font-size:9.6px; color:#e2e8f0; padding-left:16px;">
+            <span style="white-space:nowrap;">⏱️ ปล่อยพักนาน:</span>
+            <div style="display:flex; align-items:center; gap:4px;">
+              <input type="number" id="p-nc-humanize-idle-min" min="1" max="240" value="${state?.humanizeConfig?.idleMinMin ?? 15}" style="width:46px; background:#090d16; border:1px solid rgba(250,204,21,0.45); color:#fde047; font-weight:700; border-radius:4px; font-size:10px; padding:2px 4px; text-align:center;">
+              <span>-</span>
+              <input type="number" id="p-nc-humanize-idle-max" min="1" max="240" value="${state?.humanizeConfig?.idleMaxMin ?? 30}" style="width:46px; background:#090d16; border:1px solid rgba(250,204,21,0.45); color:#fde047; font-weight:700; border-radius:4px; font-size:10px; padding:2px 4px; text-align:center;">
+              <span style="color:#94a3b8;">นาที</span>
+            </div>
+          </div>
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:5px; font-size:9.6px; color:#e2e8f0; padding-left:16px;">
+            <span style="white-space:nowrap;">🎲 สุ่มเกิด 1 ครั้งภายใน:</span>
+            <div style="display:flex; align-items:center; gap:4px;">
+              <input type="number" id="p-nc-humanize-interval-min" min="0.1" max="48" step="0.5" value="${state?.humanizeConfig?.intervalMinHours ?? 2}" style="width:46px; background:#090d16; border:1px solid rgba(168,85,247,0.5); color:#d8b4fe; font-weight:700; border-radius:4px; font-size:10px; padding:2px 4px; text-align:center;">
+              <span>-</span>
+              <input type="number" id="p-nc-humanize-interval-max" min="0.1" max="48" step="0.5" value="${state?.humanizeConfig?.intervalMaxHours ?? 3}" style="width:46px; background:#090d16; border:1px solid rgba(168,85,247,0.5); color:#d8b4fe; font-weight:700; border-radius:4px; font-size:10px; padding:2px 4px; text-align:center;">
+              <span style="color:#94a3b8;">ชั่วโมง</span>
+            </div>
+          </div>
+          <div style="font-size:8.8px; color:#94a3b8; line-height:1.3; padding-left:16px;">
+            💡 เช่น ตั้ง 2–3 ชม.: หลังครบ 2 ชม. ระบบจะสุ่มนาทีในช่วงชั่วโมงที่ 2–3 เพื่อกลับเมืองมายืนเฉยๆ จนตัวหลุด แล้วรอครบ 15–30 นาทีจึงกลับเข้าเกมเอง
+          </div>
+          <div style="display:flex; gap:5px; padding-left:16px; padding-top:2px;">
+            <button type="button" id="p-btn-nc-humanize-idle-now" style="flex:1; padding:3px 7px; border-radius:4px; border:1px solid rgba(250,204,21,0.45); background:rgba(234,179,8,0.16); color:#fde047; font-size:9.3px; font-weight:700; cursor:pointer;">💤 ทดสอบปล่อย Idle ตอนนี้</button>
+            <button type="button" id="p-btn-nc-humanize-cancel-idle" style="padding:3px 8px; border-radius:4px; border:1px solid rgba(52,211,153,0.5); background:rgba(16,185,129,0.22); color:#6ee7b7; font-size:9.3px; font-weight:700; cursor:pointer;">▶️ ยกเลิก Idle / ลุยต่อ</button>
+          </div>
+        </div>
+
+        <!-- Sub-feature 2: Random Task -->
+        <div style="padding:6px 8px; border-radius:6px; background:rgba(15,23,42,0.68); border:1px solid rgba(56,189,248,0.32); display:flex; flex-direction:column; gap:4px;">
+          <label style="display:flex; align-items:center; gap:5px; font-size:10px; font-weight:700; color:#7dd3fc; cursor:pointer;" title="เมื่อกลับเมือง บอทจะไม่แค่ขายของ/ต้มยาอย่างเดียว แต่จะสุ่มเดินไปคุยและเปิดดู NPC อื่นๆ ในค่ายโดยไม่เสียเงินหรือไอเทม">
+            <input type="checkbox" id="p-nc-humanize-random-task-enabled" ${state?.humanizeConfig?.randomTaskEnabled !== false ? 'checked' : ''} style="accent-color:#38bdf8;">
+            <span>🎭 Random Task (แวะคุย NPC อื่นๆ เมื่อกลับเมืองโดยไม่เสียอะไร)</span>
+          </label>
+          <div style="font-size:8.8px; color:#94a3b8; line-height:1.3; padding-left:16px;">
+            🔥 นั่งผิงไฟกองไฟค่าย · 🍲 เปิดเมนูเชฟหมี · ⚒️ เปิดดูเตาป๋าหมูหริ่ง · 📋 ส่องป้ายปาร์ตี้/ใบสั่งงาน · 🏪 ส่องตลาดกลาง · 🌿 คุย NPC อาชีพเสริม
+          </div>
+        </div>
+
+        <div id="p-nc-humanize-status" style="font-size:9px; color:#86efac; background:rgba(2,6,23,0.55); border-radius:4px; padding:3px 7px; line-height:1.3;">${escapeHTML(state?.humanizeSummary?.statusText || '⏸️ ปิดอยู่ (ค่าเริ่มต้น)')}</div>
+      </div>
+
       <div style="display:flex; flex-direction:column; gap:4px; border-top:1px solid rgba(255,255,255,0.08); padding-top:5px;">
         <span style="font-size:10px; font-weight:700; color:#e2e8f0;">🗺️ แมพฟาร์มประจำ (เมื่อปิด Auto-Quest):</span>
         <input type="text" id="p-nc-target-farm-map-search" placeholder="🔍 พิมพ์ค้นหาชื่อแมพ หรือ เลเวล (คลิกเพื่อเลือกแมพ)..." autocomplete="off" style="width:100%; background:#090d16; border:1px solid rgba(148,163,184,0.35); color:#e2e8f0; border-radius:4px; font-size:10px; padding:4px 6px; box-sizing:border-box;">
@@ -11321,6 +11378,69 @@ async function openWebBotHUD(profileId) {
       if (upgradeAiSummary) upgradeAiSummary.style.display = nextCollapsed ? 'block' : 'none';
       toggleUpgradeAiBtn.textContent = nextCollapsed ? '▶ แสดง' : '▼ ซ่อน';
       try { localStorage.setItem('pm_nc_upgrade_ai_collapsed', nextCollapsed ? 'true' : 'false'); } catch (_) {}
+    };
+  }
+
+  const toggleHumanizeBtn = hudEl.querySelector('#p-btn-nc-toggle-humanize');
+  const humanizeSubpanel = hudEl.querySelector('#p-nc-humanize-subpanel');
+  const humanizeSummary = hudEl.querySelector('#p-nc-humanize-summary');
+  if (toggleHumanizeBtn && humanizeSubpanel) {
+    toggleHumanizeBtn.onclick = () => {
+      const nextCollapsed = humanizeSubpanel.style.display !== 'none';
+      humanizeSubpanel.style.display = nextCollapsed ? 'none' : 'flex';
+      if (humanizeSummary) humanizeSummary.style.display = nextCollapsed ? 'block' : 'none';
+      toggleHumanizeBtn.textContent = nextCollapsed ? '▶ แสดง' : '▼ ซ่อน';
+      try { localStorage.setItem('pm_nc_humanize_collapsed', nextCollapsed ? 'true' : 'false'); } catch (_) {}
+    };
+  }
+
+  for (const [sel, key, isBool] of [
+    ['#p-nc-humanize-enabled', 'enabled', true],
+    ['#p-nc-humanize-idle-enabled', 'idleEnabled', true],
+    ['#p-nc-humanize-idle-min', 'idleMinMin', false],
+    ['#p-nc-humanize-idle-max', 'idleMaxMin', false],
+    ['#p-nc-humanize-interval-min', 'intervalMinHours', false],
+    ['#p-nc-humanize-interval-max', 'intervalMaxHours', false],
+    ['#p-nc-humanize-random-task-enabled', 'randomTaskEnabled', true]
+  ]) {
+    const hEl = hudEl.querySelector(sel);
+    if (hEl) {
+      hEl.onchange = async () => {
+        markCentralControlEdited(hEl);
+        const val = isBool ? Boolean(hEl.checked) : Number(hEl.value || 0);
+        if (!isBool && (!Number.isFinite(val) || val <= 0)) return;
+        try {
+          await sendWebHudAction(profileId, {
+            type: 'eval',
+            code: `(typeof window.__setHumanizeConfig === 'function' ? window.__setHumanizeConfig({ ${key}: ${JSON.stringify(val)} }) : null)`
+          });
+        } catch (_) {}
+      };
+    }
+  }
+
+  const humIdleNowBtn = hudEl.querySelector('#p-btn-nc-humanize-idle-now');
+  if (humIdleNowBtn) {
+    humIdleNowBtn.onclick = async () => {
+      try {
+        await sendWebHudAction(profileId, {
+          type: 'eval',
+          code: `(typeof window.__triggerHumanizeIdleNow === 'function' ? window.__triggerHumanizeIdleNow() : null)`
+        });
+        showToast('💤 สั่งบอทกลับเมืองไปปล่อย Idle ทันทีแล้ว!', 'success');
+      } catch (_) {}
+    };
+  }
+  const humCancelBtn = hudEl.querySelector('#p-btn-nc-humanize-cancel-idle');
+  if (humCancelBtn) {
+    humCancelBtn.onclick = async () => {
+      try {
+        await sendWebHudAction(profileId, {
+          type: 'eval',
+          code: `(typeof window.__cancelHumanizeIdleNow === 'function' ? window.__cancelHumanizeIdleNow() : null)`
+        });
+        showToast('▶️ ยกเลิกรอบปล่อย Idle และสั่งบอทกลับเข้าเกมไปลุยต่อแล้ว!', 'success');
+      } catch (_) {}
     };
   }
 
@@ -12584,6 +12704,13 @@ const CENTRAL_HUD_FIELD_SPECS = [
   ['#p-nc-auto-boost-drop', 'bool', st => st.autoUseBoostConfig?.drop === true],
   ['#p-nc-auto-boost-warmth', 'bool', st => st.autoUseBoostConfig?.warmth === true],
   ['#p-nc-auto-boost-gather', 'bool', st => st.autoUseBoostConfig?.gather === true],
+  ['#p-nc-humanize-enabled', 'bool', st => st.humanizeConfig?.enabled === true],
+  ['#p-nc-humanize-idle-enabled', 'bool', st => st.humanizeConfig?.idleEnabled !== false],
+  ['#p-nc-humanize-idle-min', 'text', st => String(st.humanizeConfig?.idleMinMin ?? 15)],
+  ['#p-nc-humanize-idle-max', 'text', st => String(st.humanizeConfig?.idleMaxMin ?? 30)],
+  ['#p-nc-humanize-interval-min', 'text', st => String(st.humanizeConfig?.intervalMinHours ?? 2)],
+  ['#p-nc-humanize-interval-max', 'text', st => String(st.humanizeConfig?.intervalMaxHours ?? 3)],
+  ['#p-nc-humanize-random-task-enabled', 'bool', st => st.humanizeConfig?.randomTaskEnabled !== false],
   ['#p-nc-autorespawn-enabled', 'bool', st => Boolean(st.autoRespawnEnabled)],
   ['#p-nc-smartgear-enabled', 'bool', st => Boolean(st.smartGearEnabled)],
   ['#p-nc-smartgear-wtype', 'select', st => String(st.smartGearWeaponType || 'auto')],
@@ -12875,6 +13002,30 @@ function populateWebHudData(profileId, data) {
   const boostStatusEl = hud.querySelector('#p-nc-auto-boost-status');
   if (boostStatusEl && st.autoBoostSummary) {
     boostStatusEl.textContent = formatManagerAutoBoostSummary(st.autoBoostSummary);
+  }
+  if (st.humanizeConfig && typeof st.humanizeConfig === 'object') {
+    const hc = st.humanizeConfig;
+    setField('#p-nc-humanize-enabled', hc.enabled === true, true);
+    setField('#p-nc-humanize-idle-enabled', hc.idleEnabled !== false, true);
+    setField('#p-nc-humanize-idle-min', hc.idleMinMin ?? 15, false);
+    setField('#p-nc-humanize-idle-max', hc.idleMaxMin ?? 30, false);
+    setField('#p-nc-humanize-interval-min', hc.intervalMinHours ?? 2, false);
+    setField('#p-nc-humanize-interval-max', hc.intervalMaxHours ?? 3, false);
+    setField('#p-nc-humanize-random-task-enabled', hc.randomTaskEnabled !== false, true);
+  }
+  if (st.humanizeSummary && typeof st.humanizeSummary === 'object') {
+    const humStatEl = hud.querySelector('#p-nc-humanize-status');
+    const humSumEl = hud.querySelector('#p-nc-humanize-summary');
+    const txt = st.humanizeSummary.statusText || '⏸️ ปิดอยู่ (ค่าเริ่มต้น)';
+    const col = st.humanizeSummary.isIdling ? '#fde047' : (st.humanizeSummary.enabled ? '#86efac' : '#94a3b8');
+    if (humStatEl) {
+      humStatEl.textContent = txt;
+      humStatEl.style.color = col;
+    }
+    if (humSumEl) {
+      humSumEl.textContent = txt;
+      humSumEl.style.color = col;
+    }
   }
   if (typeof st.autoRespawnEnabled === 'boolean') setField('#p-nc-autorespawn-enabled', st.autoRespawnEnabled, true);
   if (typeof st.smartGearEnabled === 'boolean') setField('#p-nc-smartgear-enabled', st.smartGearEnabled, true);
