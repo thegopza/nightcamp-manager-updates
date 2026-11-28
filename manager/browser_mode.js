@@ -7660,6 +7660,24 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
     }
     let target = matchingTabs[0] || null;
 
+    // If openVisibleWindow is requested and existing target was accidentally attached to a game window, close it and create a standalone window
+    if (target && openVisibleWindow) {
+      try {
+        const smWin = await send('Browser.getWindowForTarget', { targetId: target.targetId }, undefined, 2500).catch(() => null);
+        if (smWin && smWin.windowId) {
+          const gameTabs = targets.filter(t => t.type === 'page' && t.targetId !== target.targetId && /nightcamp\.app/i.test(String(t.url || '')));
+          for (const gt of gameTabs) {
+            const gWin = await send('Browser.getWindowForTarget', { targetId: gt.targetId }, undefined, 2000).catch(() => null);
+            if (gWin && gWin.windowId === smWin.windowId) {
+              await send('Target.closeTarget', { targetId: target.targetId }, undefined, 2500).catch(() => {});
+              target = null;
+              break;
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
     let createdNew = false;
     if (!target) {
       if (!allowCreateTab && !openVisibleWindow) {
@@ -7667,7 +7685,9 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
       }
       const created = await send('Target.createTarget', {
         url: 'https://smailpro.com/temporary-email',
-        newWindow: Boolean(openVisibleWindow)
+        newWindow: true,
+        width: 1100,
+        height: 800
       });
       const targetId = created?.targetId;
       if (!targetId) throw new Error('ไม่สามารถเปิดแท็บ SmailPro ในเบราว์เซอร์ได้');
@@ -7702,14 +7722,15 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
         if (winInfo && winInfo.windowId) {
           await send('Browser.setWindowBounds', {
             windowId: winInfo.windowId,
-            bounds: { windowState: 'normal' }
+            bounds: { windowState: 'normal', width: 1100, height: 800 }
           }, undefined, 3000).catch(() => {});
         }
       } catch (_) {}
       await send('Target.activateTarget', { targetId: target.targetId }, undefined, 3000).catch(() => {});
+      await send('Page.bringToFront', {}, sessionId, 2500).catch(() => {});
     }
 
-    // Wait for document ready
+    // Wait for document ready — NEVER hijack/navigate away if user is currently on my.sonjj.com logging in!
     for (let i = 0; i < 20; i++) {
       const r = await send('Runtime.evaluate', {
         expression: `({ href: location.href, host: location.hostname, ready: document.readyState })`,
@@ -7718,7 +7739,12 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
       }, sessionId, 3000).catch(() => null);
       const val = r?.result?.value;
       if (val && val.ready && val.ready !== 'loading' && val.href !== 'about:blank') {
-        if (requireSmailProOrigin && String(val.host || '').toLowerCase() !== 'smailpro.com') {
+        const hostLow = String(val.host || '').toLowerCase();
+        const isUserLoggingInOnSonjj = hostLow.includes('sonjj.com');
+        if (requireSmailProOrigin && hostLow !== 'smailpro.com') {
+          if (isUserLoggingInOnSonjj) {
+            throw new Error('กรุณาล็อกอินในหน้าต่าง SmailPro (my.sonjj.com) ที่เปิดอยู่ให้เสร็จก่อน');
+          }
           await send('Page.navigate', { url: 'https://smailpro.com/temporary-email' }, sessionId, 8000).catch(() => {});
           await new Promise(res => setTimeout(res, 1200));
           continue;
@@ -7746,7 +7772,7 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
       const { sessionId, targetId, snapshot } = await ensureSmailProWebTab({
         openVisibleWindow: true,
         requireSmailProOrigin: false,
-        cookieHeaderToInject: payload?.cookieHeader || ''
+        cookieHeaderToInject: ''
       });
       // If user is not logged in yet and currently on smailpro.com, navigate straight to the SSO Login page so they can log in immediately!
       if (snapshot && !snapshot.isLoggedIn && snapshot.host === 'smailpro.com' && !payload?.stayOnHome) {
@@ -7798,11 +7824,12 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
           cookieHeader: smailproWebState.cookieHeader
         };
       }
+      // Passive check only — NEVER pass cookieHeaderToInject here (which would reload the page while the user is typing their login!)
       const { snapshot } = await ensureSmailProWebTab({
         openVisibleWindow: false,
         allowCreateTab: false,
         requireSmailProOrigin: false,
-        cookieHeaderToInject: payload?.cookieHeader || ''
+        cookieHeaderToInject: ''
       });
       return {
         success: true,
@@ -7871,7 +7898,7 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
       if (!rawCookie) throw new Error('กรุณาวาง Cookie ของเว็บ SmailPro ก่อน');
       const { snapshot } = await ensureSmailProWebTab({
         openVisibleWindow: false,
-        allowCreateTab: true,
+        allowCreateTab: false,
         requireSmailProOrigin: true,
         cookieHeaderToInject: rawCookie
       });
@@ -7882,11 +7909,11 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
     }
 
     if (action === 'web-cloud-history') {
-      const { sessionId, snapshot } = await ensureSmailProWebTab({
+      const { snapshot } = await ensureSmailProWebTab({
         openVisibleWindow: false,
-        allowCreateTab: true,
-        requireSmailProOrigin: true,
-        cookieHeaderToInject: payload?.cookieHeader || ''
+        allowCreateTab: false,
+        requireSmailProOrigin: false,
+        cookieHeaderToInject: ''
       });
       return {
         success: true,
@@ -7900,9 +7927,9 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
       const query = payload?.query || { username: 'random', type: 'real', domain: 'outlook.com', server: '2' };
       const { sessionId, snapshot } = await ensureSmailProWebTab({
         openVisibleWindow: false,
-        allowCreateTab: true,
+        allowCreateTab: false,
         requireSmailProOrigin: true,
-        cookieHeaderToInject: payload?.cookieHeader || ''
+        cookieHeaderToInject: ''
       });
       const evalRes = await send('Runtime.evaluate', {
         expression: `(async () => {
@@ -7993,9 +8020,9 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
 
       const { sessionId } = await ensureSmailProWebTab({
         openVisibleWindow: false,
-        allowCreateTab: true,
+        allowCreateTab: false,
         requireSmailProOrigin: true,
-        cookieHeaderToInject: payload?.cookieHeader || ''
+        cookieHeaderToInject: ''
       });
 
       const evalRes = await send('Runtime.evaluate', {
@@ -8127,9 +8154,9 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
 
       const { sessionId } = await ensureSmailProWebTab({
         openVisibleWindow: false,
-        allowCreateTab: true,
+        allowCreateTab: false,
         requireSmailProOrigin: true,
-        cookieHeaderToInject: payload?.cookieHeader || ''
+        cookieHeaderToInject: ''
       });
 
       const evalRes = await send('Runtime.evaluate', {

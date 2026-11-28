@@ -312,14 +312,19 @@ const READ_JS = `(() => {
   );
   let inWorldVerifyAwaiting = false;
   let lobbyModalVerifyAwaiting = false;
+  let inWorldVerifyOpen = false;
+  let inWorldVerifyChangeLeft = 0;
+  const emailVerifyEnabledInGame = Boolean(c.emailVerifySystemEnabled);
   try {
     const vf = window.NC?.OnlineVerify?.state?.();
     const vfSt = vf?.st || null;
     const sqVerifyEl = document.querySelector('#sq [data-sq="verify"]');
     if (vf && vfSt) {
+      inWorldVerifyOpen = !vfSt.done;
+      inWorldVerifyChangeLeft = Number(vfSt.changeLeft || 0);
       if (vfSt.done) {
         try { window.NC?.OnlineVerify?.close?.(); } catch (_) {}
-      } else {
+      } else if (emailVerifyEnabledInGame) {
         if (vfSt.bad && (vfSt.kind === 'wrong_code' || /รหัสไม่ถูกต้อง/i.test(vfSt.note || '')) && window.__lastSubmittedNightcampOtpCode) {
           window.__ncLastRejectedOtpCode = window.__lastSubmittedNightcampOtpCode;
         }
@@ -356,7 +361,8 @@ const READ_JS = `(() => {
           inWorldVerifyAwaiting = true;
         }
       }
-    } else if (sqVerifyEl) {
+    } else if (sqVerifyEl && emailVerifyEnabledInGame) {
+      inWorldVerifyOpen = true;
       const sendBtn = sqVerifyEl.querySelector('button[data-act="send"], button[data-act="remail"]');
       if (sendBtn && !sendBtn.disabled && (Date.now() - (window.__ncLastInWorldVerifySendAt || 0) > 6500)) {
         window.__ncLastInWorldVerifySendAt = Date.now();
@@ -401,10 +407,18 @@ const READ_JS = `(() => {
     window.__ncVerifyStatusCache?.email?.masked ||
     ''
   ).trim();
+  const verifyConfirmed = Boolean(
+    (vfStateNow && (vfStateNow.confirmed || vfStateNow.done)) ||
+    window.__ncVerifyStatusCache?.email?.confirmed
+  );
   return {
     username: String(c.username || liveOnlineAccount || '').trim(),
     liveAccountEmail: liveOnlineAccount,
     verifyMaskedEmail,
+    verifyConfirmed,
+    inWorldVerifyOpen,
+    inWorldVerifyChangeLeft,
+    emailVerifySystemEnabled: Boolean(c.emailVerifySystemEnabled),
     email: String(c.email || '').trim(),
     password: String(c.password || ''),
     serverName: String(c.serverName || '').trim(),
@@ -1078,16 +1092,20 @@ function createAuthSync({
   function getCandidateCreds(profile) {
     let c = pendingCreds.get(profile.id);
     const hasAccount = !!(profile.account && profile.account.trim());
-    if (!c || (hasAccount && c.username !== profile.account.trim())) {
+    const emailSysEnabled = Boolean(smailproService && typeof smailproService.loadSettings === 'function' && smailproService.loadSettings()?.enabled);
+    if (!c || (hasAccount && c.username !== profile.account.trim()) || (!hasAccount && !emailSysEnabled && /@outlook\.com$/i.test(c.username) && !c.isSmailPro)) {
       let uname = hasAccount ? profile.account.trim() : genUserId(existingAccounts());
-      if (uname && !uname.includes('@')) uname = uname + (hasAccount ? '@gmail.com' : '@outlook.com');
+      if (!hasAccount && !emailSysEnabled) {
+        uname = String(uname || '').replace(/@outlook\.com$/i, '@gmail.com');
+      }
+      if (uname && !uname.includes('@')) uname = uname + ((hasAccount || !emailSysEnabled) ? '@gmail.com' : '@outlook.com');
       const person = genPersonProfile();
       c = {
         username: uname,
         password: pw(profile) || genPassword(),
         charName: (profile.charName && profile.charName.trim()) || genCharName(),
         generatedUser: !hasAccount || !!profile.generatedAccount,
-        outlookReady: Boolean(profile.outlookCreated || (hasAccount && !profile.autoRegister)),
+        outlookReady: Boolean(!emailSysEnabled || profile.outlookCreated || (hasAccount && !profile.autoRegister)),
         ...person
       };
       pendingCreds.set(profile.id, c);
@@ -1518,8 +1536,14 @@ function createAuthSync({
       }
 
       let cred = getCandidateCreds(profile);
-      const isSmailProMode = Boolean(smailproService && smailproService.getMode() === 'smailpro');
-      if (isSmailProMode && (!cred.isSmailPro || !cred.outlookReady)) {
+      const emailSettingsNow = smailproService && typeof smailproService.loadSettings === 'function'
+        ? smailproService.loadSettings()
+        : { enabled: false };
+      const isEmailSysEnabled = Boolean(emailSettingsNow && emailSettingsNow.enabled);
+      const isSmailProMode = Boolean(isEmailSysEnabled && smailproService && smailproService.getMode() === 'smailpro');
+      if (!isEmailSysEnabled) {
+        cred.outlookReady = true;
+      } else if (isSmailProMode && (!cred.isSmailPro || !cred.outlookReady)) {
         try {
           await callClientOutlookFlow(profile.debugPort, { action: 'close-tab' }, 2000).catch(() => {});
           const alloc = await smailproService.allocateUniqueSmailProEmail({
@@ -1554,7 +1578,7 @@ function createAuthSync({
           scheduleReadyWakeup(profile.id, nowFn() + 4500);
           return;
         }
-      } else if (!isSmailProMode && /@outlook\.com$/i.test(cred.username) && !cred.outlookReady && !cur.outlookReady) {
+      } else if (isEmailSysEnabled && !isSmailProMode && /@outlook\.com$/i.test(cred.username) && !cred.outlookReady && !cur.outlookReady) {
         let olRes = await callClientOutlookFlow(profile.debugPort, {
           action: 'ensure-signup',
           username: cred.username,
@@ -1617,7 +1641,8 @@ function createAuthSync({
       }
 
       const pushRes = await evalProfilePort(profile.debugPort, pushJs({
-        enabled: true, autoResumeBot: Boolean(profile.autoResumeBot), username: cred.username, email: cred.username, password: cred.password,
+        enabled: true, autoResumeBot: Boolean(profile.autoResumeBot), emailVerifySystemEnabled: isEmailSysEnabled,
+        username: cred.username, email: cred.username, password: cred.password,
         serverName: profile.serverName || '', charName: profile.charName || cred.charName || '',
         register: true, registerDone: false, outlookReady: true, autoCreateChar: true, generatedUser: !!cred.generatedUser,
         ...(identityChangedAt > 0 ? { forceResetAuth: true } : {})
@@ -1657,6 +1682,14 @@ function createAuthSync({
       profile.account = cur.username;
     }
 
+    const emailSettings = smailproService && typeof smailproService.loadSettings === 'function'
+      ? smailproService.loadSettings()
+      : { enabled: false };
+    const isEmailVerificationEnabled = Boolean(emailSettings && emailSettings.enabled);
+    if (cur.emailVerifySystemEnabled !== isEmailVerificationEnabled) {
+      await evalProfilePort(profile.debugPort, pushJs({ emailVerifySystemEnabled: isEmailVerificationEnabled }), 2000).catch(() => {});
+    }
+
     // Auto-populate `profile.email` (`📧 อีเมลยืนยัน / SmailPro Email`) when empty:
     // 1) From profile.account or liveAccountEmail if it's already a full email
     // 2) From SmailPro Cloud History / Registry matching the game's masked verified email (`te•••@outlook.com` -> `terrychavez6376+m1ur0@outlook.com`)!
@@ -1668,7 +1701,7 @@ function createAuthSync({
         autoDetectedEmail = String(cur.liveAccountEmail).trim().toLowerCase();
       } else if (cur.email && String(cur.email).includes('@')) {
         autoDetectedEmail = String(cur.email).trim().toLowerCase();
-      } else if (cur.verifyMaskedEmail && smailproService && typeof smailproService.findEmailByMaskOrHistory === 'function') {
+      } else if (isEmailVerificationEnabled && cur.verifyMaskedEmail && smailproService && typeof smailproService.findEmailByMaskOrHistory === 'function') {
         autoDetectedEmail = await smailproService.findEmailByMaskOrHistory(cur.verifyMaskedEmail, profile.id).catch(() => '');
       }
       if (autoDetectedEmail && autoDetectedEmail.includes('@')) {
@@ -1679,12 +1712,89 @@ function createAuthSync({
       }
     }
 
-    // Handle 6-digit Email OTP verification across ALL 3 places:
+    // When Email Verification System is turned ON (`isEmailVerificationEnabled === true`) and an existing in-game character
+    // has NOT verified its email yet (`cur.inWorldVerifyOpen && !cur.verifyConfirmed`) and its current email is NOT a real managed
+    // SmailPro/Outlook email (e.g. it was registered with a dummy @gmail.com while the system was OFF):
+    // Automatically allocate a real email from the chosen system (SmailPro or Outlook), save it into `profile.email`,
+    // and let `READ_JS` call `vf.changeSend(newEmail)` ("เปลี่ยนอีเมล") in-game to send & verify the 6-digit OTP!
+    if (isEmailVerificationEnabled && cur.inWorldVerifyOpen && !cur.verifyConfirmed && cur.inWorldVerifyChangeLeft > 0 && smailproService) {
+      const currentVerifyMail = String(profile.email || '').trim().toLowerCase();
+      const isManagedRealMail = Boolean(
+        currentVerifyMail &&
+        typeof smailproService.isKnownManagedEmail === 'function' &&
+        smailproService.isKnownManagedEmail(currentVerifyMail)
+      );
+      if (!isManagedRealMail) {
+        if (smailproService.getMode() === 'smailpro') {
+          try {
+            const alloc = await smailproService.allocateUniqueSmailProEmail({
+              profileId: profile.id,
+              profileName: profile.name || profile.id,
+              password: pw(profile) || cur.password || '',
+              charName: cur.charName || profile.charName || '',
+              serverName: cur.serverName || profile.serverName || '',
+              existingSet: existingAccounts()
+            });
+            if (alloc && alloc.email) {
+              updateProfile(profile.id, { email: alloc.email });
+              profile.email = alloc.email;
+              await evalProfilePort(profile.debugPort, pushJs({
+                email: alloc.email,
+                emailVerifySystemEnabled: true
+              }), 2500).catch(() => {});
+              console.log(`[AuthSync] 📧🔄 ${profile.name}: ตัวละครยังไม่ได้ยืนยันอีเมล -> ดึงเมลจริงจาก SmailPro "${alloc.email}" ไปกดเปลี่ยนอีเมล & ยืนยัน OTP ในเกมอัตโนมัติ`);
+              scheduleReadyWakeup(profile.id, nowFn() + 2500);
+            }
+          } catch (_) {}
+        } else {
+          // Mode 1: Built-in Outlook
+          const cred = getCandidateCreds(profile);
+          const outlookMail = /@outlook\.com$/i.test(currentVerifyMail)
+            ? currentVerifyMail
+            : (/@outlook\.com$/i.test(cred.username) ? cred.username : (genUserId(existingAccounts()).replace(/@gmail\.com$/i, '@outlook.com')));
+          const person = genPersonProfile();
+          const olRes = await callClientOutlookFlow(profile.debugPort, {
+            action: 'ensure-signup',
+            username: outlookMail,
+            password: pw(profile) || cred.password || genPassword(),
+            firstName: cred.firstName || person.firstName,
+            lastName: cred.lastName || person.lastName,
+            birthDay: cred.birthDay || person.birthDay,
+            birthMonth: cred.birthMonth || person.birthMonth,
+            birthYear: cred.birthYear || person.birthYear
+          });
+          if (olRes?.status === 'ready') {
+            if (typeof smailproService.recordAccountLocally === 'function') {
+              smailproService.recordAccountLocally({
+                profileId: profile.id,
+                profileName: profile.name || profile.id,
+                username: profile.account || outlookMail,
+                password: pw(profile) || '',
+                email: outlookMail,
+                provider: 'builtin_outlook',
+                charName: cur.charName || profile.charName || '',
+                serverName: cur.serverName || profile.serverName || ''
+              });
+            }
+            updateProfile(profile.id, { email: outlookMail, outlookCreated: true });
+            profile.email = outlookMail;
+            await evalProfilePort(profile.debugPort, pushJs({
+              email: outlookMail,
+              emailVerifySystemEnabled: true
+            }), 2500).catch(() => {});
+            console.log(`[AuthSync] 📧🔄 ${profile.name}: ตัวละครยังไม่ได้ยืนยันอีเมล -> สร้างเมล Outlook จริง "${outlookMail}" ไปกดเปลี่ยนอีเมล & ยืนยัน OTP ในเกมอัตโนมัติ`);
+            scheduleReadyWakeup(profile.id, nowFn() + 2500);
+          }
+        }
+      }
+    }
+
+    // Handle 6-digit Email OTP verification across ALL 3 places (ONLY when `isEmailVerificationEnabled === true`!):
     // 1) In-Game World `ยืนยันอีเมล เหลือ 2 วัน 23 ชม.` window (#sq [data-sq="verify"] / NC.OnlineVerify)
     // 2) Sign-In Overdue Email Verification modal (.cs-modal.cs-verify)
     // 3) Sign-Up Email OTP step (NC.OnlineLobby.codeSent)
     let activeEmailForOtp = String(profile.email || cur.email || cur.username || profile.account || '').trim();
-    if (cur.awaitingEmailOtp && !activeEmailForOtp.includes('@') && cur.verifyMaskedEmail && smailproService && typeof smailproService.findEmailByMaskOrHistory === 'function') {
+    if (isEmailVerificationEnabled && cur.awaitingEmailOtp && !activeEmailForOtp.includes('@') && cur.verifyMaskedEmail && smailproService && typeof smailproService.findEmailByMaskOrHistory === 'function') {
       const matched = await smailproService.findEmailByMaskOrHistory(cur.verifyMaskedEmail, profile.id).catch(() => '');
       if (matched && matched.includes('@')) {
         activeEmailForOtp = matched;
@@ -1692,10 +1802,13 @@ function createAuthSync({
         profile.email = matched;
       }
     }
-    if (cur.awaitingEmailOtp && activeEmailForOtp.includes('@')) {
+    if (isEmailVerificationEnabled && cur.awaitingEmailOtp && activeEmailForOtp.includes('@')) {
+      const sSettings = smailproService && typeof smailproService.loadSettings === 'function' ? smailproService.loadSettings() : null;
       const useSmailProOtp = Boolean(
         smailproService &&
-        (smailproService.getMode() === 'smailpro' || !/@(outlook|hotmail|live)\.com$/i.test(activeEmailForOtp))
+        smailproService.getMode() === 'smailpro' &&
+        sSettings &&
+        (sSettings.smailproWebLoggedIn || sSettings.smailproApiKey)
       );
       if (useSmailProOtp) {
         const otpRes = await smailproService.pollOtp({

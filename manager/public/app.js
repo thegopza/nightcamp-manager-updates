@@ -21769,6 +21769,9 @@ function initEmailRegSettingsUi() {
   const modeBadge = document.getElementById('email-reg-mode-badge');
   const radioBuiltin = document.getElementById('radio-mode-builtin');
   const radioSmailpro = document.getElementById('radio-mode-smailpro');
+  const chkMasterEnabled = document.getElementById('chk-email-reg-enabled');
+  const cardMasterToggle = document.getElementById('card-email-reg-master-toggle');
+  const badgeMasterState = document.getElementById('badge-email-reg-master-state');
   const cardBuiltin = document.getElementById('card-mode-builtin');
   const cardSmailpro = document.getElementById('card-mode-smailpro');
   const webSessionBadge = document.getElementById('smailpro-web-session-badge');
@@ -21805,14 +21808,34 @@ function initEmailRegSettingsUi() {
   }
 
   function updateCardVisuals() {
+    const isEnabled = Boolean(chkMasterEnabled && chkMasterEnabled.checked);
     const isSmail = Boolean(radioSmailpro && radioSmailpro.checked);
+    if (cardMasterToggle) {
+      cardMasterToggle.style.borderColor = isEnabled ? 'rgba(16, 185, 129, 0.78)' : 'rgba(148, 163, 184, 0.32)';
+      cardMasterToggle.style.background = isEnabled ? 'rgba(6, 78, 59, 0.28)' : 'rgba(15, 23, 42, 0.92)';
+    }
+    if (badgeMasterState) {
+      if (isEnabled) {
+        badgeMasterState.textContent = isSmail ? '🟢 เปิดใช้งาน (SmailPro)' : '🟢 เปิดใช้งาน (Outlook)';
+        badgeMasterState.style.background = 'rgba(16, 185, 129, 0.25)';
+        badgeMasterState.style.color = '#6ee7b7';
+        badgeMasterState.style.borderColor = 'rgba(52, 211, 153, 0.55)';
+      } else {
+        badgeMasterState.textContent = '⏸️ ปิดอยู่ (สมัครปกติ ไม่ยืนยันเมล)';
+        badgeMasterState.style.background = 'rgba(148, 163, 184, 0.2)';
+        badgeMasterState.style.color = '#cbd5e1';
+        badgeMasterState.style.borderColor = 'rgba(148, 163, 184, 0.35)';
+      }
+    }
     if (cardBuiltin) {
       cardBuiltin.style.borderColor = !isSmail ? 'rgba(56, 189, 248, 0.75)' : 'rgba(148, 163, 184, 0.22)';
       cardBuiltin.style.background = !isSmail ? 'rgba(14, 165, 233, 0.14)' : 'rgba(15, 23, 42, 0.75)';
+      cardBuiltin.style.opacity = isEnabled ? '1' : '0.68';
     }
     if (cardSmailpro) {
       cardSmailpro.style.borderColor = isSmail ? 'rgba(16, 185, 129, 0.75)' : 'rgba(148, 163, 184, 0.22)';
       cardSmailpro.style.background = isSmail ? 'rgba(16, 185, 129, 0.14)' : 'rgba(15, 23, 42, 0.75)';
+      cardSmailpro.style.opacity = isEnabled ? '1' : '0.68';
     }
   }
 
@@ -21842,6 +21865,13 @@ function initEmailRegSettingsUi() {
 
   function updateHeaderBadge(effectiveMode, settings) {
     if (!modeBadge) return;
+    if (!settings || !settings.enabled) {
+      modeBadge.textContent = 'ปิดยืนยันเมล';
+      modeBadge.style.background = 'rgba(148, 163, 184, 0.22)';
+      modeBadge.style.color = '#cbd5e1';
+      modeBadge.style.borderColor = 'rgba(148, 163, 184, 0.4)';
+      return;
+    }
     if (effectiveMode === 'smailpro' || (settings && settings.mode === 'smailpro')) {
       modeBadge.textContent = settings?.smailproWebIsPremium ? 'SmailPro 👑' : 'SmailPro';
       modeBadge.style.background = 'rgba(16, 185, 129, 0.28)';
@@ -21899,6 +21929,7 @@ function initEmailRegSettingsUi() {
       updateHeaderBadge(data.effectiveMode, s);
       updateWebSessionBadge(s);
       if (populateInputs) {
+        if (chkMasterEnabled) chkMasterEnabled.checked = Boolean(s.enabled);
         if (radioSmailpro && radioBuiltin) {
           radioSmailpro.checked = s.mode === 'smailpro';
           radioBuiltin.checked = s.mode !== 'smailpro';
@@ -21922,6 +21953,25 @@ function initEmailRegSettingsUi() {
 
   if (radioBuiltin) radioBuiltin.addEventListener('change', updateCardVisuals);
   if (radioSmailpro) radioSmailpro.addEventListener('change', updateCardVisuals);
+  if (chkMasterEnabled) {
+    chkMasterEnabled.addEventListener('change', async () => {
+      updateCardVisuals();
+      try {
+        const res = await fetch('/api/email-reg/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            enabled: Boolean(chkMasterEnabled.checked),
+            mode: (radioSmailpro && radioSmailpro.checked) ? 'smailpro' : 'builtin_outlook'
+          })
+        });
+        const data = await res.json();
+        if (data && data.success) {
+          updateHeaderBadge(data.effectiveMode, data.settings);
+        }
+      } catch (_) {}
+    });
+  }
 
   window.__openEmailRegSettingsModal = function() {
     modal.style.display = 'flex';
@@ -22205,6 +22255,7 @@ function initEmailRegSettingsUi() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            enabled: Boolean(chkMasterEnabled && chkMasterEnabled.checked),
             mode,
             smailproAuthMode: 'web',
             smailproApiKey,

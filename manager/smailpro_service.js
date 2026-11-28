@@ -78,6 +78,7 @@ function createSmailProService({
 
   function loadSettings() {
     const defaults = {
+      enabled: false, // Default OFF: register normally without verifying email unless user enables this
       mode: 'builtin_outlook', // 'builtin_outlook' | 'smailpro'
       smailproAuthMode: 'web', // 'web' (SmailPro Web Premium Session/Cookies — no API credit) | 'api_key' | 'auto'
       smailproApiKey: '',
@@ -103,6 +104,7 @@ function createSmailProService({
       if (fs.existsSync(settingsFile)) {
         const raw = JSON.parse(fs.readFileSync(settingsFile, 'utf8'));
         return {
+          enabled: Boolean(raw?.enabled),
           mode: raw?.mode === 'smailpro' ? 'smailpro' : 'builtin_outlook',
           smailproAuthMode: ['web', 'api_key', 'auto'].includes(raw?.smailproAuthMode)
             ? raw.smailproAuthMode
@@ -138,6 +140,9 @@ function createSmailProService({
   function saveSettings(patch = {}) {
     const cur = loadSettings();
     const next = {
+      enabled: patch.enabled !== undefined
+        ? Boolean(patch.enabled)
+        : cur.enabled,
       mode: patch.mode !== undefined
         ? (patch.mode === 'smailpro' ? 'smailpro' : 'builtin_outlook')
         : cur.mode,
@@ -289,6 +294,16 @@ function createSmailProService({
     return reg.inboxKeys[clean] || null;
   }
 
+  function isKnownManagedEmail(email) {
+    const clean = String(email || '').trim().toLowerCase();
+    if (!clean || !clean.includes('@')) return false;
+    const reg = loadRegistry();
+    if (reg.inboxKeys && reg.inboxKeys[clean]) return true;
+    if (reg.usedEmails.some(e => String(e || '').trim().toLowerCase() === clean)) return true;
+    if (reg.accounts.some(a => String(a?.email || a?.username || '').trim().toLowerCase() === clean)) return true;
+    return false;
+  }
+
   function mergeSmailProHistoryItems(items = []) {
     if (!Array.isArray(items) || items.length === 0) return 0;
     const reg = loadRegistry();
@@ -328,38 +343,29 @@ function createSmailProService({
 
   let lastCloudHistorySyncAt = 0;
   async function syncSmailProCloudHistory(force = false) {
+    const s = loadSettings();
+    if (s.mode !== 'smailpro' || !s.smailproWebLoggedIn || !s.smailproWebCookie) return;
     if (!force && Date.now() - lastCloudHistorySyncAt < 30000) return;
     lastCloudHistorySyncAt = Date.now();
-    const s = loadSettings();
-    if (s.smailproWebCookie) {
-      try {
-        const res = await nodeSmailProWebRequest('/app/history', { method: 'GET' });
-        if (res && Array.isArray(res.items) && res.items.length > 0) {
-          mergeSmailProHistoryItems(res.items);
-          return;
-        }
-      } catch (_) {}
-    }
-    if (browserModeRef && typeof browserModeRef.smailproWebAction === 'function') {
-      try {
-        const webRes = await browserModeRef.smailproWebAction({
-          action: 'web-cloud-history',
-          cookieHeader: s.smailproWebCookie || ''
-        });
-        if (webRes && Array.isArray(webRes.items) && webRes.items.length > 0) {
-          mergeSmailProHistoryItems(webRes.items);
-        }
-      } catch (_) {}
-    }
+    try {
+      const res = await nodeSmailProWebRequest('/app/history', { method: 'GET' });
+      if (res && Array.isArray(res.items) && res.items.length > 0) {
+        mergeSmailProHistoryItems(res.items);
+        return;
+      }
+    } catch (_) {}
   }
 
   async function findEmailByMaskOrHistory(maskedEmail, profileId = '') {
+    const s = loadSettings();
     const targetMask = String(maskedEmail || '').trim().toLowerCase();
     if (!targetMask || !targetMask.includes('@')) return '';
     if (!targetMask.includes('•') && !targetMask.includes('*')) {
       return targetMask;
     }
-    await syncSmailProCloudHistory(false).catch(() => {});
+    if (s.mode === 'smailpro' && s.smailproWebLoggedIn && s.smailproWebCookie) {
+      await syncSmailProCloudHistory(false).catch(() => {});
+    }
     const reg = loadRegistry();
     const candidates = [];
     const seen = new Set();
@@ -1402,14 +1408,16 @@ function createSmailProService({
     if (!browserModeRef || typeof browserModeRef.smailproWebAction !== 'function') {
       return { success: false, error: 'ระบบ Browser Mode ยังไม่พร้อมใช้งาน' };
     }
-    if (cookieHeader) {
-      saveSettings({ smailproWebCookie: cookieHeader, mode: 'smailpro', smailproAuthMode: 'web' });
-    }
+    const cleanInject = String(cookieHeader || '').trim();
     const s = loadSettings();
+    const isNewManualCookie = Boolean(cleanInject && cleanInject !== String(s.smailproWebCookie || '').trim());
+    if (isNewManualCookie) {
+      saveSettings({ smailproWebCookie: cleanInject, mode: 'smailpro', smailproAuthMode: 'web' });
+    }
     const res = await browserModeRef.smailproWebAction({
-      action: cookieHeader ? 'inject-cookies' : 'check-session',
+      action: isNewManualCookie ? 'inject-cookies' : 'check-session',
       ensureTab,
-      cookieHeader: cookieHeader || s.smailproWebCookie
+      cookieHeader: isNewManualCookie ? cleanInject : ''
     });
     if (res && res.success) {
       onWebSessionHarvested(res);
@@ -1543,7 +1551,8 @@ function createSmailProService({
     exportAccountsText,
     syncSmailProCloudHistory,
     findEmailByMaskOrHistory,
-    maskNightcampEmail
+    maskNightcampEmail,
+    isKnownManagedEmail
   };
 }
 

@@ -10422,19 +10422,22 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // Realtime Broadcast Announcements (synced by Username ID)
+  // Realtime Broadcast Announcements (synced by Username ID) + Forced Full-Screen Game Browser Overlay
   if (pathname === '/api/announcements/poll' && req.method === 'GET') {
     try {
       const accessSt = typeof humanCheckSolver.getAccessState === 'function' ? humanCheckSolver.getAccessState() : {};
       if (accessSt.requiresLogin || !accessSt.isUserAccount || !accessSt.username) {
+        syncForcedScreenAnnouncementToGameClients(null).catch(() => {});
         return sendJSON({
           success: true,
           requiresLogin: true,
           unackedAnnouncements: [],
-          historyAnnouncements: []
+          historyAnnouncements: [],
+          forcedScreenAnnouncement: null
         });
       }
       const result = await humanCheckSolver.announcementRequest('/v1/aetheria/pmheenc/machine/announcements/poll', null);
+      syncForcedScreenAnnouncementToGameClients(result?.forcedScreenAnnouncement || null).catch(() => {});
       return sendJSON(result);
     } catch (e) {
       return sendJSON({
@@ -16360,6 +16363,198 @@ async function runAutoFarmOrchestratorTick() {
   }
 }
 
+let currentForcedScreenAnnouncement = null;
+let lastForcedScreenDigest = "";
+const forcedScreenAppliedPerPort = new Map();
+let forcedScreenPollBusy = false;
+
+function buildForcedScreenOverlayScript(forcedAnn) {
+  const payloadJson = JSON.stringify(forcedAnn && forcedAnn.isActive ? {
+    id: String(forcedAnn.id || ""),
+    body: String(forcedAnn.body || ""),
+    imageDataUrl: String(forcedAnn.imageDataUrl || ""),
+    bgColor: String(forcedAnn.bgColor || "#3b4cca"),
+    textColor: String(forcedAnn.textColor || "#000000"),
+    fontSize: String(forcedAnn.fontSize || "54px"),
+    updatedAt: Number(forcedAnn.updatedAt) || 0
+  } : null);
+  return `(() => {
+    try {
+      const ann = ${payloadJson};
+      window.__pmForcedScreenAnn = ann;
+      const applyOverlay = () => {
+        const cur = window.__pmForcedScreenAnn;
+        const existing = document.getElementById('pm-forced-fullscreen-announcement');
+        if (!cur) {
+          if (existing) existing.remove();
+          if (window.__pmForcedScreenGuardTimer) {
+            clearInterval(window.__pmForcedScreenGuardTimer);
+            window.__pmForcedScreenGuardTimer = null;
+          }
+          return;
+        }
+        const root = document.body || document.documentElement;
+        if (!root) return;
+        let el = existing;
+        const digest = [cur.id, cur.updatedAt, cur.bgColor, cur.textColor, cur.fontSize, cur.body, (cur.imageDataUrl || '').length, (cur.imageDataUrl || '').slice(0, 64)].join('|');
+        if (!el) {
+          el = document.createElement('div');
+          el.id = 'pm-forced-fullscreen-announcement';
+          const stopEvt = (ev) => {
+            try { ev.stopPropagation(); ev.stopImmediatePropagation(); } catch (_) {}
+          };
+          [' pointerdown', 'pointerup', 'mousedown', 'mouseup', 'click', 'dblclick', 'contextmenu', 'wheel', 'touchstart', 'touchend', 'keydown', 'keyup'].forEach(t => {
+            el.addEventListener(t.trim(), stopEvt, true);
+          });
+          root.appendChild(el);
+        }
+        if (el.getAttribute('data-digest') !== digest) {
+          el.setAttribute('data-digest', digest);
+          el.style.cssText = [
+            'position:fixed',
+            'inset:0',
+            'top:0',
+            'left:0',
+            'width:100vw',
+            'height:100vh',
+            'z-index:2147483647',
+            'overflow:hidden',
+            'display:flex',
+            'align-items:center',
+            'justify-content:center',
+            'pointer-events:all',
+            'user-select:none',
+            'box-sizing:border-box',
+            'background:' + (cur.bgColor || '#3b4cca')
+          ].join(';');
+          let img = el.querySelector('#pm-forced-fullscreen-bg');
+          if (cur.imageDataUrl) {
+            if (!img) {
+              img = document.createElement('img');
+              img.id = 'pm-forced-fullscreen-bg';
+              el.insertBefore(img, el.firstChild);
+            }
+            img.style.cssText = 'position:absolute;inset:0;top:0;left:0;width:100%;height:100%;object-fit:fill;z-index:1;pointer-events:none;user-select:none;display:block;';
+            if (img.getAttribute('src') !== cur.imageDataUrl) {
+              img.setAttribute('src', cur.imageDataUrl);
+            }
+          } else if (img) {
+            img.remove();
+          }
+          let txt = el.querySelector('#pm-forced-fullscreen-text');
+          const hasText = Boolean(cur.body && String(cur.body).trim());
+          if (hasText) {
+            if (!txt) {
+              txt = document.createElement('div');
+              txt.id = 'pm-forced-fullscreen-text';
+              el.appendChild(txt);
+            }
+            txt.style.cssText = [
+              'position:relative',
+              'z-index:2',
+              'max-width:92vw',
+              'max-height:92vh',
+              'padding:24px 36px',
+              'text-align:center',
+              'white-space:pre-wrap',
+              'word-break:break-word',
+              "font-family:'Kanit','Prompt','Noto Sans Thai',sans-serif",
+              'font-weight:700',
+              'line-height:1.35',
+              'pointer-events:none',
+              'color:' + (cur.textColor || '#000000'),
+              'font-size:' + (cur.fontSize || '54px')
+            ].join(';');
+            txt.textContent = String(cur.body);
+          } else if (txt) {
+            txt.remove();
+          }
+        }
+      };
+      applyOverlay();
+      if (ann && !window.__pmForcedScreenGuardTimer) {
+        window.__pmForcedScreenGuardTimer = setInterval(applyOverlay, 1000);
+      }
+      return { ok: true, active: Boolean(ann) };
+    } catch (err) {
+      return { ok: false, error: err && err.message ? err.message : String(err) };
+    }
+  })()`;
+}
+
+async function syncForcedScreenAnnouncementToGameClients(forcedAnn) {
+  const activeAnn = (forcedAnn && forcedAnn.isActive) ? forcedAnn : null;
+  currentForcedScreenAnnouncement = activeAnn;
+  const digest = activeAnn
+    ? [
+        activeAnn.id,
+        activeAnn.updatedAt,
+        activeAnn.bgColor,
+        activeAnn.textColor,
+        activeAnn.fontSize,
+        activeAnn.body,
+        (activeAnn.imageDataUrl || "").length,
+        (activeAnn.imageDataUrl || "").slice(0, 64)
+      ].join("|")
+    : "NONE";
+  const digestChanged = digest !== lastForcedScreenDigest;
+  lastForcedScreenDigest = digest;
+
+  let profiles = [];
+  try {
+    profiles = loadProfiles().filter(p => p && p.debugPort && browserMode.isOpen(p.id));
+  } catch (_) {}
+
+  if (!activeAnn && !digestChanged && forcedScreenAppliedPerPort.size === 0) {
+    return;
+  }
+
+  const script = buildForcedScreenOverlayScript(activeAnn);
+  const openPorts = new Set();
+  await Promise.all(profiles.map(async (p) => {
+    const port = Number(p.debugPort);
+    if (!port) return;
+    openPorts.add(port);
+    // When active, re-verify every tick so newly navigated/reloaded game windows always receive the overlay immediately.
+    // When inactive, only push removal to ports that had an active overlay or when digest just changed to NONE.
+    if (!activeAnn && !digestChanged && forcedScreenAppliedPerPort.get(port) === "NONE") {
+      return;
+    }
+    try {
+      const res = await evalProfilePort(port, script, 3500);
+      if (res && res.success) {
+        forcedScreenAppliedPerPort.set(port, digest);
+      }
+    } catch (_) {}
+  }));
+
+  for (const port of Array.from(forcedScreenAppliedPerPort.keys())) {
+    if (!openPorts.has(port)) {
+      forcedScreenAppliedPerPort.delete(port);
+    }
+  }
+}
+
+async function pollForcedScreenAnnouncementInBackground() {
+  if (forcedScreenPollBusy) return;
+  forcedScreenPollBusy = true;
+  try {
+    const accessSt = typeof humanCheckSolver.getAccessState === "function" ? humanCheckSolver.getAccessState() : {};
+    if (accessSt.requiresLogin || !accessSt.isUserAccount || !accessSt.username) {
+      await syncForcedScreenAnnouncementToGameClients(null);
+      return;
+    }
+    const result = await humanCheckSolver.announcementRequest("/v1/aetheria/pmheenc/machine/announcements/poll", null);
+    await syncForcedScreenAnnouncementToGameClients(result?.forcedScreenAnnouncement || null);
+  } catch (_) {
+    if (currentForcedScreenAnnouncement) {
+      await syncForcedScreenAnnouncementToGameClients(currentForcedScreenAnnouncement).catch(() => {});
+    }
+  } finally {
+    forcedScreenPollBusy = false;
+  }
+}
+
 server.listen(PORT, "127.0.0.1", () => {
   scriptCoordinator.start();
   if (!TEST_INSTANCE || process.env.PMHEE_ENABLE_FLEET_WORKER === '1') remoteFleet.start();
@@ -16369,6 +16564,8 @@ server.listen(PORT, "127.0.0.1", () => {
   if(!TEST_INSTANCE)authSync.start();
   if (!TEST_INSTANCE) {
     setInterval(() => { runAutoFarmOrchestratorTick().catch(() => {}); }, 3500);
+    setInterval(() => { pollForcedScreenAnnouncementInBackground().catch(() => {}); }, 4500);
+    setTimeout(() => { pollForcedScreenAnnouncementInBackground().catch(() => {}); }, 2000);
   }
   if (!TEST_INSTANCE) {
     syncScreenProxyForOpenProfiles().catch(() => {});
