@@ -97,6 +97,7 @@ const { createManagerSelfUpdater } = require("./manager_self_update");
 const { handleConfigCopyRoute } = require("./config_copy_api");
 const { createPlanSync } = require("./plan_sync");
 const { createAuthSync } = require("./auth_sync");
+const { createSmailProService } = require("./smailpro_service");
 const credentials = require("./credentials");
 const { createBrowserMode, extractPelicanStorageFromLevelDb, mergeAuthConfigString, mergeSellConfigString } = require("./browser_mode");
 const { createDiscordBotService } = require("./discord_bot");
@@ -227,7 +228,7 @@ function sanitizePresetBotConfig(rawCfg) {
   if (safeCfg.authConfig && typeof safeCfg.authConfig === "object") {
     safeCfg.authConfig = {
       enabled: safeCfg.authConfig.enabled !== false,
-      autoResumeBot: safeCfg.authConfig.autoResumeBot !== false
+      autoResumeBot: Boolean(safeCfg.authConfig.autoResumeBot)
     };
   }
   if (safeCfg.gatherConfig && typeof safeCfg.gatherConfig === "object") {
@@ -3603,6 +3604,11 @@ const NIGHTCAMP_LIVE_STATE_EVAL = `(() => {
     }
     s.grossZenyGained = (typeof window.__grossZenyGained === 'number' && Number.isFinite(window.__grossZenyGained)) ? window.__grossZenyGained : null;
     s.consolidationReceiverMode = Boolean(window.__consolidationReceiverMode || window.__isConsolidating);
+    s.registerQueueWaiting = Boolean(window.__pmRegisterQueueState && window.__pmRegisterQueueState.waiting);
+    if (window.__pmForceRegisterNow) {
+      s.forceRegisterNow = true;
+      window.__pmForceRegisterNow = false;
+    }
   } catch (_) {}
   return s;
 })()`;
@@ -7709,12 +7715,21 @@ async function ensureScreenProxyForRegister(profile) {
   }
 }
 
+const smailproService = createSmailProService({
+  dataDir: path.join(__dirname, "data"),
+  rootDir: path.resolve(__dirname, ".."),
+  loadProfiles: loadAllRuntimeProfiles,
+  humanCheckSolver,
+  getMachineName: () => typeof getEffectiveDeviceNickname === "function" ? getEffectiveDeviceNickname() : os.hostname()
+});
+
 const authSync = createAuthSync({
   loadProfiles: loadAllRuntimeProfiles,
   saveProfiles: saveAllRuntimeProfiles,
   evalProfilePort,
   credentials,
   proxyRegister,
+  smailproService,
   isScreenProxyEnabled: () => Boolean(typeof screenProxy !== "undefined" && screenProxy && screenProxy.isEnabled()),
   ensureScreenProxyForRegister,
   requireOnlineWindowForQueue: true,
@@ -7724,7 +7739,8 @@ const authSync = createAuthSync({
     minCooldownMs: 1 * 60 * 1000,
     maxCooldownMs: 30 * 60 * 1000,
     intraWaveStaggerMinMs: 6000,
-    intraWaveStaggerMaxMs: 15000
+    intraWaveStaggerMaxMs: 15000,
+    slotMaxActiveMs: 10 * 60 * 1000
   }
 });
 // Per-screen IP queue & split-tunnel forwarder (1 IP : 6 screens default)
@@ -7735,6 +7751,9 @@ const screenProxy = createScreenProxyManager({
 });
 // Browser mode: game windows in one real Chrome / Edge instead of one Electron app each (manager/browser_mode.js)
 const browserMode = createBrowserMode({ rootDir: path.resolve(__dirname, ".."), sessionsDir: SESSIONS_DIR, getSettings: () => installer.loadSettings(), loadProfiles: loadAllRuntimeProfiles, ...(TEST_INSTANCE?{cdpPort:testCdpPort,browserUserDataDir:path.join(SESSIONS_DIR,'_isolated_test_browser')}:{ }), profileScriptSource: id => scriptCoordinator.profileScriptSource(id), screenProxy });
+if (typeof smailproService.setBrowserMode === "function") {
+  smailproService.setBrowserMode(browserMode);
+}
 if (typeof screenProxy.setCustomIpGroupsProvider === "function") {
   screenProxy.setCustomIpGroupsProvider(() => browserMode.getCustomIpDeviceConfig());
 }
@@ -9765,7 +9784,7 @@ async function healDuplicateClobberedProfiles(current) {
                 register: false,
                 registerDone: true,
                 generatedUser: Boolean(victim.generatedAccount),
-                autoResumeBot: true
+                autoResumeBot: Boolean(victim.autoResumeBot)
               })});
             }
             return { success: true };
@@ -11421,6 +11440,10 @@ const server = http.createServer(async (req, res) => {
           if (!skipClosedPortProbe) {
             liveState = await queryClientState(p.debugPort);
             hasFreshLiveState = Boolean(liveState && !liveState.error);
+            if (liveState && liveState.forceRegisterNow && typeof authSync?.forceRegisterNow === "function") {
+              delete liveState.forceRegisterNow;
+              setImmediate(() => authSync.forceRegisterNow(p.id).catch(() => {}));
+            }
           }
           if ((!liveState || liveState.error) && alive) {
             const recentCached = clientStateCacheByPort.get(p.debugPort);
@@ -12449,10 +12472,12 @@ const server = http.createServer(async (req, res) => {
         while (profiles.some(p => p.id === newId)) newId = "profile_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
         const initPass = (data.loginPassword || "").trim();
         const initAcct = (data.account || "").trim();
+        const initEmail = data.email !== undefined ? String(data.email || "").trim() : (initAcct.includes("@") && !/@users\.nightcamp\.invalid$/i.test(initAcct) ? initAcct : "");
         const newProfile = {
           id: newId,
           name: (data.name || "New Client").trim(),
           account: initAcct,
+          email: initEmail,
           serverName: data.serverName !== undefined ? String(data.serverName || "").trim() : "",
           charName: data.charName !== undefined ? String(data.charName || "").trim() : "",
           autoLoginEnabled: data.autoLoginEnabled !== undefined ? Boolean(data.autoLoginEnabled) : true,
@@ -12498,11 +12523,15 @@ const server = http.createServer(async (req, res) => {
         const idx = profiles.findIndex(p => p.id === id);
         if (idx === -1) return sendJSON({ success: false, error: "Profile not found" }, 404);
         const nextAccount = data.account !== undefined ? data.account.trim() : (profiles[idx].account || "");
+        const nextEmail = data.email !== undefined
+          ? String(data.email || "").trim()
+          : (profiles[idx].email || "");
         const existingPassword = credentials.getPassword(id) || "";
         const passwordProvided = data.loginPassword !== undefined;
         const nextPassword = passwordProvided ? String(data.loginPassword || "").trim() : existingPassword;
         const passwordChanged = passwordProvided && nextPassword !== existingPassword;
         const accountChanged = data.account !== undefined && nextAccount !== (profiles[idx].account || "");
+        const emailChanged = data.email !== undefined && nextEmail !== (profiles[idx].email || "");
         const serverChanged = data.serverName !== undefined && String(data.serverName || "").trim() !== String(profiles[idx].serverName || "").trim();
         const charChanged = data.charName !== undefined && String(data.charName || "").trim() !== String(profiles[idx].charName || "").trim();
         const enabledChanged = data.autoLoginEnabled !== undefined && Boolean(data.autoLoginEnabled) !== (profiles[idx].autoLoginEnabled !== false);
@@ -12523,21 +12552,22 @@ const server = http.createServer(async (req, res) => {
           ? false
           : (wantsNewAutoRegister ? true : !!profiles[idx].autoRegister);
         const hasExplicitManualCreds = Boolean(!wantsNewAutoRegister && nextAccount && nextPassword);
-        const authFlagsChanged = Boolean(serverChanged || charChanged || enabledChanged || resumeChanged);
+        const authFlagsChanged = Boolean(serverChanged || charChanged || enabledChanged || resumeChanged || emailChanged);
 
         profiles[idx] = {
           ...profiles[idx],
           name: data.name !== undefined ? data.name.trim() : profiles[idx].name,
           account: wantsNewAutoRegister && data.autoRegister === true && !accountChanged ? "" : nextAccount,
+          email: wantsNewAutoRegister && data.autoRegister === true && !emailChanged ? "" : nextEmail,
           serverName: data.serverName !== undefined ? String(data.serverName || "").trim() : (profiles[idx].serverName || ""),
           charName: data.charName !== undefined ? String(data.charName || "").trim() : (profiles[idx].charName || ""),
           autoLoginEnabled: data.autoLoginEnabled !== undefined ? Boolean(data.autoLoginEnabled) : (profiles[idx].autoLoginEnabled !== false),
           autoResumeBot: data.autoResumeBot !== undefined ? Boolean(data.autoResumeBot) : Boolean(profiles[idx].autoResumeBot),
           autoRegister: nextAutoRegister,
           ...(wantsNewAutoRegister
-            ? { generatedAccount: false, registerError: "", loginSyncPending: false, proxyFallbackBrowser: undefined, proxyRegistrationState: undefined, ...(authFlagsChanged ? { lastAuthSyncPushAt: Date.now() } : {}) }
+            ? { generatedAccount: false, outlookCreated: false, registerError: "", loginSyncPending: false, proxyFallbackBrowser: undefined, proxyRegistrationState: undefined, ...(authFlagsChanged ? { lastAuthSyncPushAt: Date.now() } : {}) }
             : (hasExplicitManualCreds || accountChanged || passwordChanged
-                ? { generatedAccount: false, registerError: "", loginSyncPending: true, lastAuthSyncPushAt: Date.now() }
+                ? { generatedAccount: false, outlookCreated: false, registerError: "", loginSyncPending: true, lastAuthSyncPushAt: Date.now() }
                 : (authFlagsChanged ? { lastAuthSyncPushAt: Date.now() } : {}))),
           charClass: data.charClass || profiles[idx].charClass,
           targetMap: data.targetMap !== undefined ? data.targetMap : profiles[idx].targetMap,
@@ -12682,6 +12712,19 @@ const server = http.createServer(async (req, res) => {
         if (!wantsNewAutoRegister && passwordProvided) {
           credentials.setPassword(id, nextPassword);
         }
+        const effectiveSavedEmail = String(profiles[idx].email || (String(profiles[idx].account || "").includes("@") && !/@users\.nightcamp\.invalid$/i.test(profiles[idx].account) ? profiles[idx].account : "")).trim();
+        if (!wantsNewAutoRegister && effectiveSavedEmail && typeof smailproService?.recordRegisteredAccount === "function") {
+          smailproService.recordRegisteredAccount({
+            profileId: id,
+            profileName: profiles[idx].name || id,
+            username: profiles[idx].account || effectiveSavedEmail,
+            password: nextPassword,
+            email: effectiveSavedEmail,
+            provider: /@(outlook|hotmail|live)\.com$/i.test(effectiveSavedEmail) ? "outlook" : "smailpro",
+            charName: profiles[idx].lastCharName || profiles[idx].charName || "",
+            serverName: profiles[idx].serverName || ""
+          }).catch(() => {});
+        }
         if (changesIdentity && wasJailedOrBanned && typeof screenProxy !== 'undefined' && screenProxy && screenProxy.isEnabled()) {
           await screenProxy.releaseProfile(id).catch(() => {});
           const isOpenNow = await clientAlreadyOpen(profiles[idx]).catch(() => false);
@@ -12698,6 +12741,25 @@ const server = http.createServer(async (req, res) => {
       }
     });
     return;
+  }
+
+  // POST /api/profiles/:id/register-now (Force immediate registration without waiting in wave queue)
+  if ((req.method === "POST" || req.method === "OPTIONS") && pathname.match(/^\/api\/profiles\/[^/]+\/register-now$/)) {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Private-Network", "true");
+    res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "*");
+    if (req.method === "OPTIONS") {
+      res.writeHead(204);
+      return res.end();
+    }
+    const id = decodeURIComponent(pathname.split("/")[3] || "");
+    try {
+      const out = await authSync.forceRegisterNow(id);
+      return sendJSON(out, out && out.success ? 200 : 400);
+    } catch (err) {
+      return sendJSON({ success: false, error: err.message }, 500);
+    }
   }
 
   // GET /api/profiles/:id/whitelist (Fetch live Whitelist, Force-Sell NPC & Central Market Auto-Sell list from game client or saved profile)
@@ -13097,6 +13159,110 @@ const server = http.createServer(async (req, res) => {
     try { writeJsonAtomic(PROFILES_BACKUP_FILE, profiles); } catch (_) {}
     scheduleCentralProfileBackupSync(1000);
     return sendJSON({ success: true });
+  }
+
+  // EMAIL REGISTRATION & OTP SETTINGS (Built-in Outlook Browser vs SmailPro API + Central Deduplication)
+  if (req.method === "GET" && pathname === "/api/email-reg/status") {
+    return sendJSON({
+      success: true,
+      ...smailproService.getStatusSummary()
+    });
+  }
+  if (req.method === "POST" && pathname === "/api/email-reg/settings") {
+    let body = "";
+    req.on("data", chunk => { body += chunk; });
+    req.on("end", () => {
+      try {
+        const parsed = JSON.parse(body || "{}");
+        const prev = smailproService.loadSettings();
+        const saved = smailproService.saveSettings(parsed);
+        if (prev.mode !== saved.mode) {
+          authSync.resetAllPendingRegistrations?.();
+        }
+        return sendJSON({
+          success: true,
+          ...smailproService.getStatusSummary()
+        });
+      } catch (e) {
+        return sendJSON({ success: false, error: e.message }, 400);
+      }
+    });
+    return;
+  }
+  if (req.method === "POST" && pathname === "/api/email-reg/test-smailpro") {
+    let body = "";
+    req.on("data", chunk => { body += chunk; });
+    req.on("end", async () => {
+      try {
+        const parsed = JSON.parse(body || "{}");
+        const resTest = await smailproService.testApiKey(parsed);
+        return sendJSON(resTest);
+      } catch (e) {
+        return sendJSON({ success: false, error: e.message }, 400);
+      }
+    });
+    return;
+  }
+  if (req.method === "POST" && pathname === "/api/email-reg/smailpro-web-open") {
+    let body = "";
+    req.on("data", chunk => { body += chunk; });
+    req.on("end", async () => {
+      try {
+        const parsed = JSON.parse(body || "{}");
+        const resOpen = await smailproService.openWebLoginWindow(parsed);
+        return sendJSON({
+          ...resOpen,
+          ...smailproService.getStatusSummary()
+        });
+      } catch (e) {
+        return sendJSON({ success: false, error: e.message }, 400);
+      }
+    });
+    return;
+  }
+  if (req.method === "POST" && pathname === "/api/email-reg/smailpro-web-check") {
+    let body = "";
+    req.on("data", chunk => { body += chunk; });
+    req.on("end", async () => {
+      try {
+        const parsed = JSON.parse(body || "{}");
+        const resCheck = await smailproService.checkWebSession(parsed);
+        return sendJSON({
+          ...resCheck,
+          ...smailproService.getStatusSummary()
+        });
+      } catch (e) {
+        return sendJSON({ success: false, error: e.message }, 400);
+      }
+    });
+    return;
+  }
+  if (req.method === "POST" && pathname === "/api/email-reg/smailpro-web-test") {
+    let body = "";
+    req.on("data", chunk => { body += chunk; });
+    req.on("end", async () => {
+      try {
+        const parsed = JSON.parse(body || "{}");
+        const resTest = await smailproService.testWebCreate(parsed);
+        return sendJSON({
+          ...resTest,
+          ...smailproService.getStatusSummary()
+        });
+      } catch (e) {
+        return sendJSON({ success: false, error: e.message }, 400);
+      }
+    });
+    return;
+  }
+  if (req.method === "GET" && pathname === "/api/email-reg/export-txt") {
+    const txt = smailproService.exportAccountsText();
+    res.writeHead(200, {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Content-Disposition": 'attachment; filename="Nightcamp_Registered_Emails.txt"',
+      "Cache-Control": "no-store"
+    });
+    res.end(txt);
+    return;
   }
 
   // 5. POST /api/profiles/:id/launch
@@ -13713,7 +13879,23 @@ public class PmFocus {
     try {
       const r = await evalProfilePort(profile.debugPort, code, 6000);
       const ok = !!(r && r.success && r.result && r.result.success);
-      if (ok) return sendJSON({ success: true, isBotRunning: targetRunning });
+      if (ok) {
+        try {
+          const bsDir = path.join(SESSIONS_DIR, "_browser_storage");
+          if (!fs.existsSync(bsDir)) fs.mkdirSync(bsDir, { recursive: true });
+          const bsFile = path.join(bsDir, `${id}.json`);
+          let bsData = {};
+          if (fs.existsSync(bsFile)) {
+            try { bsData = JSON.parse(fs.readFileSync(bsFile, "utf8")) || {}; } catch (_) { bsData = {}; }
+          }
+          const pfx = `pelican_${id}__`;
+          bsData[`${pfx}bot_running`] = targetRunning ? "true" : "false";
+          bsData[`${pfx}bot_run_mode`] = reqMode;
+          bsData[`${pfx}bot_running_at`] = String(Date.now());
+          writeJsonAtomic(bsFile, bsData);
+        } catch (_) {}
+        return sendJSON({ success: true, isBotRunning: targetRunning });
+      }
       return sendJSON({ success: false, error: "เกมไม่ตอบรับคำสั่ง (บอทอาจยังโหลดไม่เสร็จ)" }, 502);
     } catch (err) {
       return sendJSON({ success: false, error: err.message }, 502);
@@ -15843,10 +16025,10 @@ public class PmFocus {
 });
 
 const KNOWN_NC_SERVER_URLS = {
-  moonlight: "https://d2a61hdgyafpnr.cloudfront.net",
-  stardust: "https://dyshge8p0zgba.cloudfront.net",
-  nightfall: "https://d2997ztpjqsywh.cloudfront.net",
-  sunflare: "https://d1feuao0oi57id.cloudfront.net"
+  moonlight: "https://d16451u9424p9b.cloudfront.net",
+  stardust: "https://d1usbv5dlg0l6l.cloudfront.net",
+  nightfall: "https://d3r3u4zj8ommjo.cloudfront.net",
+  sunflare: "https://dnz5iv5aadxe3.cloudfront.net"
 };
 
 function resolveNightcampServerUrl(serverName) {

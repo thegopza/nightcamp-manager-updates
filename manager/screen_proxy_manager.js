@@ -23,9 +23,51 @@ function isGameOrIpCheckHost(hostname) {
     h === 'nightcamp.app' ||
     h.endsWith('.nightcamp.app') ||
     h.endsWith('.cloudfront.net') ||
-    h === 'challenges.cloudflare.com' ||
     h.endsWith('.challenges.cloudflare.com') ||
-    h === 'api.ipify.org'
+    h === 'challenges.cloudflare.com' ||
+    h === 'api.ipify.org' ||
+    h === 'live.com' ||
+    h.endsWith('.live.com') ||
+    h === 'live.net' ||
+    h.endsWith('.live.net') ||
+    h === 'passport.net' ||
+    h.endsWith('.passport.net') ||
+    h === 'microsoft.com' ||
+    h.endsWith('.microsoft.com') ||
+    h === 'microsoftonline.com' ||
+    h.endsWith('.microsoftonline.com') ||
+    h === 'cloud.microsoft' ||
+    h.endsWith('.cloud.microsoft') ||
+    h === 'office.com' ||
+    h.endsWith('.office.com') ||
+    h === 'office365.com' ||
+    h.endsWith('.office365.com') ||
+    h === 'office.net' ||
+    h.endsWith('.office.net') ||
+    h === 'msauth.net' ||
+    h.endsWith('.msauth.net') ||
+    h === 'msftauth.net' ||
+    h.endsWith('.msftauth.net') ||
+    h === 'msftauthimages.net' ||
+    h.endsWith('.msftauthimages.net') ||
+    h === 'msidentity.com' ||
+    h.endsWith('.msidentity.com') ||
+    h === 'msecnd.net' ||
+    h.endsWith('.msecnd.net') ||
+    h === 'gfx.ms' ||
+    h.endsWith('.gfx.ms') ||
+    h === 'onestore.ms' ||
+    h.endsWith('.onestore.ms') ||
+    h === 's-microsoft.com' ||
+    h.endsWith('.s-microsoft.com') ||
+    h === 'clarity.ms' ||
+    h.endsWith('.clarity.ms') ||
+    h === 'arkoselabs.com' ||
+    h.endsWith('.arkoselabs.com') ||
+    h === 'funcaptcha.com' ||
+    h.endsWith('.funcaptcha.com') ||
+    h === 'hsprotect.net' ||
+    h.endsWith('.hsprotect.net')
   );
 }
 
@@ -2159,7 +2201,7 @@ function createScreenProxyManager({ dataDir, solver, loadProfiles, assetCache: p
     };
   }
 
-  const EXPECTED_DAEMON_VERSION = 4;
+  const EXPECTED_DAEMON_VERSION = 11;
   let daemonVerifiedAt = 0;
 
   async function ensureDaemonRunning(forcePing = false) {

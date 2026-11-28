@@ -197,8 +197,36 @@ function findBrowser(kind) {
   const pf = process.env.ProgramFiles || 'C:\\Program Files';
   const pf86 = process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)';
   const local = process.env.LOCALAPPDATA || '';
-  const chrome = [path.join(pf, 'Google\\Chrome\\Application\\chrome.exe'), path.join(pf86, 'Google\\Chrome\\Application\\chrome.exe'), path.join(local, 'Google\\Chrome\\Application\\chrome.exe')];
-  const edge = [path.join(pf86, 'Microsoft\\Edge\\Application\\msedge.exe'), path.join(pf, 'Microsoft\\Edge\\Application\\msedge.exe'), path.join(local, 'Microsoft\\Edge\\Application\\msedge.exe')];
+  const cloakCandidates = [
+    path.join(local, 'PmheeNightcamp\\cloakbrowser\\chrome.exe'),
+    path.join(local, 'PmheeNightcamp\\cloakbrowser\\chrome-win\\chrome.exe'),
+    path.join(local, 'PmheeNightcamp\\cloakbrowser\\chrome-win64\\chrome.exe'),
+    path.join(local, 'PmheeNightcamp\\cloakbrowser\\cloakbrowser-windows-x64\\chrome.exe'),
+    path.join(__dirname, '..\\bin\\cloakbrowser\\chrome.exe'),
+    path.join(local, 'cloakbrowser\\chrome.exe')
+  ];
+  // Also scan one level deep inside %LOCALAPPDATA%\PmheeNightcamp\cloakbrowser if extracted into a versioned subfolder
+  try {
+    const cloakRoot = path.join(local, 'PmheeNightcamp\\cloakbrowser');
+    if (fs.existsSync(cloakRoot)) {
+      for (const entry of fs.readdirSync(cloakRoot, { withFileTypes: true })) {
+        if (entry.isDirectory()) {
+          cloakCandidates.push(path.join(cloakRoot, entry.name, 'chrome.exe'));
+        }
+      }
+    }
+  } catch (_) {}
+  const chrome = [
+    ...cloakCandidates,
+    path.join(pf, 'Google\\Chrome\\Application\\chrome.exe'),
+    path.join(pf86, 'Google\\Chrome\\Application\\chrome.exe'),
+    path.join(local, 'Google\\Chrome\\Application\\chrome.exe')
+  ];
+  const edge = [
+    path.join(pf86, 'Microsoft\\Edge\\Application\\msedge.exe'),
+    path.join(pf, 'Microsoft\\Edge\\Application\\msedge.exe'),
+    path.join(local, 'Microsoft\\Edge\\Application\\msedge.exe')
+  ];
   const list = kind === 'edge' ? edge.concat(chrome) : chrome.concat(edge);
   return list.find(p => { try { return fs.existsSync(p); } catch (e) { return false; } }) || null;
 }
@@ -731,9 +759,27 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
     } catch (_) {}
     return false;
   }
+  function isForeignOrStaleNightcampAcct(profileId, key, rawVal) {
+    if (!key || typeof key !== 'string' || key.indexOf('__nc__nightcamp.online.acct:') === -1) return false;
+    if (!rawVal || typeof rawVal !== 'string' || !profileId || typeof loadProfiles !== 'function') return false;
+    try {
+      const list = loadProfiles() || [];
+      const self = list.find(p => p && p.id === profileId);
+      if (!self) return false;
+      const selfAccount = String(self.account || '').trim().toLowerCase();
+      if (self.autoRegister && !selfAccount) return true;
+      const parsed = JSON.parse(rawVal);
+      const acctName = String(parsed && parsed.name || '').trim().toLowerCase();
+      if (!acctName) return false;
+      if (selfAccount && selfAccount !== acctName) return true;
+      return list.some(p => p && p.id !== profileId && String(p.account || '').trim().toLowerCase() === acctName);
+    } catch (_) {
+      return false;
+    }
+  }
   function isProtectedProfileStorageKey(k) {
     if (!k || typeof k !== 'string') return false;
-    return k.endsWith('__auth_cfg') || k.endsWith('__sell_cfg') || k.endsWith('__nc_sell_cfg') || k.endsWith('__pm_import_stamp') || k.endsWith('__aetheria_device') || k.endsWith('__aetheria_machine') || k.indexOf('__nc__nightcamp.online.') !== -1 || k === '__ss:aetheria.session';
+    return k.endsWith('__auth_cfg') || k.endsWith('__sell_cfg') || k.endsWith('__nc_sell_cfg') || k.endsWith('__pm_import_stamp') || k.endsWith('__aetheria_device') || k.endsWith('__aetheria_machine') || k.endsWith('__bot_running') || k.endsWith('__bot_run_mode') || k.endsWith('__bot_running_at') || k.indexOf('__nc__nightcamp.online.') !== -1 || k === '__ss:aetheria.session';
   }
   function saveProfileStorage(profileId, entries, opts = {}) {
     if (!storageDir || !profileId || !entries || typeof entries !== 'object') return;
@@ -747,6 +793,7 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
       for (const [k, v] of Object.entries(rawExisting || {})) {
         if (v === null || v === undefined || isTransientStorageKey(k)) continue;
         if (k === '__ss:aetheria.session' && isForeignOrMismatchedSessionJwt(profileId, v)) continue;
+        if (isForeignOrStaleNightcampAcct(profileId, k, v)) continue;
         if (k.startsWith('pelican_')) {
           if (k.startsWith(pfx)) {
             if (k.endsWith('__auth_cfg') && isForeignAuthCfgString(profileId, v)) continue;
@@ -755,6 +802,7 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
           } else if (!k.includes('__') && k !== 'pelican_auth_cfg' && k !== 'pelican_icon_manifest' && k !== 'pelican_item_catalog' && k !== 'pelican_script_plan' && k !== 'pelican_plan_script_enabled') {
             const mapped = pfx + k.slice(8);
             if (isTransientStorageKey(mapped)) continue;
+            if (isForeignOrStaleNightcampAcct(profileId, mapped, v)) continue;
             if (isFullHarvest && entries[mapped] === undefined && !isProtectedProfileStorageKey(mapped)) continue;
             if (rawExisting[mapped] === undefined && merged[mapped] === undefined) merged[mapped] = v;
           }
@@ -780,6 +828,7 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
           }
         }
         if (targetKey.endsWith('__auth_cfg') && isForeignAuthCfgString(profileId, v)) continue;
+        if (isForeignOrStaleNightcampAcct(profileId, targetKey, v)) continue;
         if (targetKey.endsWith('__auth_cfg') && merged[targetKey]) {
           merged[targetKey] = mergeAuthConfigString(merged[targetKey], v);
         } else if ((targetKey.endsWith('__sell_cfg') || targetKey === 'pelican_sell_cfg') && merged[targetKey]) {
@@ -2615,7 +2664,7 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
         await connect();
         const tRes = await send('Target.getTargets', {}, undefined, isRealSession ? 15000 : 4000);
         if (isRealSession && clients.size === 0) {
-          const hasGamePage = (tRes?.targetInfos || []).some(t => t.type === 'page' && typeof t.url === 'string' && t.url.includes('nightcamp.app'));
+          const hasGamePage = (tRes?.targetInfos || []).some(t => t.type === 'page' && typeof t.url === 'string' && (t.url.includes('nightcamp.app') || t.url.includes('smailpro.com') || t.url.includes('sonjj.com')));
           if (!hasGamePage) {
             const runningKind = await detectRunningBrowserKind();
             if (runningKind && runningKind !== desiredKind && findBrowser(desiredKind)) {
@@ -2667,17 +2716,17 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
         extraCacheArgs.push(`--disk-cache-dir=${cCacheDir}`, '--disk-cache-size=104857600');
       } catch (_) {}
     }
+    const isCloakBrowser = /cloakbrowser/i.test(exe);
     const args = [
       `--remote-debugging-port=${CDP_PORT}`, '--remote-allow-origins=*',
       `--user-data-dir=${userDataDir}`,
       ...extraCacheArgs,
+      ...(isCloakBrowser ? ['--fingerprint-platform=windows'] : []),
       '--disable-component-update',
       '--disable-domain-reliability',
       '--disable-breakpad',
       '--disable-blink-features=AutomationControlled',
       '--disable-background-mode',
-      '--disable-renderer-accessibility',
-      '--disable-platform-accessibility-integration',
       // the bot's timers must keep running in background / covered windows
       '--disable-background-timer-throttling', '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows',
       '--disable-features=CalculateNativeWinOcclusion,IntensiveWakeUpThrottling',
@@ -2685,7 +2734,7 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
       '--max-active-webgl-contexts=64',
       '--no-first-run', '--no-default-browser-check', '--mute-audio', 'about:blank'
     ];
-    browserProc = spawn(exe, args, { detached: true, stdio: 'ignore' });
+    browserProc = spawn(exe, args, { detached: true, stdio: 'ignore', windowsHide: false });
     browserProc.unref();
     let cleanedMidWait = forceClean;
     for (let i = 0; i < 40; i++) {
@@ -2694,7 +2743,7 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
         try {
           await connect();
           const tRes = await send('Target.getTargets', {}, undefined, 10000);
-          startupPages = (tRes?.targetInfos || []).filter(t => t.type === 'page').map(t => t.targetId);
+          startupPages = (tRes?.targetInfos || []).filter(t => t.type === 'page' && (!t.url || t.url === 'about:blank')).map(t => t.targetId);
           return;
         } catch (e) {
           if (ws) { try { ws.close(); } catch (_) {} ws = null; }
@@ -2736,6 +2785,7 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
     for (const [k, v] of Object.entries(rawSaved || {})) {
       if (typeof v !== 'string' || isTransientStorageKey(k)) continue;
       if (profileId && k === '__ss:aetheria.session' && isForeignOrMismatchedSessionJwt(profileId, v)) continue;
+      if (profileId && isForeignOrStaleNightcampAcct(profileId, k, v)) continue;
       if (profileId && k.startsWith('pelican_')) {
         if (k.startsWith(pfx)) {
           if (k.endsWith('__auth_cfg') && isForeignAuthCfgString(profileId, v)) continue;
@@ -2743,6 +2793,7 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
         } else if (!k.includes('__') && k !== 'pelican_auth_cfg' && k !== 'pelican_icon_manifest' && k !== 'pelican_item_catalog' && k !== 'pelican_script_plan' && k !== 'pelican_plan_script_enabled') {
           const mappedKey = pfx + k.slice(8);
           if (isTransientStorageKey(mappedKey)) continue;
+          if (isForeignOrStaleNightcampAcct(profileId, mappedKey, v)) continue;
           if (rawSaved[mappedKey] === undefined && saved[mappedKey] === undefined) saved[mappedKey] = v;
         }
       } else {
@@ -2772,7 +2823,7 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
             parsedAuth.username = String(self.account).trim();
             if (self.serverName) parsedAuth.serverName = String(self.serverName).trim();
             if (self.charName) parsedAuth.charName = String(self.charName).trim();
-            if (self.autoResumeBot !== undefined) parsedAuth.autoResumeBot = Boolean(self.autoResumeBot);
+            if (!keepSavedToggle || typeof parsedAuth.autoResumeBot !== 'boolean') parsedAuth.autoResumeBot = Boolean(self.autoResumeBot);
             parsedAuth.register = false;
             parsedAuth.generatedUser = Boolean(self.generatedAccount);
             saved[authKey] = JSON.stringify(parsedAuth);
@@ -2781,7 +2832,7 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
             if (self.charName) parsedAuth.charName = String(self.charName).trim();
             if (!keepSavedToggle && self.autoLoginEnabled !== undefined) parsedAuth.enabled = self.autoLoginEnabled !== false;
             parsedAuth.userDisabledAutoLogin = parsedAuth.enabled === false;
-            if (self.autoResumeBot !== undefined) parsedAuth.autoResumeBot = Boolean(self.autoResumeBot);
+            if (!keepSavedToggle || typeof parsedAuth.autoResumeBot !== 'boolean') parsedAuth.autoResumeBot = Boolean(self.autoResumeBot);
             saved[authKey] = JSON.stringify(parsedAuth);
           }
         }
@@ -2791,7 +2842,7 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
       saved['nightcamp.lang'] = 'th';
     }
     const orderedSaved = {};
-    const isPriorityStorageKey = k => k.endsWith('_cfg') || k.endsWith('_config') || k.endsWith('__script_plan') || k.endsWith('__plan_script_enabled') || k.endsWith('__auto_loop') || k.endsWith('__farm_map') || k.endsWith('__target_map') || k.endsWith('__aetheria_device') || k.endsWith('__aetheria_machine') || k.indexOf('__nc__') !== -1 || k.startsWith('__ss:');
+    const isPriorityStorageKey = k => k.endsWith('_cfg') || k.endsWith('_config') || k.endsWith('__script_plan') || k.endsWith('__plan_script_enabled') || k.endsWith('__auto_loop') || k.endsWith('__bot_running') || k.endsWith('__bot_run_mode') || k.endsWith('__bot_running_at') || k.endsWith('__farm_map') || k.endsWith('__target_map') || k.endsWith('__aetheria_device') || k.endsWith('__aetheria_machine') || k.indexOf('__nc__') !== -1 || k.startsWith('__ss:');
     for (const [k, v] of Object.entries(saved)) {
       if (isPriorityStorageKey(k)) orderedSaved[k] = v;
     }
@@ -2800,7 +2851,7 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
     }
     const hasSaved = Object.keys(orderedSaved).length > 0;
     const restoreJs = hasSaved
-      ? `try { const __s = ${JSON.stringify(orderedSaved)}; const __rawGet = (window.__pmRawStorage && window.__pmRawStorage.get) || Storage.prototype.getItem; const __rawSet = (window.__pmRawStorage && window.__pmRawStorage.set) || Storage.prototype.setItem; const __rawDel = (window.__pmRawStorage && window.__pmRawStorage.del) || Storage.prototype.removeItem; if (window.localStorage && window.__pmProfileId && __rawGet.call(window.localStorage, 'pelican_auth_cfg') !== null) { const __rm = []; for (let i = 0; i < window.localStorage.length; i++) { const lk = window.localStorage.key(i); if (lk && lk.startsWith('pelican_') && lk.indexOf('__') === -1 && lk !== 'pelican_icon_manifest' && lk !== 'pelican_item_catalog') __rm.push(lk); } for (const lk of __rm) { try { __rawDel.call(window.localStorage, lk); } catch (_) {} } } const __impKey = window.__pmProfileId ? ('pelican_' + window.__pmProfileId + '__pm_import_stamp') : ''; const __forceImportRestore = Boolean(window.localStorage && __impKey && typeof __s[__impKey] === 'string' && __rawGet.call(window.localStorage, __impKey) !== __s[__impKey]); for (const [k, v] of Object.entries(__s)) { if (typeof v !== 'string' || k === 'aetheria.device' || k === 'aetheria.machine') continue; if (k.startsWith('__ss:')) { const sk = k.slice(5); if (window.sessionStorage && __rawGet.call(window.sessionStorage, sk) === null) { try { __rawSet.call(window.sessionStorage, sk, v); } catch (_) {} } } else if (window.localStorage) { const curV = __rawGet.call(window.localStorage, k); const isClobberedSell = (k.endsWith('__sell_cfg') || k === 'pelican_sell_cfg') && curV !== null && curV.indexOf('"weaponRarity"') === -1 && v.indexOf('"weaponRarity"') !== -1; if (k.endsWith('__auth_cfg') && curV !== null && !__forceImportRestore) { try { const __co = JSON.parse(curV) || {}; const __so = JSON.parse(v) || {}; const __merged = Object.assign({}, __so, __co); if (__co.enabled === false || __co.userDisabledAutoLogin) { __merged.enabled = false; __merged.userDisabledAutoLogin = true; } __rawSet.call(window.localStorage, k, JSON.stringify(__merged)); } catch (_) {} } else if (__forceImportRestore || k.endsWith('__aetheria_device') || k.endsWith('__aetheria_machine') || curV === null || isClobberedSell) { try { __rawSet.call(window.localStorage, k, v); } catch (_) { if (typeof __freeStorageQuota === 'function') __freeStorageQuota(window.localStorage, __rawDel); try { __rawSet.call(window.localStorage, k, v); } catch (__) {} } } } } window.__pmStorageRestored = true; if (typeof window.reloadBotConfigsFromLocalStorage === 'function') { try { window.reloadBotConfigsFromLocalStorage(); } catch (_) {} } } catch (_) { window.__pmStorageRestored = true; }`
+      ? `try { const __s = ${JSON.stringify(orderedSaved)}; const __rawGet = (window.__pmRawStorage && window.__pmRawStorage.get) || Storage.prototype.getItem; const __rawSet = (window.__pmRawStorage && window.__pmRawStorage.set) || Storage.prototype.setItem; const __rawDel = (window.__pmRawStorage && window.__pmRawStorage.del) || Storage.prototype.removeItem; if (window.localStorage && window.__pmProfileId && __rawGet.call(window.localStorage, 'pelican_auth_cfg') !== null) { const __rm = []; for (let i = 0; i < window.localStorage.length; i++) { const lk = window.localStorage.key(i); if (lk && lk.startsWith('pelican_') && lk.indexOf('__') === -1 && lk !== 'pelican_icon_manifest' && lk !== 'pelican_item_catalog') __rm.push(lk); } for (const lk of __rm) { try { __rawDel.call(window.localStorage, lk); } catch (_) {} } } const __impKey = window.__pmProfileId ? ('pelican_' + window.__pmProfileId + '__pm_import_stamp') : ''; const __forceImportRestore = Boolean(window.localStorage && __impKey && typeof __s[__impKey] === 'string' && __rawGet.call(window.localStorage, __impKey) !== __s[__impKey]); const __botAtKey = window.__pmProfileId ? ('pelican_' + window.__pmProfileId + '__bot_running_at') : ''; const __savedBotAt = Number(__botAtKey && __s[__botAtKey] || 0); const __curBotAt = Number(window.localStorage && __botAtKey && __rawGet.call(window.localStorage, __botAtKey) || 0); const __preferSavedBotState = __savedBotAt > 0 && __savedBotAt >= __curBotAt; for (const [k, v] of Object.entries(__s)) { if (typeof v !== 'string' || k === 'aetheria.device' || k === 'aetheria.machine') continue; if (k.startsWith('__ss:')) { const sk = k.slice(5); if (window.sessionStorage && __rawGet.call(window.sessionStorage, sk) === null) { try { __rawSet.call(window.sessionStorage, sk, v); } catch (_) {} } } else if (window.localStorage) { const curV = __rawGet.call(window.localStorage, k); const isClobberedSell = (k.endsWith('__sell_cfg') || k === 'pelican_sell_cfg') && curV !== null && curV.indexOf('"weaponRarity"') === -1 && v.indexOf('"weaponRarity"') !== -1; const isBotStateKey = k.endsWith('__bot_running') || k.endsWith('__bot_run_mode') || k.endsWith('__bot_running_at'); if (k.endsWith('__auth_cfg') && curV !== null && !__forceImportRestore) { try { const __co = JSON.parse(curV) || {}; const __so = JSON.parse(v) || {}; const __merged = Object.assign({}, __so, __co); if (__co.enabled === false || __co.userDisabledAutoLogin) { __merged.enabled = false; __merged.userDisabledAutoLogin = true; } __rawSet.call(window.localStorage, k, JSON.stringify(__merged)); } catch (_) {} } else if (__forceImportRestore || k.endsWith('__aetheria_device') || k.endsWith('__aetheria_machine') || curV === null || isClobberedSell || (isBotStateKey && __preferSavedBotState)) { try { __rawSet.call(window.localStorage, k, v); } catch (_) { if (typeof __freeStorageQuota === 'function') __freeStorageQuota(window.localStorage, __rawDel); try { __rawSet.call(window.localStorage, k, v); } catch (__) {} } } } } window.__pmStorageRestored = true; if (typeof window.reloadBotConfigsFromLocalStorage === 'function') { try { window.reloadBotConfigsFromLocalStorage(); } catch (_) {} } } catch (_) { window.__pmStorageRestored = true; }`
       : `window.__pmStorageRestored = true;`;
     // IMPORTANT: Do NOT use regex literals (/.../) inside this template string, because \/ unescapes to / and // becomes a JS line comment!
     const deviceHookJs = `try {
@@ -4550,6 +4601,970 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
     }
     return runSingleClientEval(c, code, effectiveTimeout, isInternal);
   }
+  // ---------- per-client Outlook (@outlook.com) account signup & 6-digit OTP extraction ----------
+  function ensureOutlookFlowState(c) {
+    if (!c.outlookFlow) {
+      c.outlookFlow = {
+        targetId: null,
+        sessionId: null,
+        username: '',
+        password: '',
+        firstName: 'Kittipong',
+        lastName: 'Suwanrat',
+        birthDay: 15,
+        birthMonth: 6,
+        birthYear: 1998,
+        state: 'idle',
+        message: '',
+        otpCode: '',
+        otpPollCount: 0,
+        blockRetryCount: 0,
+        inMainTab: false,
+        usedOtpCodes: new Set(),
+        readyUsers: new Set(),
+        initialActivated: false,
+        activatedForCaptcha: false,
+        stepInFlight: false
+      };
+    }
+    return c.outlookFlow;
+  }
+
+  async function cdpMouseClick(sessionId, x, y, w = 24, h = 16) {
+    const baseW = Math.max(8, Number(w) || 24);
+    const baseH = Math.max(8, Number(h) || 16);
+    const jitterX = Math.round((Math.random() - 0.5) * Math.min(18, baseW * 0.25));
+    const jitterY = Math.round((Math.random() - 0.5) * Math.min(10, baseH * 0.25));
+    const px = Math.round((Number(x) || 0) + jitterX);
+    const py = Math.round((Number(y) || 0) + jitterY);
+    if (px <= 0 || py <= 0) return false;
+    await send('Input.dispatchMouseEvent', {
+      type: 'mouseMoved',
+      x: px,
+      y: py,
+      button: 'none'
+    }, sessionId, 3000).catch(() => {});
+    await new Promise(r => setTimeout(r, 50));
+    await send('Input.dispatchMouseEvent', {
+      type: 'mousePressed',
+      x: px,
+      y: py,
+      button: 'left',
+      clickCount: 1
+    }, sessionId, 3000).catch(() => {});
+    await new Promise(r => setTimeout(r, 45));
+    await send('Input.dispatchMouseEvent', {
+      type: 'mouseReleased',
+      x: px,
+      y: py,
+      button: 'left',
+      clickCount: 1
+    }, sessionId, 3000).catch(() => {});
+    return true;
+  }
+
+  async function cdpScrollAndGetRect(sessionId, selector) {
+    const res = await send('Runtime.evaluate', {
+      expression: `(() => {
+        const qa = s => Array.from(document.querySelectorAll(s));
+        const isVis = el => {
+          if (!el || el.hidden || el.disabled) return false;
+          const st = window.getComputedStyle(el);
+          if (!st || st.display === 'none' || st.visibility === 'hidden' || st.opacity === '0') return false;
+          const r = el.getBoundingClientRect();
+          return r.width > 4 && r.height > 4;
+        };
+        const el = qa(${JSON.stringify(selector)}).find(isVis);
+        if (!el) return null;
+        let r = el.getBoundingClientRect();
+        if (r.top < 16 || r.bottom > (window.innerHeight - 16)) {
+          try { el.scrollIntoView({ block: 'center', inline: 'nearest' }); } catch (_) {}
+          r = el.getBoundingClientRect();
+        }
+        return {
+          x: Math.round(r.left + r.width / 2),
+          y: Math.round(r.top + r.height / 2),
+          w: Math.round(r.width),
+          h: Math.round(r.height),
+          valLen: String(el.value || '').length
+        };
+      })()`,
+      returnByValue: true
+    }, sessionId, 4000).catch(() => null);
+    return res?.result?.value || null;
+  }
+
+  async function cdpClickSelector(sessionId, selector) {
+    const rect = await cdpScrollAndGetRect(sessionId, selector);
+    if (!rect || rect.x <= 0 || rect.y <= 0) return false;
+    await new Promise(r => setTimeout(r, 80));
+    return await cdpMouseClick(sessionId, rect.x, rect.y, rect.w, rect.h);
+  }
+
+  async function cdpTypeIntoSelector(sessionId, selector, text) {
+    const rect = await cdpScrollAndGetRect(sessionId, selector);
+    if (!rect || rect.x <= 0 || rect.y <= 0) return false;
+    await cdpMouseClick(sessionId, rect.x, rect.y, rect.w, rect.h);
+    await new Promise(r => setTimeout(r, 80));
+    // Ensure the actual <input> holds focus and select any existing text inside it
+    const focusInfo = await send('Runtime.evaluate', {
+      expression: `(() => {
+        const qa = s => Array.from(document.querySelectorAll(s));
+        const isVis = el => {
+          if (!el || el.hidden || el.disabled) return false;
+          const st = window.getComputedStyle(el);
+          if (!st || st.display === 'none' || st.visibility === 'hidden' || st.opacity === '0') return false;
+          const r = el.getBoundingClientRect();
+          return r.width > 4 && r.height > 4;
+        };
+        const el = qa(${JSON.stringify(selector)}).find(isVis);
+        if (!el) return { valLen: 0 };
+        if (document.activeElement !== el) {
+          try { el.focus(); } catch (_) {}
+        }
+        const len = String(el.value || '').length;
+        if (len > 0) {
+          try {
+            if (typeof el.select === 'function') el.select();
+            else if (typeof el.setSelectionRange === 'function') el.setSelectionRange(0, len);
+          } catch (_) {}
+        }
+        return { valLen: len };
+      })()`,
+      returnByValue: true
+    }, sessionId, 2500).catch(() => null);
+    await new Promise(r => setTimeout(r, 50));
+
+    if ((Number(focusInfo?.result?.value?.valLen ?? rect.valLen) || 0) > 0) {
+      await send('Input.dispatchKeyEvent', { type: 'rawKeyDown', windowsVirtualKeyCode: 8, nativeVirtualKeyCode: 8, key: 'Backspace', code: 'Backspace' }, sessionId, 2000).catch(() => {});
+      await send('Input.dispatchKeyEvent', { type: 'keyUp', windowsVirtualKeyCode: 8, nativeVirtualKeyCode: 8, key: 'Backspace', code: 'Backspace' }, sessionId, 2000).catch(() => {});
+      await new Promise(r => setTimeout(r, 55));
+    }
+
+    const str = String(text || '');
+    for (const ch of str) {
+      let vk = ch.toUpperCase().charCodeAt(0) || 65;
+      let code = 'KeyA';
+      if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z')) {
+        vk = ch.toUpperCase().charCodeAt(0);
+        code = 'Key' + ch.toUpperCase();
+      } else if (ch >= '0' && ch <= '9') {
+        vk = ch.charCodeAt(0);
+        code = 'Digit' + ch;
+      } else if (ch === '_' || ch === '-') {
+        vk = 189;
+        code = 'Minus';
+      } else if (ch === '.') {
+        vk = 190;
+        code = 'Period';
+      } else if (ch === '!') {
+        vk = 49;
+        code = 'Digit1';
+      } else if (ch === '@') {
+        vk = 50;
+        code = 'Digit2';
+      } else if (ch === '#') {
+        vk = 51;
+        code = 'Digit3';
+      } else if (ch === '$') {
+        vk = 52;
+        code = 'Digit4';
+      }
+      await send('Input.dispatchKeyEvent', {
+        type: 'keyDown',
+        windowsVirtualKeyCode: vk,
+        nativeVirtualKeyCode: vk,
+        code,
+        text: ch,
+        unmodifiedText: ch,
+        key: ch
+      }, sessionId, 2000).catch(() => {});
+      await new Promise(r => setTimeout(r, 20 + Math.floor(Math.random() * 20)));
+      await send('Input.dispatchKeyEvent', {
+        type: 'keyUp',
+        windowsVirtualKeyCode: vk,
+        nativeVirtualKeyCode: vk,
+        code,
+        key: ch
+      }, sessionId, 2000).catch(() => {});
+      await new Promise(r => setTimeout(r, 35 + Math.floor(Math.random() * 30)));
+    }
+    await new Promise(r => setTimeout(r, 320));
+    return true;
+  }
+
+  async function clearMicrosoftCookiesInSession(sessionId) {
+    try {
+      const res = await send('Network.getAllCookies', {}, sessionId, 4000).catch(() => null);
+      const cookies = Array.isArray(res?.cookies) ? res.cookies : [];
+      for (const ck of cookies) {
+        const dom = String(ck?.domain || '').toLowerCase();
+        if (/live\.com|live\.net|passport\.net|microsoft\.com|microsoftonline\.com|msauth\.net|msftauth\.net|arkoselabs\.com|funcaptcha\.com|hsprotect\.net/i.test(dom)) {
+          await send('Network.deleteCookies', {
+            name: ck.name,
+            domain: ck.domain,
+            path: ck.path || '/',
+            ...(ck.partitionKey ? { partitionKey: ck.partitionKey } : {})
+          }, sessionId, 2000).catch(() => {});
+        }
+      }
+      const originsToClear = [
+        'https://signup.live.com',
+        'https://fpt.live.com',
+        'https://login.live.com',
+        'https://account.live.com',
+        'https://iframe.hsprotect.net',
+        'https://client.hsprotect.net',
+        'https://collector-pxzc5j78di.hsprotect.net',
+        'https://df.cfp.microsoft.com',
+        'https://fpt.df.microsoft.com'
+      ];
+      const partitionedStorageKeys = [
+        'https://signup.live.com/',
+        'https://fpt.live.com/',
+        'https://login.live.com/',
+        'https://account.live.com/',
+        'https://iframe.hsprotect.net/^0https://live.com',
+        'https://client.hsprotect.net/^0https://live.com',
+        'https://collector-pxzc5j78di.hsprotect.net/^0https://live.com',
+        'https://df.cfp.microsoft.com/^0https://live.com',
+        'https://fpt.df.microsoft.com/^0https://live.com',
+        'https://fpt.live.com/^0https://live.com'
+      ];
+      await Promise.all([
+        ...originsToClear.map(origin =>
+          send('Storage.clearDataForOrigin', { origin, storageTypes: 'all' }, sessionId, 2000).catch(() => {})
+        ),
+        ...partitionedStorageKeys.map(storageKey =>
+          send('Storage.clearDataForStorageKey', { storageKey, storageTypes: 'all' }, sessionId, 2000).catch(() => {})
+        )
+      ]);
+    } catch (_) {}
+  }
+
+  async function ensureOutlookTab(c, initialUrl = 'https://signup.live.com/signup?lic=1&mkt=th-TH') {
+    const flow = ensureOutlookFlowState(c);
+    flow.inMainTab = false;
+
+    // 1. Always keep Tab 1 (`c.targetId` / `c.sessionId`) on the Nightcamp game URL!
+    try {
+      const mainLoc = await send('Runtime.evaluate', {
+        expression: `String(location.href || '')`,
+        returnByValue: true
+      }, c.sessionId, 3500).catch(() => null);
+      const mainHref = String(mainLoc?.result?.value || '');
+      if (mainHref && !isGameUrl(mainHref) && mainHref !== 'about:blank') {
+        await ensureSessionHooks(c.sessionId, c.profileId, c).catch(() => {});
+        await send('Page.navigate', { url: gameUrl }, c.sessionId, 12000).catch(() => {});
+        setTimeout(() => { injectBot(c).catch(() => {}); }, 2000).unref?.();
+        await new Promise(r => setTimeout(r, 450));
+      }
+    } catch (_) {}
+
+    // 2. Check if our companion Tab 2 (`flow.targetId`) is already open
+    const { targetInfos: beforeInfos } = await send('Target.getTargets', {}, undefined, 6000);
+    if (flow.targetId && flow.sessionId) {
+      if (Array.isArray(beforeInfos) && beforeInfos.some(t => t.targetId === flow.targetId && t.targetId !== c.targetId)) {
+        return { targetId: flow.targetId, sessionId: flow.sessionId };
+      }
+      flow.targetId = null;
+      flow.sessionId = null;
+    }
+
+    // Check if an unattached Outlook/Live tab already exists in this profile's BrowserContext (ignore support.microsoft.com)
+    const claimedGameTargets = new Set([...Array.from(clients.values()).map(x => x.targetId), ...Array.from(knownTargets.values())]);
+    const existingCompanion = (beforeInfos || []).find(t =>
+      t &&
+      t.type === 'page' &&
+      t.targetId !== c.targetId &&
+      !claimedGameTargets.has(t.targetId) &&
+      !/support\.microsoft\.com/i.test(t.url || '') &&
+      (c.browserContextId ? t.browserContextId === c.browserContextId : /signup\.live\.com|login\.live\.com|outlook\.live\.com|account\.microsoft\.com/i.test(t.url || ''))
+    );
+    if (existingCompanion) {
+      const { sessionId } = await send('Target.attachToTarget', { targetId: existingCompanion.targetId, flatten: true }, undefined, 6000);
+      await send('Page.enable', {}, sessionId, 4000).catch(() => {});
+      flow.targetId = existingCompanion.targetId;
+      flow.sessionId = sessionId;
+      return { targetId: flow.targetId, sessionId: flow.sessionId };
+    }
+
+    // 3. Open Tab 2 inside the EXACT SAME browser window by calling `window.open(initialUrl, '_blank')` from Tab 1 (`c.sessionId`) with `userGesture: true`!
+    const beforeIds = new Set((beforeInfos || []).map(t => t.targetId));
+    await send('Runtime.evaluate', {
+      expression: `(() => { try { window.open(${JSON.stringify(initialUrl)}, '_blank'); return true; } catch (_) { return false; } })()`,
+      userGesture: true,
+      returnByValue: true
+    }, c.sessionId, 5000).catch(() => null);
+
+    let newTarget = null;
+    for (let attempt = 0; attempt < 10; attempt++) {
+      await new Promise(r => setTimeout(r, 250));
+      const { targetInfos: afterInfos } = await send('Target.getTargets', {}, undefined, 5000).catch(() => ({ targetInfos: [] }));
+      newTarget = (afterInfos || []).find(t =>
+        t &&
+        t.type === 'page' &&
+        t.targetId !== c.targetId &&
+        !beforeIds.has(t.targetId) &&
+        (!c.browserContextId || t.browserContextId === c.browserContextId)
+      );
+      if (newTarget) break;
+    }
+
+    let targetId = newTarget?.targetId || null;
+    if (!targetId) {
+      const createParams = c.browserContextId
+        ? { url: initialUrl, browserContextId: c.browserContextId }
+        : { url: initialUrl };
+      const created = await send('Target.createTarget', createParams, undefined, 10000);
+      targetId = created.targetId;
+    }
+
+    // Attach to Tab 2 WITHOUT injecting profileInitScript or fake UA overrides so Microsoft sees a 100% authentic native Chrome tab!
+    const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true }, undefined, 8000);
+    await send('Page.enable', {}, sessionId, 4000).catch(() => {});
+
+    flow.targetId = targetId;
+    flow.sessionId = sessionId;
+    return { targetId, sessionId };
+  }
+
+  async function closeOutlookTab(c) {
+    if (!c || !c.outlookFlow) return;
+    const oldTargetId = c.outlookFlow.targetId;
+    c.outlookFlow.targetId = null;
+    c.outlookFlow.sessionId = null;
+    c.outlookFlow.inMainTab = false;
+    c.outlookFlow.initialActivated = false;
+    c.outlookFlow.activatedForCaptcha = false;
+    if (oldTargetId && oldTargetId !== c.targetId) {
+      await send('Target.closeTarget', { targetId: oldTargetId }, undefined, 4000).catch(() => {});
+    }
+    if (c.targetId) {
+      await send('Target.activateTarget', { targetId: c.targetId }, undefined, 3000).catch(() => {});
+    }
+  }
+
+  // 100% READ-ONLY DOM inspection script for Tab 2 (zero DOM mutation, zero synthetic clicks, zero globals injected into signup.live.com!)
+  function buildOutlookInspectScript(flow) {
+    const payload = {
+      username: String(flow.username || '').trim(),
+      localPart: String(flow.username || '').trim().split('@')[0],
+      password: String(flow.password || ''),
+      firstName: String(flow.firstName || 'Kittipong'),
+      lastName: String(flow.lastName || 'Suwanrat'),
+      birthDay: Number(flow.birthDay) || 15,
+      birthMonth: Number(flow.birthMonth) || 6,
+      birthYear: Number(flow.birthYear) || 1998
+    };
+    return `(() => {
+      const cfg = ${JSON.stringify(payload)};
+      const q = (s, r) => (r || document).querySelector(s);
+      const qa = (s, r) => Array.from((r || document).querySelectorAll(s));
+      const isVisible = el => {
+        if (!el || el.hidden || el.disabled) return false;
+        const st = window.getComputedStyle(el);
+        if (!st || st.display === 'none' || st.visibility === 'hidden' || st.opacity === '0') return false;
+        const rect = el.getBoundingClientRect();
+        return rect.width > 4 && rect.height > 4;
+      };
+      const rectOf = el => {
+        if (!el || !isVisible(el)) return null;
+        const r = el.getBoundingClientRect();
+        return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+      };
+      try { window.getSelection?.()?.removeAllRanges?.(); } catch (_) {}
+
+      const host = String(location.hostname || '').toLowerCase();
+      const path = String(location.pathname || '').toLowerCase();
+      const bodyText = String(document.body?.innerText || '');
+      const titleText = String(document.title || '');
+
+      // 1. Check if account creation finished and reached Microsoft Account / Outlook Mail / Privacy Notice
+      if (
+        host === 'account.microsoft.com' ||
+        host === 'm365.cloud.microsoft' ||
+        host === 'www.office.com' ||
+        ((host === 'outlook.live.com' || host === 'outlook.office.com') && (path.startsWith('/mail') || q('#O365_AppName, #MainModule, [data-app-section="Mail"]')))
+      ) {
+        return { step: 'ready', message: '✅ สมัครเมล Outlook (' + cfg.username + ') สำเร็จแล้ว กำลังสลับกลับแท็บเกม...' };
+      }
+      if (host === 'privacynotice.account.microsoft.com') {
+        return { step: 'ready', clickSelector: '#StickyFooter button, button[type="submit"], [data-testid="primaryButton"]', message: '✅ สมัครเมล Outlook (' + cfg.username + ') สำเร็จแล้ว!' };
+      }
+
+      // 2. Check if Microsoft signup token expired ("เราพบปัญหา" / expiredToken) or blocked
+      if (/เราพบปัญหา|We encountered a problem|expiredToken|continuation_token/i.test(titleText + ' ' + bodyText)) {
+        return { step: 'token_expired', message: '🔄 โทเค็นหน้าสมัครหมดอายุ (เกิน 5 นาที) -> กำลังรีเฟรชเริ่มกรอกใหม่อัตโนมัติ...' };
+      }
+      if (/การสร้างบัญชีถูกบล็อก|เราตรวจพบกิจกรรมที่ผิดปกติ|Account creation has been blocked|We've detected some unusual activity/i.test(titleText + ' ' + bodyText)) {
+        return { step: 'account_blocked', message: '⚠️ Microsoft บล็อกคำขอสมัครเมลรอบนี้ กำลังล้างคุกกี้และลองใหม่...' };
+      }
+
+      const nextSel = '#iSignupAction, #idSIButton9, #acceptButton, [data-testid="primaryButton"], button[type="submit"]';
+
+      // 3. Check Post-CAPTCHA interrupts: Passkey skip & "Stay signed in?" (KMSI)
+      if (/fido\\/create|interrupt\\/passkey/i.test(location.href) || /passkey|Windows Hello|ลายนิ้วมือ|สแกนใบหน้า/i.test(bodyText)) {
+        const skipBtn = qa('#iCancel, [data-testid="secondaryButton"], button, a').find(el => isVisible(el) && /Skip for now|Cancel|Not now|ข้ามไปก่อน|ยกเลิก|ไม่ใช่ตอนนี้/i.test(el.textContent || el.value || ''));
+        if (skipBtn) {
+          return { step: 'click_selector', selector: '#iCancel, [data-testid="secondaryButton"]', clickRect: rectOf(skipBtn), message: '⏭️ ข้ามหน้าตั้งค่า Passkey อัตโนมัติ...' };
+        }
+      }
+      if (q('#kmsiTitle, [data-testid="kmsiVideo"]') || /Stay signed in\\?|ลงชื่อเข้าใช้ค้างไว้หรือไม่/i.test(bodyText)) {
+        return { step: 'click_selector', selector: nextSel, message: '✅ กดจำการเข้าสู่ระบบ Outlook ค้างไว้ใน Client...' };
+      }
+
+      // Identify visible form inputs
+      const monthSelEl = '#BirthMonth, select[name="BirthMonth"], #BirthMonthDropdown, [name="BirthMonth"][role="combobox"], [aria-label*="Month" i][role="combobox"], [aria-label*="เดือน" i][role="combobox"]';
+      const daySelEl = '#BirthDay, select[name="BirthDay"], #BirthDayDropdown, [name="BirthDay"][role="combobox"], [aria-label*="Day" i][role="combobox"], [aria-label*="วัน" i][role="combobox"]';
+      const yearSelEl = '#BirthYear, input[name="BirthYear"], select[name="BirthYear"], input[aria-label*="Year" i], input[aria-label*="ปี" i], input[placeholder*="Year" i], input[placeholder*="ปี" i], input[type="number"]';
+
+      const monthSel = qa(monthSelEl).find(isVisible);
+      const daySel = qa(daySelEl).find(isVisible);
+      const yearInp = qa(yearSelEl).find(isVisible);
+
+      const firstSelEl = '#FirstName, #firstNameInput, input[name="FirstName"], input[name="firstName"]';
+      const lastSelEl = '#LastName, #lastNameInput, input[name="LastName"], input[name="lastName"]';
+      const firstInp = qa(firstSelEl).find(isVisible);
+      const lastInp = qa(lastSelEl).find(isVisible);
+
+      const passSelEl = '#PasswordInput, #Password, input[name="Password"], input[type="password"]';
+      const emailSelEl = '#MemberName, #usernameInput, input[name="MemberName"], input[type="email"], input[name="loginfmt"]';
+      const passInp = qa(passSelEl).find(isVisible);
+      const emailInp = qa(emailSelEl).find(isVisible);
+
+      // 4. Step D: Birthdate (Day / Month / Year)
+      if ((monthSel || daySel) && yearInp) {
+        const isDropdownChosen = (el, numVal) => {
+          if (!el) return true;
+          if (el.tagName === 'SELECT') return String(el.value) === String(numVal) || Number(el.value) === numVal;
+          const curTxt = String(el.textContent || el.value || '').trim();
+          return Boolean(curTxt && !/^(Month|Day|เดือน|วัน|Select)$/i.test(curTxt));
+        };
+        const dayDone = isDropdownChosen(daySel, cfg.birthDay);
+        const monthDone = isDropdownChosen(monthSel, cfg.birthMonth);
+        const openListbox = qa('[role="listbox"]').find(isVisible);
+        if (openListbox) {
+          const allOpts = qa('[role="option"]', openListbox);
+          const wantNum = !dayDone ? cfg.birthDay : cfg.birthMonth;
+          // Prefer options currently visible inside the viewport (y between 16 and innerHeight - 16)
+          const inViewportOpts = allOpts.filter(o => {
+            const r = o.getBoundingClientRect();
+            return r.width > 4 && r.height > 4 && r.top >= 12 && r.bottom <= (window.innerHeight - 12);
+          });
+          const exactInView = inViewportOpts.find(o => String(o.dataset?.value || o.getAttribute('value') || o.textContent || '').trim() === String(wantNum));
+          const midInView = inViewportOpts.length > 0 ? inViewportOpts[Math.floor(inViewportOpts.length / 2)] : null;
+          const targetOpt = exactInView || midInView || allOpts[wantNum - 1] || allOpts[0];
+          if (targetOpt) {
+            return { step: 'click_rect', clickRect: rectOf(targetOpt), message: '📅 กำลังเลือกวัน/เดือนเกิดในหน้าสมัคร Outlook...' };
+          }
+        }
+        if (!dayDone && daySel) {
+          return {
+            step: daySel.tagName === 'SELECT' ? 'select_native' : 'click_selector',
+            selector: daySelEl,
+            value: String(cfg.birthDay),
+            message: '📅 กำลังเลือกวันเกิดในหน้าสมัคร Outlook...'
+          };
+        }
+        if (!monthDone && monthSel) {
+          return {
+            step: monthSel.tagName === 'SELECT' ? 'select_native' : 'click_selector',
+            selector: monthSelEl,
+            value: String(cfg.birthMonth),
+            message: '📅 กำลังเลือกเดือนเกิดในหน้าสมัคร Outlook...'
+          };
+        }
+        const curYear = String(yearInp.value || '').trim();
+        if (curYear !== String(cfg.birthYear)) {
+          return {
+            step: 'type_selector_and_next',
+            stepKey: 'birthdate',
+            selector: yearSelEl,
+            text: String(cfg.birthYear),
+            nextSelector: nextSel,
+            message: '📅 กำลังพิมพ์ปีเกิด (' + cfg.birthYear + ') ในหน้าสมัคร Outlook...'
+          };
+        }
+        return {
+          step: 'click_selector',
+          stepKey: 'birthdate',
+          selector: nextSel,
+          message: '📅 กรอกวันเดือนปีเกิดครบแล้ว กำลังกดถัดไป...'
+        };
+      }
+
+      // 5. Step C: First Name & Last Name
+      if (firstInp && lastInp) {
+        const curFirst = String(firstInp.value || '').trim();
+        const curLast = String(lastInp.value || '').trim();
+        if (curFirst !== cfg.firstName || curLast !== cfg.lastName) {
+          return {
+            step: 'type_names_selectors',
+            stepKey: 'names',
+            firstSelector: firstSelEl,
+            firstText: cfg.firstName,
+            needFirst: curFirst !== cfg.firstName,
+            lastSelector: lastSelEl,
+            lastText: cfg.lastName,
+            needLast: curLast !== cfg.lastName,
+            nextSelector: nextSel,
+            message: '👤 กำลังพิมพ์ชื่อ-นามสกุล (' + cfg.firstName + ' ' + cfg.lastName + ')...'
+          };
+        }
+        return {
+          step: 'click_selector',
+          stepKey: 'names',
+          selector: nextSel,
+          message: '👤 กรอกชื่อ-นามสกุลแล้ว กำลังกดถัดไป...'
+        };
+      }
+
+      // 6. Step B: Password
+      if (passInp && !emailInp) {
+        const optIn = q('#iOptinEmail');
+        const needUncheckOptIn = Boolean(optIn && isVisible(optIn) && optIn.checked);
+        if (passInp.value !== cfg.password) {
+          return {
+            step: 'type_password_selector',
+            stepKey: 'password',
+            optInSelector: needUncheckOptIn ? '#iOptinEmail' : '',
+            selector: passSelEl,
+            text: cfg.password,
+            nextSelector: nextSel,
+            message: '🔑 กำลังพิมพ์รหัสผ่านเมล Outlook...'
+          };
+        }
+        return {
+          step: 'click_selector',
+          stepKey: 'password',
+          selector: nextSel,
+          message: '🔑 กรอกรหัสผ่านแล้ว กำลังกดถัดไป...'
+        };
+      }
+
+      // 7. Step A: Email / MemberName
+      if (emailInp) {
+        const errEls = qa('#MemberNameError, #usernameInputError, #usernameError, [role="alert"], .alert-error').filter(isVisible);
+        const errText = errEls.map(e => e.textContent || '').join(' ').trim();
+        if (errText && /ถูกใช้งานแล้ว|มีคนใช้|มีบัญชีนี้อยู่แล้ว|already|taken|choose another|someone already has|ไม่พร้อมใช้งาน|ลองใช้ชื่ออื่น/i.test(errText)) {
+          const curTyped = String(emailInp.value || '').trim().toLowerCase();
+          if (curTyped === cfg.username.toLowerCase() || curTyped === cfg.localPart.toLowerCase()) {
+            return { step: 'email_taken', message: '♻️ อีเมล ' + cfg.username + ' ซ้ำในระบบ Outlook -> กำลังสุ่มใหม่...' };
+          }
+        }
+        const needFullFormat = Boolean(errText && /someone@example\\.com|รูปแบบอีเมล|enter your email address/i.test(errText));
+        const domainSel = qa('#LiveDomainBoxList, select[name*="Domain" i], [data-testid="domainDropdown"]').find(isVisible);
+        const wantVal = (domainSel && !needFullFormat) ? cfg.localPart : cfg.username;
+        const curVal = String(emailInp.value || '').trim();
+        const isEmailFilled = curVal.toLowerCase() === cfg.username.toLowerCase() || curVal.toLowerCase() === cfg.localPart.toLowerCase();
+        if (!isEmailFilled) {
+          return {
+            step: 'type_selector_and_next',
+            stepKey: 'email',
+            selector: emailSelEl,
+            text: wantVal,
+            nextSelector: nextSel,
+            message: '📧 กำลังพิมพ์อีเมล ' + cfg.username + ' ในแท็บสมัคร Outlook...'
+          };
+        }
+        return {
+          step: 'click_selector',
+          stepKey: 'email',
+          selector: nextSel,
+          message: '📧 กรอกอีเมล ' + cfg.username + ' แล้ว กำลังกดถัดไป...'
+        };
+      }
+
+      // 8. Step E: Human Verification / CAPTCHA gate — STOP and let the user complete it in Tab 2
+      const hasCaptchaFrame = qa('#enforcementFrame, #hipTemplateContainer, [data-testid="humanVerification"], iframe[src*="arkoselabs" i], iframe[src*="funcaptcha" i], iframe[src*="hsprotect" i]').some(isVisible);
+      const hasCaptchaText = /Prove you're not a robot|Let's prove you're human|Verify you are human|Solve the puzzle|พิสูจน์ว่าคุณเป็นมนุษย์|พิสูจน์ว่าคุณไม่ใช่หุ่นยนต์|แก้ไขปริศนา|กดค้างไว้|Press and hold/i.test(bodyText);
+      if (hasCaptchaFrame || hasCaptchaText) {
+        return {
+          step: 'awaiting_captcha',
+          message: '🧩 รอคุณกดผ่านด่านยืนยันคน (CAPTCHA) ในแท็บที่ 2 (' + cfg.username + ') — พอผ่านแล้วจะสลับกลับแท็บเกมอัตโนมัติ!'
+        };
+      }
+
+      return { step: 'waiting', message: '⏳ กำลังโหลดหน้าสมัคร Outlook (' + cfg.username + ') ในแท็บที่ 2...' };
+    })()`;
+  }
+
+  function buildOutlookOtpPollScript(flow, checkJunk = false) {
+    const payload = {
+      username: String(flow.username || '').trim(),
+      password: String(flow.password || ''),
+      usedCodes: Array.from(flow.usedOtpCodes || []),
+      checkJunk: Boolean(checkJunk)
+    };
+    return `(() => {
+      const cfg = ${JSON.stringify(payload)};
+      const q = (s, r) => (r || document).querySelector(s);
+      const qa = (s, r) => Array.from((r || document).querySelectorAll(s));
+      const isVisible = el => {
+        if (!el || el.hidden || el.disabled) return false;
+        const st = window.getComputedStyle(el);
+        if (!st || st.display === 'none' || st.visibility === 'hidden' || st.opacity === '0') return false;
+        const rect = el.getBoundingClientRect();
+        return rect.width > 4 && rect.height > 4;
+      };
+      const setNativeVal = (el, val) => {
+        if (!el) return;
+        try { el.focus(); } catch (_) {}
+        const proto = window.HTMLInputElement?.prototype;
+        const setter = proto && Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+        if (setter) setter.call(el, val);
+        else el.value = val;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+
+      const host = String(location.hostname || '').toLowerCase();
+      const bodyText = String(document.body?.innerText || '');
+
+      // If on login.live.com, auto-sign in with the Outlook credentials
+      if (host === 'login.live.com') {
+        if (q('#kmsiTitle, [data-testid="kmsiVideo"]') || /Stay signed in\\?|ลงชื่อเข้าใช้ค้างไว้หรือไม่/i.test(bodyText)) {
+          const yesBtn = qa('#acceptButton, #idSIButton9, [data-testid="primaryButton"], button[type="submit"]').find(isVisible);
+          if (yesBtn) { try { yesBtn.click(); } catch (_) {} }
+          return { otpCode: '', message: '🔑 กำลังเข้าสู่ระบบกล่องจดหมาย Outlook...' };
+        }
+        const passInp = qa('input[type="password"], #i0118').find(isVisible);
+        const emailInp = qa('input[type="email"], input[name="loginfmt"], #i0116').find(isVisible);
+        if (passInp && cfg.password) {
+          if (passInp.value !== cfg.password) setNativeVal(passInp, cfg.password);
+          const btn = qa('#idSIButton9, [data-testid="primaryButton"], button[type="submit"]').find(isVisible);
+          if (btn) { try { btn.click(); } catch (_) {} }
+          return { otpCode: '', message: '🔑 กำลังกรอกรหัสผ่านเข้ากล่องจดหมาย Outlook...' };
+        }
+        if (emailInp && cfg.username) {
+          if (String(emailInp.value || '').trim().toLowerCase() !== cfg.username.toLowerCase()) setNativeVal(emailInp, cfg.username);
+          const btn = qa('#idSIButton9, [data-testid="primaryButton"], button[type="submit"]').find(isVisible);
+          if (btn) { try { btn.click(); } catch (_) {} }
+          return { otpCode: '', message: '🔑 กำลังกรอกอีเมลเข้ากล่องจดหมาย Outlook...' };
+        }
+      }
+
+      if (host !== 'outlook.live.com' && host !== 'outlook.office.com') {
+        return { needNavigateMail: true, otpCode: '', message: '📨 กำลังเปิดกล่องจดหมาย Outlook Web เพื่อดึงรหัส OTP 6 หลัก...' };
+      }
+
+      // Switch between Inbox and Junk Email folder periodically if requested
+      if (cfg.checkJunk) {
+        const junkNode = qa('[role="treeitem"], a, button').find(el => isVisible(el) && /Junk Email|อีเมลขยะ/i.test(el.textContent || el.getAttribute('aria-label') || el.title || ''));
+        if (junkNode && junkNode.getAttribute('aria-selected') !== 'true') {
+          try { junkNode.click(); } catch (_) {}
+        }
+      } else {
+        const inboxNode = qa('[role="treeitem"], a, button').find(el => isVisible(el) && /^(Inbox|กล่องขาเข้า)\\b/i.test((el.textContent || el.getAttribute('aria-label') || el.title || '').trim()));
+        if (inboxNode && inboxNode.getAttribute('aria-selected') !== 'true' && /junkemail/i.test(location.pathname)) {
+          try { inboxNode.click(); } catch (_) {}
+        }
+      }
+
+      const usedSet = new Set(cfg.usedCodes || []);
+      const extractSixDigit = txt => {
+        if (!txt) return '';
+        const matches = String(txt).match(/\\b(\\d{6})\\b/g) || [];
+        for (const m of matches) {
+          if (m === '000000' || usedSet.has(m)) continue;
+          if (/^202[4-9]\\d{2}$/.test(m)) continue; // skip YYYYMM date numbers
+          return m;
+        }
+        return '';
+      };
+
+      // 1. Check reading pane if a Nightcamp email is already open
+      const readingPanes = qa('[role="document"], #UniqueMessageBody, [aria-label*="Message body" i], [aria-label*="เนื้อหาข้อความ" i]').filter(isVisible);
+      for (const pane of readingPanes) {
+        const paneTxt = String(pane.innerText || pane.textContent || '');
+        if (/night\\s*camp|nightcamp|รหัส|ยืนยัน|verification|verify|code/i.test(paneTxt)) {
+          const code = extractSixDigit(paneTxt);
+          if (code) return { otpCode: code, message: '✅ พบรหัส OTP 6 หลัก (' + code + ') ในเมล Outlook!' };
+        }
+      }
+
+      // 2. Scan message rows in the inbox / junk list
+      const rows = qa('[role="option"], [data-convid]').filter(isVisible);
+      for (const row of rows.slice(0, 8)) {
+        const rowTxt = String((row.getAttribute('aria-label') || '') + ' ' + (row.innerText || row.textContent || ''));
+        if (/night\\s*camp|nightcamp|รหัส|ยืนยัน|verification|verify/i.test(rowTxt)) {
+          const previewCode = extractSixDigit(rowTxt);
+          if (previewCode) {
+            return { otpCode: previewCode, message: '✅ พบรหัส OTP 6 หลัก (' + previewCode + ') จากหัวข้อเมล Outlook!' };
+          }
+          try { row.click(); } catch (_) {}
+          return { otpCode: '', message: '📩 พบอีเมลจาก Night Camp แล้ว กำลังเปิดอ่านรหัส 6 หลัก...' };
+        }
+      }
+
+      return { otpCode: '', message: '📧 กำลังรออีเมลรหัส OTP 6 หลักจาก Night Camp ในกล่องจดหมาย Outlook...' };
+    })()`;
+  }
+
+  async function handleOutlookFlowRequest(c, body = {}) {
+    const flow = ensureOutlookFlowState(c);
+    const action = String(body.action || 'status').trim();
+
+    if (action === 'close-tab') {
+      await closeOutlookTab(c);
+      return { success: true, status: 'closed' };
+    }
+
+    if (action === 'ensure-signup') {
+      const username = String(body.username || flow.username || '').trim();
+      const password = String(body.password || flow.password || '');
+      if (!username || !password) {
+        return { success: false, status: 'error', error: 'Missing username or password' };
+      }
+      if (flow.readyUsers.has(username.toLowerCase())) {
+        flow.inMainTab = false;
+        return {
+          success: true,
+          status: 'ready',
+          username,
+          message: `✅ สมัครเมล Outlook (${username}) สำเร็จแล้ว`
+        };
+      }
+      const isNewEmail = flow.username.toLowerCase() !== username.toLowerCase();
+      flow.username = username;
+      flow.password = password;
+      if (body.firstName) flow.firstName = String(body.firstName);
+      if (body.lastName) flow.lastName = String(body.lastName);
+      if (body.birthDay) flow.birthDay = Number(body.birthDay) || 15;
+      if (body.birthMonth) flow.birthMonth = Number(body.birthMonth) || 6;
+      if (body.birthYear) flow.birthYear = Number(body.birthYear) || 1998;
+      if (isNewEmail) {
+        flow.state = 'opening';
+        flow.activatedForCaptcha = false;
+        flow.stepSubmittedAt = {};
+      }
+      if (!flow.stepSubmittedAt) flow.stepSubmittedAt = {};
+
+      if (flow.stepInFlight) {
+        return {
+          success: true,
+          status: flow.state || 'filling',
+          username: flow.username,
+          message: flow.message || `📧 กำลังสมัครเมล ${flow.username} ในหน้าต่าง Client นี้ (ผ่าน Proxy)...`
+        };
+      }
+
+      flow.stepInFlight = true;
+      flow.inMainTab = false;
+      try {
+        // Tab 1 (`c.targetId`) stays on Nightcamp game; Tab 2 (`tab.targetId`) opens right next to Tab 1 in the SAME window!
+        const tab = await ensureOutlookTab(c, 'https://signup.live.com/signup?lic=1&mkt=th-TH');
+        await send('Target.activateTarget', { targetId: tab.targetId }, undefined, 2500).catch(() => {});
+        flow.initialActivated = true;
+
+        const evalRes = await send('Runtime.evaluate', {
+          expression: buildOutlookInspectScript(flow),
+          returnByValue: true
+        }, tab.sessionId, 6000).catch(() => null);
+
+        const info = evalRes?.result?.value;
+        if (info && typeof info === 'object') {
+          flow.message = info.message || flow.message;
+          const step = info.step || 'waiting';
+
+          if (step === 'ready') {
+            if (info.clickSelector) {
+              await cdpClickSelector(tab.sessionId, info.clickSelector, flow);
+            } else if (info.clickRect) {
+              await cdpMouseClick(tab.sessionId, info.clickRect.x, info.clickRect.y, 40, 24, flow);
+            }
+            flow.state = 'ready';
+            flow.blockRetryCount = 0;
+            flow.readyUsers.add(username.toLowerCase());
+            // Warm up Outlook Web Inbox in Tab 2 and switch focus back to Tab 1 (Nightcamp game)!
+            send('Page.navigate', { url: 'https://outlook.live.com/mail/0/' }, tab.sessionId, 10000).catch(() => {});
+            await send('Target.activateTarget', { targetId: c.targetId }, undefined, 3000).catch(() => {});
+          } else if (step === 'token_expired') {
+            flow.state = 'opening';
+            flow.activatedForCaptcha = false;
+            await clearMicrosoftCookiesInSession(tab.sessionId);
+            await closeOutlookTab(c);
+            await new Promise(r => setTimeout(r, 800));
+          } else if (step === 'account_blocked') {
+            const nowMs = Date.now();
+            if (nowMs - (flow.lastBlockRotateAt || 0) < 12000) {
+              flow.state = 'opening';
+              return {
+                success: true,
+                status: 'opening',
+                username: flow.username,
+                message: flow.message || '♻️ กำลังสลับ Mobile Proxy IP และเปิดหน้าสมัครใหม่...'
+              };
+            }
+            flow.lastBlockRotateAt = nowMs;
+            flow.blockRetryCount = (flow.blockRetryCount || 0) + 1;
+            if (flow.blockRetryCount <= 1) {
+              await clearMicrosoftCookiesInSession(tab.sessionId);
+              await closeOutlookTab(c);
+              if (screenProxy && typeof screenProxy.rotateIp === 'function' && c?.profileId) {
+                await screenProxy.rotateIp({ profileIds: [c.profileId] }).catch(() => null);
+              }
+              await new Promise(r => setTimeout(r, 1500));
+              flow.state = 'email_taken';
+              flow.message = `♻️ สลับ Mobile Proxy IP ใหม่ (DataImpulse) และสุ่มเมล @outlook.com ใหม่...`;
+            } else {
+              flow.state = 'awaiting_captcha';
+              flow.message = '⚠️ Microsoft บล็อกการสร้างเมลอัตโนมัติ (แนะนำสลับไปใช้โหมด SmailPro API ในปุ่ม ⚙️ ตั้งค่าสมัครเมล)';
+            }
+          } else if (step === 'email_taken') {
+            flow.state = 'email_taken';
+          } else if (step === 'awaiting_captcha') {
+            flow.state = 'awaiting_captcha';
+            if (!flow.activatedForCaptcha) {
+              flow.activatedForCaptcha = true;
+              await send('Target.activateTarget', { targetId: tab.targetId }, undefined, 3000).catch(() => {});
+            }
+          } else if (step === 'type_selector_and_next') {
+            flow.state = 'filling';
+            if (info.selector) {
+              await cdpTypeIntoSelector(tab.sessionId, info.selector, info.text, flow);
+            }
+            if (info.nextSelector) {
+              if (info.stepKey) flow.stepSubmittedAt[info.stepKey] = Date.now();
+              await cdpClickSelector(tab.sessionId, info.nextSelector, flow);
+              await new Promise(r => setTimeout(r, 1500));
+            }
+          } else if (step === 'type_password_selector') {
+            flow.state = 'filling';
+            if (info.optInSelector) {
+              await cdpClickSelector(tab.sessionId, info.optInSelector, flow);
+              await new Promise(r => setTimeout(r, 120));
+            }
+            if (info.selector) {
+              await cdpTypeIntoSelector(tab.sessionId, info.selector, info.text, flow);
+            }
+            if (info.nextSelector) {
+              if (info.stepKey) flow.stepSubmittedAt[info.stepKey] = Date.now();
+              await cdpClickSelector(tab.sessionId, info.nextSelector, flow);
+              await new Promise(r => setTimeout(r, 1500));
+            }
+          } else if (step === 'type_names_selectors') {
+            flow.state = 'filling';
+            if (info.needFirst && info.firstSelector) {
+              await cdpTypeIntoSelector(tab.sessionId, info.firstSelector, info.firstText, flow);
+            }
+            if (info.needLast && info.lastSelector) {
+              await cdpTypeIntoSelector(tab.sessionId, info.lastSelector, info.lastText, flow);
+            }
+            if (info.nextSelector) {
+              if (info.stepKey) flow.stepSubmittedAt[info.stepKey] = Date.now();
+              await cdpClickSelector(tab.sessionId, info.nextSelector, flow);
+              await new Promise(r => setTimeout(r, 1800));
+            }
+          } else if (step === 'select_native') {
+            flow.state = 'filling';
+            await send('Runtime.evaluate', {
+              expression: `(() => {
+                const el = document.querySelector(${JSON.stringify(info.selector)});
+                if (el) {
+                  el.value = ${JSON.stringify(info.value)};
+                  el.dispatchEvent(new Event('input', { bubbles: true }));
+                  el.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+              })()`
+            }, tab.sessionId, 3000).catch(() => {});
+          } else if (step === 'click_selector') {
+            flow.state = 'filling';
+            const lastSub = info.stepKey ? (flow.stepSubmittedAt?.[info.stepKey] || 0) : 0;
+            if (!info.stepKey || (Date.now() - lastSub >= 8000)) {
+              if (info.stepKey) flow.stepSubmittedAt[info.stepKey] = Date.now();
+              if (info.selector) {
+                await cdpClickSelector(tab.sessionId, info.selector, flow);
+              } else if (info.clickRect) {
+                await cdpMouseClick(tab.sessionId, info.clickRect.x, info.clickRect.y, 40, 24, flow);
+              }
+              if (info.stepKey) {
+                await new Promise(r => setTimeout(r, 1400));
+              }
+            }
+          } else if (step === 'click_rect' || step === 'click_only') {
+            flow.state = 'filling';
+            if (info.clickRect) {
+              await cdpMouseClick(tab.sessionId, info.clickRect.x, info.clickRect.y, 40, 20, flow);
+            }
+          } else {
+            flow.state = 'filling';
+          }
+        }
+        return {
+          success: true,
+          status: flow.state || 'filling',
+          username: flow.username,
+          message: flow.message || `📧 กำลังสมัครเมล ${flow.username} ในแท็บที่ 2...`
+        };
+      } finally {
+        flow.stepInFlight = false;
+      }
+    }
+
+    if (action === 'poll-otp') {
+      if (body.username) flow.username = String(body.username).trim();
+      if (body.password) flow.password = String(body.password);
+      if (body.rejectedCode) flow.usedOtpCodes.add(String(body.rejectedCode).trim());
+
+      if (flow.stepInFlight) {
+        return {
+          success: true,
+          status: 'polling',
+          otpCode: '',
+          message: flow.message || '📧 กำลังเช็กรหัส OTP 6 หลักในกล่องจดหมาย Outlook...'
+        };
+      }
+
+      flow.stepInFlight = true;
+      try {
+        const tab = await ensureOutlookTab(c, 'https://outlook.live.com/mail/0/');
+        flow.otpPollCount = (flow.otpPollCount || 0) + 1;
+        const checkJunk = (flow.otpPollCount % 6 === 4 || flow.otpPollCount % 6 === 5);
+        const evalRes = await send('Runtime.evaluate', {
+          expression: buildOutlookOtpPollScript(flow, checkJunk),
+          returnByValue: true,
+          awaitPromise: true
+        }, tab.sessionId, 8000).catch(() => null);
+
+        const val = evalRes?.result?.value;
+        if (val?.needNavigateMail) {
+          send('Page.navigate', { url: 'https://outlook.live.com/mail/0/' }, tab.sessionId, 8000).catch(() => {});
+        }
+        if (val?.otpCode) {
+          const code = String(val.otpCode).trim();
+          flow.usedOtpCodes.add(code);
+          flow.otpCode = code;
+          flow.message = val.message || `✅ พบรหัส OTP 6 หลัก (${code})`;
+          await send('Target.activateTarget', { targetId: c.targetId }, undefined, 3000).catch(() => {});
+          return {
+            success: true,
+            status: 'otp_found',
+            otpCode: code,
+            message: flow.message
+          };
+        }
+        flow.message = val?.message || '📧 กำลังรออีเมลรหัส OTP 6 หลักในกล่องจดหมาย Outlook...';
+        return {
+          success: true,
+          status: 'polling',
+          otpCode: '',
+          message: flow.message
+        };
+      } finally {
+        flow.stepInFlight = false;
+      }
+    }
+
+    return {
+      success: true,
+      status: flow.state || 'idle',
+      username: flow.username,
+      message: flow.message || ''
+    };
+  }
+
   async function windowAction(c, action, q) {
     const { windowId } = await send('Browser.getWindowForTarget', { targetId: c.targetId });
     const set = bounds => send('Browser.setWindowBounds', { windowId, bounds });
@@ -4606,6 +5621,67 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
           }
           if (!code) return reply(400, { error: 'Missing code' });
           const isLiveStateProbe = code.includes('__getClientLiveState') && code.includes('grossZenyGained');
+          if (c.outlookFlow && c.outlookFlow.inMainTab) {
+            const flow = c.outlookFlow;
+            c.stateFailCount = 0;
+            c.firstStateFailAt = 0;
+            c.evalCooldownUntil = 0;
+            if (isLiveStateProbe) {
+              const syntheticOutlookState = {
+                isOnline: true,
+                isBotRunning: false,
+                autoLoop: false,
+                screenPhase: 'outlook_signup',
+                screenPhaseLabel: '📧 สมัครเมล Outlook',
+                botStatus: flow.message || (`📧 กำลังสมัครเมล ${flow.username} ในหน้าต่างนี้...`),
+                charName: '',
+                map: 'Outlook Signup',
+                coords: '--',
+                weight: '--',
+                zeny: null
+              };
+              c.lastGoodState = syntheticOutlookState;
+              c.lastGoodStateAt = Date.now();
+              return reply(200, { success: true, result: syntheticOutlookState });
+            }
+            if (code.includes('window.__authConfig') && code.includes('executeAutoLogin') && !code.includes('const patch =')) {
+              return reply(200, {
+                success: true,
+                result: {
+                  username: flow.username || '',
+                  password: flow.password || '',
+                  serverName: flow.serverName || '',
+                  charNameCfg: flow.charName || '',
+                  autoResumeBot: true,
+                  enabled: true,
+                  register: true,
+                  registerDone: false,
+                  registerError: '',
+                  generatedUser: true,
+                  outlookReady: false,
+                  awaitingEmailOtp: false,
+                  lastRejectedOtpCode: '',
+                  userEditedAt: 0,
+                  serverEditedAt: 0,
+                  charEditedAt: 0,
+                  verifiedLoginAt: 0,
+                  userToggledAt: 0,
+                  inGame: false,
+                  inWorld: false,
+                  charName: '',
+                  isEditingAuth: false,
+                  registerQueueWaiting: false,
+                  registerQueueDismissed: false
+                }
+              });
+            }
+            if (code.includes('window.__authConfig') && code.includes('const patch =')) {
+              return reply(200, { success: true, result: { success: true } });
+            }
+            if (code.includes('__setPmRegisterQueueOverlay')) {
+              return reply(200, { success: true, result: { success: true } });
+            }
+          }
           const isBootstrapAccept = isRealSession && code.includes('__pmScriptBootstrap.accept(');
           const isReadyClient = diagnostics.get(c.profileId)?.state === 'ready';
           const thisClientInjecting = Boolean(c.injectionInFlight);
@@ -4698,6 +5774,27 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
           }
         }
         if (url.pathname === '/api/state') {
+          if (c.outlookFlow && c.outlookFlow.inMainTab) {
+            const flow = c.outlookFlow;
+            c.stateFailCount = 0;
+            c.firstStateFailAt = 0;
+            const syntheticOutlookState = {
+              isOnline: true,
+              isBotRunning: false,
+              autoLoop: false,
+              screenPhase: 'outlook_signup',
+              screenPhaseLabel: '📧 สมัครเมล Outlook',
+              botStatus: flow.message || (`📧 กำลังสมัครเมล ${flow.username} ในหน้าต่างนี้...`),
+              charName: '',
+              map: 'Outlook Signup',
+              coords: '--',
+              weight: '--',
+              zeny: null
+            };
+            c.lastGoodState = syntheticOutlookState;
+            c.lastGoodStateAt = Date.now();
+            return reply(200, syntheticOutlookState);
+          }
           const thisStateInjecting = Boolean(c.injectionInFlight);
           if (isRealSession && (thisStateInjecting || (c.evalCooldownUntil && Date.now() < c.evalCooldownUntil))) {
             if (c.lastGoodState && (Date.now() - (c.lastGoodStateAt || 0) < 300000)) {
@@ -4744,11 +5841,23 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
           }
         }
         if(url.pathname==='/api/browser-status')return reply(200,{success:true,profileId:c.profileId,deviceId:ensureProfileDeviceId(c.profileId),browserContextId:c.browserContextId||null,...diagnostics.get(c.profileId)});
+        if (url.pathname === '/api/outlook-flow') {
+          let bodyObj = {};
+          if (req.method === 'POST') {
+            let raw = '';
+            for await (const chunk of req) raw += chunk;
+            try { bodyObj = JSON.parse(raw || '{}'); } catch (_) { bodyObj = {}; }
+          } else {
+            bodyObj = Object.fromEntries(url.searchParams.entries());
+          }
+          const outRes = await handleOutlookFlowRequest(c, bodyObj);
+          return reply(200, outRes);
+        }
         if (url.pathname === '/api/window') {
           await windowAction(c, url.searchParams.get('action'), url.searchParams);
           return reply(200, { success: true });
         }
-        reply(200, { name: 'PmheeAether browser-mode client', profileId: c.profileId, endpoints: ['/api/eval', '/api/state', '/api/window'] });
+        reply(200, { name: 'PmheeAether browser-mode client', profileId: c.profileId, endpoints: ['/api/eval', '/api/state', '/api/window', '/api/outlook-flow'] });
       } catch (e) {
         if (isGoneError(e)) drop(c);
         reply(500, { success: false, error: e.message });
@@ -4980,7 +6089,10 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
   async function stop(profileId) {
     stoppedProfiles.add(profileId);
     const c = clients.get(profileId);
-    if (c) await syncClientStorage(c).catch(() => {});
+    if (c) {
+      await closeOutlookTab(c).catch(() => {});
+      await syncClientStorage(c).catch(() => {});
+    }
     const targetId=c?.targetId||knownTargets.get(profileId);knownTargets.delete(profileId);saveKnownTargets();
     if (targetId && knownProxyContexts.delete(targetId)) saveKnownProxyContexts();
     const oldCtxId = c?.browserContextId || null;
@@ -5011,7 +6123,7 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
       const res = await send('Target.getTargets').catch(() => null);
       const infos = Array.isArray(res?.targetInfos) ? res.targetInfos : [];
       for (const t of infos) {
-        if (t && t.type === 'page' && t.targetId && (/nightcamp\.app/i.test(t.url || '') || t.url === 'about:blank')) {
+        if (t && t.type === 'page' && t.targetId && (/nightcamp\.app|signup\.live\.com|login\.live\.com|outlook\.live\.com|account\.microsoft\.com/i.test(t.url || '') || t.url === 'about:blank')) {
           await send('Target.closeTarget', { targetId: t.targetId }).catch(() => {});
         }
       }
@@ -6305,6 +7417,776 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
 
   // ====================== END UNBAN MODE ======================
 
+  // ====================== SMAILPRO WEB PREMIUM SESSION & COOKIE AUTOMATION ======================
+  const smailproWebState = {
+    targetId: null,
+    sessionId: null,
+    isLoggedIn: false,
+    isPremium: false,
+    userText: '',
+    csrfToken: '',
+    cookieHeader: '',
+    cookies: [],
+    userAgent: '',
+    lastCheckedAt: 0,
+    monitorTimer: null,
+    onSessionCallback: null
+  };
+
+  function setSmailProSessionCallback(fn) {
+    smailproWebState.onSessionCallback = typeof fn === 'function' ? fn : null;
+  }
+
+  function parseCookieHeaderToCdpCookies(rawCookieStr) {
+    const str = String(rawCookieStr || '').trim();
+    if (!str) return [];
+    const out = [];
+    for (const part of str.split(';')) {
+      const eq = part.indexOf('=');
+      if (eq <= 0) continue;
+      const name = part.slice(0, eq).trim();
+      const value = part.slice(eq + 1).trim();
+      if (!name || !value) continue;
+      out.push(
+        { name, value, domain: 'smailpro.com', path: '/', url: 'https://smailpro.com/temporary-email' },
+        { name, value, domain: '.sonjj.com', path: '/', url: 'https://my.sonjj.com/' }
+      );
+    }
+    return out;
+  }
+
+  async function injectSmailProHelperBanner(sessionId) {
+    if (!sessionId) return;
+    await send('Runtime.evaluate', {
+      expression: `(() => {
+        try {
+          if (!document.body) return;
+          const host = String(location.hostname || '').toLowerCase();
+          const html = document.documentElement?.innerHTML || '';
+          const alpineEl = document.querySelector('[x-data*="TemporaryEmail"]');
+          const alpineData = alpineEl && alpineEl._x_dataStack && alpineEl._x_dataStack[0] ? alpineEl._x_dataStack[0] : null;
+          const isLoggedIn = alpineData ? Boolean(alpineData.isLoggedIn) : /\\bisLoggedIn\\s*:\\s*true\\b/.test(html);
+          const isPremium = alpineData ? Boolean(alpineData.isPremium) : /\\bisPremium\\s*:\\s*true\\b/.test(html);
+
+          let bar = document.getElementById('pm-smailpro-helper-bar');
+          if (!bar) {
+            bar = document.createElement('div');
+            bar.id = 'pm-smailpro-helper-bar';
+            bar.style.cssText = 'position:sticky;top:0;left:0;right:0;z-index:2147483647;padding:10px 16px;font-family:system-ui,-apple-system,sans-serif;font-size:13.5px;font-weight:700;display:flex;align-items:center;justify-content:space-between;gap:12px;box-shadow:0 4px 16px rgba(0,0,0,0.35);';
+            document.body.prepend(bar);
+          }
+
+          if (host === 'smailpro.com' && isLoggedIn) {
+            bar.style.background = 'linear-gradient(90deg, #065f46, #047857)';
+            bar.style.color = '#ecfdf5';
+            bar.style.borderBottom = '2px solid #34d399';
+            bar.innerHTML = '<span>✅ [Nightcamp Manager] เชื่อมต่อและจำเซสชัน SmailPro ' + (isPremium ? '👑 PREMIUM' : 'Web') + ' สำเร็จแล้ว! บอทสามารถสร้างเมลและดึงรหัส OTP อัตโนมัติได้ทันทีโดยไม่เสีย API Credit (พับหรือปล่อยหน้าต่างนี้ไว้ได้เลย)</span>';
+          } else if (host.includes('sonjj.com')) {
+            bar.style.background = 'linear-gradient(90deg, #1e3a8a, #0284c7)';
+            bar.style.color = '#f0f9ff';
+            bar.style.borderBottom = '2px solid #38bdf8';
+            bar.innerHTML = '<span>🔑 [Nightcamp Manager] กรุณาเข้าสู่ระบบบัญชี SmailPro / Sonjj Premium ของคุณในหน้านี้ — เมื่อ Login เสร็จ ระบบจะพากลับไปหน้า SmailPro และจำ Cookie ให้บอทอัตโนมัติทันที!</span>' +
+              '<a href="https://smailpro.com/temporary-email" style="background:#fff;color:#0f172a;padding:5px 12px;border-radius:6px;text-decoration:none;font-size:12px;font-weight:800;white-space:nowrap;">กลับหน้า SmailPro</a>';
+          } else {
+            bar.style.background = 'linear-gradient(90deg, #92400e, #d97706)';
+            bar.style.color = '#fffbeb';
+            bar.style.borderBottom = '2px solid #fbbf24';
+            const loginUrl = 'https://my.sonjj.com/login?back=' + encodeURIComponent('https://smailpro.com/temporary-email');
+            bar.innerHTML = '<span>⚠️ [Nightcamp Manager] ยังไม่ได้เข้าสู่ระบบ SmailPro Premium — กดปุ่มขวาเพื่อไปหน้า Login (ล็อกอินครั้งเดียว บอทจำ Cookie ถาวร)</span>' +
+              '<a href="' + loginUrl + '" style="background:#10b981;color:#fff;padding:6px 14px;border-radius:6px;text-decoration:none;font-size:12.5px;font-weight:800;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.25);">🔑 คลิกเพื่อไปหน้า Login SmailPro</a>';
+          }
+        } catch (_) {}
+      })()`,
+      returnByValue: true,
+      awaitPromise: false,
+      timeout: 3000
+    }, sessionId, 3500).catch(() => {});
+  }
+
+  async function inspectAndHarvestSmailProTab(sessionId) {
+    if (!sessionId) return null;
+    try {
+      const [cookieRes, evalRes] = await Promise.all([
+        send('Network.getCookies', {
+          urls: ['https://smailpro.com/temporary-email', 'https://smailpro.com/']
+        }, sessionId, 4500).catch(() => ({ cookies: [] })),
+        send('Runtime.evaluate', {
+          expression: `(async () => {
+            const html = document.documentElement?.innerHTML || '';
+            const alpineEl = document.querySelector('[x-data*="TemporaryEmail"]');
+            const alpineData = alpineEl && alpineEl._x_dataStack && alpineEl._x_dataStack[0] ? alpineEl._x_dataStack[0] : null;
+            const isLoggedIn = alpineData ? Boolean(alpineData.isLoggedIn) : /\\bisLoggedIn\\s*:\\s*true\\b/.test(html);
+            const isPremium = alpineData ? Boolean(alpineData.isPremium) : /\\bisPremium\\s*:\\s*true\\b/.test(html);
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+            let userText = '';
+            const spans = Array.from(document.querySelectorAll('#menu span, header span'));
+            for (const sp of spans) {
+              const t = String(sp.textContent || '').trim();
+              if (t && (t.includes('@') || (/^Hi!\\s+/i.test(t) && !/Guest/i.test(t)))) {
+                userText += (userText ? ' · ' : '') + t;
+              }
+            }
+            const historyItems = [];
+            try {
+              if (alpineData && alpineData.emailManager) {
+                const activeList = await alpineData.emailManager.getAllEmails().catch(() => []);
+                const storageHist = await alpineData.emailManager.getEmailHistory().catch(() => []);
+                for (const item of [...(Array.isArray(activeList) ? activeList : []), ...(Array.isArray(storageHist) ? storageHist : [])]) {
+                  if (item && item.address) {
+                    historyItems.push({
+                      address: String(item.address).trim().toLowerCase(),
+                      timestamp: Number(item.timestamp) || 0,
+                      key: String(item.key || '')
+                    });
+                  }
+                }
+              }
+              if (isPremium && String(location.hostname || '').toLowerCase() === 'smailpro.com') {
+                const cRes = await fetch('/app/history', { credentials: 'same-origin' }).catch(() => null);
+                if (cRes && cRes.ok) {
+                  const cJson = await cRes.json().catch(() => null);
+                  if (cJson && Array.isArray(cJson.items)) {
+                    for (const item of cJson.items) {
+                      const addr = String(item?.address || item?.email || item || '').trim().toLowerCase();
+                      if (addr && addr.includes('@')) {
+                        historyItems.push({
+                          address: addr,
+                          timestamp: Number(item?.timestamp) || 0,
+                          key: String(item?.key || '')
+                        });
+                      }
+                    }
+                  }
+                }
+              }
+            } catch (_) {}
+            return {
+              href: location.href,
+              host: String(location.hostname || '').toLowerCase(),
+              readyState: document.readyState,
+              isLoggedIn,
+              isPremium,
+              csrfToken,
+              userText,
+              userAgent: navigator.userAgent,
+              historyItems
+            };
+          })()`,
+          returnByValue: true,
+          awaitPromise: true,
+          timeout: 5500
+        }, sessionId, 6000).catch(() => null)
+      ]);
+
+      const cookies = Array.isArray(cookieRes?.cookies) ? cookieRes.cookies : [];
+      const smailCookies = cookies.filter(c => c && c.name && /smailpro\.com/i.test(String(c.domain || '')));
+      const cookieMap = new Map();
+      for (const c of smailCookies) {
+        cookieMap.set(c.name, c.value);
+      }
+      const cookieHeader = Array.from(cookieMap.entries()).map(([k, v]) => `${k}=${v}`).join('; ');
+      const page = evalRes?.result?.value || {};
+
+      if (page.host === 'smailpro.com') {
+        smailproWebState.isLoggedIn = Boolean(page.isLoggedIn);
+        smailproWebState.isPremium = Boolean(page.isPremium);
+        if (page.csrfToken) smailproWebState.csrfToken = String(page.csrfToken);
+        if (page.userText) smailproWebState.userText = String(page.userText);
+        if (cookieHeader) smailproWebState.cookieHeader = cookieHeader;
+      }
+      if (smailCookies.length > 0) smailproWebState.cookies = smailCookies;
+      if (page.userAgent) smailproWebState.userAgent = String(page.userAgent);
+      smailproWebState.lastCheckedAt = Date.now();
+
+      await injectSmailProHelperBanner(sessionId);
+
+      const snapshot = {
+        targetId: smailproWebState.targetId,
+        href: page.href || '',
+        host: page.host || '',
+        isLoggedIn: smailproWebState.isLoggedIn,
+        isPremium: smailproWebState.isPremium,
+        userText: smailproWebState.userText,
+        csrfToken: smailproWebState.csrfToken,
+        cookieHeader: smailproWebState.cookieHeader,
+        userAgent: smailproWebState.userAgent,
+        historyItems: Array.isArray(page.historyItems) ? page.historyItems : [],
+        checkedAt: smailproWebState.lastCheckedAt
+      };
+
+      if (smailproWebState.onSessionCallback && (page.host === 'smailpro.com' || cookieHeader)) {
+        try { smailproWebState.onSessionCallback(snapshot); } catch (_) {}
+      }
+      return snapshot;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function startSmailProLoginMonitor() {
+    if (smailproWebState.monitorTimer) clearInterval(smailproWebState.monitorTimer);
+    let ticks = 0;
+    smailproWebState.monitorTimer = setInterval(async () => {
+      ticks++;
+      if (ticks > 150 || !smailproWebState.sessionId) {
+        clearInterval(smailproWebState.monitorTimer);
+        smailproWebState.monitorTimer = null;
+        return;
+      }
+      const snap = await inspectAndHarvestSmailProTab(smailproWebState.sessionId);
+      if (!snap) {
+        clearInterval(smailproWebState.monitorTimer);
+        smailproWebState.monitorTimer = null;
+      }
+    }, 2200);
+    smailproWebState.monitorTimer.unref?.();
+  }
+
+  async function ensureSmailProWebTab({ openVisibleWindow = false, allowCreateTab = false, requireSmailProOrigin = false, cookieHeaderToInject = '' } = {}) {
+    await ensureBrowser();
+    await connect();
+
+    const tRes = await send('Target.getTargets', {}, undefined, 10000);
+    const targets = Array.isArray(tRes?.targetInfos) ? tRes.targetInfos : [];
+    const matchingTabs = targets.filter(t =>
+      t.type === 'page' &&
+      (t.targetId === smailproWebState.targetId || /smailpro\.com|my\.sonjj\.com/i.test(String(t.url || '')))
+    );
+    // Close any duplicate smailpro.com tabs automatically so at most 1 tab ever exists
+    if (matchingTabs.length > 1) {
+      for (let i = 1; i < matchingTabs.length; i++) {
+        await send('Target.closeTarget', { targetId: matchingTabs[i].targetId }, undefined, 2500).catch(() => {});
+      }
+    }
+    let target = matchingTabs[0] || null;
+
+    let createdNew = false;
+    if (!target) {
+      if (!allowCreateTab && !openVisibleWindow) {
+        throw new Error('NO_OPEN_SMAILPRO_TAB');
+      }
+      const created = await send('Target.createTarget', {
+        url: 'https://smailpro.com/temporary-email',
+        newWindow: Boolean(openVisibleWindow)
+      });
+      const targetId = created?.targetId;
+      if (!targetId) throw new Error('ไม่สามารถเปิดแท็บ SmailPro ในเบราว์เซอร์ได้');
+      target = { targetId, url: 'https://smailpro.com/temporary-email' };
+      createdNew = true;
+      if (openVisibleWindow && startupPages.length > 0) {
+        for (const blankId of startupPages.splice(0)) {
+          if (blankId !== targetId) await send('Target.closeTarget', { targetId: blankId }).catch(() => {});
+        }
+      }
+    }
+
+    smailproWebState.targetId = target.targetId;
+    const attachRes = await send('Target.attachToTarget', { targetId: target.targetId, flatten: true }, undefined, 8000);
+    const sessionId = attachRes?.sessionId;
+    if (!sessionId) throw new Error('ไม่สามารถเชื่อมต่อ CDP กับแท็บ SmailPro ได้');
+    smailproWebState.sessionId = sessionId;
+
+    await send('Page.enable', {}, sessionId, 4000).catch(() => {});
+    await send('Network.enable', {}, sessionId, 4000).catch(() => {});
+
+    if (cookieHeaderToInject) {
+      const cdpCookies = parseCookieHeaderToCdpCookies(cookieHeaderToInject);
+      if (cdpCookies.length > 0) {
+        await send('Network.setCookies', { cookies: cdpCookies }, sessionId, 4000).catch(() => {});
+      }
+    }
+
+    if (openVisibleWindow) {
+      try {
+        const winInfo = await send('Browser.getWindowForTarget', { targetId: target.targetId }, undefined, 3000);
+        if (winInfo && winInfo.windowId) {
+          await send('Browser.setWindowBounds', {
+            windowId: winInfo.windowId,
+            bounds: { windowState: 'normal' }
+          }, undefined, 3000).catch(() => {});
+        }
+      } catch (_) {}
+      await send('Target.activateTarget', { targetId: target.targetId }, undefined, 3000).catch(() => {});
+    }
+
+    // Wait for document ready
+    for (let i = 0; i < 20; i++) {
+      const r = await send('Runtime.evaluate', {
+        expression: `({ href: location.href, host: location.hostname, ready: document.readyState })`,
+        returnByValue: true,
+        timeout: 2500
+      }, sessionId, 3000).catch(() => null);
+      const val = r?.result?.value;
+      if (val && val.ready && val.ready !== 'loading' && val.href !== 'about:blank') {
+        if (requireSmailProOrigin && String(val.host || '').toLowerCase() !== 'smailpro.com') {
+          await send('Page.navigate', { url: 'https://smailpro.com/temporary-email' }, sessionId, 8000).catch(() => {});
+          await new Promise(res => setTimeout(res, 1200));
+          continue;
+        }
+        break;
+      }
+      await new Promise(res => setTimeout(res, 350));
+    }
+
+    if (createdNew || cookieHeaderToInject) {
+      if (cookieHeaderToInject && !createdNew) {
+        await send('Page.navigate', { url: 'https://smailpro.com/temporary-email' }, sessionId, 8000).catch(() => {});
+      }
+      await new Promise(res => setTimeout(res, 900));
+    }
+
+    const snap = await inspectAndHarvestSmailProTab(sessionId);
+    return { sessionId, targetId: target.targetId, snapshot: snap };
+  }
+
+  async function smailproWebAction(payload = {}) {
+    const action = String(payload?.action || '').trim();
+
+    if (action === 'open-login') {
+      const { sessionId, targetId, snapshot } = await ensureSmailProWebTab({
+        openVisibleWindow: true,
+        requireSmailProOrigin: false,
+        cookieHeaderToInject: payload?.cookieHeader || ''
+      });
+      // If user is not logged in yet and currently on smailpro.com, navigate straight to the SSO Login page so they can log in immediately!
+      if (snapshot && !snapshot.isLoggedIn && snapshot.host === 'smailpro.com' && !payload?.stayOnHome) {
+        const loginUrl = 'https://my.sonjj.com/login?back=' + encodeURIComponent('https://smailpro.com/temporary-email');
+        await send('Page.navigate', { url: loginUrl }, sessionId, 8000).catch(() => {});
+        await new Promise(res => setTimeout(res, 900));
+        await injectSmailProHelperBanner(sessionId);
+      }
+      startSmailProLoginMonitor();
+      return {
+        success: true,
+        targetId,
+        ...(snapshot || {}),
+        message: snapshot?.isLoggedIn
+          ? `✅ ล็อกอิน SmailPro ${snapshot.isPremium ? '👑 Premium' : 'Web'} อยู่แล้ว! ระบบจำเซสชันและ Cookie เรียบร้อย`
+          : '🌐 เปิดหน้าต่างเข้าสู่ระบบ SmailPro แล้ว — กรุณาล็อกอินในหน้าต่างที่เปิดขึ้นมา ระบบจะจำเซสชันให้อัตโนมัติทันที'
+      };
+    }
+
+    if (action === 'check-session') {
+      const ensureTab = Boolean(payload?.ensureTab);
+      if (!ensureTab && !(await browserAlive())) {
+        return {
+          success: true,
+          browserOpen: false,
+          isLoggedIn: smailproWebState.isLoggedIn,
+          isPremium: smailproWebState.isPremium,
+          userText: smailproWebState.userText,
+          csrfToken: smailproWebState.csrfToken,
+          cookieHeader: smailproWebState.cookieHeader
+        };
+      }
+      await connect().catch(() => {});
+      const tRes = await send('Target.getTargets', {}, undefined, 6000).catch(() => null);
+      const targets = Array.isArray(tRes?.targetInfos) ? tRes.targetInfos : [];
+      const existing = targets.find(t =>
+        t.type === 'page' &&
+        (t.targetId === smailproWebState.targetId || /smailpro\.com|my\.sonjj\.com/i.test(String(t.url || '')))
+      );
+      if (!existing) {
+        return {
+          success: true,
+          browserOpen: true,
+          tabOpen: false,
+          isLoggedIn: smailproWebState.isLoggedIn,
+          isPremium: smailproWebState.isPremium,
+          userText: smailproWebState.userText,
+          csrfToken: smailproWebState.csrfToken,
+          cookieHeader: smailproWebState.cookieHeader
+        };
+      }
+      const { snapshot } = await ensureSmailProWebTab({
+        openVisibleWindow: false,
+        allowCreateTab: false,
+        requireSmailProOrigin: false,
+        cookieHeaderToInject: payload?.cookieHeader || ''
+      });
+      return {
+        success: true,
+        browserOpen: true,
+        tabOpen: true,
+        ...(snapshot || {})
+      };
+    }
+
+    if (action === 'sync-ui-email') {
+      if (!(await browserAlive())) return { success: false, skipped: true };
+      try {
+        const { sessionId } = await ensureSmailProWebTab({
+          openVisibleWindow: false,
+          allowCreateTab: false,
+          requireSmailProOrigin: false
+        });
+        const emailObj = payload?.emailObj;
+        if (!emailObj || !emailObj.address) return { success: false };
+        await send('Runtime.evaluate', {
+          expression: `(async () => {
+            try {
+              const alpineEl = document.querySelector('[x-data*="TemporaryEmail"]');
+              const app = alpineEl && alpineEl._x_dataStack && alpineEl._x_dataStack[0] ? alpineEl._x_dataStack[0] : null;
+              if (!app || !app.emailManager) return false;
+              const email = ${JSON.stringify(emailObj)};
+              // Auto-archive oldest active email to History if active List is at 20/20 limit!
+              const activeList = await app.emailManager.getAllEmails().catch(() => []);
+              const maxLim = Number(app.limitActive) || 20;
+              const alreadyActive = Array.isArray(activeList) && activeList.some(e => e && String(e.address || '').toLowerCase() === String(email.address).toLowerCase());
+              if (!alreadyActive && Array.isArray(activeList) && activeList.length >= maxLim) {
+                const toArchive = activeList.slice(maxLim - 1);
+                for (const oldItem of toArchive) {
+                  if (oldItem && oldItem.address) {
+                    if (typeof app.requestServerDelete === 'function') await app.requestServerDelete(oldItem.address).catch(() => {});
+                    await app.emailManager.deleteEmail(oldItem.address).catch(() => {});
+                  }
+                }
+              }
+              const dup = await app.emailManager.getEmail(email.address, true);
+              if (dup) {
+                await app.emailManager.permanentlyDeleteEmail(email.address);
+                email.messages = (Array.isArray(email.messages) && email.messages.length > 0) ? email.messages : (dup.messages || []);
+              }
+              await app.emailManager.addEmail(email);
+              if (typeof app.limit === 'function') {
+                await app.limit(email.address);
+              }
+              return true;
+            } catch (_) {
+              return false;
+            }
+          })()`,
+          returnByValue: true,
+          awaitPromise: true,
+          timeout: 4500
+        }, sessionId, 5000).catch(() => {});
+        return { success: true };
+      } catch (_) {
+        return { success: false, skipped: true };
+      }
+    }
+
+    if (action === 'inject-cookies') {
+      const rawCookie = String(payload?.cookieHeader || '').trim();
+      if (!rawCookie) throw new Error('กรุณาวาง Cookie ของเว็บ SmailPro ก่อน');
+      const { snapshot } = await ensureSmailProWebTab({
+        openVisibleWindow: false,
+        allowCreateTab: true,
+        requireSmailProOrigin: true,
+        cookieHeaderToInject: rawCookie
+      });
+      return {
+        success: true,
+        ...(snapshot || {})
+      };
+    }
+
+    if (action === 'web-cloud-history') {
+      const { sessionId, snapshot } = await ensureSmailProWebTab({
+        openVisibleWindow: false,
+        allowCreateTab: true,
+        requireSmailProOrigin: true,
+        cookieHeaderToInject: payload?.cookieHeader || ''
+      });
+      return {
+        success: true,
+        items: Array.isArray(snapshot?.historyItems) ? snapshot.historyItems : [],
+        isLoggedIn: Boolean(snapshot?.isLoggedIn),
+        isPremium: Boolean(snapshot?.isPremium)
+      };
+    }
+
+    if (action === 'web-create') {
+      const query = payload?.query || { username: 'random', type: 'real', domain: 'outlook.com', server: '2' };
+      const { sessionId, snapshot } = await ensureSmailProWebTab({
+        openVisibleWindow: false,
+        allowCreateTab: true,
+        requireSmailProOrigin: true,
+        cookieHeaderToInject: payload?.cookieHeader || ''
+      });
+      const evalRes = await send('Runtime.evaluate', {
+        expression: `(async () => {
+          try {
+            const alpineEl = document.querySelector('[x-data*="TemporaryEmail"]');
+            const app = alpineEl && alpineEl._x_dataStack && alpineEl._x_dataStack[0] ? alpineEl._x_dataStack[0] : null;
+            if (app && app.emailManager) {
+              const activeList = await app.emailManager.getAllEmails().catch(() => []);
+              const maxLim = Number(app.limitActive) || 20;
+              if (Array.isArray(activeList) && activeList.length >= maxLim) {
+                const toArchive = activeList.slice(maxLim - 1);
+                for (const oldItem of toArchive) {
+                  if (oldItem && oldItem.address) {
+                    if (typeof app.requestServerDelete === 'function') await app.requestServerDelete(oldItem.address).catch(() => {});
+                    await app.emailManager.deleteEmail(oldItem.address).catch(() => {});
+                  }
+                }
+              }
+            }
+            const query = ${JSON.stringify(query)};
+            const q = new URLSearchParams(query).toString();
+            const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+            const headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
+            if (csrf) headers['X-CSRF-TOKEN'] = csrf;
+            const res = await fetch('/app/create?' + q, {
+              method: 'GET',
+              headers,
+              credentials: 'same-origin'
+            });
+            const data = await res.json().catch(() => null);
+            if (!res.ok || !data || !data.address) {
+              return {
+                success: false,
+                status: res.status,
+                error: (data && (data.msg || data.message)) || ('HTTP ' + res.status)
+              };
+            }
+            // Save to SmailPro Cloud History & update UI List (1/20)
+            fetch('/app/history', {
+              method: 'POST',
+              headers,
+              credentials: 'same-origin',
+              body: JSON.stringify({ email: data.address })
+            }).catch(() => {});
+            if (app && app.emailManager) {
+              const dup = await app.emailManager.getEmail(data.address, true).catch(() => null);
+              if (dup) await app.emailManager.permanentlyDeleteEmail(data.address).catch(() => {});
+              await app.emailManager.addEmail({ address: data.address, timestamp: data.timestamp, key: data.key, messages: dup?.messages || [] }).catch(() => {});
+              if (typeof app.limit === 'function') await app.limit(data.address).catch(() => {});
+            }
+            return {
+              success: true,
+              address: String(data.address || '').trim().toLowerCase(),
+              timestamp: Number(data.timestamp) || Math.floor(Date.now() / 1000),
+              key: String(data.key || '')
+            };
+          } catch (e) {
+            return { success: false, error: e.message || String(e) };
+          }
+        })()`,
+        returnByValue: true,
+        awaitPromise: true,
+        timeout: 15000
+      }, sessionId, 16000);
+
+      await inspectAndHarvestSmailProTab(sessionId).catch(() => {});
+      const out = evalRes?.result?.value;
+      if (!out || !out.success) {
+        return {
+          success: false,
+          isLoggedIn: snapshot?.isLoggedIn || false,
+          isPremium: snapshot?.isPremium || false,
+          error: out?.error || 'สร้างอีเมลผ่าน SmailPro Web ไม่สำเร็จ'
+        };
+      }
+      return {
+        ...out,
+        isLoggedIn: smailproWebState.isLoggedIn,
+        isPremium: smailproWebState.isPremium
+      };
+    }
+
+    if (action === 'web-inbox') {
+      const address = String(payload?.address || '').trim().toLowerCase();
+      const timestamp = Number(payload?.timestamp) || Math.floor(Date.now() / 1000);
+      const key = String(payload?.key || '');
+      if (!address) throw new Error('Missing email address for web-inbox');
+
+      const { sessionId } = await ensureSmailProWebTab({
+        openVisibleWindow: false,
+        allowCreateTab: true,
+        requireSmailProOrigin: true,
+        cookieHeaderToInject: payload?.cookieHeader || ''
+      });
+
+      const evalRes = await send('Runtime.evaluate', {
+        expression: `(async () => {
+          try {
+            const addr = ${JSON.stringify(address)};
+            const domain = addr.split('@')[1] || '';
+            const localPart = addr.split('@')[0] || '';
+            const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+            const headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
+            if (csrf) headers['X-CSRF-TOKEN'] = csrf;
+
+            let curKey = ${JSON.stringify(key)};
+            let curTs = ${Number(timestamp) || Math.floor(Date.now() / 1000)};
+
+            const restoreKey = async () => {
+              const alpineEl = document.querySelector('[x-data*="TemporaryEmail"]');
+              const app = alpineEl && alpineEl._x_dataStack && alpineEl._x_dataStack[0] ? alpineEl._x_dataStack[0] : null;
+              if (app && app.emailManager) {
+                const activeList = await app.emailManager.getAllEmails().catch(() => []);
+                const maxLim = Number(app.limitActive) || 20;
+                const alreadyInList = Array.isArray(activeList) && activeList.some(e => e && String(e.address || '').toLowerCase() === addr);
+                if (!alreadyInList && Array.isArray(activeList) && activeList.length >= maxLim) {
+                  const toArchive = activeList.slice(maxLim - 1);
+                  for (const oldItem of toArchive) {
+                    if (oldItem && oldItem.address) {
+                      if (typeof app.requestServerDelete === 'function') await app.requestServerDelete(oldItem.address).catch(() => {});
+                      await app.emailManager.deleteEmail(oldItem.address).catch(() => {});
+                    }
+                  }
+                }
+              }
+              for (const srv of ['1', '2', '3']) {
+                for (const tp of ['alias', 'real']) {
+                  const rq = new URLSearchParams({ username: localPart, domain, type: tp, server: srv }).toString();
+                  const rRes = await fetch('/app/create?' + rq, { method: 'GET', headers, credentials: 'same-origin' }).catch(() => null);
+                  if (rRes && rRes.ok) {
+                    const rData = await rRes.json().catch(() => null);
+                    if (rData && rData.key) {
+                      curKey = String(rData.key);
+                      curTs = Number(rData.timestamp) || curTs;
+                      if (app && app.emailManager) {
+                        const dup = await app.emailManager.getEmail(addr, true).catch(() => null);
+                        if (dup) await app.emailManager.permanentlyDeleteEmail(addr).catch(() => {});
+                        await app.emailManager.addEmail({ address: addr, timestamp: curTs, key: curKey, messages: dup?.messages || [] }).catch(() => {});
+                        if (typeof app.limit === 'function') await app.limit(addr).catch(() => {});
+                      }
+                      return true;
+                    }
+                  }
+                }
+              }
+              return false;
+            };
+
+            if (!curKey) {
+              await restoreKey();
+            }
+
+            let payloadToken = '';
+            for (let attempt = 0; attempt < 2; attempt++) {
+              const pRes = await fetch('/app/inbox', {
+                method: 'POST',
+                headers,
+                credentials: 'same-origin',
+                body: JSON.stringify([{ address: addr, timestamp: curTs, key: curKey }])
+              });
+              if (pRes.ok) {
+                const pArr = await pRes.json().catch(() => null);
+                if (Array.isArray(pArr) && pArr[0] && pArr[0].payload) {
+                  if (pArr[0].key) curKey = String(pArr[0].key);
+                  payloadToken = String(pArr[0].payload);
+                  break;
+                }
+              }
+              if (attempt === 0) {
+                const ok = await restoreKey();
+                if (!ok) break;
+              }
+            }
+
+            if (!payloadToken) {
+              return {
+                success: false,
+                key: curKey,
+                timestamp: curTs,
+                error: 'ไม่สามารถขอ payload เปิดกล่องจดหมายจาก SmailPro Web ได้ (กรุณาเช็กว่าล็อกอิน SmailPro Premium แล้ว)'
+              };
+            }
+
+            const isGoogle = domain === 'gmail.com' || domain === 'googlemail.com';
+            const isMicrosoft = /^(outlook\\.|hotmail\\.com)/i.test(domain);
+            const inboxUrl = isGoogle
+              ? 'https://api.sonjj.com/v1/temp_gmail/inbox'
+              : (isMicrosoft ? 'https://api.sonjj.com/v1/temp_outlook/inbox' : 'https://api.sonjj.com/v1/temp_email/inbox');
+
+            const mRes = await fetch(inboxUrl + '?payload=' + encodeURIComponent(payloadToken));
+            const mData = await mRes.json().catch(() => ({}));
+            if (!mRes.ok) {
+              return {
+                success: false,
+                key: curKey,
+                timestamp: curTs,
+                error: mData?.detail?.error?.message || mData?.msg || mData?.message || ('Inbox HTTP ' + mRes.status)
+              };
+            }
+            return {
+              success: true,
+              key: curKey,
+              timestamp: curTs,
+              messages: Array.isArray(mData?.messages) ? mData.messages : []
+            };
+          } catch (e) {
+            return { success: false, error: e.message || String(e) };
+          }
+        })()`,
+        returnByValue: true,
+        awaitPromise: true,
+        timeout: 16000
+      }, sessionId, 18000);
+
+      return evalRes?.result?.value || { success: false, error: 'CDP web-inbox failed' };
+    }
+
+    if (action === 'web-message') {
+      const address = String(payload?.address || '').trim().toLowerCase();
+      const mid = String(payload?.mid || '').trim();
+      if (!address || !mid) throw new Error('Missing address or mid for web-message');
+
+      const { sessionId } = await ensureSmailProWebTab({
+        openVisibleWindow: false,
+        allowCreateTab: true,
+        requireSmailProOrigin: true,
+        cookieHeaderToInject: payload?.cookieHeader || ''
+      });
+
+      const evalRes = await send('Runtime.evaluate', {
+        expression: `(async () => {
+          try {
+            const addr = ${JSON.stringify(address)};
+            const mid = ${JSON.stringify(mid)};
+            const domain = addr.split('@')[1] || '';
+            const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+            const headers = { 'Content-Type': 'application/json' };
+            if (csrf) headers['X-CSRF-TOKEN'] = csrf;
+
+            const q = new URLSearchParams({ email: addr, mid }).toString();
+            const pRes = await fetch('/app/message?' + q, {
+              method: 'GET',
+              headers,
+              credentials: 'same-origin'
+            });
+            const payloadToken = (await pRes.text().catch(() => '')).trim();
+            if (!pRes.ok || !payloadToken) {
+              return { success: false, error: 'HTTP ' + pRes.status + ' cannot fetch message payload' };
+            }
+
+            const isGoogle = domain === 'gmail.com' || domain === 'googlemail.com';
+            const isMicrosoft = /^(outlook\\.|hotmail\\.com)/i.test(domain);
+            const msgUrl = isGoogle
+              ? 'https://api.sonjj.com/v1/temp_gmail/message'
+              : (isMicrosoft ? 'https://api.sonjj.com/v1/temp_outlook/message' : 'https://api.sonjj.com/v1/temp_email/message');
+
+            const mRes = await fetch(msgUrl + '?payload=' + encodeURIComponent(payloadToken));
+            const mData = await mRes.json().catch(() => ({}));
+            if (!mRes.ok) {
+              return {
+                success: false,
+                error: mData?.detail?.error?.message || mData?.msg || mData?.message || ('Message HTTP ' + mRes.status)
+              };
+            }
+            return {
+              success: true,
+              body: String(mData?.body || '')
+            };
+          } catch (e) {
+            return { success: false, error: e.message || String(e) };
+          }
+        })()`,
+        returnByValue: true,
+        awaitPromise: true,
+        timeout: 15000
+      }, sessionId, 16000);
+
+      return evalRes?.result?.value || { success: false, error: 'CDP web-message failed' };
+    }
+
+    throw new Error(`Unknown smailproWebAction: ${action}`);
+  }
+  // ====================== END SMAILPRO WEB PREMIUM ======================
+
   async function flushAllClientStorage(timeoutMs = 2500) {
     const activeClients = Array.from(clients.values()).filter(c => c && c.sessionId);
     if (activeClients.length === 0) return { flushed: 0 };
@@ -6316,7 +8198,7 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
     return { flushed: activeClients.length };
   }
 
-  return { launch, stop, stopAll, isOpen, hasProxyContext, ensureProxyListening, evalByPort, rediscover, start, dispose, findBrowser, rebalanceDeviceGroups, ensureProfileDeviceId, ensureProfileMachineId, ensureProfileDeviceGroupIndex, ensureProfileDeviceSpec, resolveDeviceSpec, getDeviceGroupsSnapshot, rotateDeviceGroup, rotateSingleProfileDeviceId, rotateProfileDeviceId, rotateAllDeviceIds, getCustomIpDeviceConfig, getProfileIpIsolationMeta, mutateCustomIpDevices, pruneDeletedProfilesFromCustomGroups, applyProxyModeToOpenWindows, syncAssetCacheToOpenWindows, harvestAllFromBrowserLevelDb, flushAllClientStorage, launchUnbanSession, stopUnbanSession, stopAllUnbanSessions, getUnbanStatus, setUnbanCallback, addProfilesToUnbanPool, removeProfileFromUnbanPool, rotateUnbanDevice, setUnbanProxyMode, loadUnbanConfig, saveUnbanConfig, status:()=>Object.fromEntries(diagnostics) };
+  return { launch, stop, stopAll, isOpen, hasProxyContext, ensureProxyListening, evalByPort, rediscover, start, dispose, findBrowser, rebalanceDeviceGroups, ensureProfileDeviceId, ensureProfileMachineId, ensureProfileDeviceGroupIndex, ensureProfileDeviceSpec, resolveDeviceSpec, getDeviceGroupsSnapshot, rotateDeviceGroup, rotateSingleProfileDeviceId, rotateProfileDeviceId, rotateAllDeviceIds, getCustomIpDeviceConfig, getProfileIpIsolationMeta, mutateCustomIpDevices, pruneDeletedProfilesFromCustomGroups, applyProxyModeToOpenWindows, syncAssetCacheToOpenWindows, harvestAllFromBrowserLevelDb, flushAllClientStorage, launchUnbanSession, stopUnbanSession, stopAllUnbanSessions, getUnbanStatus, setUnbanCallback, addProfilesToUnbanPool, removeProfileFromUnbanPool, rotateUnbanDevice, setUnbanProxyMode, loadUnbanConfig, saveUnbanConfig, setSmailProSessionCallback, smailproWebAction, status:()=>Object.fromEntries(diagnostics) };
 }
 
 module.exports = { createBrowserMode, findBrowser, HEALTH_JS, MAX_SCREENS_PER_DEVICE, resolveDeviceSpec, extractPelicanStorageFromLevelDb, mergeAuthConfigString, mergeSellConfigString };

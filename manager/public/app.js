@@ -370,6 +370,7 @@ const profileForm = document.getElementById("profile-form");
 const formId = document.getElementById("form-profile-id");
 const formName = document.getElementById("form-name");
 const formAccount = document.getElementById("form-account");
+const formEmail = document.getElementById("form-email");
 const formClass = document.getElementById("form-class");
 const formMap = document.getElementById("form-map");
 const formPort = document.getElementById("form-port");
@@ -1917,6 +1918,8 @@ function buildProfileCard(p) {
           <div class="card-subline">
             ${charName ? `<span class="char-live-name" onclick="openNightcampCharacterModal('${p.id}')" style="cursor:pointer;" title="คลิกเพื่อดูข้อมูลตัวละคร / สเตตัส / อุปกรณ์ / กระเป๋า">👤 ${escapeHTML(charName)}</span>` : ''}
             <span class="profile-acc">${escapeHTML(p.account || (p.autoRegister ? '⏳ รอสมัครไอดีอัตโนมัติ' : 'บัญชีเริ่มต้น'))}</span>
+            ${(p.autoRegister || state?.registerQueueWaiting || (state?.screenDetail && /รอคิวสมัคร/.test(state.screenDetail))) ? `<button type="button" class="btn-card-reload-inline" onclick="event.stopPropagation(); forceRegisterProfileNow('${p.id}', this)" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;border:1px solid rgba(52,211,153,0.75);font-weight:800;padding:1px 8px;font-size:10.5px;box-shadow:0 2px 8px rgba(16,185,129,0.28);" title="สั่งบอทลัดคิวสมัครไอดีให้จอนี้ทันทีโดยไม่ต้องรอคิว">⚡ สมัครเลย</button>` : ''}
+            ${(p.email && String(p.email).trim().toLowerCase() !== String(p.account || '').trim().toLowerCase()) ? `<span class="profile-acc" style="color:#38bdf8; font-size:0.74rem; font-family:monospace;" title="อีเมลยืนยัน / SmailPro ที่ผูกกับ ID นี้">📧 ${escapeHTML(p.email)}</span>` : ''}
             ${p.registerError ? `<span class="profile-acc" style="color:#f59e0b; font-size:0.74rem;" title="${escapeHTML(p.registerError)}">⚠️ ${escapeHTML(p.registerError)}</span>` : ''}
           </div>
           <div class="card-class-row">
@@ -2095,6 +2098,7 @@ function buildProfileCard(p) {
       <div class="card-status-row">
         <span class="activity-pill tone-${activityTone}" title="${escapeHTML(state?.screenDetail || activityText)}"><i></i>${escapeHTML(activityText)}</span>
         <div class="points-chips">
+          ${(state?.registerQueueWaiting || (state?.screenDetail && /รอคิวสมัคร/.test(state.screenDetail))) ? `<button type="button" class="btn-card-reload-inline" onclick="event.stopPropagation(); forceRegisterProfileNow('${p.id}', this)" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;border:1px solid rgba(52,211,153,0.75);font-weight:800;box-shadow:0 2px 8px rgba(16,185,129,0.28);" title="สั่งบอทลัดคิวสมัครไอดีให้จอนี้ทันทีโดยไม่ต้องรอคิว">⚡ สมัครเลย</button>` : ''}
           ${isPreGameScreen ? `<button type="button" class="btn-card-reload-inline ${isErrorScreen ? 'is-error' : ''}" onclick="reloadClientPage('${p.id}', event, this)" title="รีเฟรชหน้าเว็บเกมของจอนี้ทันที (Reload)">🔄 รีเฟรชจอ</button>` : ''}
           ${state?.statPoints ? `<span class="chip chip-points" title="แต้มสถานะที่ยังไม่ได้อัป">STAT ${state.statPoints}</span>` : ''}
           ${state?.skillPoints ? `<span class="chip chip-points" title="แต้มสกิลที่ยังไม่ได้อัป">SKILL ${state.skillPoints}</span>` : ''}
@@ -15761,6 +15765,7 @@ function openAddModal() {
   if (formCount) formCount.value = 1;
   formName.value = `จอที่ ${currentProfiles.length + 1}`;
   formAccount.value = "";
+  if (formEmail) formEmail.value = "";
   formClass.value = "Traveler";
   formMap.value = "";
   const maxPort = Math.max(48875, ...currentProfiles.map(p => p.debugPort || 48876));
@@ -15787,6 +15792,10 @@ function openEditModal(id) {
   if (resetRow) resetRow.style.display = "";
   formName.value = profile.name;
   formAccount.value = profile.account || "";
+  if (formEmail) {
+    const inferredEmail = profile.email || ((profile.account && profile.account.includes("@") && !/@users\.nightcamp\.invalid$/i.test(profile.account)) ? profile.account : "");
+    formEmail.value = inferredEmail;
+  }
   formClass.value = (profile.charClass && profile.charClass !== "Hunter") ? profile.charClass : "Traveler";
   formMap.value = (profile.targetMap && profile.targetMap !== "ถนนต้นหลิว") ? profile.targetMap : "";
   formPort.value = profile.debugPort || 48876;
@@ -15806,6 +15815,7 @@ function openEditModal(id) {
 document.getElementById("btn-form-reset-autoreg")?.addEventListener("click", () => {
   formForceAutoRegister = true;
   if (formAccount) formAccount.value = "";
+  if (formEmail) formEmail.value = "";
   if (formPassword) {
     formPassword.value = "";
     formPassword.placeholder = "📝 จะสุ่มสมัครบัญชีใหม่ให้อัตโนมัติเมื่อกดบันทึก";
@@ -15824,6 +15834,7 @@ profileForm.onsubmit = async (e) => {
   e.preventDefault();
   const id = formId.value;
   const acctVal = (formAccount.value || "").trim();
+  const emailVal = formEmail ? (formEmail.value || "").trim() : "";
   const passVal = formPassword ? (formPassword.value || "").trim() : "";
   const serverVal = formServer ? String(formServer.value || "").trim() : "";
   const charVal = formChar ? String(formChar.value || "").trim() : "";
@@ -15831,6 +15842,7 @@ profileForm.onsubmit = async (e) => {
   const payload = {
     name: formName.value,
     account: acctVal,
+    email: emailVal,
     charClass: formClass.value,
     targetMap: formMap.value,
     debugPort: parseInt(formPort.value),
@@ -15855,7 +15867,7 @@ profileForm.onsubmit = async (e) => {
       const failed = [];
       for (let i = 0; i < plan.length; i++) {
         if (submitBtn && count > 1) submitBtn.innerText = `⏳ กำลังสร้าง ${i + 1}/${count}...`;
-        const one = count > 1 ? { ...payload, name: plan[i].name, debugPort: plan[i].port, account: "", loginPassword: "" } : payload;
+        const one = count > 1 ? { ...payload, name: plan[i].name, debugPort: plan[i].port, account: "", email: "", loginPassword: "" } : payload;
         const r = await fetch(`${API_BASE}/api/profiles`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -21702,6 +21714,545 @@ function renderNightcampCharacterModal(opts = {}) {
     });
   }
 }
+
+// ============================================================================
+// FORCE REGISTER NOW (BYPASS REGISTRATION QUEUE FROM CARD OR OVERLAY)
+// ============================================================================
+window.forceRegisterProfileNow = async function(profileId, btnEl) {
+  if (!profileId) return;
+  const origTxt = btnEl ? btnEl.textContent : '';
+  if (btnEl) {
+    btnEl.disabled = true;
+    btnEl.textContent = '⚡ กำลังสั่งสมัคร...';
+  }
+  try {
+    const res = await fetch(`/api/profiles/${encodeURIComponent(profileId)}/register-now`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}'
+    });
+    const data = await res.json().catch(() => ({}));
+    const p = Array.isArray(profiles) ? profiles.find(x => x && x.id === profileId) : null;
+    if (p && !p.isRunning && typeof launchClient === 'function') {
+      launchClient(profileId);
+    }
+    if (typeof showToast === 'function') {
+      showToast(data?.message || '⚡ สั่งบอทลัดคิวสมัครไอดีให้จอนี้ทันทีแล้ว!', 'success');
+    }
+    if (typeof fetchProfiles === 'function') {
+      setTimeout(() => fetchProfiles(), 600);
+    }
+  } catch (err) {
+    if (typeof showToast === 'function') {
+      showToast('สั่งลัดคิวสมัครไม่สำเร็จ: ' + err.message, 'error');
+    }
+  } finally {
+    if (btnEl) {
+      setTimeout(() => {
+        btnEl.disabled = false;
+        btnEl.textContent = origTxt || '⚡ สมัครเลย';
+      }, 1000);
+    }
+  }
+};
+
+// ============================================================================
+// EMAIL REGISTRATION & OTP SETTINGS MODAL (Built-in Outlook vs SmailPro Web Premium / API)
+// ============================================================================
+function initEmailRegSettingsUi() {
+  if (window.__emailRegSettingsUiInitialized) return;
+  const openBtn = document.getElementById('btn-email-reg-settings');
+  const modal = document.getElementById('email-reg-settings-modal');
+  if (!openBtn || !modal) return;
+  window.__emailRegSettingsUiInitialized = true;
+  const closeBtn = document.getElementById('btn-close-email-reg-modal');
+  const modeBadge = document.getElementById('email-reg-mode-badge');
+  const radioBuiltin = document.getElementById('radio-mode-builtin');
+  const radioSmailpro = document.getElementById('radio-mode-smailpro');
+  const cardBuiltin = document.getElementById('card-mode-builtin');
+  const cardSmailpro = document.getElementById('card-mode-smailpro');
+  const webSessionBadge = document.getElementById('smailpro-web-session-badge');
+  const webSessionText = document.getElementById('smailpro-web-session-text');
+  const openWebLoginBtn = document.getElementById('btn-open-smailpro-web-login');
+  const checkWebBtn = document.getElementById('btn-check-smailpro-web');
+  const testWebBtn = document.getElementById('btn-test-smailpro-web');
+  const webCookieInput = document.getElementById('input-smailpro-web-cookie');
+  const serverSelect = document.getElementById('select-smailpro-server');
+  const apiKeyInput = document.getElementById('input-smailpro-apikey');
+  const toggleKeyVisBtn = document.getElementById('btn-toggle-smailpro-key-vis');
+  const testKeyBtn = document.getElementById('btn-test-smailpro-key');
+  const testResultBox = document.getElementById('smailpro-test-result');
+  const providerSelect = document.getElementById('select-smailpro-provider');
+  const addrTypeSelect = document.getElementById('select-smailpro-addr-type');
+  const chkOutlookProxy = document.getElementById('chk-outlook-proxy-enabled');
+  const hostInput = document.getElementById('input-outlook-proxy-host');
+  const portInput = document.getElementById('input-outlook-proxy-port');
+  const countryInput = document.getElementById('input-outlook-proxy-country');
+  const userInput = document.getElementById('input-outlook-proxy-user');
+  const passInput = document.getElementById('input-outlook-proxy-pass');
+  const saveBtn = document.getElementById('btn-save-email-reg-settings');
+  const refreshListBtn = document.getElementById('btn-refresh-email-reg-list');
+  const exportTxtBtn = document.getElementById('btn-export-email-reg-txt');
+  const statsLine = document.getElementById('email-reg-stats-line');
+  const tbody = document.getElementById('email-reg-accounts-tbody');
+  let loginWatchInterval = null;
+
+  function stopLoginWatch() {
+    if (loginWatchInterval) {
+      clearInterval(loginWatchInterval);
+      loginWatchInterval = null;
+    }
+  }
+
+  function updateCardVisuals() {
+    const isSmail = Boolean(radioSmailpro && radioSmailpro.checked);
+    if (cardBuiltin) {
+      cardBuiltin.style.borderColor = !isSmail ? 'rgba(56, 189, 248, 0.75)' : 'rgba(148, 163, 184, 0.22)';
+      cardBuiltin.style.background = !isSmail ? 'rgba(14, 165, 233, 0.14)' : 'rgba(15, 23, 42, 0.75)';
+    }
+    if (cardSmailpro) {
+      cardSmailpro.style.borderColor = isSmail ? 'rgba(16, 185, 129, 0.75)' : 'rgba(148, 163, 184, 0.22)';
+      cardSmailpro.style.background = isSmail ? 'rgba(16, 185, 129, 0.14)' : 'rgba(15, 23, 42, 0.75)';
+    }
+  }
+
+  function updateWebSessionBadge(s = {}) {
+    if (!webSessionBadge || !webSessionText) return;
+    const isLogged = Boolean(s.smailproWebLoggedIn);
+    const isPrem = Boolean(s.smailproWebIsPremium);
+    const hasCookie = Boolean(s.smailproWebCookie && String(s.smailproWebCookie).trim());
+    const userTxt = s.smailproWebUserText ? ` (${s.smailproWebUserText})` : '';
+    if (isLogged) {
+      webSessionBadge.style.borderColor = 'rgba(16, 185, 129, 0.65)';
+      webSessionBadge.style.background = 'rgba(6, 78, 59, 0.35)';
+      webSessionText.style.color = '#6ee7b7';
+      webSessionText.innerHTML = `✅ <b>ล็อกอิน SmailPro Web ${isPrem ? '👑 PREMIUM' : ''} สำเร็จแล้ว${escapeHTML(userTxt)}</b> — จำ Cookie เรียบร้อย พร้อมสร้างเมล &amp; รับ OTP อัตโนมัติโดยไม่เสีย API Credit!`;
+    } else if (hasCookie) {
+      webSessionBadge.style.borderColor = 'rgba(56, 189, 248, 0.55)';
+      webSessionBadge.style.background = 'rgba(14, 165, 233, 0.18)';
+      webSessionText.style.color = '#bae6fd';
+      webSessionText.innerHTML = `🍪 <b>บันทึก Cookie เว็บ SmailPro ไว้แล้ว</b> — กดปุ่ม "🧪 ทดสอบดึงเมลจาก SmailPro Web Premium" เพื่อตรวจสอบความพร้อมได้เลย`;
+    } else {
+      webSessionBadge.style.borderColor = 'rgba(148, 163, 184, 0.3)';
+      webSessionBadge.style.background = 'rgba(15, 23, 42, 0.9)';
+      webSessionText.style.color = '#cbd5e1';
+      webSessionText.textContent = '⚪ ยังไม่ได้ล็อกอินเว็บ SmailPro ในเบราว์เซอร์บอท — กดปุ่มเปิดหน้าเว็บด้านล่างเพื่อ Login เพียงครั้งเดียว';
+    }
+  }
+
+  function updateHeaderBadge(effectiveMode, settings) {
+    if (!modeBadge) return;
+    if (effectiveMode === 'smailpro' || (settings && settings.mode === 'smailpro')) {
+      modeBadge.textContent = settings?.smailproWebIsPremium ? 'SmailPro 👑' : 'SmailPro';
+      modeBadge.style.background = 'rgba(16, 185, 129, 0.28)';
+      modeBadge.style.color = '#a7f3d0';
+      modeBadge.style.borderColor = 'rgba(52, 211, 153, 0.5)';
+    } else {
+      modeBadge.textContent = 'Outlook';
+      modeBadge.style.background = 'rgba(14, 165, 233, 0.28)';
+      modeBadge.style.color = '#e0f2fe';
+      modeBadge.style.borderColor = 'rgba(56, 189, 248, 0.45)';
+    }
+  }
+
+  function renderAccountsTable(data) {
+    if (!data) return;
+    const st = data.stats || {};
+    if (statsLine) {
+      statsLine.textContent = `อีเมลที่ถูกใช้แล้วในระบบ: ${(st.totalUsedEmails || 0).toLocaleString()} เมล · สมัครสำเร็จพร้อมรหัสผ่าน: ${(st.totalRegisteredAccounts || 0).toLocaleString()} บัญชี (ซิงก์เข้าเครื่องนี้แล้ว)`;
+    }
+    if (!tbody) return;
+    const list = Array.isArray(data.accounts) ? data.accounts : [];
+    if (list.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="5" style="padding: 14px; text-align: center; color: #64748b;">ยังไม่มีประวัติบัญชีที่สมัครในระบบ</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = list.slice(0, 120).map(acc => {
+      const rawId = String(acc.username || acc.email || '').trim();
+      const rawMail = String(acc.email || acc.username || '').trim();
+      const id = escapeHTML(rawId);
+      const mailSub = (rawMail && rawMail.toLowerCase() !== rawId.toLowerCase())
+        ? `<div style="font-size: 10.5px; color: #38bdf8; font-weight: 600;">📧 ${escapeHTML(rawMail)}</div>`
+        : '';
+      const pass = escapeHTML(acc.password || '(รอสมัครเสร็จ)');
+      const prov = escapeHTML(acc.provider || 'smailpro');
+      const ch = escapeHTML([acc.charName, acc.machineName].filter(Boolean).join(' · ') || '-');
+      const dt = acc.updatedAt ? new Date(acc.updatedAt).toLocaleString('th-TH', { hour12: false }) : '-';
+      return `
+        <tr style="border-bottom: 1px solid rgba(148, 163, 184, 0.1);">
+          <td style="padding: 6px 9px; font-family: monospace; color: #e2e8f0; font-weight: 700;">${id}${mailSub}</td>
+          <td style="padding: 6px 9px; font-family: monospace; color: ${acc.password ? '#34d399' : '#94a3b8'};">${pass}</td>
+          <td style="padding: 6px 9px;"><span style="padding: 1px 6px; border-radius: 999px; font-size: 10px; background: rgba(56, 189, 248, 0.16); color: #7dd3fc;">${prov}</span></td>
+          <td style="padding: 6px 9px; color: #cbd5e1;">${ch}</td>
+          <td style="padding: 6px 9px; color: #94a3b8; font-size: 10.5px;">${escapeHTML(dt)}</td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  async function loadEmailRegStatus(populateInputs = true) {
+    try {
+      const res = await fetch('/api/email-reg/status');
+      const data = await res.json();
+      if (!data || !data.success) return;
+      const s = data.settings || {};
+      updateHeaderBadge(data.effectiveMode, s);
+      updateWebSessionBadge(s);
+      if (populateInputs) {
+        if (radioSmailpro && radioBuiltin) {
+          radioSmailpro.checked = s.mode === 'smailpro';
+          radioBuiltin.checked = s.mode !== 'smailpro';
+        }
+        if (webCookieInput && document.activeElement !== webCookieInput) webCookieInput.value = s.smailproWebCookie || '';
+        if (serverSelect) serverSelect.value = s.smailproServer || 'auto';
+        if (apiKeyInput) apiKeyInput.value = s.smailproApiKey || '';
+        if (providerSelect) providerSelect.value = s.smailproProvider || 'auto';
+        if (addrTypeSelect) addrTypeSelect.value = s.smailproAddressType || 'real';
+        if (chkOutlookProxy) chkOutlookProxy.checked = s.outlookProxyEnabled !== false;
+        if (hostInput) hostInput.value = s.outlookProxyHost || 'gw.dataimpulse.com';
+        if (portInput) portInput.value = s.outlookProxyPort || 823;
+        if (countryInput) countryInput.value = s.outlookProxyCountry || 'th';
+        if (userInput) userInput.value = s.outlookProxyUser || '';
+        if (passInput) passInput.value = s.outlookProxyPass || '';
+        updateCardVisuals();
+      }
+      renderAccountsTable(data);
+    } catch (_) {}
+  }
+
+  if (radioBuiltin) radioBuiltin.addEventListener('change', updateCardVisuals);
+  if (radioSmailpro) radioSmailpro.addEventListener('change', updateCardVisuals);
+
+  window.__openEmailRegSettingsModal = function() {
+    modal.style.display = 'flex';
+    modal.classList.add('active');
+    if (testResultBox) testResultBox.style.display = 'none';
+    loadEmailRegStatus(true);
+  };
+
+  openBtn.onclick = window.__openEmailRegSettingsModal;
+
+  if (closeBtn) {
+    closeBtn.addEventListener('click', () => {
+      stopLoginWatch();
+      modal.classList.remove('active');
+      modal.style.display = 'none';
+    });
+  }
+  modal.addEventListener('click', e => {
+    if (e.target === modal) {
+      stopLoginWatch();
+      modal.classList.remove('active');
+      modal.style.display = 'none';
+    }
+  });
+
+  if (openWebLoginBtn) {
+    openWebLoginBtn.addEventListener('click', async () => {
+      openWebLoginBtn.disabled = true;
+      const oldTxt = openWebLoginBtn.textContent;
+      openWebLoginBtn.textContent = '⏳ กำลังเปิดหน้าเว็บ SmailPro ในเบราว์เซอร์...';
+      try {
+        if (radioSmailpro) {
+          radioSmailpro.checked = true;
+          updateCardVisuals();
+        }
+        const res = await fetch('/api/email-reg/smailpro-web-open', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            cookieHeader: (webCookieInput?.value || '').trim()
+          })
+        });
+        const data = await res.json();
+        if (testResultBox) {
+          testResultBox.style.display = 'block';
+          if (data && data.success) {
+            testResultBox.style.borderColor = 'rgba(16, 185, 129, 0.5)';
+            testResultBox.style.color = '#6ee7b7';
+            testResultBox.textContent = data.message || '🌐 เปิดหน้าเว็บ SmailPro แล้ว — ล็อกอินในหน้าต่างที่เปิดขึ้นมา ระบบจะจำเซสชันให้อัตโนมัติทันที';
+          } else {
+            testResultBox.style.borderColor = 'rgba(239, 68, 68, 0.5)';
+            testResultBox.style.color = '#fca5a5';
+            testResultBox.textContent = `❌ ${data?.error || 'เปิดหน้าเว็บ SmailPro ไม่สำเร็จ'}`;
+          }
+        }
+        if (data?.settings) {
+          updateWebSessionBadge(data.settings);
+          updateHeaderBadge(data.effectiveMode, data.settings);
+        }
+        // Poll every 2.5s while modal is open so as soon as user finishes login, UI updates immediately!
+        stopLoginWatch();
+        loginWatchInterval = setInterval(async () => {
+          if (modal.style.display === 'none') {
+            stopLoginWatch();
+            return;
+          }
+          try {
+            const r = await fetch('/api/email-reg/smailpro-web-check', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: '{}'
+            });
+            const d = await r.json();
+            if (d?.settings) {
+              updateWebSessionBadge(d.settings);
+              updateHeaderBadge(d.effectiveMode, d.settings);
+              if (webCookieInput && document.activeElement !== webCookieInput && d.settings.smailproWebCookie) {
+                webCookieInput.value = d.settings.smailproWebCookie;
+              }
+              if (d.settings.smailproWebLoggedIn) {
+                if (radioSmailpro) {
+                  radioSmailpro.checked = true;
+                  updateCardVisuals();
+                }
+                if (testResultBox) {
+                  testResultBox.style.display = 'block';
+                  testResultBox.style.borderColor = 'rgba(16, 185, 129, 0.5)';
+                  testResultBox.style.color = '#6ee7b7';
+                  testResultBox.textContent = `✅ ตรวจพบการ Login เว็บ SmailPro ${d.settings.smailproWebIsPremium ? '👑 Premium' : ''} และจำ Cookie เรียบร้อยแล้ว!`;
+                }
+                stopLoginWatch();
+              }
+            }
+          } catch (_) {}
+        }, 2500);
+      } catch (e) {
+        if (testResultBox) {
+          testResultBox.style.display = 'block';
+          testResultBox.style.borderColor = 'rgba(239, 68, 68, 0.5)';
+          testResultBox.style.color = '#fca5a5';
+          testResultBox.textContent = `❌ ข้อผิดพลาด: ${e.message}`;
+        }
+      } finally {
+        openWebLoginBtn.disabled = false;
+        openWebLoginBtn.textContent = oldTxt;
+      }
+    });
+  }
+
+  if (checkWebBtn) {
+    checkWebBtn.addEventListener('click', async () => {
+      checkWebBtn.disabled = true;
+      const oldTxt = checkWebBtn.textContent;
+      checkWebBtn.textContent = '⏳ กำลังเช็ก...';
+      try {
+        const res = await fetch('/api/email-reg/smailpro-web-check', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ensureTab: true,
+            cookieHeader: (webCookieInput?.value || '').trim()
+          })
+        });
+        const data = await res.json();
+        if (data?.settings) {
+          updateWebSessionBadge(data.settings);
+          updateHeaderBadge(data.effectiveMode, data.settings);
+          if (webCookieInput && data.settings.smailproWebCookie) {
+            webCookieInput.value = data.settings.smailproWebCookie;
+          }
+        }
+        if (testResultBox) {
+          testResultBox.style.display = 'block';
+          if (data?.settings?.smailproWebLoggedIn) {
+            testResultBox.style.borderColor = 'rgba(16, 185, 129, 0.5)';
+            testResultBox.style.color = '#6ee7b7';
+            testResultBox.textContent = `✅ ล็อกอิน SmailPro Web ${data.settings.smailproWebIsPremium ? '👑 Premium' : ''} อยู่แล้ว! จำ Cookie เรียบร้อย`;
+          } else {
+            testResultBox.style.borderColor = 'rgba(245, 158, 11, 0.5)';
+            testResultBox.style.color = '#fde68a';
+            testResultBox.textContent = '⚠️ ยังไม่ได้เข้าสู่ระบบในหน้าเว็บ SmailPro — กดปุ่ม "🌐 เปิดหน้าเว็บ SmailPro เพื่อ Login" ด้านบนเพื่อเข้าสู่ระบบ';
+          }
+        }
+      } catch (e) {
+        if (testResultBox) {
+          testResultBox.style.display = 'block';
+          testResultBox.style.borderColor = 'rgba(239, 68, 68, 0.5)';
+          testResultBox.style.color = '#fca5a5';
+          testResultBox.textContent = `❌ ข้อผิดพลาด: ${e.message}`;
+        }
+      } finally {
+        checkWebBtn.disabled = false;
+        checkWebBtn.textContent = oldTxt;
+      }
+    });
+  }
+
+  if (testWebBtn) {
+    testWebBtn.addEventListener('click', async () => {
+      testWebBtn.disabled = true;
+      const oldTxt = testWebBtn.textContent;
+      testWebBtn.textContent = '⏳ กำลังทดสอบดึงเมลจากเว็บ SmailPro...';
+      try {
+        const res = await fetch('/api/email-reg/smailpro-web-test', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            provider: providerSelect?.value || 'auto',
+            addressType: addrTypeSelect?.value || 'real',
+            server: serverSelect?.value || 'auto',
+            cookieHeader: (webCookieInput?.value || '').trim()
+          })
+        });
+        const data = await res.json();
+        if (data?.settings) {
+          updateWebSessionBadge(data.settings);
+          updateHeaderBadge(data.effectiveMode, data.settings);
+          if (radioSmailpro && data.success) {
+            radioSmailpro.checked = true;
+            updateCardVisuals();
+          }
+        }
+        if (testResultBox) {
+          testResultBox.style.display = 'block';
+          if (data && data.success) {
+            testResultBox.style.borderColor = 'rgba(16, 185, 129, 0.5)';
+            testResultBox.style.color = '#6ee7b7';
+            testResultBox.textContent = data.message || `✅ ดึงเมลจาก SmailPro Web สำเร็จ: ${data.email}`;
+          } else {
+            testResultBox.style.borderColor = 'rgba(239, 68, 68, 0.5)';
+            testResultBox.style.color = '#fca5a5';
+            testResultBox.textContent = `❌ ทดสอบไม่สำเร็จ: ${data?.error || 'กรุณากดปุ่ม "เปิดหน้าเว็บ SmailPro เพื่อ Login" ก่อน'}`;
+          }
+        }
+      } catch (e) {
+        if (testResultBox) {
+          testResultBox.style.display = 'block';
+          testResultBox.style.borderColor = 'rgba(239, 68, 68, 0.5)';
+          testResultBox.style.color = '#fca5a5';
+          testResultBox.textContent = `❌ ข้อผิดพลาด: ${e.message}`;
+        }
+      } finally {
+        testWebBtn.disabled = false;
+        testWebBtn.textContent = oldTxt;
+      }
+    });
+  }
+
+  if (toggleKeyVisBtn && apiKeyInput) {
+    toggleKeyVisBtn.addEventListener('click', () => {
+      apiKeyInput.type = apiKeyInput.type === 'password' ? 'text' : 'password';
+    });
+  }
+  if (testKeyBtn) {
+    testKeyBtn.addEventListener('click', async () => {
+      const apiKey = (apiKeyInput?.value || '').trim();
+      if (!apiKey) {
+        if (testResultBox) {
+          testResultBox.style.display = 'block';
+          testResultBox.style.borderColor = 'rgba(239, 68, 68, 0.5)';
+          testResultBox.style.color = '#fca5a5';
+          testResultBox.textContent = '⚠️ กรุณาวาง SmailPro API Key ก่อนกดทดสอบ (หรือใช้ปุ่มเปิดหน้าเว็บ SmailPro เพื่อ Login ด้านบนแทนโดยไม่ต้องใช้ API Key)';
+        }
+        return;
+      }
+      testKeyBtn.disabled = true;
+      const oldTxt = testKeyBtn.textContent;
+      testKeyBtn.textContent = '⏳ กำลังทดสอบ...';
+      try {
+        const res = await fetch('/api/email-reg/test-smailpro', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            apiKey,
+            provider: providerSelect?.value || 'auto',
+            addressType: addrTypeSelect?.value || 'real'
+          })
+        });
+        const data = await res.json();
+        if (testResultBox) {
+          testResultBox.style.display = 'block';
+          if (data && data.success) {
+            testResultBox.style.borderColor = 'rgba(16, 185, 129, 0.5)';
+            testResultBox.style.color = '#6ee7b7';
+            testResultBox.textContent = data.message || `✅ เชื่อมต่อ SmailPro API สำเร็จ! (${data.email})`;
+          } else {
+            testResultBox.style.borderColor = 'rgba(239, 68, 68, 0.5)';
+            testResultBox.style.color = '#fca5a5';
+            const errStr = String(data?.error || 'ไม่ทราบสาเหตุ');
+            if (/402|Insufficient credit/i.test(errStr)) {
+              testResultBox.textContent = `❌ ${errStr} — แนะนำให้กดปุ่ม "🌐 เปิดหน้าเว็บ SmailPro เพื่อ Login" ด้านบนแทน เพื่อใช้แพ็กเกจ Web Premium ของคุณโดยไม่ต้องเสีย API Credit!`;
+            } else {
+              testResultBox.textContent = `❌ ทดสอบไม่สำเร็จ: ${errStr}`;
+            }
+          }
+        }
+      } catch (e) {
+        if (testResultBox) {
+          testResultBox.style.display = 'block';
+          testResultBox.style.borderColor = 'rgba(239, 68, 68, 0.5)';
+          testResultBox.style.color = '#fca5a5';
+          testResultBox.textContent = `❌ ข้อผิดพลาด: ${e.message}`;
+        }
+      } finally {
+        testKeyBtn.disabled = false;
+        testKeyBtn.textContent = oldTxt;
+      }
+    });
+  }
+
+  if (saveBtn) {
+    saveBtn.addEventListener('click', async () => {
+      const mode = (radioSmailpro && radioSmailpro.checked) ? 'smailpro' : 'builtin_outlook';
+      const smailproApiKey = (apiKeyInput?.value || '').trim();
+      const smailproWebCookie = (webCookieInput?.value || '').trim();
+      saveBtn.disabled = true;
+      const oldTxt = saveBtn.textContent;
+      saveBtn.textContent = '⏳ กำลังบันทึก...';
+      try {
+        const res = await fetch('/api/email-reg/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            mode,
+            smailproAuthMode: 'web',
+            smailproApiKey,
+            smailproWebCookie,
+            smailproProvider: providerSelect?.value || 'auto',
+            smailproAddressType: addrTypeSelect?.value || 'real',
+            smailproServer: serverSelect?.value || 'auto',
+            outlookProxyEnabled: chkOutlookProxy ? chkOutlookProxy.checked : true,
+            outlookProxyHost: (hostInput?.value || 'gw.dataimpulse.com').trim(),
+            outlookProxyPort: Number(portInput?.value) || 823,
+            outlookProxyCountry: (countryInput?.value || 'th').trim(),
+            outlookProxyUser: (userInput?.value || '').trim(),
+            outlookProxyPass: (passInput?.value || '').trim()
+          })
+        });
+        const data = await res.json();
+        if (data && data.success) {
+          updateHeaderBadge(data.effectiveMode, data.settings);
+          updateWebSessionBadge(data.settings);
+          renderAccountsTable(data);
+          saveBtn.textContent = '✅ บันทึกสำเร็จ!';
+          setTimeout(() => { saveBtn.textContent = oldTxt; }, 1400);
+        }
+      } catch (_) {
+        saveBtn.textContent = oldTxt;
+      } finally {
+        saveBtn.disabled = false;
+      }
+    });
+  }
+
+  if (refreshListBtn) {
+    refreshListBtn.addEventListener('click', () => loadEmailRegStatus(false));
+  }
+  if (exportTxtBtn) {
+    exportTxtBtn.addEventListener('click', () => {
+      window.open('/api/email-reg/export-txt', '_blank');
+    });
+  }
+
+  setTimeout(() => loadEmailRegStatus(false), 600);
+}
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initEmailRegSettingsUi, { once: true });
+} else {
+  setTimeout(initEmailRegSettingsUi, 0);
+}
+
 
 
 

@@ -9,7 +9,7 @@ const fs = require('fs');
 const path = require('path');
 const { createAssetCache } = require('./asset_cache');
 
-const DAEMON_VERSION = 4;
+const DAEMON_VERSION = 11;
 const DEFAULT_CONTROL_PORT = Number(process.env.NIGHTCAMP_TUNNEL_DAEMON_PORT || process.env.PELICAN_TUNNEL_DAEMON_PORT) || 18991;
 
 function isJailOnlyBlockRecord(obj) {
@@ -41,6 +41,65 @@ function parseArgs(argv) {
   return out;
 }
 
+function isStaticMicrosoftCdnHost(hostname) {
+  const h = String(hostname || '').toLowerCase().replace(/:\d+$/, '');
+  if (!h) return false;
+  return (
+    h === 'logincdn.msauth.net' ||
+    h === 'acctcdn.msauth.net' ||
+    h === 'acctcdn.msftauth.net' ||
+    h === 'msftauthimages.net' ||
+    h.endsWith('.msftauthimages.net') ||
+    h === 'msecnd.net' ||
+    h.endsWith('.msecnd.net') ||
+    h === 'gfx.ms' ||
+    h.endsWith('.gfx.ms') ||
+    h === 'onestore.ms' ||
+    h.endsWith('.onestore.ms') ||
+    h === 's-microsoft.com' ||
+    h.endsWith('.s-microsoft.com') ||
+    h.endsWith('.cdn.office.net') ||
+    h.endsWith('.static.microsoft')
+  );
+}
+
+function isOutlookSignupHost(hostname) {
+  const h = String(hostname || '').toLowerCase().replace(/:\d+$/, '');
+  if (!h || isStaticMicrosoftCdnHost(h)) return false;
+  return (
+    h === 'live.com' ||
+    h.endsWith('.live.com') ||
+    h === 'live.net' ||
+    h.endsWith('.live.net') ||
+    h === 'passport.net' ||
+    h.endsWith('.passport.net') ||
+    h === 'microsoft.com' ||
+    h.endsWith('.microsoft.com') ||
+    h === 'microsoftonline.com' ||
+    h.endsWith('.microsoftonline.com') ||
+    h === 'cloud.microsoft' ||
+    h.endsWith('.cloud.microsoft') ||
+    h === 'office.com' ||
+    h.endsWith('.office.com') ||
+    h === 'office365.com' ||
+    h.endsWith('.office365.com') ||
+    h === 'office.net' ||
+    h.endsWith('.office.net') ||
+    h === 'msauth.net' ||
+    h.endsWith('.msauth.net') ||
+    h === 'msftauth.net' ||
+    h.endsWith('.msftauth.net') ||
+    h === 'msidentity.com' ||
+    h.endsWith('.msidentity.com') ||
+    h === 'arkoselabs.com' ||
+    h.endsWith('.arkoselabs.com') ||
+    h === 'funcaptcha.com' ||
+    h.endsWith('.funcaptcha.com') ||
+    h === 'hsprotect.net' ||
+    h.endsWith('.hsprotect.net')
+  );
+}
+
 function isGameOrIpCheckHost(hostname) {
   const h = String(hostname || '').toLowerCase().replace(/:\d+$/, '');
   if (!h) return false;
@@ -50,7 +109,8 @@ function isGameOrIpCheckHost(hostname) {
     h.endsWith('.cloudfront.net') ||
     h === 'challenges.cloudflare.com' ||
     h.endsWith('.challenges.cloudflare.com') ||
-    h === 'api.ipify.org'
+    h === 'api.ipify.org' ||
+    isOutlookSignupHost(h)
   );
 }
 
@@ -242,6 +302,7 @@ function startDaemon() {
   const settingsFile = path.join(cfg.dataDir, 'screen_proxy_settings.json');
   const leasesFile = path.join(cfg.dataDir, 'screen_proxy_leases.json');
   const blockedFile = path.join(cfg.dataDir, 'screen_proxy_blocked.json');
+  const emailRegSettingsFile = path.join(cfg.dataDir, 'email_reg_settings.json');
   const assetCache = createAssetCache({ dataDir: cfg.dataDir });
 
   let supervisorPid = cfg.supervisorPid || 0;
@@ -251,10 +312,53 @@ function startDaemon() {
     localAssetCache: true,
     maxScreensPerIp: 3
   };
+  let cachedOutlookProxyCfg = null;
+  let cachedOutlookProxyReadAt = 0;
+  const outlookSessionSeq = new Map(); // profileId -> number
   const activeLeases = new Map();
   const blockedProxies = new Map();
   const tunnels = new Map(); // profileId -> { profileId, server, port, proxyUrl, sockets: Set }
   const pendingTraffic = {}; // profileId -> { proxyRxBytes, proxyTxBytes, directRxBytes, directTxBytes }
+
+  function loadOutlookProxyConfig() {
+    const now = Date.now();
+    if (cachedOutlookProxyCfg && (now - cachedOutlookProxyReadAt < 3000)) {
+      return cachedOutlookProxyCfg;
+    }
+    cachedOutlookProxyReadAt = now;
+    const raw = readJson(emailRegSettingsFile, null) || {};
+    cachedOutlookProxyCfg = {
+      enabled: raw.outlookProxyEnabled === true,
+      host: String(raw.outlookProxyHost !== undefined ? raw.outlookProxyHost : 'gw.dataimpulse.com').trim(),
+      port: Number(raw.outlookProxyPort) || 823,
+      user: String(raw.outlookProxyUser !== undefined ? raw.outlookProxyUser : '').trim(),
+      pass: String(raw.outlookProxyPass !== undefined ? raw.outlookProxyPass : '').trim(),
+      country: String(raw.outlookProxyCountry !== undefined ? raw.outlookProxyCountry : 'th').trim().toLowerCase()
+    };
+    return cachedOutlookProxyCfg;
+  }
+
+  function getOutlookMobileLeaseForProfile(profileId) {
+    const ocfg = loadOutlookProxyConfig();
+    if (!ocfg || !ocfg.enabled || !ocfg.host || !ocfg.port) return null;
+    const seq = (outlookSessionSeq.get(profileId) || 1);
+    const cleanPid = String(profileId || 'p1').replace(/[^a-zA-Z0-9]/g, '').slice(-8) || 'p1';
+    const sessId = `nc${cleanPid}s${seq}`;
+    let user = ocfg.user;
+    if (user && /dataimpulse\.com/i.test(ocfg.host) && !user.includes('__')) {
+      const cr = ocfg.country || 'th';
+      user = `${user}__cr.${cr};sessid.${sessId};sessttl.15`;
+    }
+    return {
+      assigned: true,
+      scheme: 'http',
+      proxyHost: ocfg.host,
+      proxyPort: ocfg.port,
+      proxyUser: user,
+      proxyPass: ocfg.pass,
+      isOutlookMobileProxy: true
+    };
+  }
 
   function readJson(file, fallback) {
     try {
@@ -358,6 +462,7 @@ function startDaemon() {
   }
 
   function resetProfileSockets(profileId) {
+    outlookSessionSeq.set(profileId, (outlookSessionSeq.get(profileId) || 1) + 1);
     const t = tunnels.get(profileId);
     if (!t) return 0;
     let count = 0;
@@ -405,12 +510,14 @@ function startDaemon() {
       }
       const targetHost = parsed.hostname;
       const targetPort = Number(parsed.port) || 80;
+      const isOutlookTarget = isOutlookSignupHost(targetHost);
+      const outlookMobileLease = isOutlookTarget ? getOutlookMobileLeaseForProfile(profileId) : null;
       const requiresProxy = Boolean(
-        cachedSettings.enabled &&
-        (!cachedSettings.onlyGameTraffic || isGameOrIpCheckHost(targetHost))
+        outlookMobileLease ||
+        (cachedSettings.enabled && (!cachedSettings.onlyGameTraffic || isGameOrIpCheckHost(targetHost)))
       );
-      let lease = cachedSettings.enabled ? getLeaseForProfile(profileId) : null;
-      if (requiresProxy && !(lease?.useHomeIp || lease?.directHomeIp) && (!lease?.assigned || isProxyBlocked(lease))) {
+      let lease = outlookMobileLease || (cachedSettings.enabled ? getLeaseForProfile(profileId) : null);
+      if (requiresProxy && !outlookMobileLease && !(lease?.useHomeIp || lease?.directHomeIp) && (!lease?.assigned || isProxyBlocked(lease))) {
         reloadFromDisk();
         lease = activeLeases.get(profileId) || null;
       }
@@ -503,12 +610,14 @@ function startDaemon() {
         return;
       }
 
+      const isOutlookTarget = isOutlookSignupHost(targetHost);
+      const outlookMobileLease = isOutlookTarget ? getOutlookMobileLeaseForProfile(profileId) : null;
       const requiresProxy = Boolean(
-        cachedSettings.enabled &&
-        (!cachedSettings.onlyGameTraffic || isGameOrIpCheckHost(targetHost))
+        outlookMobileLease ||
+        (cachedSettings.enabled && (!cachedSettings.onlyGameTraffic || isGameOrIpCheckHost(targetHost)))
       );
-      let lease = cachedSettings.enabled ? getLeaseForProfile(profileId) : null;
-      if (requiresProxy && !(lease?.useHomeIp || lease?.directHomeIp) && (!lease?.assigned || isProxyBlocked(lease))) {
+      let lease = outlookMobileLease || (cachedSettings.enabled ? getLeaseForProfile(profileId) : null);
+      if (requiresProxy && !outlookMobileLease && !(lease?.useHomeIp || lease?.directHomeIp) && (!lease?.assigned || isProxyBlocked(lease))) {
         reloadFromDisk();
         lease = activeLeases.get(profileId) || null;
       }

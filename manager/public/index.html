@@ -465,6 +465,10 @@
         <button id="btn-add-profile" class="btn btn-primary">
           <span class="icon">➕</span> เพิ่มโปรไฟล์
         </button>
+        <button type="button" id="btn-email-reg-settings" class="btn btn-ghost" onclick="if(window.__openEmailRegSettingsModal){window.__openEmailRegSettingsModal();}else{var m=document.getElementById('email-reg-settings-modal');if(m){m.style.display='flex';m.classList.add('active');}}" title="ตั้งค่าระบบสมัครเมล & รับ OTP (สลับโหมดระบบเราสมัครเอง / SmailPro API + กันเมลซ้ำในเซิร์ฟเวอร์)" style="border: 1px solid rgba(56, 189, 248, 0.5); background: linear-gradient(135deg, rgba(14, 165, 233, 0.2), rgba(37, 99, 235, 0.12)); color: #7dd3fc; font-weight: 700; display: inline-flex; align-items: center; gap: 6px;">
+          <span class="icon">⚙️</span> <span>ตั้งค่าสมัครเมล</span>
+          <span id="email-reg-mode-badge" class="badge" style="background: rgba(14, 165, 233, 0.28); color: #e0f2fe; border: 1px solid rgba(56, 189, 248, 0.45); padding: 1px 7px; border-radius: 999px; font-size: 10px; font-weight: 800;">Outlook</span>
+        </button>
         <button id="btn-open-bulk-delete-profiles" class="btn btn-ghost" title="เลือกลบโปรไฟล์หลายรายการ หรือลบทุกโปรไฟล์" style="border: 1px solid rgba(239, 68, 68, 0.45); background: rgba(239, 68, 68, 0.12); color: #fca5a5; font-weight: 600;">
           <span class="icon">🗑️</span> ลบโปรไฟล์
         </button>
@@ -1517,6 +1521,13 @@
             </div>
           </div>
         </div>
+        <div class="form-group" style="margin-top: -2px;">
+          <label style="display: flex; justify-content: space-between; align-items: center;">
+            <span>📧 อีเมลยืนยัน / SmailPro Email (จำว่า ID นี้ใช้อีเมลไหน):</span>
+            <span style="font-size: 10.5px; color: #38bdf8; font-weight: 600;">ใช้รับรหัส OTP 6 หลัก ทั้งหน้าล็อกอินและในเกม</span>
+          </label>
+          <input type="text" id="form-email" placeholder="เว้นว่าง = ใช้เมลเดียวกับ ID หรือให้ระบบสุ่มเมล SmailPro ผูกและจำให้อัตโนมัติ" class="form-input" autocomplete="off" style="font-family: 'JetBrains Mono', Consolas, monospace; font-size: 12.5px;">
+        </div>
         <div class="form-row">
           <div class="form-group">
             <label>เลือก Server:</label>
@@ -2072,7 +2083,7 @@
   </div>
 
   <script src="image_board_solver.js?v=nc1.9.4"></script>
-  <script src="app.js?v=nc2.3.50"></script>
+  <script src="app.js?v=nc2.3.60"></script>
   <script src="sim_engine.js?v=nc2.3.28b"></script>
   <script src="build_sim_arena.js?v=nc2.3.28b"></script>
   <script src="build_sim.js?v=nc2.3.28b"></script>
@@ -3412,6 +3423,205 @@
       </div>
     </div>
   </div>
+
+  <!-- MODAL: EMAIL REGISTRATION & OTP SETTINGS (Built-in Outlook vs SmailPro API) -->
+  <div class="modal-overlay" id="email-reg-settings-modal" style="display: none; position: fixed; inset: 0; background: rgba(2, 6, 23, 0.86); z-index: 100060; align-items: center; justify-content: center; backdrop-filter: blur(6px);">
+    <div class="modal-card" style="max-width: 720px; width: 95%; max-height: 90vh; overflow-y: auto; border: 1px solid rgba(56, 189, 248, 0.42); box-shadow: 0 24px 64px rgba(0, 0, 0, 0.82);">
+      <div class="modal-header" style="border-bottom: 1px solid rgba(148, 163, 184, 0.16); padding-bottom: 12px;">
+        <h3 style="margin: 0; font-size: 16px; color: #7dd3fc; display: flex; align-items: center; gap: 8px;">
+          <span>📧</span> <span>ตั้งค่าระบบสมัครเมล &amp; รับรหัส OTP (2 ระบบ + กันเมลซ้ำเซิร์ฟเวอร์กลาง)</span>
+        </h3>
+        <button class="modal-close" id="btn-close-email-reg-modal">&times;</button>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 14px; padding-top: 12px;">
+        <!-- Mode Selector Cards -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+          <label id="card-mode-builtin" style="cursor: pointer; background: rgba(15, 23, 42, 0.85); border: 2px solid rgba(56, 189, 248, 0.55); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 5px; transition: all 0.18s ease;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <input type="radio" name="email-reg-mode" id="radio-mode-builtin" value="builtin_outlook" checked style="accent-color: #38bdf8; width: 16px; height: 16px;">
+              <span style="font-size: 13.5px; font-weight: 800; color: #e0f2fe;">🌐 ระบบที่ 1: ระบบเราสมัครเอง (Outlook)</span>
+            </div>
+            <div style="font-size: 11px; color: #94a3b8; line-height: 1.45; padding-left: 24px;">
+              เปิดแท็บที่ 2 สมัครเมล <b>@outlook.com</b> จริงในหน้าต่างจอเกม (รองรับ Mobile Proxy เช่น DataImpulse แยกเฉพาะตอนสมัครเมล) และดึงรหัส OTP 6 หลักเข้าเกมอัตโนมัติ
+            </div>
+          </label>
+
+          <label id="card-mode-smailpro" style="cursor: pointer; background: rgba(15, 23, 42, 0.85); border: 2px solid rgba(148, 163, 184, 0.25); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 5px; transition: all 0.18s ease;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <input type="radio" name="email-reg-mode" id="radio-mode-smailpro" value="smailpro" style="accent-color: #10b981; width: 16px; height: 16px;">
+              <span style="font-size: 13.5px; font-weight: 800; color: #6ee7b7;">👑 ระบบที่ 2: SmailPro Web Premium (อัตโนมัติ 100%)</span>
+            </div>
+            <div style="font-size: 11px; color: #94a3b8; line-height: 1.45; padding-left: 24px;">
+              กด <b>Login จำคุกกี้เว็บ SmailPro Premium</b> ในเบราว์เซอร์ (<b>ไม่ต้องซื้อ API Credit!</b>) เพื่อให้บอทสร้างเมล Gmail / Outlook จริง (Server 1/2/3) และรับ OTP 6 หลักอัตโนมัติ + กันเมลซ้ำเซิร์ฟเวอร์กลาง
+            </div>
+          </label>
+        </div>
+
+        <!-- Section A: SmailPro Web Premium & API Configuration -->
+        <div id="section-smailpro-config" style="background: rgba(6, 15, 32, 0.78); border: 1px solid rgba(16, 185, 129, 0.35); border-radius: 12px; padding: 13px 14px; display: flex; flex-direction: column; gap: 11px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px;">
+            <div style="font-size: 13px; font-weight: 800; color: #34d399;">👑 ล็อกอิน &amp; จำ Cookie เว็บ SmailPro Premium (<a href="https://smailpro.com/temporary-email" target="_blank" style="color: #38bdf8; text-decoration: underline;">smailpro.com</a> — ไม่ต้องใช้ API Credit!)</div>
+            <span style="font-size: 10.5px; color: #6ee7b7; font-weight: 700;">บอทสร้างเมล &amp; อ่าน OTP จากเซสชันเว็บโดยตรง</span>
+          </div>
+
+          <div id="smailpro-web-session-badge" style="padding: 9px 12px; border-radius: 8px; background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(148, 163, 184, 0.3); font-size: 11.5px; color: #cbd5e1; display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;">
+            <span id="smailpro-web-session-text">⚪ ยังไม่ได้ล็อกอินเว็บ SmailPro ในเบราว์เซอร์บอท — กดปุ่มเปิดหน้าเว็บด้านล่างเพื่อ Login เพียงครั้งเดียว</span>
+            <button type="button" id="btn-check-smailpro-web" class="btn btn-ghost btn-sm" style="padding: 4px 9px; font-size: 10.5px; border: 1px solid rgba(56, 189, 248, 0.4); color: #7dd3fc;">🔄 เช็กสถานะ Login</button>
+          </div>
+
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button type="button" id="btn-open-smailpro-web-login" class="btn btn-primary btn-sm" style="flex: 1 1 250px; padding: 9px 13px; font-weight: 800; font-size: 12.5px; background: linear-gradient(135deg, #10b981, #0284c7); border: 1px solid rgba(52, 211, 153, 0.6); color: #fff; box-shadow: 0 3px 12px rgba(16, 185, 129, 0.25);">
+              🌐 เปิดหน้าเว็บ SmailPro เพื่อ Login &amp; จำ Cookie อัตโนมัติ
+            </button>
+            <button type="button" id="btn-test-smailpro-web" class="btn btn-ghost btn-sm" style="flex: 1 1 220px; padding: 9px 13px; font-weight: 800; font-size: 12px; background: rgba(16, 185, 129, 0.14); border: 1px solid rgba(52, 211, 153, 0.55); color: #6ee7b7;">
+              🧪 ทดสอบดึงเมลจาก SmailPro Web Premium (ฟรี)
+            </button>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;">
+            <div>
+              <label style="font-size: 11px; color: #cbd5e1; display: block; margin-bottom: 4px;">ประเภทอีเมลที่ต้องการสร้าง:</label>
+              <select id="select-smailpro-provider" class="form-input" style="font-size: 11.5px; padding: 7px 9px;">
+                <option value="auto">🔄 สุ่ม Outlook + Gmail จริงสลับกัน (แนะนำ)</option>
+                <option value="outlook">📨 Outlook ล้วน (@outlook.com)</option>
+                <option value="gmail">📧 Gmail ล้วน (@gmail.com)</option>
+                <option value="temp_email">🗂️ Temp Email โดเมนสำรอง</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size: 11px; color: #cbd5e1; display: block; margin-bottom: 4px;">รูปแบบบัญชี (Account Type):</label>
+              <select id="select-smailpro-addr-type" class="form-input" style="font-size: 11.5px; padding: 7px 9px;">
+                <option value="real">👑 Real Account (เมลจริง Premium แนะนำ)</option>
+                <option value="alias">🏷️ Alias Account (+tag ไม่ซ้ำ)</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size: 11px; color: #cbd5e1; display: block; margin-bottom: 4px;">เลือก Server Pool:</label>
+              <select id="select-smailpro-server" class="form-input" style="font-size: 11.5px; padding: 7px 9px;">
+                <option value="auto">🔄 สลับทุก Server Premium (14,500+ เมล)</option>
+                <option value="2">👑 Server 2 (Premium — 8,708 Outlook / 1,000 Gmail)</option>
+                <option value="3">👑 Server 3 (Premium — 756 Gmail)</option>
+                <option value="1">🌐 Server 1 (3,729 Outlook / 356 Gmail)</option>
+              </select>
+            </div>
+          </div>
+
+          <details style="background: rgba(15, 23, 42, 0.55); border: 1px solid rgba(148, 163, 184, 0.18); border-radius: 8px; padding: 7px 10px;">
+            <summary style="cursor: pointer; font-size: 11px; color: #94a3b8; font-weight: 700; user-select: none;">
+              ⚙️ ตัวเลือกเสริมขั้นสูง: วาง Cookie เอง หรือใส่ Developer API Key (ไม่บังคับ)
+            </summary>
+            <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">
+              <div>
+                <label style="font-size: 10.5px; color: #94a3b8; display: block; margin-bottom: 3px;">🍪 Cookie จากเว็บ smailpro.com (ระบบดึงให้อัตโนมัติเมื่อกดปุ่มเปิดหน้าเว็บ Login ด้านบน หรือวางเองก็ได้):</label>
+                <input type="text" id="input-smailpro-web-cookie" class="form-input" placeholder="sonjj_session=...; XSRF-TOKEN=..." style="width: 100%; font-family: monospace; font-size: 11.5px; padding: 6px 9px;" autocomplete="off">
+              </div>
+              <div>
+                <label style="font-size: 10.5px; color: #94a3b8; display: block; margin-bottom: 3px;">🔑 Developer API Key (เฉพาะกรณีเติมเงิน API Credit แยกใน my.sonjj.com):</label>
+                <div style="display: flex; gap: 6px; align-items: center;">
+                  <input type="password" id="input-smailpro-apikey" class="form-input" placeholder="ไม่จำเป็นต้องใส่หากใช้โหมด Login เว็บ SmailPro Premium ด้านบน" style="flex: 1; font-family: monospace; font-size: 11.5px; padding: 6px 9px;" autocomplete="off">
+                  <button type="button" id="btn-toggle-smailpro-key-vis" class="btn btn-ghost btn-sm" style="padding: 6px 9px; border: 1px solid rgba(148,163,184,0.3);">👁️</button>
+                  <button type="button" id="btn-test-smailpro-key" class="btn btn-ghost btn-sm" style="padding: 6px 10px; font-size: 11px; border: 1px solid rgba(148,163,184,0.3); white-space: nowrap;">
+                    ทดสอบ API Key
+                  </button>
+                </div>
+              </div>
+            </div>
+          </details>
+
+          <div id="smailpro-test-result" style="display: none; font-size: 11.5px; padding: 8px 11px; border-radius: 8px; background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(56, 189, 248, 0.35); color: #e0f2fe;"></div>
+        </div>
+
+        <!-- Section B: Built-in Outlook Mobile Proxy (DataImpulse) -->
+        <div id="section-outlook-proxy-config" style="background: rgba(15, 23, 42, 0.72); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 9px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 12.5px; font-weight: 800; color: #7dd3fc;">
+              <input type="checkbox" id="chk-outlook-proxy-enabled" checked style="accent-color: #38bdf8; width: 15px; height: 15px;">
+              <span>📱 ใช้ Mobile Proxy แยกเฉพาะตอนสมัครเมล Outlook (เช่น DataImpulse 4G/5G)</span>
+            </label>
+            <span style="font-size: 10.5px; color: #38bdf8; font-weight: 700;">ประหยัดดาต้า ~200 KB/ไอดี (ไม่ดึงทราฟฟิกเกม)</span>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 8px;">
+            <div>
+              <label style="font-size: 10.5px; color: #94a3b8;">Proxy Host:</label>
+              <input type="text" id="input-outlook-proxy-host" class="form-input" placeholder="gw.dataimpulse.com" style="font-size: 12px; padding: 6px 9px; font-family: monospace;">
+            </div>
+            <div>
+              <label style="font-size: 10.5px; color: #94a3b8;">Proxy Port:</label>
+              <input type="number" id="input-outlook-proxy-port" class="form-input" placeholder="823" style="font-size: 12px; padding: 6px 9px; font-family: monospace;">
+            </div>
+            <div>
+              <label style="font-size: 10.5px; color: #94a3b8;">ประเทศ (Country ISO):</label>
+              <input type="text" id="input-outlook-proxy-country" class="form-input" placeholder="th" style="font-size: 12px; padding: 6px 9px; font-family: monospace;">
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <div>
+              <label style="font-size: 10.5px; color: #94a3b8;">Proxy Login:</label>
+              <input type="text" id="input-outlook-proxy-user" class="form-input" placeholder="Proxy Username" style="font-size: 12px; padding: 6px 9px; font-family: monospace;">
+            </div>
+            <div>
+              <label style="font-size: 10.5px; color: #94a3b8;">Proxy Password:</label>
+              <input type="text" id="input-outlook-proxy-pass" class="form-input" placeholder="Proxy Password" style="font-size: 12px; padding: 6px 9px; font-family: monospace;">
+            </div>
+          </div>
+        </div>
+
+        <!-- Save Button Row -->
+        <div style="display: flex; justify-content: flex-end; gap: 8px;">
+          <button type="button" id="btn-save-email-reg-settings" class="btn btn-success" style="padding: 9px 20px; font-weight: 800; font-size: 13px;">
+            💾 บันทึกการตั้งค่าระบบสมัครเมล
+          </button>
+        </div>
+
+        <!-- Section C: Central Deduplication & Synced Account Registry (ID / Pass / SmailPro Email) -->
+        <div style="background: rgba(2, 6, 23, 0.78); border: 1px solid rgba(168, 85, 247, 0.32); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 9px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+            <div>
+              <div style="font-size: 12.5px; font-weight: 800; color: #c084fc;">🛡️ ทะเบียนกันเมลซ้ำในระบบ &amp; ข้อมูลบัญชีทั้งหมด (ID / Pass / Email)</div>
+              <div id="email-reg-stats-line" style="font-size: 11px; color: #94a3b8; margin-top: 2px;">
+                อีเมลที่ถูกใช้แล้วในระบบ: 0 เมล · สมัครสำเร็จพร้อมรหัสผ่าน: 0 บัญชี
+              </div>
+            </div>
+            <div style="display: flex; gap: 6px;">
+              <button type="button" id="btn-refresh-email-reg-list" class="btn btn-ghost btn-sm" style="padding: 6px 10px; font-size: 11px; border: 1px solid rgba(148,163,184,0.3);">
+                🔄 รีเฟรช
+              </button>
+              <button type="button" id="btn-export-email-reg-txt" class="btn btn-primary btn-sm" style="padding: 6px 12px; font-size: 11px; font-weight: 700; background: linear-gradient(135deg, #7c3aed, #2563eb); border: none;">
+                📥 ดาวน์โหลด .TXT (ID / Pass / Email)
+              </button>
+            </div>
+          </div>
+
+          <div style="max-height: 190px; overflow-y: auto; border: 1px solid rgba(148, 163, 184, 0.16); border-radius: 8px; background: rgba(15, 23, 42, 0.65);">
+            <table style="width: 100%; border-collapse: collapse; font-size: 11.5px; text-align: left;">
+              <thead>
+                <tr style="background: rgba(30, 41, 59, 0.9); color: #94a3b8; position: sticky; top: 0;">
+                  <th style="padding: 6px 9px;">ID / Email (SmailPro / Outlook)</th>
+                  <th style="padding: 6px 9px;">Password</th>
+                  <th style="padding: 6px 9px;">ระบบ</th>
+                  <th style="padding: 6px 9px;">ตัวละคร / เครื่อง</th>
+                  <th style="padding: 6px 9px;">เวลา</th>
+                </tr>
+              </thead>
+              <tbody id="email-reg-accounts-tbody">
+                <tr>
+                  <td colspan="5" style="padding: 14px; text-align: center; color: #64748b;">กำลังโหลดรายการบัญชี...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    if (typeof initEmailRegSettingsUi === 'function') {
+      try { initEmailRegSettingsUi(); } catch (_) {}
+    }
+  </script>
 
 </body>
 </html>

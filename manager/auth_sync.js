@@ -10,6 +10,7 @@
 // Passwords never leave the Manager except to the profile's own game client.
 
 const crypto = require('crypto');
+const http = require('http');
 
 const SYNC_MS = 10 * 1000;
 const rInt = (min, max) => crypto.randomInt(min, max + 1);
@@ -161,21 +162,34 @@ function genUserId(existingSet) {
     let raw = pickOne(patterns)().toLowerCase().replace(/[^a-z0-9_]/g, '').replace(/_+/g, '_').replace(/^_|_$/g, '');
     if (raw.length > 14) raw = raw.slice(0, 14).replace(/_$/g, '');
     if (
-      raw.length >= 6 &&
+      raw.length >= 7 &&
       raw.length <= 14 &&
-      /^[a-z][a-z0-9_]{5,13}$/.test(raw) &&
+      /^[a-z][a-z0-9_]{6,13}$/.test(raw) &&
       !/^pm[a-z0-9]{8}$/.test(raw) &&
-      !usedUserIds.has(raw + '@gmail.com') &&
-      !(existingSet && existingSet.has(raw + '@gmail.com'))
+      !usedUserIds.has(raw + '@outlook.com') &&
+      !(existingSet && existingSet.has(raw + '@outlook.com'))
     ) {
-      const email = raw + '@gmail.com';
+      const email = raw + '@outlook.com';
       usedUserIds.add(email);
       return email;
     }
   }
-  const fallback = (genProceduralThaiName().slice(0, 8) + String(rInt(1000, 99999))).slice(0, 14) + '@gmail.com';
+  const fallback = (genProceduralThaiName().slice(0, 8) + String(rInt(1000, 99999))).slice(0, 14) + '@outlook.com';
   usedUserIds.add(fallback);
   return fallback;
+}
+
+function genPersonProfile() {
+  const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : '';
+  const firstName = cap(genProceduralThaiName().slice(0, 10)) || 'Kittipong';
+  const lastName = cap((pickOne(THAI_SYL1) + pickOne(THAI_SYL2) + pickOne(THAI_SYL2)).slice(0, 12)) || 'Suwanrat';
+  return {
+    firstName,
+    lastName,
+    birthDay: rInt(13, 21),
+    birthMonth: rInt(4, 8),
+    birthYear: rInt(1994, 2002)
+  };
 }
 
 const usedCharNames = new Set();
@@ -202,28 +216,32 @@ function genCharName(existingSet) {
 }
 
 function genPassword() {
-  const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+  const cap = s => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
   const digits = len => Array.from({ length: len }, () => rInt(0, 9)).join('');
+  const syms = ['!', '@', '#', '$'];
+  const pickSym = () => pickOne(syms);
+  // Use procedural Thai/pronounceable syllables + digits + symbol so Microsoft never flags English dictionary words ("Lucky", "Pear", etc.)
   const patterns = [
-    () => cap(pickOne(USER_NICKS)) + genHumanNum(rInt(0, 2)) + digits(rInt(1, 2)),
-    () => cap(pickOne(USER_STEMS)) + genHumanNum(rInt(0, 2)) + (rInt(0, 1) ? digits(1) : ''),
-    () => pickOne(USER_NICKS) + pickOne(USER_TAGS) + genHumanNum(rInt(0, 2)) + digits(1),
-    () => pickOne(USER_NICKS) + genHumanNum(rInt(0, 2)) + cap(pickOne(USER_TAGS)),
-    () => pickOne(['08', '09', '06']) + digits(rInt(6, 7)) + pickOne(USER_NICKS).slice(0, rInt(2, 3)),
-    () => pickOne(USER_STEMS) + pickOne(USER_NICKS) + digits(rInt(2, 4)),
-    () => cap(genProceduralThaiName().slice(0, 7)) + genHumanNum(rInt(0, 2)),
-    () => genPronounceableWord().slice(0, 7) + digits(rInt(3, 5)),
-    () => digits(rInt(4, 6)) + cap(pickOne(USER_NICKS)) + pickOne(USER_TAGS),
-    () => cap(pickOne(USER_PREFIXES)) + cap(pickOne(USER_NICKS)) + digits(rInt(2, 4)),
-    () => applyLeet(cap(pickOne(USER_STEMS))) + genHumanNum(rInt(0, 3)),
-    () => pickOne(USER_NICKS) + digits(rInt(2, 3)) + pickOne(USER_STEMS).slice(0, 4)
+    () => cap(genProceduralThaiName().slice(0, 6)) + pickSym() + digits(3) + randLetters(2),
+    () => cap(genPronounceableWord().slice(0, 6)) + digits(2) + pickSym() + cap(randLetters(2)) + digits(1),
+    () => cap(pickOne(THAI_SYL1)) + pickOne(THAI_SYL2).slice(0, 3) + pickSym() + genHumanNum(rInt(0, 1)),
+    () => cap(randLetters(3)) + digits(2) + pickSym() + pickOne(THAI_SYL2).slice(0, 4) + digits(2)
   ];
   for (let i = 0; i < 40; i++) {
-    let pw = pickOne(patterns)().replace(/[^A-Za-z0-9]/g, '');
+    let pw = pickOne(patterns)();
     if (pw.length > 14) pw = pw.slice(0, 14);
-    if (pw.length >= 8 && pw.length <= 14) return pw;
+    if (
+      pw.length >= 10 &&
+      pw.length <= 14 &&
+      /[A-Z]/.test(pw) &&
+      /[a-z]/.test(pw) &&
+      /\d/.test(pw) &&
+      /[!@#$]/.test(pw)
+    ) {
+      return pw;
+    }
   }
-  return cap(pickOne(USER_NICKS)) + digits(6);
+  return 'Krx9!mQv' + digits(3) + 'z';
 }
 
 const READ_JS = `(() => {
@@ -292,8 +310,102 @@ const READ_JS = `(() => {
       activeEl.id === 'p-auth-server'
     )
   );
+  let inWorldVerifyAwaiting = false;
+  let lobbyModalVerifyAwaiting = false;
+  try {
+    const vf = window.NC?.OnlineVerify?.state?.();
+    const vfSt = vf?.st || null;
+    const sqVerifyEl = document.querySelector('#sq [data-sq="verify"]');
+    if (vf && vfSt) {
+      if (vfSt.done) {
+        try { window.NC?.OnlineVerify?.close?.(); } catch (_) {}
+      } else {
+        if (vfSt.bad && (vfSt.kind === 'wrong_code' || /รหัสไม่ถูกต้อง/i.test(vfSt.note || '')) && window.__lastSubmittedNightcampOtpCode) {
+          window.__ncLastRejectedOtpCode = window.__lastSubmittedNightcampOtpCode;
+        }
+        const nowMs = Date.now();
+        const wantVerifyEmail = String(c.email || (String(c.username || '').includes('@') ? c.username : '') || '').trim().toLowerCase();
+        const maskedWant = (wantVerifyEmail && typeof window.NC?.OnlineVerify?.mask === 'function')
+          ? window.NC.OnlineVerify.mask(wantVerifyEmail)
+          : '';
+        const shouldChangeToProfileEmail = Boolean(
+          wantVerifyEmail &&
+          wantVerifyEmail.includes('@') &&
+          vfSt.changeLeft > 0 &&
+          (
+            vfSt.mustChange ||
+            (vfSt.mode !== 'change' && maskedWant && vfSt.masked && maskedWant.toLowerCase() !== String(vfSt.masked).toLowerCase()) ||
+            (vfSt.mode === 'change' && (String(vfSt.email || '').toLowerCase() !== wantVerifyEmail || !vfSt.sent))
+          )
+        );
+        if (!vfSt.busy && (nowMs - (window.__ncLastInWorldVerifySendAt || 0) > 6500)) {
+          if (shouldChangeToProfileEmail && typeof vf.changeSend === 'function') {
+            window.__ncLastInWorldVerifySendAt = nowMs;
+            try { vf.changeSend(wantVerifyEmail); } catch (_) {}
+          } else if (!vfSt.sent) {
+            if (vfSt.page === 'round' && typeof vf.roundEmail === 'function') {
+              window.__ncLastInWorldVerifySendAt = nowMs;
+              try { vf.roundEmail(); } catch (_) {}
+            } else if (vfSt.ready && !vfSt.mustChange && typeof vf.send === 'function') {
+              window.__ncLastInWorldVerifySendAt = nowMs;
+              try { vf.send(); } catch (_) {}
+            }
+          }
+        }
+        if ((vfSt.sent || shouldChangeToProfileEmail) && !vfSt.done) {
+          inWorldVerifyAwaiting = true;
+        }
+      }
+    } else if (sqVerifyEl) {
+      const sendBtn = sqVerifyEl.querySelector('button[data-act="send"], button[data-act="remail"]');
+      if (sendBtn && !sendBtn.disabled && (Date.now() - (window.__ncLastInWorldVerifySendAt || 0) > 6500)) {
+        window.__ncLastInWorldVerifySendAt = Date.now();
+        try { sendBtn.click(); } catch (_) {}
+      }
+      if (sqVerifyEl.querySelector('input.vf-in[data-f="code"]')) {
+        inWorldVerifyAwaiting = true;
+      }
+    }
+    const csVerifyModal = document.querySelector('.cs-modal.cs-verify:not([hidden])');
+    if (csVerifyModal) {
+      const codeInput = csVerifyModal.querySelector('.cs-v-code:not([hidden])');
+      const errTxt = (csVerifyModal.querySelector('.cs-v-err')?.textContent || '').trim();
+      if (errTxt && /รหัสไม่ถูกต้อง/i.test(errTxt) && window.__lastSubmittedNightcampOtpCode) {
+        window.__ncLastRejectedOtpCode = window.__lastSubmittedNightcampOtpCode;
+      }
+      if (codeInput) {
+        lobbyModalVerifyAwaiting = true;
+      }
+    }
+    if (inWorld && window.NC?.Online?.rpc && !window.__ncVerifyStatusFetched && !window.__ncVerifyStatusFetching) {
+      window.__ncVerifyStatusFetching = true;
+      window.NC.Online.rpc('nc_verify', { action: 'status' }).then(res => {
+        window.__ncVerifyStatusCache = res || null;
+        window.__ncVerifyStatusFetched = true;
+        window.__ncVerifyStatusFetching = false;
+      }).catch(() => {
+        window.__ncVerifyStatusFetched = true;
+        window.__ncVerifyStatusFetching = false;
+      });
+    }
+  } catch (_) {}
+  const awaitingEmailOtp = Boolean(
+    window.NC?.OnlineLobby?.codeSent === true ||
+    inWorldVerifyAwaiting ||
+    lobbyModalVerifyAwaiting
+  );
+  const liveOnlineAccount = String(window.NC?.Online?.account?.name || window.NC?.Online?.account?.email || '').trim();
+  const vfStateNow = window.NC?.OnlineVerify?.state?.()?.st || null;
+  const verifyMaskedEmail = String(
+    (vfStateNow && (vfStateNow.email || vfStateNow.masked)) ||
+    window.__ncVerifyStatusCache?.email?.masked ||
+    ''
+  ).trim();
   return {
-    username: String(c.username || '').trim(),
+    username: String(c.username || liveOnlineAccount || '').trim(),
+    liveAccountEmail: liveOnlineAccount,
+    verifyMaskedEmail,
+    email: String(c.email || '').trim(),
     password: String(c.password || ''),
     serverName: String(c.serverName || '').trim(),
     charNameCfg: String(c.charName || '').trim(),
@@ -303,6 +415,11 @@ const READ_JS = `(() => {
     registerDone: !!c.registerDone,
     registerError: c.registerError || '',
     generatedUser: !!c.generatedUser,
+    outlookReady: !!c.outlookReady,
+    awaitingEmailOtp,
+    inWorldVerifyAwaiting,
+    lobbyModalVerifyAwaiting,
+    lastRejectedOtpCode: String(window.__ncLastRejectedOtpCode || ''),
     userEditedAt: Number(c.userEditedAt) || 0,
     serverEditedAt: Number(c.serverEditedAt) || 0,
     charEditedAt: Number(c.charEditedAt) || 0,
@@ -313,13 +430,14 @@ const READ_JS = `(() => {
     charName,
     isEditingAuth,
     registerQueueWaiting: Boolean(window.__pmRegisterQueueState && window.__pmRegisterQueueState.waiting),
-    registerQueueDismissed: Boolean(window.__pmRegisterQueueDismissedUntil && Date.now() < window.__pmRegisterQueueDismissedUntil)
+    registerQueueDismissed: Boolean(window.__pmRegisterQueueDismissedUntil && Date.now() < window.__pmRegisterQueueDismissedUntil),
+    registerQueueForceNow: Boolean(window.__pmForceRegisterNow)
   };
 })()`;
 
 const QUEUE_OVERLAY_HELPER_JS = `
-  if (window.__pmRegisterQueueOverlayVer !== 2 || typeof window.__setPmRegisterQueueOverlay !== 'function') {
-    window.__pmRegisterQueueOverlayVer = 2;
+  if (window.__pmRegisterQueueOverlayVer !== 3 || typeof window.__setPmRegisterQueueOverlay !== 'function') {
+    window.__pmRegisterQueueOverlayVer = 3;
     window.__setPmRegisterQueueOverlay = function(q) {
       const fmtRemain = (targetMs) => {
         const sec = Math.max(0, Math.ceil(((Number(targetMs) || 0) - Date.now()) / 1000));
@@ -329,7 +447,7 @@ const QUEUE_OVERLAY_HELPER_JS = `
         return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
       };
       const isSignedInNow = Boolean(window.NC?.Online?.account?.kind && window.NC.Online.account.kind !== 'device');
-      if (!q || !q.waiting || isSignedInNow || (window.__pmRegisterQueueDismissedUntil && Date.now() < window.__pmRegisterQueueDismissedUntil)) {
+      if (!q || !q.waiting || isSignedInNow || window.__pmForceRegisterNow || (window.__pmRegisterQueueDismissedUntil && Date.now() < window.__pmRegisterQueueDismissedUntil)) {
         window.__pmRegisterQueueState = null;
         if (window.__pmRegisterQueueTimer) {
           clearInterval(window.__pmRegisterQueueTimer);
@@ -363,10 +481,27 @@ const QUEUE_OVERLAY_HELPER_JS = `
           '      <div data-rq="timer" style="font-size:17px;font-weight:800;color:#fbbf24;font-family:monospace;">--:--</div>',
           '    </div>',
           '  </div>',
-          '  <button type="button" data-rq="dismiss" style="background:rgba(30,41,59,0.8);border:1px solid rgba(148,163,184,0.32);color:#cbd5e1;border-radius:8px;padding:4px 10px;font-size:11px;cursor:pointer;">✏️ กรอกไอดีเอง (ซ่อน 5 นาที)</button>',
+          '  <div style="display:flex;flex-direction:column;gap:7px;">',
+          '    <button type="button" data-rq="force-now" style="width:100%;background:linear-gradient(135deg,#10b981,#059669);border:1px solid rgba(52,211,153,0.68);color:#ffffff;border-radius:9px;padding:8px 12px;font-size:13px;font-weight:800;cursor:pointer;box-shadow:0 6px 18px rgba(16,185,129,0.35);">⚡ สมัครเลย (ไม่ต้องรอคิว)</button>',
+          '    <button type="button" data-rq="dismiss" style="width:100%;background:rgba(30,41,59,0.8);border:1px solid rgba(148,163,184,0.32);color:#cbd5e1;border-radius:8px;padding:5px 10px;font-size:11px;cursor:pointer;">✏️ กรอกไอดีเอง (ซ่อน 5 นาที)</button>',
+          '  </div>',
           '</div>'
         ].join('');
         (document.body || document.documentElement).appendChild(root);
+        const forceBtn = root.querySelector('[data-rq="force-now"]');
+        if (forceBtn) {
+          forceBtn.onclick = () => {
+            window.__pmForceRegisterNow = true;
+            window.__pmRegisterQueueDismissedUntil = 0;
+            window.__setPmRegisterQueueOverlay(null);
+            const pid = window.__pmProfileId || (window.sessionStorage && window.sessionStorage.getItem('__pmProfileId')) || '';
+            if (pid) {
+              try {
+                fetch('http://127.0.0.1:3891/api/profiles/' + encodeURIComponent(pid) + '/register-now', { method: 'POST', mode: 'no-cors' }).catch(() => {});
+              } catch (_) {}
+            }
+          };
+        }
         const disBtn = root.querySelector('[data-rq="dismiss"]');
         if (disBtn) {
           disBtn.onclick = () => {
@@ -533,6 +668,67 @@ const pushJs = cfg => `(() => {
     window.__ncUserDisabledAutoLogin = true;
   }
   try {
+    if (typeof patch.email === 'string' && patch.email.trim()) {
+      c.email = patch.email.trim().toLowerCase();
+    }
+    if (typeof patch.outlookStatusMsg === 'string') {
+      window.__pmOutlookFlowStatusMsg = patch.outlookStatusMsg;
+      delete patch.outlookStatusMsg;
+    }
+    if (typeof patch.otpCode === 'string' && patch.otpCode) {
+      const otpToSubmit = String(patch.otpCode).trim();
+      delete patch.otpCode;
+      window.__pendingNightcampOtpCode = otpToSubmit;
+      const setNativeInputVal = (el, val) => {
+        if (!el) return;
+        try { el.focus(); } catch (_) {}
+        const proto = window.HTMLInputElement?.prototype;
+        const setter = proto && Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+        if (setter) setter.call(el, val);
+        else el.value = val;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+      // Path 1: In-Game World Email Verification Window (#sq [data-sq="verify"] / window.NC.OnlineVerify)
+      try {
+        const sqVerifyEl = document.querySelector('#sq [data-sq="verify"]');
+        const vfCodeInp = sqVerifyEl?.querySelector('input.vf-in[data-f="code"]');
+        const vf = window.NC?.OnlineVerify?.state?.();
+        if ((vfCodeInp || (vf && vf.st && vf.st.sent && !vf.st.done)) && otpToSubmit !== window.__lastSubmittedNightcampOtpCode) {
+          if (vfCodeInp) setNativeInputVal(vfCodeInp, otpToSubmit);
+          window.__lastSubmittedNightcampOtpCode = otpToSubmit;
+          if (vf && typeof vf.check === 'function') {
+            Promise.resolve(vf.check(otpToSubmit)).then(() => {
+              setTimeout(() => {
+                try {
+                  if (window.NC?.OnlineVerify?.state?.()?.st?.done) {
+                    window.NC?.OnlineVerify?.close?.();
+                  }
+                } catch (_) {}
+              }, 800);
+            }).catch(() => {});
+          } else {
+            const confirmBtn = sqVerifyEl?.querySelector('button[data-act="confirm"]');
+            if (confirmBtn && !confirmBtn.disabled) confirmBtn.click();
+          }
+        }
+      } catch (_) {}
+      // Path 2: Sign-In Overdue Email Verification Modal (.cs-modal.cs-verify:not([hidden]))
+      try {
+        const csVerifyModal = document.querySelector('.cs-modal.cs-verify:not([hidden])');
+        const csVerifyCodeInp = csVerifyModal?.querySelector('.cs-v-code:not([hidden])');
+        const csVerifyOkBtn = csVerifyModal?.querySelector('.cs-v-ok');
+        if (csVerifyCodeInp && otpToSubmit !== window.__lastSubmittedNightcampOtpCode) {
+          setNativeInputVal(csVerifyCodeInp, otpToSubmit);
+          window.__lastSubmittedNightcampOtpCode = otpToSubmit;
+          if (csVerifyOkBtn && !csVerifyOkBtn.disabled) csVerifyOkBtn.click();
+        }
+      } catch (_) {}
+      // Path 3: Sign-Up Door OTP Form (window.__submitNightcampEmailOtp / window.executeAutoLogin)
+      if (typeof window.__submitNightcampEmailOtp === 'function') {
+        setTimeout(() => { try { window.__submitNightcampEmailOtp(otpToSubmit); } catch (_) {} }, 50);
+      }
+    }
     Object.assign(c, patch);
     if (patch.enabled === false) c.userDisabledAutoLogin = true;
     else if (patch.enabled === true) c.userDisabledAutoLogin = false;
@@ -566,6 +762,7 @@ function createAuthSync({
   evalProfilePort,
   credentials,
   proxyRegister,
+  smailproService,
   isScreenProxyEnabled,
   ensureScreenProxyForRegister,
   requireOnlineWindowForQueue = false,
@@ -593,6 +790,7 @@ function createAuthSync({
   const lastClientOnlineAt = new Map(); // profileId -> timestamp
   const lastPushedQueueDigest = new Map(); // profileId -> digest string
   const scheduledReadyTimers = new Map(); // profileId -> Timeout
+  const forceBypassQueueIds = new Set(); // profileIds forced via "สมัครเลย" button
 
   const waveState = {
     waveId: 0,
@@ -672,6 +870,25 @@ function createAuthSync({
     const now = nowFn();
     reconcileWaveState(allProfiles);
     const pid = profile.id;
+
+    // 0. Forced bypass via "⚡ สมัครเลย (ไม่ต้องรอคิว)"
+    if (forceBypassQueueIds.has(pid)) {
+      const qIdx = waveState.queueOrder.indexOf(pid);
+      if (qIdx !== -1) waveState.queueOrder.splice(qIdx, 1);
+      if (!waveState.admitted.has(pid)) {
+        waveState.admitted.set(pid, {
+          slotIndex: waveState.admitted.size,
+          admittedAt: now,
+          readyAt: 0,
+          completedAt: 0,
+          timedOut: false,
+          forced: true
+        });
+      } else {
+        waveState.admitted.get(pid).readyAt = 0;
+      }
+      return { allowed: true, waveId: waveState.waveId || 1, forced: true };
+    }
 
     // 1. Already admitted in current wave
     if (waveState.admitted.has(pid)) {
@@ -820,17 +1037,58 @@ function createAuthSync({
     return set;
   }
 
+  function callClientOutlookFlow(debugPort, payload, timeoutMs = 20000) {
+    if (!debugPort) return Promise.resolve({ unavailable: true });
+    return new Promise(resolve => {
+      const data = JSON.stringify(payload || {});
+      const req = http.request({
+        hostname: '127.0.0.1',
+        port: Number(debugPort),
+        path: '/api/outlook-flow',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(data)
+        },
+        timeout: timeoutMs
+      }, res => {
+        let raw = '';
+        res.setEncoding('utf8');
+        res.on('data', ch => { raw += ch; });
+        res.on('end', () => {
+          try {
+            const parsed = JSON.parse(raw || '{}');
+            if (parsed && Array.isArray(parsed.endpoints) && !parsed.status) {
+              resolve({ unavailable: true });
+            } else {
+              resolve(parsed);
+            }
+          } catch (_) {
+            resolve({ unavailable: true });
+          }
+        });
+      });
+      req.on('timeout', () => { try { req.destroy(); } catch (_) {} resolve({ timeout: true }); });
+      req.on('error', () => resolve({ unavailable: true }));
+      req.write(data);
+      req.end();
+    });
+  }
+
   function getCandidateCreds(profile) {
     let c = pendingCreds.get(profile.id);
     const hasAccount = !!(profile.account && profile.account.trim());
     if (!c || (hasAccount && c.username !== profile.account.trim())) {
       let uname = hasAccount ? profile.account.trim() : genUserId(existingAccounts());
-      if (uname && !uname.includes('@')) uname = uname + '@gmail.com';
+      if (uname && !uname.includes('@')) uname = uname + (hasAccount ? '@gmail.com' : '@outlook.com');
+      const person = genPersonProfile();
       c = {
         username: uname,
         password: pw(profile) || genPassword(),
         charName: (profile.charName && profile.charName.trim()) || genCharName(),
-        generatedUser: !hasAccount || !!profile.generatedAccount
+        generatedUser: !hasAccount || !!profile.generatedAccount,
+        outlookReady: Boolean(profile.outlookCreated || (hasAccount && !profile.autoRegister)),
+        ...person
       };
       pendingCreds.set(profile.id, c);
     }
@@ -841,22 +1099,39 @@ function createAuthSync({
     const c = getCandidateCreds(profile);
     c.username = genUserId(existingAccounts());
     c.generatedUser = true;
+    c.outlookReady = false;
     pendingCreds.set(profile.id, c);
     return c;
   }
 
   function commitSuccessfulRegistration(profile, username, password) {
+    const cred = pendingCreds.get(profile.id);
+    const resolvedEmail = String(profile.email || (String(username || '').includes('@') ? username : '')).trim();
     credentials.setPassword(profile.id, password);
     const updated = updateProfile(profile.id, {
       account: username,
+      ...(resolvedEmail ? { email: resolvedEmail } : {}),
       autoRegister: false,
       generatedAccount: true,
+      outlookCreated: true,
       registeredAt: Date.now(),
       proxyRegistrationState: 'done',
       registerError: '',
       loginSyncPending: true,
       lastAuthSyncPushAt: Date.now()
     });
+    if (smailproService && typeof smailproService.recordRegisteredAccount === 'function') {
+      smailproService.recordRegisteredAccount({
+        profileId: profile.id,
+        profileName: profile.name || profile.id,
+        username,
+        password,
+        email: resolvedEmail || username,
+        provider: cred?.isSmailPro ? `smailpro_${cred.smailproFamily || 'auto'}` : 'builtin_outlook',
+        charName: profile.lastCharName || profile.charName || cred?.charName || '',
+        serverName: profile.serverName || ''
+      }).catch(() => {});
+    }
     pendingCreds.delete(profile.id);
     return updated || profile;
   }
@@ -873,7 +1148,7 @@ function createAuthSync({
         commitSuccessfulRegistration(profile, cred.username, cred.password);
         if (clientOnline && profile.debugPort) {
           const delivered = await evalProfilePort(profile.debugPort, pushJs({
-            enabled: true, autoResumeBot: true, username: cred.username, password: cred.password,
+            enabled: true, autoResumeBot: Boolean(profile.autoResumeBot), username: cred.username, password: cred.password,
             register: false, registerDone: true, autoCreateChar: true, generatedUser: !!cred.generatedUser
           }), 3000);
           if (delivered?.success && delivered.result?.abortedByUserCreds && delivered.result.username && delivered.result.password) {
@@ -933,7 +1208,20 @@ function createAuthSync({
     }
   }
 
+  const syncInFlight = new Set();
+
   async function syncOne(profile) {
+    if (!profile || !profile.id) return;
+    if (syncInFlight.has(profile.id)) return;
+    syncInFlight.add(profile.id);
+    try {
+      await syncOneInner(profile);
+    } finally {
+      syncInFlight.delete(profile.id);
+    }
+  }
+
+  async function syncOneInner(profile) {
     if (!profile.debugPort && !profile.autoRegister) return;
     if (!profile.debugPort && !profile.autoRegister && !(profile.account && pw(profile))) return;
 
@@ -1094,13 +1382,64 @@ function createAuthSync({
         }
         const cred = getCandidateCreds(profile);
         commitSuccessfulRegistration(profile, cur.username, cur.password || cred.password);
+        await callClientOutlookFlow(profile.debugPort, { action: 'close-tab' }, 3000).catch(() => {});
         console.log(`[AuthSync] ✅ ${profile.name}: สมัครบัญชีผ่านหน้าเกม "${cur.username}" สำเร็จ`);
         return;
       }
-      if (!proxyAvailable && cur.register) {
+      if (cur.awaitingEmailOtp && cur.username) {
+        const cred = getCandidateCreds(profile);
+        const useSmailProOtp = Boolean(
+          smailproService &&
+          (smailproService.getMode() === 'smailpro' || cred.isSmailPro || !/@(outlook|hotmail|live)\.com$/i.test(cur.username || ''))
+        );
+        if (useSmailProOtp) {
+          const otpRes = await smailproService.pollOtp({
+            profileId: profile.id,
+            email: cur.username || cred.username,
+            rejectedCode: cur.lastRejectedOtpCode || ''
+          });
+          if (otpRes) {
+            if (otpRes.status === 'otp_found' && otpRes.otpCode) {
+              await evalProfilePort(profile.debugPort, pushJs({
+                otpCode: otpRes.otpCode,
+                outlookStatusMsg: otpRes.message || `✅ พบรหัส OTP 6 หลัก (${otpRes.otpCode}) จาก SmailPro`
+              }), 3000);
+              console.log(`[AuthSync] 📨 ${profile.name}: ดึงรหัส OTP 6 หลัก (${otpRes.otpCode}) จาก SmailPro "${cur.username}" -> ส่งเข้าเกมอัตโนมัติ`);
+            } else if (otpRes.message) {
+              await evalProfilePort(profile.debugPort, pushJs({ outlookStatusMsg: otpRes.message }), 2500).catch(() => {});
+            }
+            scheduleReadyWakeup(profile.id, nowFn() + 2800);
+            return;
+          }
+        } else if (/@(outlook|hotmail|live)\.com$/i.test(cur.username || '')) {
+          const otpRes = await callClientOutlookFlow(profile.debugPort, {
+            action: 'poll-otp',
+            username: cur.username || cred.username,
+            password: cur.password || cred.password,
+            rejectedCode: cur.lastRejectedOtpCode || ''
+          });
+          if (otpRes && !otpRes.unavailable) {
+            if (otpRes.status === 'otp_found' && otpRes.otpCode) {
+              await evalProfilePort(profile.debugPort, pushJs({
+                otpCode: otpRes.otpCode,
+                outlookStatusMsg: otpRes.message || `✅ พบรหัส OTP 6 หลัก (${otpRes.otpCode})`
+              }), 3000);
+              console.log(`[AuthSync] 📨 ${profile.name}: ดึงรหัส OTP 6 หลัก (${otpRes.otpCode}) จากเมล Outlook "${cur.username}" -> ส่งเข้าเกมอัตโนมัติ`);
+            } else if (otpRes.message) {
+              await evalProfilePort(profile.debugPort, pushJs({ outlookStatusMsg: otpRes.message }), 2500).catch(() => {});
+            }
+            scheduleReadyWakeup(profile.id, nowFn() + 2800);
+            return;
+          }
+        }
+      }
+      if (!proxyAvailable && cur.register && (cur.outlookReady || !/@outlook\.com$/i.test(cur.username || ''))) {
         if (cur.username) {
           const cred = getCandidateCreds(profile);
           if (cur.username !== cred.username) cred.username = cur.username;
+        }
+        if (cur.awaitingEmailOtp) {
+          scheduleReadyWakeup(profile.id, nowFn() + 3000);
         }
         return;
       }
@@ -1112,7 +1451,10 @@ function createAuthSync({
         updateProfile(profile.id, { autoRegister: false, registerError: cur.registerError });
         return;
       }
-      if (cur.registerQueueDismissed) {
+      if (cur.registerQueueForceNow) {
+        forceBypassQueueIds.add(profile.id);
+      }
+      if (cur.registerQueueDismissed && !forceBypassQueueIds.has(profile.id)) {
         return;
       }
 
@@ -1175,11 +1517,109 @@ function createAuthSync({
         }
       }
 
-      const cred = getCandidateCreds(profile);
+      let cred = getCandidateCreds(profile);
+      const isSmailProMode = Boolean(smailproService && smailproService.getMode() === 'smailpro');
+      if (isSmailProMode && (!cred.isSmailPro || !cred.outlookReady)) {
+        try {
+          await callClientOutlookFlow(profile.debugPort, { action: 'close-tab' }, 2000).catch(() => {});
+          const alloc = await smailproService.allocateUniqueSmailProEmail({
+            profileId: profile.id,
+            profileName: profile.name || profile.id,
+            password: cred.password,
+            charName: profile.charName || cred.charName || '',
+            serverName: profile.serverName || '',
+            existingSet: existingAccounts()
+          });
+          if (alloc && alloc.email) {
+            cred.username = alloc.email;
+            cred.isSmailPro = true;
+            cred.smailproFamily = alloc.providerFamily || 'auto';
+            cred.outlookReady = true;
+            pendingCreds.set(profile.id, cred);
+            credentials.setPassword(profile.id, cred.password);
+            updateProfile(profile.id, {
+              account: cred.username,
+              email: cred.username,
+              generatedAccount: true,
+              outlookCreated: true,
+              registerError: '',
+              lastAuthSyncPushAt: Date.now()
+            });
+          }
+        } catch (err) {
+          const errMsg = `⚠️ SmailPro: ${err.message}`;
+          await evalProfilePort(profile.debugPort, pushJs({
+            outlookStatusMsg: errMsg
+          }), 3500).catch(() => {});
+          scheduleReadyWakeup(profile.id, nowFn() + 4500);
+          return;
+        }
+      } else if (!isSmailProMode && /@outlook\.com$/i.test(cred.username) && !cred.outlookReady && !cur.outlookReady) {
+        let olRes = await callClientOutlookFlow(profile.debugPort, {
+          action: 'ensure-signup',
+          username: cred.username,
+          password: cred.password,
+          firstName: cred.firstName,
+          lastName: cred.lastName,
+          birthDay: cred.birthDay,
+          birthMonth: cred.birthMonth,
+          birthYear: cred.birthYear
+        });
+        if (olRes && !olRes.unavailable && !olRes.timeout) {
+          if (olRes.status === 'email_taken') {
+            cred = rotateCandidateUser(profile);
+            console.log(`[AuthSync] ♻️ ${profile.name}: อีเมล Outlook ซ้ำ -> สุ่มอีเมลใหม่เป็น "${cred.username}"`);
+            olRes = await callClientOutlookFlow(profile.debugPort, {
+              action: 'ensure-signup',
+              username: cred.username,
+              password: cred.password,
+              firstName: cred.firstName,
+              lastName: cred.lastName,
+              birthDay: cred.birthDay,
+              birthMonth: cred.birthMonth,
+              birthYear: cred.birthYear
+            });
+          }
+          if (olRes?.status === 'ready') {
+            cred.outlookReady = true;
+            credentials.setPassword(profile.id, cred.password);
+            updateProfile(profile.id, {
+              account: cred.username,
+              email: cred.username,
+              generatedAccount: true,
+              outlookCreated: true,
+              registerError: '',
+              lastAuthSyncPushAt: Date.now()
+            });
+            console.log(`[AuthSync] 📧✅ ${profile.name}: สมัครเมล Outlook "${cred.username}" ใน Client สำเร็จแล้ว -> กำลังสมัคร/ล็อกอินเข้าเกม...`);
+          } else {
+            await evalProfilePort(profile.debugPort, pushJs({
+              enabled: true,
+              autoResumeBot: Boolean(profile.autoResumeBot),
+              username: cred.username,
+              password: cred.password,
+              serverName: profile.serverName || '',
+              charName: profile.charName || cred.charName || '',
+              register: true,
+              registerDone: false,
+              outlookReady: false,
+              outlookStatusMsg: olRes?.message || `📧 กำลังสมัครเมล ${cred.username} ในแท็บ Outlook...`,
+              autoCreateChar: true,
+              generatedUser: !!cred.generatedUser
+            }), 3500).catch(() => {});
+            scheduleReadyWakeup(profile.id, nowFn() + 2200);
+            return;
+          }
+        } else {
+          scheduleReadyWakeup(profile.id, nowFn() + 2500);
+          return;
+        }
+      }
+
       const pushRes = await evalProfilePort(profile.debugPort, pushJs({
-        enabled: true, autoResumeBot: true, username: cred.username, password: cred.password,
+        enabled: true, autoResumeBot: Boolean(profile.autoResumeBot), username: cred.username, email: cred.username, password: cred.password,
         serverName: profile.serverName || '', charName: profile.charName || cred.charName || '',
-        register: true, registerDone: false, autoCreateChar: true, generatedUser: !!cred.generatedUser,
+        register: true, registerDone: false, outlookReady: true, autoCreateChar: true, generatedUser: !!cred.generatedUser,
         ...(identityChangedAt > 0 ? { forceResetAuth: true } : {})
       }), 4500);
       if (pushRes?.success && pushRes.result?.abortedByUserCreds && pushRes.result.username && pushRes.result.password) {
@@ -1217,8 +1657,85 @@ function createAuthSync({
       profile.account = cur.username;
     }
 
-    // If the user entered an ID + Password that did not exist yet on the server and the client switched to register:true
-    // to sign up that exact ID + Password, let it finish registering without overwriting register:false!
+    // Auto-populate `profile.email` (`📧 อีเมลยืนยัน / SmailPro Email`) when empty:
+    // 1) From profile.account or liveAccountEmail if it's already a full email
+    // 2) From SmailPro Cloud History / Registry matching the game's masked verified email (`te•••@outlook.com` -> `terrychavez6376+m1ur0@outlook.com`)!
+    if (!profile.email) {
+      let autoDetectedEmail = '';
+      if (profile.account && String(profile.account).includes('@')) {
+        autoDetectedEmail = String(profile.account).trim().toLowerCase();
+      } else if (cur.liveAccountEmail && String(cur.liveAccountEmail).includes('@')) {
+        autoDetectedEmail = String(cur.liveAccountEmail).trim().toLowerCase();
+      } else if (cur.email && String(cur.email).includes('@')) {
+        autoDetectedEmail = String(cur.email).trim().toLowerCase();
+      } else if (cur.verifyMaskedEmail && smailproService && typeof smailproService.findEmailByMaskOrHistory === 'function') {
+        autoDetectedEmail = await smailproService.findEmailByMaskOrHistory(cur.verifyMaskedEmail, profile.id).catch(() => '');
+      }
+      if (autoDetectedEmail && autoDetectedEmail.includes('@')) {
+        updateProfile(profile.id, { email: autoDetectedEmail });
+        profile.email = autoDetectedEmail;
+        await evalProfilePort(profile.debugPort, pushJs({ email: autoDetectedEmail }), 2000).catch(() => {});
+        console.log(`[AuthSync] 📧🔍 ${profile.name}: ซิงก์อีเมลยืนยัน "${autoDetectedEmail}" เข้าช่อง 📧 อีเมลยืนยัน ในโปรไฟล์อัตโนมัติ`);
+      }
+    }
+
+    // Handle 6-digit Email OTP verification across ALL 3 places:
+    // 1) In-Game World `ยืนยันอีเมล เหลือ 2 วัน 23 ชม.` window (#sq [data-sq="verify"] / NC.OnlineVerify)
+    // 2) Sign-In Overdue Email Verification modal (.cs-modal.cs-verify)
+    // 3) Sign-Up Email OTP step (NC.OnlineLobby.codeSent)
+    let activeEmailForOtp = String(profile.email || cur.email || cur.username || profile.account || '').trim();
+    if (cur.awaitingEmailOtp && !activeEmailForOtp.includes('@') && cur.verifyMaskedEmail && smailproService && typeof smailproService.findEmailByMaskOrHistory === 'function') {
+      const matched = await smailproService.findEmailByMaskOrHistory(cur.verifyMaskedEmail, profile.id).catch(() => '');
+      if (matched && matched.includes('@')) {
+        activeEmailForOtp = matched;
+        updateProfile(profile.id, { email: matched });
+        profile.email = matched;
+      }
+    }
+    if (cur.awaitingEmailOtp && activeEmailForOtp.includes('@')) {
+      const useSmailProOtp = Boolean(
+        smailproService &&
+        (smailproService.getMode() === 'smailpro' || !/@(outlook|hotmail|live)\.com$/i.test(activeEmailForOtp))
+      );
+      if (useSmailProOtp) {
+        const otpRes = await smailproService.pollOtp({
+          profileId: profile.id,
+          email: activeEmailForOtp,
+          rejectedCode: cur.lastRejectedOtpCode || ''
+        });
+        if (otpRes) {
+          if (otpRes.status === 'otp_found' && otpRes.otpCode) {
+            await evalProfilePort(profile.debugPort, pushJs({
+              otpCode: otpRes.otpCode,
+              outlookStatusMsg: otpRes.message || `✅ พบรหัส OTP 6 หลัก (${otpRes.otpCode}) จาก SmailPro`
+            }), 3000);
+            console.log(`[AuthSync] 📨 ${profile.name}: ดึงรหัส OTP 6 หลัก (${otpRes.otpCode}) จาก SmailPro "${activeEmailForOtp}" -> ยืนยันอีเมลในเกมอัตโนมัติ`);
+          }
+          scheduleReadyWakeup(profile.id, nowFn() + 2800);
+        }
+      } else if (/@(outlook|hotmail|live)\.com$/i.test(activeEmailForOtp)) {
+        const otpRes = await callClientOutlookFlow(profile.debugPort, {
+          action: 'poll-otp',
+          username: activeEmailForOtp,
+          password: cur.password || pw(profile),
+          rejectedCode: cur.lastRejectedOtpCode || ''
+        });
+        if (otpRes && !otpRes.unavailable) {
+          if (otpRes.status === 'otp_found' && otpRes.otpCode) {
+            await evalProfilePort(profile.debugPort, pushJs({
+              otpCode: otpRes.otpCode,
+              outlookStatusMsg: otpRes.message || `✅ พบรหัส OTP 6 หลัก (${otpRes.otpCode})`
+            }), 3000);
+            console.log(`[AuthSync] 📨 ${profile.name}: ดึงรหัส OTP 6 หลัก (${otpRes.otpCode}) จากเมล Outlook "${activeEmailForOtp}" -> ยืนยันอีเมลในเกมอัตโนมัติ`);
+          }
+          scheduleReadyWakeup(profile.id, nowFn() + 2800);
+        }
+      }
+      if (cur.register && !cur.registerDone && !cur.registerError) {
+        return;
+      }
+    }
+
     if (profile.account && isSameAccountId(cur.username, profile.account) && cur.register && !cur.registerDone && !cur.registerError) {
       return;
     }
@@ -1292,13 +1809,14 @@ function createAuthSync({
         enabled: profile.autoLoginEnabled !== false,
         preserveUserToggle: !profile.loginSyncPending,
         username: profile.account,
+        email: profile.email || (String(profile.account || '').includes('@') ? profile.account : ''),
         password: pw(profile),
         serverName: profile.serverName || '',
         ...(!clientCharEditedNewer && profile.charName ? { charName: profile.charName, charEditedAt: 0 } : {}),
-        autoResumeBot: profile.autoResumeBot !== false,
+        autoResumeBot: Boolean(profile.autoResumeBot),
         register: false,
         generatedUser: !!profile.generatedAccount,
-        ...(profile.loginSyncPending ? { ...(profile.proxyRegistrationState === 'done' ? { registerDone: true } : { registerDone: false }), autoCreateChar: true, autoResumeBot: true } : {})
+        ...(profile.loginSyncPending ? { ...(profile.proxyRegistrationState === 'done' ? { registerDone: true } : { registerDone: false }), autoCreateChar: true } : {})
       }), 3000);
       if (delivered?.success && delivered.result?.success === true) {
         updateProfile(profile.id, { loginSyncPending: false, registerError: '', lastAuthSyncPushAt: Date.now() });
@@ -1344,6 +1862,7 @@ function createAuthSync({
     if (!profileId) return;
     pendingCreds.delete(profileId);
     lastPushedQueueDigest.delete(profileId);
+    forceBypassQueueIds.delete(profileId);
     waveState.admitted.delete(profileId);
     const qIdx = waveState.queueOrder.indexOf(profileId);
     if (qIdx !== -1) waveState.queueOrder.splice(qIdx, 1);
@@ -1354,6 +1873,52 @@ function createAuthSync({
     }
   }
 
+  async function forceRegisterNow(profileId) {
+    const pid = String(profileId || '').trim();
+    if (!pid) return { success: false, error: 'Missing profileId' };
+    forceBypassQueueIds.add(pid);
+    lastPushedQueueDigest.delete(pid);
+    const now = nowFn();
+    const qIdx = waveState.queueOrder.indexOf(pid);
+    if (qIdx !== -1) waveState.queueOrder.splice(qIdx, 1);
+    waveState.admitted.set(pid, {
+      slotIndex: waveState.admitted.size,
+      admittedAt: now,
+      readyAt: 0,
+      completedAt: 0,
+      timedOut: false,
+      forced: true
+    });
+    const timer = scheduledReadyTimers.get(pid);
+    if (timer) {
+      clearTimeout(timer);
+      scheduledReadyTimers.delete(pid);
+    }
+    const profiles = (typeof loadProfiles === 'function' ? loadProfiles() : []) || [];
+    const profile = profiles.find(p => p && p.id === pid);
+    if (!profile) return { success: false, error: 'Profile not found' };
+    if (!profile.autoRegister && !pw(profile)) {
+      updateProfile(pid, { autoRegister: true, registerError: '' });
+      profile.autoRegister = true;
+    }
+    if (profile.debugPort) {
+      await evalProfilePort(profile.debugPort, `(() => {
+        window.__pmForceRegisterNow = true;
+        window.__pmRegisterQueueDismissedUntil = 0;
+        if (typeof window.__setPmRegisterQueueOverlay === 'function') {
+          window.__setPmRegisterQueueOverlay(null);
+        } else {
+          const old = document.getElementById('pm-register-queue-overlay');
+          if (old) old.remove();
+        }
+        return { success: true };
+      })()`, 2500).catch(() => {});
+      setImmediate(() => syncOne(profile).catch(() => {}));
+    }
+    console.log(`[AuthSync] ⚡ ลัดคิวสมัครไอดีทันที (ไม่ต้องรอคิว): ${profile.name || pid}`);
+    return { success: true, profileId: pid, profileName: profile.name || pid };
+  }
+
   function start() {
     if (proxyRegister?.isEnabled?.()) {
       try { resetProxyFallback(); } catch (_) {}
@@ -1361,7 +1926,12 @@ function createAuthSync({
     setTimeout(() => { tick(); setInterval(tick, SYNC_MS); }, 8000);
   }
 
-  return { start, tick, syncOne, resetProxyFallback, resetProfileRegistration, getRegisterQueueSnapshot };
+  function resetAllPendingRegistrations() {
+    pendingCreds.clear();
+    forceBypassQueueIds.clear();
+  }
+
+  return { start, tick, syncOne, forceRegisterNow, resetProxyFallback, resetProfileRegistration, resetAllPendingRegistrations, getRegisterQueueSnapshot };
 }
 
 module.exports = { createAuthSync, genUserId, genPassword, genCharName, isPlaceholderCharName };
