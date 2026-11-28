@@ -3234,16 +3234,170 @@ const launchPopoverState = {
   filters: (() => {
     try {
       const saved = JSON.parse(localStorage.getItem(LAUNCH_FILTER_STORAGE_KEY) || "{}");
+      const rawMin = Number(saved.delayMinSec);
+      const rawMax = Number(saved.delayMaxSec);
+      const delayMinSec = Number.isFinite(rawMin) && rawMin >= 0 ? Math.min(3600, rawMin) : 3;
+      const delayMaxSec = Number.isFinite(rawMax) && rawMax >= delayMinSec && rawMax > 0 ? Math.min(3600, rawMax) : Math.max(10, delayMinSec + 5);
       return {
         jail: ["not_jailed", "all", "jailed_only"].includes(saved.jail) ? saved.jail : "not_jailed",
         prem: ["all", "no_premium", "has_premium"].includes(saved.prem) ? saved.prem : "all",
-        group: ["all", "solo", "party"].includes(saved.group) ? saved.group : "all"
+        group: ["all", "solo", "party"].includes(saved.group) ? saved.group : "all",
+        delayMinSec,
+        delayMaxSec
       };
     } catch (_) {
-      return { jail: "not_jailed", prem: "all", group: "all" };
+      return { jail: "not_jailed", prem: "all", group: "all", delayMinSec: 3, delayMaxSec: 10 };
     }
   })()
 };
+
+const randomDelayLaunchState = {
+  running: false,
+  cancelled: false,
+  total: 0,
+  completed: 0,
+  currentProfileName: "",
+  remainSec: 0,
+  minSec: 3,
+  maxSec: 10,
+  countdownTimer: null
+};
+
+function updateLaunchAllButtonAppearance() {
+  const btn = document.getElementById("btn-launch-all");
+  if (!btn) return;
+  if (!btn.dataset.origHtml) {
+    btn.dataset.origHtml = btn.innerHTML;
+  }
+  if (randomDelayLaunchState.running) {
+    const waitTxt = randomDelayLaunchState.remainSec > 0
+      ? ` · รอ ${randomDelayLaunchState.remainSec}วิ`
+      : (randomDelayLaunchState.currentProfileName ? ` · ${randomDelayLaunchState.currentProfileName}` : "");
+    btn.innerHTML = `<span class="icon">🎲</span> เปิดจอ ${randomDelayLaunchState.completed}/${randomDelayLaunchState.total}${waitTxt} <span class="launch-caret">▾</span>`;
+  } else if (btn.dataset.origHtml) {
+    btn.innerHTML = btn.dataset.origHtml;
+  }
+}
+
+function cancelRandomDelayLaunch() {
+  if (!randomDelayLaunchState.running) return;
+  randomDelayLaunchState.cancelled = true;
+  if (randomDelayLaunchState.countdownTimer) {
+    clearInterval(randomDelayLaunchState.countdownTimer);
+    randomDelayLaunchState.countdownTimer = null;
+  }
+  randomDelayLaunchState.running = false;
+  randomDelayLaunchState.remainSec = 0;
+  updateLaunchAllButtonAppearance();
+  showToast(`⏹ หยุดคิวเปิดจอแบบ Random Delay แล้ว (เปิดไป ${randomDelayLaunchState.completed}/${randomDelayLaunchState.total} จอ)`, "warning");
+  const pop = document.getElementById("launch-all-popover");
+  if (pop && launchPopoverState.open) renderLaunchAllPopoverContent(pop);
+}
+window.cancelRandomDelayLaunch = cancelRandomDelayLaunch;
+
+async function executeRandomDelayLaunchProfiles(profileIdsOrNull, labelForToast) {
+  if (randomDelayLaunchState.running) {
+    return showToast("⏳ กำลังทยอยเปิดจอแบบ Random Delay อยู่แล้ว (กดเปิดเมนูเพื่อดูสถานะหรือกดหยุดคิวได้)", "warning");
+  }
+  const minSec = Math.max(0, Number(launchPopoverState.filters.delayMinSec) || 0);
+  const maxSec = Math.max(minSec, Number(launchPopoverState.filters.delayMaxSec) || minSec);
+
+  const targets = Array.isArray(profileIdsOrNull)
+    ? currentProfiles.filter(p => !p.isRunning && profileIdsOrNull.includes(String(p.id)))
+    : currentProfiles.filter(p => !p.isRunning);
+
+  if (targets.length === 0) {
+    return showToast("🟢 ไม่มีจอที่ปิดอยู่ให้เปิดใหม่", "info");
+  }
+
+  randomDelayLaunchState.running = true;
+  randomDelayLaunchState.cancelled = false;
+  randomDelayLaunchState.total = targets.length;
+  randomDelayLaunchState.completed = 0;
+  randomDelayLaunchState.currentProfileName = "";
+  randomDelayLaunchState.remainSec = 0;
+  randomDelayLaunchState.minSec = minSec;
+  randomDelayLaunchState.maxSec = maxSec;
+  updateLaunchAllButtonAppearance();
+
+  showToast(`🎲 เริ่มทยอยเปิด ${targets.length} จอ แบบ Random Delay (${minSec}–${maxSec} วินาที/จอ)...`, "info");
+
+  let launchedTotal = 0;
+  for (let i = 0; i < targets.length; i++) {
+    if (randomDelayLaunchState.cancelled) break;
+    const p = targets[i];
+
+    if (i > 0) {
+      const randMs = Math.round((minSec + Math.random() * (maxSec - minSec)) * 1000);
+      const randSecDisp = (randMs / 1000).toFixed(1).replace(/\.0$/, "");
+      let endMs = Date.now() + randMs;
+      randomDelayLaunchState.remainSec = Math.max(1, Math.ceil(randMs / 1000));
+      updateLaunchAllButtonAppearance();
+      showToast(`⏱️ [${i}/${targets.length}] รอสุ่ม ${randSecDisp} วินาที ก่อนเปิด "${p.name}"...`, "info");
+
+      await new Promise(resolve => {
+        if (randomDelayLaunchState.countdownTimer) clearInterval(randomDelayLaunchState.countdownTimer);
+        randomDelayLaunchState.countdownTimer = setInterval(() => {
+          if (randomDelayLaunchState.cancelled) {
+            clearInterval(randomDelayLaunchState.countdownTimer);
+            randomDelayLaunchState.countdownTimer = null;
+            return resolve();
+          }
+          const left = Math.max(0, Math.ceil((endMs - Date.now()) / 1000));
+          randomDelayLaunchState.remainSec = left;
+          updateLaunchAllButtonAppearance();
+          const statusBanner = document.getElementById("lf-random-queue-banner-text");
+          if (statusBanner) {
+            statusBanner.textContent = `🎲 กำลังทยอยเปิด ${randomDelayLaunchState.completed}/${randomDelayLaunchState.total} จอ · จอถัดไป "${p.name}" ในอีก ${left} วินาที`;
+          }
+          if (Date.now() >= endMs) {
+            clearInterval(randomDelayLaunchState.countdownTimer);
+            randomDelayLaunchState.countdownTimer = null;
+            resolve();
+          }
+        }, 250);
+      });
+      if (randomDelayLaunchState.cancelled) break;
+    }
+
+    randomDelayLaunchState.remainSec = 0;
+    randomDelayLaunchState.currentProfileName = p.name;
+    updateLaunchAllButtonAppearance();
+    try {
+      const res = await fetch(`${API_BASE}/api/launch-all`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profileIds: [String(p.id)] })
+      });
+      const data = await res.json();
+      if (data && data.success && (data.launched || []).length > 0) {
+        launchedTotal += data.launched.length;
+      }
+    } catch (_) {}
+
+    randomDelayLaunchState.completed = i + 1;
+    updateLaunchAllButtonAppearance();
+    fetchProfiles();
+    const pop = document.getElementById("launch-all-popover");
+    if (pop && launchPopoverState.open) renderLaunchAllPopoverContent(pop);
+  }
+
+  if (randomDelayLaunchState.countdownTimer) {
+    clearInterval(randomDelayLaunchState.countdownTimer);
+    randomDelayLaunchState.countdownTimer = null;
+  }
+  const wasCancelled = randomDelayLaunchState.cancelled;
+  randomDelayLaunchState.running = false;
+  randomDelayLaunchState.remainSec = 0;
+  randomDelayLaunchState.currentProfileName = "";
+  updateLaunchAllButtonAppearance();
+  if (!wasCancelled) {
+    showToast(`✅ เปิดจอแบบ Random Delay ครบแล้ว (${launchedTotal}/${targets.length} จอ)`, "success");
+  }
+  fetchProfiles();
+  const pop = document.getElementById("launch-all-popover");
+  if (pop && launchPopoverState.open) renderLaunchAllPopoverContent(pop);
+}
 
 function getLaunchProfileFlags(p) {
   const isBanned = Boolean(p && (p.isBanned || p.liveState?.accountBanned || p.liveState?.screenPhase === "account_banned"));
@@ -3339,6 +3493,8 @@ function renderLaunchAllPopoverContent(pop) {
   const matchedOpen = matched.length - matchedClosed.length;
   const selectedToLaunch = matchedClosed.filter(p => launchPopoverState.customCheckedIds.has(String(p.id)));
   const skippedOther = Math.max(0, currentProfiles.length - matched.length);
+  const dMin = Math.max(0, Number(launchPopoverState.filters.delayMinSec) || 0);
+  const dMax = Math.max(dMin, Number(launchPopoverState.filters.delayMaxSec) || dMin);
 
   pop.innerHTML = `
     <div class="lf-head">
@@ -3346,14 +3502,53 @@ function renderLaunchAllPopoverContent(pop) {
       <button type="button" class="lf-close-btn" id="btn-lf-close" title="ปิดเมนู">✕</button>
     </div>
 
-    <div class="lf-sec-title">⚡ เปิดทันที (ปุ่มด่วน)</div>
+    ${randomDelayLaunchState.running ? `
+      <div style="background: rgba(14, 165, 233, 0.16); border: 1px solid rgba(56, 189, 248, 0.45); border-radius: 8px; padding: 8px 10px; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+        <div id="lf-random-queue-banner-text" style="font-size: 11.5px; font-weight: 700; color: #7dd3fc;">
+          🎲 กำลังทยอยเปิด ${randomDelayLaunchState.completed}/${randomDelayLaunchState.total} จอ${randomDelayLaunchState.remainSec > 0 ? ` · จอถัดไปในอีก ${randomDelayLaunchState.remainSec} วินาที` : ''}
+        </div>
+        <button type="button" class="btn btn-danger btn-sm" id="btn-lf-cancel-random" style="padding: 4px 10px; font-size: 11px; font-weight: 700; white-space: nowrap;">
+          ⏹ หยุดคิว
+        </button>
+      </div>
+    ` : ""}
+
+    <div class="lf-sec-title">⏱️ ตั้งค่า Random Delay (สุ่มหน่วงเวลาระหว่างเปิดแต่ละจอ)</div>
+    <div style="background: rgba(15, 23, 42, 0.65); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 9px; padding: 9px 10px; margin-bottom: 10px;">
+      <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+        <span style="font-size: 11.5px; color: #cbd5e1; font-weight: 600;">สุ่มหน่วงเวลา:</span>
+        <input type="number" id="lf-delay-min-sec" class="lf-select" min="0" max="3600" step="1" value="${dMin}" style="width: 68px; text-align: center; padding: 4px 6px; font-weight: 700; color: #38bdf8;">
+        <span style="font-size: 11.5px; color: #94a3b8;">ถึง</span>
+        <input type="number" id="lf-delay-max-sec" class="lf-select" min="1" max="3600" step="1" value="${dMax}" style="width: 68px; text-align: center; padding: 4px 6px; font-weight: 700; color: #38bdf8;">
+        <span style="font-size: 11.5px; color: #cbd5e1;">วินาที / จอ</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 4px; flex-wrap: wrap; margin-top: 7px;">
+        <span style="font-size: 10.5px; color: #64748b;">ค่าด่วน:</span>
+        ${[[1,3],[3,10],[5,15],[10,30],[15,45]].map(([lo, hi]) => `
+          <button type="button" class="lf-delay-chip" data-delay-range="${lo}-${hi}"
+                  style="padding: 2px 7px; border-radius: 999px; font-size: 10.5px; font-weight: 700; cursor: pointer; border: 1px solid ${(dMin === lo && dMax === hi) ? '#38bdf8' : 'rgba(148,163,184,0.25)'}; background: ${(dMin === lo && dMax === hi) ? 'rgba(14,165,233,0.26)' : 'rgba(15,23,42,0.8)'}; color: ${(dMin === lo && dMax === hi) ? '#e0f2fe' : '#94a3b8'};">
+            ${lo}–${hi} วิ
+          </button>
+        `).join("")}
+      </div>
+    </div>
+
+    <div class="lf-sec-title">⚡ เปิดทันที & เปิดแบบ Random Delay (ปุ่มด่วน)</div>
     <div class="lf-presets">
       <button type="button" class="lf-preset-btn is-recommended" data-lf-preset="not_jailed">
-        <span class="lf-preset-label">🛡️ เปิดเฉพาะจอไม่ติดคุก / ไม่โดนแบน <small class="lf-rec-tag">แนะนำ</small></span>
+        <span class="lf-preset-label">🛡️ เปิดเฉพาะจอไม่ติดคุก / ไม่โดนแบน (เปิดทันที) <small class="lf-rec-tag">แนะนำ</small></span>
+        <span class="lf-preset-badge">${closedNotJailed.length} จอ</span>
+      </button>
+      <button type="button" class="lf-preset-btn" data-lf-preset="not_jailed_random" style="border-color: rgba(56, 189, 248, 0.45); background: linear-gradient(135deg, rgba(14, 165, 233, 0.16), rgba(99, 102, 241, 0.14));">
+        <span class="lf-preset-label" style="color: #7dd3fc;">🎲 เปิดเฉพาะจอไม่ติดคุก แบบ Random Delay (<b class="lf-delay-range-lbl">${dMin}–${dMax}</b> วิ/จอ)</span>
         <span class="lf-preset-badge">${closedNotJailed.length} จอ</span>
       </button>
       <button type="button" class="lf-preset-btn" data-lf-preset="all">
-        <span class="lf-preset-label">🚀 เปิดทุกจอทั้งหมด</span>
+        <span class="lf-preset-label">🚀 เปิดทุกจอทั้งหมด (เปิดทันที)</span>
+        <span class="lf-preset-badge">${closedAll.length} จอ</span>
+      </button>
+      <button type="button" class="lf-preset-btn" data-lf-preset="all_random" style="border-color: rgba(56, 189, 248, 0.35);">
+        <span class="lf-preset-label" style="color: #bae6fd;">🎲 เปิดทุกจอทั้งหมด แบบ Random Delay (<b class="lf-delay-range-lbl">${dMin}–${dMax}</b> วิ/จอ)</span>
         <span class="lf-preset-badge">${closedAll.length} จอ</span>
       </button>
       <button type="button" class="lf-preset-btn" data-lf-preset="no_prem_not_jailed">
@@ -3430,25 +3625,69 @@ function renderLaunchAllPopoverContent(pop) {
       </div>
     </div>` : ""}
 
-    <div class="lf-footer">
+    <div class="lf-footer" style="display: flex; flex-direction: column; gap: 6px;">
       <div class="lf-summary" id="lf-summary">
         พร้อมเปิดใหม่ <b>${selectedToLaunch.length}</b> จอ · เปิดอยู่แล้ว <b>${matchedOpen}</b> จอ · ข้าม <b>${skippedOther}</b> จอ
       </div>
-      <button type="button" class="btn btn-success lf-launch-btn" id="btn-lf-launch-selected"${selectedToLaunch.length === 0 ? " disabled" : ""}>
-        🚀 เปิดจอตามเงื่อนไขที่เลือก (${selectedToLaunch.length} จอ)
-      </button>
+      <div style="display: flex; gap: 6px; width: 100%;">
+        <button type="button" class="btn btn-success lf-launch-btn" id="btn-lf-launch-selected" style="flex: 1;"${selectedToLaunch.length === 0 ? " disabled" : ""}>
+          🚀 เปิดทันที (${selectedToLaunch.length} จอ)
+        </button>
+        <button type="button" class="btn btn-primary lf-launch-btn" id="btn-lf-launch-random-selected" style="flex: 1.25; background: linear-gradient(135deg, #0284c7, #4f46e5); border-color: rgba(56, 189, 248, 0.5);"${selectedToLaunch.length === 0 ? " disabled" : ""}>
+          🎲 เปิดแบบ Random (<span class="lf-delay-range-lbl">${dMin}–${dMax}</span>วิ · ${selectedToLaunch.length} จอ)
+        </button>
+      </div>
     </div>
   `;
 
   pop.querySelector("#btn-lf-close")?.addEventListener("click", closeLaunchAllPopover);
+  pop.querySelector("#btn-lf-cancel-random")?.addEventListener("click", cancelRandomDelayLaunch);
+
+  const syncDelayRangeInputs = (rerenderChips = false) => {
+    const minEl = pop.querySelector("#lf-delay-min-sec");
+    const maxEl = pop.querySelector("#lf-delay-max-sec");
+    let lo = Math.max(0, Math.min(3600, Number(minEl?.value) || 0));
+    let hi = Math.max(lo, Math.min(3600, Number(maxEl?.value) || lo));
+    launchPopoverState.filters.delayMinSec = lo;
+    launchPopoverState.filters.delayMaxSec = hi;
+    try { localStorage.setItem(LAUNCH_FILTER_STORAGE_KEY, JSON.stringify(launchPopoverState.filters)); } catch (_) {}
+    pop.querySelectorAll(".lf-delay-range-lbl").forEach(el => { el.textContent = `${lo}–${hi}`; });
+    if (rerenderChips) renderLaunchAllPopoverContent(pop);
+  };
+
+  pop.querySelector("#lf-delay-min-sec")?.addEventListener("input", () => syncDelayRangeInputs(false));
+  pop.querySelector("#lf-delay-max-sec")?.addEventListener("input", () => syncDelayRangeInputs(false));
+  pop.querySelector("#lf-delay-min-sec")?.addEventListener("change", () => syncDelayRangeInputs(true));
+  pop.querySelector("#lf-delay-max-sec")?.addEventListener("change", () => syncDelayRangeInputs(true));
+
+  pop.querySelectorAll("[data-delay-range]").forEach(chip => {
+    chip.addEventListener("click", () => {
+      const [lo, hi] = String(chip.getAttribute("data-delay-range") || "3-10").split("-").map(Number);
+      launchPopoverState.filters.delayMinSec = lo;
+      launchPopoverState.filters.delayMaxSec = hi;
+      try { localStorage.setItem(LAUNCH_FILTER_STORAGE_KEY, JSON.stringify(launchPopoverState.filters)); } catch (_) {}
+      renderLaunchAllPopoverContent(pop);
+    });
+  });
 
   pop.querySelectorAll("[data-lf-preset]").forEach(btn => {
     btn.addEventListener("click", () => {
+      syncDelayRangeInputs(false);
       const kind = btn.getAttribute("data-lf-preset");
       if (kind === "all") {
         if (closedAll.length === 0) return showToast("🟢 เปิดครบทุกจออยู่แล้ว ไม่มีจอใหม่ให้เปิด", "info");
         closeLaunchAllPopover();
         return executeLaunchProfiles(null, `เปิดทุกจอ ${closedAll.length} จอ`);
+      }
+      if (kind === "all_random") {
+        if (closedAll.length === 0) return showToast("🟢 เปิดครบทุกจออยู่แล้ว ไม่มีจอใหม่ให้เปิด", "info");
+        closeLaunchAllPopover();
+        return executeRandomDelayLaunchProfiles(closedAll.map(p => String(p.id)), `เปิดทุกจอแบบ Random Delay ${closedAll.length} จอ`);
+      }
+      if (kind === "not_jailed_random") {
+        if (closedNotJailed.length === 0) return showToast("⚠️ ไม่มีจอที่ปิดอยู่และไม่ติดคุก", "info");
+        closeLaunchAllPopover();
+        return executeRandomDelayLaunchProfiles(closedNotJailed.map(p => String(p.id)), `ไม่ติดคุกแบบ Random Delay ${closedNotJailed.length} จอ`);
       }
       let targets = [];
       let label = "";
@@ -3518,6 +3757,14 @@ function renderLaunchAllPopoverContent(pop) {
     const ids = selectedToLaunch.map(p => String(p.id));
     closeLaunchAllPopover();
     executeLaunchProfiles(ids, `ตามเงื่อนไขที่เลือก ${ids.length} จอ`);
+  });
+
+  pop.querySelector("#btn-lf-launch-random-selected")?.addEventListener("click", () => {
+    if (selectedToLaunch.length === 0) return;
+    syncDelayRangeInputs(false);
+    const ids = selectedToLaunch.map(p => String(p.id));
+    closeLaunchAllPopover();
+    executeRandomDelayLaunchProfiles(ids, `ตามเงื่อนไขแบบ Random Delay ${ids.length} จอ`);
   });
 }
 

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "sourceCommit": "cd979ca26c12c967ff496313cb86b99271f927cf",
+  "sourceCommit": "95d3538e83071a72f680695be80789fd3ea64ac0",
   "files": [
     {
       "path": "manager/asset_cache.js",
@@ -179,8 +179,8 @@
     },
     {
       "path": "manager/public/app.js",
-      "sha": "c0d47342bca99c20e1d27249f5ccdf52fadbd376",
-      "sha256": "90cb47fc8cede7e1e4db592d68c9bc58c58efdd723d7feddf6e21409df15364f"
+      "sha": "2e88f1960ddcf4c16d609bb00fb2c986f13a12fd",
+      "sha256": "6364841dae63467080560039ca7b40b43d2718e4d2dba80e6dac078bdd1d957e"
     },
     {
       "path": "manager/public/assets/updates/ui_v212_bag_rightclick.jpg",
