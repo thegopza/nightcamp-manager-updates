@@ -19487,13 +19487,19 @@ const NC_CHAR_SLOTS_RIGHT = [
 let ncCharModalState = {
   profileId: null,
   data: null,
-  activeTab: 'bag',        // 'bag' | 'mats' | 'stats' | 'storage' | 'cmarket'
+  activeTab: 'bag',        // 'bag' (1 อุปกรณ์ & สเตตัส) | 'storage' (2 คลังค่าย) | 'cmarket' (3 ตลาดกลาง) | 'stats'
   selectedSlot: 'all',     // 'all' | 'weapon' | 'armor' | 'acc' | specific slotKey
+  bagSubCat: 'all',        // 'all' | 'weapon' | 'armor' | 'acc' | 'potion' | 'card' | 'rune' | 'mat' | 'fashion'
+  bagViewMode: 'grid',     // 'grid' (ตารางไอคอนแบบ Aetheria) | 'list' (การ์ดละเอียด)
+  selectedBagItemKey: '',  // 'gear:<uid>' | 'mat:<id>'
+  cmHighlightSellKey: '',  // highlight item in manual sell tab
   matCategory: 'all',      // 'all' | 'usable' | 'card' | 'material'
-  marketSubTab: 'autosell', // 'autosell' | 'sell' | 'active' | 'browse'
+  marketSubTab: 'autosell', // 'autosell' | 'sell' | 'active' | 'claim' | 'browse'
   cmRuleFilter: 'all',     // 'all' | 'ready' | 'waiting' | 'listed' | 'missing'
+  cmRuleSearch: '',
   cmCopyPanelOpen: false,
-  cmCopyMode: 'merge',     // 'merge' | 'replace'
+  cmCopyMode: 'replace',   // 'replace' | 'merge'
+  cmCopyFilterQ: '',
   cmBrowseQuery: '',
   cmBrowseCategory: 'all',
   cmBrowseSort: 'price',
@@ -19934,11 +19940,18 @@ function ensureNightcampCharacterModalDom() {
 
   modal = document.createElement('div');
   modal.id = 'nc-char-inspector-modal';
-  modal.style.cssText = 'display:none; position:fixed; inset:0; z-index:100020; background:rgba(2, 6, 23, 0.86); backdrop-filter:blur(7px); align-items:center; justify-content:center; padding:14px; font-family:"IBM Plex Sans Thai","Plus Jakarta Sans",sans-serif; color:#f8fafc;';
+  modal.style.cssText = 'display:none; position:fixed; inset:0; z-index:100020; background:rgba(2, 6, 23, 0.86); backdrop-filter:blur(7px); align-items:center; justify-content:center; padding:10px; font-family:"IBM Plex Sans Thai","Plus Jakarta Sans",sans-serif; color:#f8fafc;';
   modal.innerHTML = `
-    <div id="nc-char-modal-card" style="width:1140px; max-width:97vw; height:88vh; max-height:840px; background:linear-gradient(155deg, #0b1325 0%, #111827 55%, #17132a 100%); border:1.5px solid rgba(56, 189, 248, 0.45); border-radius:16px; box-shadow:0 28px 75px rgba(0,0,0,0.9), 0 0 38px rgba(14, 165, 233, 0.18); display:flex; flex-direction:column; overflow:hidden;">
-      <div id="nc-char-modal-header" style="padding:12px 18px; background:linear-gradient(135deg, rgba(14, 116, 144, 0.28), rgba(15, 23, 42, 0.92)); border-bottom:1px solid rgba(148, 163, 184, 0.18); display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; flex-shrink:0;"></div>
-      <div id="nc-char-modal-body" style="flex:1; min-height:0; display:grid; grid-template-columns:min(430px, 42%) minmax(0, 1fr); overflow:hidden;"></div>
+    <div id="nc-char-modal-shell" style="width:1440px; max-width:98vw; height:91vh; max-height:890px; display:flex; align-items:stretch; gap:10px;">
+      <!-- LEFT MAIN WORKSPACE (Aetheria-style: Tab 1 Equipment & Stats / Tab 2 Camp Storage / Tab 3 Central Market & Auto-Sell) -->
+      <div id="nc-char-modal-card" style="flex:1; min-width:0; background:linear-gradient(155deg, #0b1325 0%, #101829 55%, #16132b 100%); border:1.5px solid rgba(56, 189, 248, 0.42); border-radius:15px; box-shadow:0 28px 75px rgba(0,0,0,0.9), 0 0 38px rgba(14, 165, 233, 0.16); display:flex; flex-direction:column; overflow:hidden;">
+        <div id="nc-char-modal-header" style="padding:10px 16px; background:linear-gradient(135deg, rgba(14, 116, 144, 0.25), rgba(15, 23, 42, 0.94)); border-bottom:1px solid rgba(148, 163, 184, 0.16); display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; flex-shrink:0;"></div>
+        <div id="nc-char-main-tabs" style="padding:8px 16px; background:rgba(7, 11, 24, 0.78); border-bottom:1px solid rgba(148, 163, 184, 0.15); display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; flex-shrink:0;"></div>
+        <div id="nc-char-modal-body" style="flex:1; min-height:0; display:flex; flex-direction:column; overflow:hidden;"></div>
+      </div>
+
+      <!-- RIGHT PERSISTENT BAG SIDEBAR (Aetheria-style: always visible alongside Equipment, Storage & Central Market) -->
+      <div id="nc-char-bag-sidebar" style="width:365px; flex-shrink:0; background:#0b1329; border:1.5px solid rgba(250, 204, 21, 0.32); border-radius:15px; box-shadow:0 28px 75px rgba(0,0,0,0.9); display:flex; flex-direction:column; gap:8px; padding:12px; overflow:hidden;"></div>
     </div>
   `;
   modal.addEventListener('click', (e) => {
@@ -19981,10 +19994,13 @@ async function openNightcampCharacterModal(profileId, initialTab = 'bag', initia
   if (initialMarketSubTab) ncCharModalState.marketSubTab = initialMarketSubTab;
   ncCharModalState.selectedSlot = 'all';
   ncCharModalState.searchQuery = '';
+  ncCharModalState.cmRuleSearch = '';
   modal.style.display = 'flex';
 
   const headerEl = document.getElementById('nc-char-modal-header');
+  const tabsEl = document.getElementById('nc-char-main-tabs');
   const bodyEl = document.getElementById('nc-char-modal-body');
+  const bagEl = document.getElementById('nc-char-bag-sidebar');
   const prof = currentProfiles.find(x => String(x.id) === String(profileId));
   if (headerEl) {
     headerEl.innerHTML = `
@@ -19998,8 +20014,12 @@ async function openNightcampCharacterModal(profileId, initialTab = 'bag', initia
       <button type="button" onclick="closeNightcampCharacterModal()" style="background:rgba(239,68,68,0.18);border:1px solid rgba(248,113,113,0.45);color:#fca5a5;border-radius:8px;padding:5px 12px;font-size:13px;font-weight:700;cursor:pointer;">✕ ปิด</button>
     `;
   }
+  if (tabsEl) tabsEl.innerHTML = '';
   if (bodyEl) {
-    bodyEl.innerHTML = `<div style="grid-column:1 / -1;display:flex;align-items:center;justify-content:center;color:#7dd3fc;font-size:14px;font-weight:600;">⏳ กำลังดึงข้อมูลตัวละครและไอเทมในเกม...</div>`;
+    bodyEl.innerHTML = `<div style="flex:1;display:flex;align-items:center;justify-content:center;color:#7dd3fc;font-size:14px;font-weight:600;">⏳ กำลังดึงข้อมูลตัวละครและไอเทมในเกม...</div>`;
+  }
+  if (bagEl) {
+    bagEl.innerHTML = `<div style="flex:1;display:flex;align-items:center;justify-content:center;color:#fde68a;font-size:12.5px;font-weight:600;">🎒 กำลังโหลดกระเป๋า...</div>`;
   }
 
   await refreshNightcampCharacterModal();
@@ -20102,7 +20122,7 @@ async function refreshNightcampCharacterModal() {
     const bodyEl = document.getElementById('nc-char-modal-body');
     if (bodyEl) {
       bodyEl.innerHTML = `
-        <div style="grid-column:1 / -1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:30px;text-align:center;">
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:30px;text-align:center;">
           <div style="font-size:34px;">🏕️</div>
           <div style="font-size:15px;font-weight:700;color:#fca5a5;">${escapeHTML(data?.error || 'ไม่สามารถอ่านข้อมูลตัวละครได้')}</div>
           <div style="font-size:12px;color:#94a3b8;">ตรวจสอบว่าจอเกมเปิดอยู่และตัวละครเข้าสู่โลกเกมเรียบร้อยแล้ว (หรือคลิกปุ่มด้านล่างเพื่อตั้งค่า Auto-Sell ตลาดกลางแบบออฟไลน์)</div>
@@ -20182,24 +20202,31 @@ async function runNightcampCharacterAction(actionPayload) {
 window.runNightcampCharacterAction = runNightcampCharacterAction;
 
 function selectNightcampEquipSlotFilter(slotKey) {
-  if (ncCharModalState.selectedSlot === slotKey && ncCharModalState.bagSubCat === 'equip') {
+  if (ncCharModalState.selectedSlot === slotKey) {
     ncCharModalState.selectedSlot = 'all';
   } else {
     ncCharModalState.selectedSlot = slotKey;
     ncCharModalState.activeTab = 'bag';
-    ncCharModalState.bagSubCat = ['fhat', 'frobe'].includes(slotKey) ? 'fashion' : 'equip';
+    if (slotKey === 'weapon') ncCharModalState.bagSubCat = 'weapon';
+    else if (['acc', 'acc1', 'acc2'].includes(slotKey)) ncCharModalState.bagSubCat = 'acc';
+    else if (['fhat', 'frobe'].includes(slotKey)) ncCharModalState.bagSubCat = 'fashion';
+    else if (slotKey === 'all') ncCharModalState.bagSubCat = 'all';
+    else ncCharModalState.bagSubCat = 'armor';
   }
   renderNightcampCharacterModal();
 }
 window.selectNightcampEquipSlotFilter = selectNightcampEquipSlotFilter;
 
 function switchNightcampCharTab(tab) {
-  const prevTab = ncCharModalState.activeTab === 'mats' ? 'bag' : ncCharModalState.activeTab;
+  const prevTab = (ncCharModalState.activeTab === 'mats' || ncCharModalState.activeTab === 'equip') ? 'bag' : ncCharModalState.activeTab;
   let nextTab = tab;
   if (tab === 'mats') {
     nextTab = 'bag';
     ncCharModalState.activeTab = 'bag';
     ncCharModalState.bagSubCat = 'mat';
+  } else if (tab === 'equip') {
+    nextTab = 'bag';
+    ncCharModalState.activeTab = 'bag';
   } else {
     ncCharModalState.activeTab = tab;
   }
@@ -20209,24 +20236,64 @@ window.switchNightcampCharTab = switchNightcampCharTab;
 
 function setNightcampBagSubCat(subCat) {
   ncCharModalState.bagSubCat = subCat || 'all';
-  if (subCat !== 'equip' && subCat !== 'fashion') {
+  if (!['equip', 'weapon', 'armor', 'acc', 'fashion'].includes(subCat)) {
     ncCharModalState.selectedSlot = 'all';
   }
-  renderNightcampRightPaneOnly();
+  renderNightcampBagSidebarOnly();
 }
 window.setNightcampBagSubCat = setNightcampBagSubCat;
 
+function setNightcampBagViewMode(mode) {
+  ncCharModalState.bagViewMode = mode === 'list' ? 'list' : 'grid';
+  renderNightcampBagSidebarOnly();
+}
+window.setNightcampBagViewMode = setNightcampBagViewMode;
+
+function selectNightcampBagItem(itemKey) {
+  ncCharModalState.selectedBagItemKey = String(itemKey || '');
+  renderNightcampBagSidebarOnly();
+}
+window.selectNightcampBagItem = selectNightcampBagItem;
+
+function openNightcampMarketSellForBagItem(itemId, uid) {
+  ncCharModalState.activeTab = 'cmarket';
+  ncCharModalState.marketSubTab = 'sell';
+  ncCharModalState.cmHighlightSellKey = uid ? `u:${uid}` : `id:${itemId}`;
+  renderNightcampCharacterModal({ resetRightScroll: true });
+}
+window.openNightcampMarketSellForBagItem = openNightcampMarketSellForBagItem;
+
 function setNightcampMatCategory(cat) {
   ncCharModalState.matCategory = cat || 'all';
+  renderNightcampBagSidebarOnly();
   renderNightcampRightPaneOnly();
 }
 window.setNightcampMatCategory = setNightcampMatCategory;
 
 function onNightcampBagSearchInput(val) {
   ncCharModalState.searchQuery = String(val || '');
-  renderNightcampRightPaneOnly();
+  renderNightcampBagSidebarOnly({ keepSearchFocus: true });
+  if (ncCharModalState.activeTab === 'storage' || (ncCharModalState.activeTab === 'cmarket' && ncCharModalState.marketSubTab === 'sell')) {
+    renderNightcampRightPaneOnly();
+  }
 }
 window.onNightcampBagSearchInput = onNightcampBagSearchInput;
+
+function onNightcampCMRuleSearchInput(val) {
+  ncCharModalState.cmRuleSearch = String(val || '');
+  renderNightcampRightPaneOnly({ keepRuleSearchFocus: true });
+}
+window.onNightcampCMRuleSearchInput = onNightcampCMRuleSearchInput;
+
+function onNightcampCMCopyFilterInput(val) {
+  ncCharModalState.cmCopyFilterQ = String(val || '');
+  const q = ncCharModalState.cmCopyFilterQ.trim().toLowerCase();
+  document.querySelectorAll('.nc-cm-copy-card-lbl').forEach(lbl => {
+    const txt = (lbl.getAttribute('data-search-text') || '').toLowerCase();
+    lbl.style.display = (!q || txt.includes(q)) ? 'flex' : 'none';
+  });
+}
+window.onNightcampCMCopyFilterInput = onNightcampCMCopyFilterInput;
 
 // ============================================================================
 // NIGHTCAMP CENTRAL MARKET (ตลาดกลาง) & AUTO-SELL MARKET CONTROLLERS
@@ -20984,275 +21051,183 @@ function renderNightcampMatCardHtml(m) {
   `;
 }
 
+function renderNightcampCombatStatsPanelHtml(d) {
+  const s = d.statSheet || {};
+  const row = (lbl, val, accent = '#f8fafc') => `
+    <div style="display:flex; justify-content:space-between; align-items:center; padding:4px 0; border-bottom:1px solid rgba(255,255,255,0.05); font-size:11.5px;">
+      <span style="color:#94a3b8;">${lbl}</span>
+      <b style="color:${accent}; font-family:'JetBrains Mono',monospace;">${val ?? '--'}</b>
+    </div>
+  `;
+  const lineEntries = Object.entries(s.lineLv || {});
+  const modEntries = Object.entries(s.mods || {}).filter(([, v]) => Number(v) !== 0);
+  return `
+    <div style="display:flex; flex-direction:column; gap:10px;">
+      <div style="background:rgba(15,23,42,0.78); border:1px solid rgba(248,113,113,0.3); border-radius:10px; padding:10px 12px;">
+        <div style="font-size:12px; font-weight:800; color:#fca5a5; margin-bottom:5px;">⚔️ โจมตี & ความแม่นยำ</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:0 16px;">
+          ${row('ATK พื้นฐาน', s.batk ?? 0, '#fca5a5')}
+          ${row('MATK พลังเวท', s.matk ?? 0, '#93c5fd')}
+          ${row('ATK อาวุธ', s.watk ?? 0, '#fecaca')}
+          ${row('CRIT คริติคอล', (s.crit ?? 0) + '%', '#fbbf24')}
+          ${row('โบนัส ATK%', ((s.atkMulPct ?? 0) >= 0 ? '+' : '') + (s.atkMulPct ?? 0) + '%', '#fde68a')}
+          ${row('แรงคริติคอล', '+' + (s.critDmg ?? 0) + '%', '#fbbf24')}
+          ${row('HIT แม่นยำ', s.hit ?? 0, '#86efac')}
+          ${row('ASPD ความเร็วตี', `${s.aspd ?? 100} (${(s.aspdMulPct ?? 0) >= 0 ? '+' : ''}${s.aspdMulPct ?? 0}%)`, '#38bdf8')}
+          ${row('ตีเบิ้ล (Double)', (s.dbl ?? 0) + '%', '#c084fc')}
+          ${row('ธาตุโจมตี', s.atkElement || 'neutral', '#7dd3fc')}
+        </div>
+      </div>
+
+      <div style="background:rgba(15,23,42,0.78); border:1px solid rgba(56,189,248,0.3); border-radius:10px; padding:10px 12px;">
+        <div style="font-size:12px; font-weight:800; color:#7dd3fc; margin-bottom:5px;">🛡️ ป้องกัน & การฟื้นฟู</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:0 16px;">
+          ${row('Max HP', Number(s.maxHp || d.hpMax || 0).toLocaleString(), '#86efac')}
+          ${row('Max SP', Number(s.maxSp || d.spMax || 0).toLocaleString(), '#93c5fd')}
+          ${row('DEF กายภาพ', `${s.def ?? 0} (+${s.vdef ?? 0})`, '#cbd5e1')}
+          ${row('MDEF เวท', `${s.mdef ?? 0} (+${s.imdef ?? 0})`, '#c4b5fd')}
+          ${row('FLEE หลบหลีก', s.flee ?? 0, '#6ee7b7')}
+          ${row('หลบสมบูรณ์', (s.pdodge ?? 0) + '%', '#fde68a')}
+          ${row('ฟื้น HP', '+' + (s.hpRegen ?? 0) + '/วิ', '#4ade80')}
+          ${row('ฟื้น SP', '+' + (s.spRegen ?? 0) + '/วิ', '#60a5fa')}
+          ${row('ลดคูลดาวน์ (CDR)', (s.cdr ?? 0) + '%', '#e9d5ff')}
+          ${row('ธาตุเกราะ', s.armorElement || 'neutral', '#cbd5e1')}
+        </div>
+      </div>
+
+      <div style="background:rgba(15,23,42,0.78); border:1px solid rgba(192,132,252,0.3); border-radius:10px; padding:10px 12px;">
+        <div style="font-size:12px; font-weight:800; color:#e9d5ff; margin-bottom:5px;">✨ เรโซแนนซ์สกิล & โบนัสอุปกรณ์</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:0 16px;">
+          ${lineEntries.length > 0
+            ? lineEntries.map(([lineKey, lv]) => row(`เรโซแนนซ์ ${lineKey}`, `${lv} แต้ม`, '#d8b4fe')).join('')
+            : `<div style="font-size:11px;color:#64748b;padding:4px 0;">ไม่มีแต้มเรโซแนนซ์</div>`}
+          ${modEntries.map(([k, v]) => row(k, (v > 0 ? '+' : '') + v, '#fde68a')).join('')}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function renderNightcampRightPaneContentHtml(d) {
-  const tab = ncCharModalState.activeTab === 'mats' ? 'bag' : (ncCharModalState.activeTab || 'bag');
+  const tab = (ncCharModalState.activeTab === 'mats' || ncCharModalState.activeTab === 'equip')
+    ? 'bag'
+    : (ncCharModalState.activeTab || 'bag');
   const q = ncCharModalState.searchQuery.trim().toLowerCase();
 
+  // TAB 1: 1 อุปกรณ์ & สเตตัส (Aetheria-style: Equipment Paperdoll + Base Stats on Left, Combat Stats / Slot Scanner on Right)
   if (tab === 'bag') {
-    const bagSubCat = ncCharModalState.bagSubCat || 'all';
     const slotFilter = ncCharModalState.selectedSlot || 'all';
-    const matSubFilter = ncCharModalState.matCategory || 'all';
     const allSlotDefs = [...NC_CHAR_SLOTS_LEFT, ...NC_CHAR_SLOTS_RIGHT];
     const pickedSlotDef = allSlotDefs.find(s => s.key === slotFilter);
-
     const allGear = d.bagGear || [];
-    const allMats = d.consumablesAndMats || [];
 
-    const isFashionGear = it => it && (it.rarity === 'fashion' || ['fhat', 'frobe'].includes(it.slot));
-    const regularGear = allGear.filter(it => !isFashionGear(it));
-    const fashionGear = allGear.filter(it => isFashionGear(it));
-
-    const potFoodMats = allMats.filter(m => m.category === 'potion' || m.category === 'food');
-    const cardMats = allMats.filter(m => m.category === 'card' || /^bl_card_/.test(m.id));
-    const runeMats = allMats.filter(m => m.category === 'rune' || /^bl_rune_/.test(m.id));
-    const fashionMats = allMats.filter(m => m.category === 'fashion' || /^lk_/.test(m.id) || /^gx_fstone/.test(m.id));
-    // หน้าวัสดุ (Materials): includes monster mats, cards, seeds, boxes/boosts/tickets (with sub-filters to separate Cards!)
-    const matTabAll = allMats.filter(m => m.category !== 'potion' && m.category !== 'food' && m.category !== 'rune');
-    const rawMatsOnly = matTabAll.filter(m => m.category === 'material' || m.category === 'oil_ammo');
-    const boostBoxOnly = matTabAll.filter(m => m.category === 'boost' || m.category === 'box');
-    const seedOnly = matTabAll.filter(m => m.category === 'seed' || /^sd_/.test(m.id));
-
-    const matchGearQuery = item => {
-      if (!q) return true;
-      const optStr = (item.options || []).map(o => o.text).join(' ').toLowerCase();
-      return item.name.toLowerCase().includes(q) || (item.abilText || '').toLowerCase().includes(q) || (item.wskText || '').toLowerCase().includes(q) || optStr.includes(q);
-    };
-    const matchMatQuery = m => {
-      if (!q) return true;
-      return m.name.toLowerCase().includes(q) || (m.desc || '').toLowerCase().includes(q) || m.id.toLowerCase().includes(q);
-    };
-
-    const totalBagCount = allGear.length + allMats.length;
-    const subCats = [
-      ['all', `🗂️ ทั้งหมด (${totalBagCount})`],
-      ['equip', `⚔️ อุปกรณ์ (${regularGear.length})`],
-      ['mat', `🌰 วัสดุ (${matTabAll.length})`],
-      ['card', `🃏 การ์ด (${cardMats.length})`],
-      ['potion', `🧪 ยา & อาหาร (${potFoodMats.length})`],
-      ['fashion', `👗 แฟชั่น (${fashionGear.length + fashionMats.length})`],
-      ['rune', `💠 รูน (${runeMats.length})`]
-    ];
-
-    const subCatBarHtml = `
-      <div style="display:flex; flex-wrap:wrap; gap:5px; align-items:center; justify-content:space-between; margin-bottom:8px; background:rgba(15,23,42,0.82); border:1px solid rgba(56,189,248,0.28); border-radius:10px; padding:7px 10px;">
-        <div style="display:flex; flex-wrap:wrap; gap:5px;">
-          ${subCats.map(([k, lbl]) => `
-            <button type="button" onclick="setNightcampBagSubCat('${k}')"
-                    style="background:${bagSubCat === k ? 'linear-gradient(135deg,#0284c7,#0369a1)' : 'rgba(2,6,23,0.7)'}; border:1px solid ${bagSubCat === k ? '#38bdf8' : 'rgba(148,163,184,0.25)'}; color:${bagSubCat === k ? '#fff' : '#cbd5e1'}; border-radius:7px; padding:5px 10px; font-size:11px; font-weight:700; cursor:pointer;">${lbl}</button>
-          `).join('')}
-        </div>
-        <span style="font-size:11px; color:#94a3b8;">ช่องอุปกรณ์ <b>${d.bagUsed}/${d.bagCap}</b></span>
-      </div>
-    `;
-
-    // 1. Sub-category: `equip` (อุปกรณ์) or `all`
-    if (bagSubCat === 'equip') {
-      const filteredGear = regularGear.filter(item => {
-        if (slotFilter === 'weapon' && item.slot !== 'weapon') return false;
-        if (slotFilter === 'armor' && !['hat', 'glasses', 'top', 'pants', 'cape', 'robe', 'shield'].includes(item.slot)) return false;
-        if (slotFilter === 'acc' && !['acc', 'acc1', 'acc2'].includes(item.slot)) return false;
-        if (pickedSlotDef && !pickedSlotDef.matchSlots.includes(item.slot)) return false;
-        return matchGearQuery(item);
-      });
-      return `
-        ${subCatBarHtml}
-        <div style="display:flex; flex-wrap:wrap; gap:5px; align-items:center; justify-content:space-between; margin-bottom:8px;">
-          <div style="display:flex; flex-wrap:wrap; gap:4px;">
-            ${[
-              ['all', `ทั้งหมด (${regularGear.length})`],
-              ['weapon', `⚔️ อาวุธ (${regularGear.filter(x => x.slot === 'weapon').length})`],
-              ['armor', `🛡️ เกราะ/หมวก/โล่ (${regularGear.filter(x => ['hat', 'glasses', 'top', 'pants', 'cape', 'robe', 'shield'].includes(x.slot)).length})`],
-              ['acc', `💍 ประดับ (${regularGear.filter(x => ['acc', 'acc1', 'acc2'].includes(x.slot)).length})`]
-            ].map(([k, lbl]) => `
-              <button type="button" onclick="selectNightcampEquipSlotFilter('${k}')" style="background:${slotFilter === k ? '#0284c7' : 'rgba(15,23,42,0.75)'}; border:1px solid ${slotFilter === k ? '#38bdf8' : 'rgba(148,163,184,0.25)'}; color:${slotFilter === k ? '#fff' : '#cbd5e1'}; border-radius:6px; padding:4px 9px; font-size:11px; font-weight:700; cursor:pointer;">${lbl}</button>
-            `).join('')}
-            ${pickedSlotDef && !['all', 'weapon', 'armor', 'acc'].includes(slotFilter) ? `
-              <span style="background:rgba(16,185,129,0.2);border:1px solid #34d399;color:#6ee7b7;border-radius:6px;padding:4px 9px;font-size:11px;font-weight:700;">
-                🎯 กรองเฉพาะช่อง: ${escapeHTML(pickedSlotDef.label)}
-                <b onclick="selectNightcampEquipSlotFilter('all')" style="cursor:pointer;margin-left:5px;color:#fca5a5;">✕</b>
-              </span>
-            ` : ''}
+    let rightSideHtml = '';
+    if (pickedSlotDef) {
+      const currentEq = d.equipment?.[pickedSlotDef.key] || (pickedSlotDef.key === 'top' ? d.equipment?.robe : (pickedSlotDef.key === 'fhat' ? d.equipment?.frobe : null));
+      const candidates = allGear.filter(it => it && pickedSlotDef.matchSlots.includes(it.slot));
+      rightSideHtml = `
+        <div style="background:rgba(15,23,42,0.82); border:1px solid rgba(56,189,248,0.4); border-radius:11px; padding:11px 13px; display:flex; flex-direction:column; gap:9px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+            <div>
+              <div style="font-size:13px; font-weight:800; color:#7dd3fc;">${pickedSlotDef.icon} จัดการช่องอุปกรณ์: ${escapeHTML(pickedSlotDef.label)}</div>
+              <div style="font-size:10.5px; color:#94a3b8;">เลือกอุปกรณ์จากกระเป๋าที่สวมใส่ช่องนี้ได้ (${candidates.length} ชิ้น)</div>
+            </div>
+            <button type="button" onclick="selectNightcampEquipSlotFilter('all')" style="background:rgba(148,163,184,0.16); border:1px solid rgba(148,163,184,0.35); color:#e2e8f0; border-radius:7px; padding:4px 10px; font-size:11px; font-weight:700; cursor:pointer;">← ดูค่าสเตตัส</button>
           </div>
-          <span style="font-size:11px; color:#94a3b8;">แสดง <b>${filteredGear.length}</b> ชิ้น</span>
-        </div>
-        <div style="display:flex; flex-direction:column; gap:7px;">
-          ${filteredGear.length > 0
-            ? filteredGear.map(it => renderNightcampGearCardHtml(it, { isStorage: false })).join('')
-            : `<div style="text-align:center; padding:36px 16px; color:#64748b; background:rgba(2,6,23,0.45); border:1px dashed rgba(148,163,184,0.2); border-radius:10px; font-size:12.5px;">🎒 ไม่พบอุปกรณ์ในหมวดนี้</div>`}
-        </div>
-      `;
-    }
-
-    // 2. Sub-category: `mat` (วัสดุ — พร้อมปุ่มแยกการ์ด / วัตถุดิบ / ใบคูณ / เมล็ดพันธุ์)
-    if (bagSubCat === 'mat') {
-      const filteredMats = matTabAll.filter(m => {
-        if (matSubFilter === 'card' && !(m.category === 'card' || /^bl_card_/.test(m.id))) return false;
-        if (matSubFilter === 'raw' && !(m.category === 'material' || m.category === 'oil_ammo')) return false;
-        if (matSubFilter === 'boost' && !(m.category === 'boost' || m.category === 'box')) return false;
-        if (matSubFilter === 'seed' && !(m.category === 'seed' || /^sd_/.test(m.id))) return false;
-        return matchMatQuery(m);
-      });
-      return `
-        ${subCatBarHtml}
-        <div style="display:flex; flex-wrap:wrap; gap:5px; align-items:center; justify-content:space-between; margin-bottom:8px;">
-          <div style="display:flex; flex-wrap:wrap; gap:4px;">
-            ${[
-              ['all', `ทั้งหมด (${matTabAll.length})`],
-              ['card', `🃏 การ์ดมอนสเตอร์ (${cardMats.length})`],
-              ['raw', `🦴 วัตถุดิบ & ขยะมอน (${rawMatsOnly.length})`],
-              ['boost', `✨ ใบคูณ / ตั๋ว / กล่อง (${boostBoxOnly.length})`],
-              ['seed', `🌱 เมล็ดพันธุ์ (${seedOnly.length})`]
-            ].map(([k, lbl]) => `
-              <button type="button" onclick="setNightcampMatCategory('${k}')" style="background:${matSubFilter === k ? '#059669' : 'rgba(15,23,42,0.75)'}; border:1px solid ${matSubFilter === k ? '#34d399' : 'rgba(148,163,184,0.25)'}; color:${matSubFilter === k ? '#fff' : '#cbd5e1'}; border-radius:6px; padding:4px 9px; font-size:11px; font-weight:700; cursor:pointer;">${lbl}</button>
-            `).join('')}
+          ${currentEq ? `
+            <div>
+              <div style="font-size:10.5px; font-weight:700; color:#6ee7b7; margin-bottom:4px;">✨ กำลังสวมใส่อยู่ตอนนี้:</div>
+              ${renderNightcampGearCardHtml(Object.assign({}, currentEq, { wornSlot: pickedSlotDef.key }), { isStorage: false })}
+            </div>
+          ` : `<div style="padding:10px; text-align:center; font-size:11px; color:#94a3b8; background:rgba(2,6,23,0.5); border-radius:8px;">ยังไม่มีอุปกรณ์สวมใส่ในช่อง ${escapeHTML(pickedSlotDef.label)}</div>`}
+          <div style="font-size:10.5px; font-weight:700; color:#fde68a; margin-top:2px;">🎒 ไอเทมในกระเป๋าที่ใส่ช่องนี้ได้ (${candidates.length} ชิ้น):</div>
+          <div style="display:flex; flex-direction:column; gap:7px; max-height:360px; overflow-y:auto;">
+            ${candidates.length > 0
+              ? candidates.map(it => renderNightcampGearCardHtml(it, { isStorage: false })).join('')
+              : `<div style="padding:20px; text-align:center; font-size:11.5px; color:#64748b; background:rgba(2,6,23,0.45); border-radius:8px;">🎒 ไม่มีอุปกรณ์สำหรับช่อง "${escapeHTML(pickedSlotDef.label)}" ในกระเป๋า</div>`}
           </div>
-          <button type="button" onclick="runNightcampCharacterAction({ action: 'store_all_mats' })" title="ฝากวัตถุดิบและเมล็ดพันธุ์ทั้งหมดเข้าคลังค่าย (ต้องอยู่ใกล้ลุงโกโก้)" style="background:rgba(14,165,233,0.18);border:1px solid rgba(56,189,248,0.45);color:#7dd3fc;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;">📦 ฝากวัสดุทั้งหมดเข้าคลัง</button>
-        </div>
-        <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:7px;">
-          ${filteredMats.length > 0
-            ? filteredMats.map(m => renderNightcampMatCardHtml(m)).join('')
-            : `<div style="grid-column:1 / -1; text-align:center; padding:36px 16px; color:#64748b; background:rgba(2,6,23,0.45); border:1px dashed rgba(148,163,184,0.2); border-radius:10px; font-size:12.5px;">🌰 ไม่พบวัสดุในหมวดย่อยนี้</div>`}
         </div>
       `;
+    } else {
+      rightSideHtml = renderNightcampCombatStatsPanelHtml(d);
     }
 
-    // 3. Sub-category: `card` (การ์ดมอนสเตอร์)
-    if (bagSubCat === 'card') {
-      const filteredCards = cardMats.filter(matchMatQuery);
-      return `
-        ${subCatBarHtml}
-        <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:7px;">
-          ${filteredCards.length > 0
-            ? filteredCards.map(m => renderNightcampMatCardHtml(m)).join('')
-            : `<div style="grid-column:1 / -1; text-align:center; padding:36px 16px; color:#64748b; background:rgba(2,6,23,0.45); border:1px dashed rgba(148,163,184,0.2); border-radius:10px; font-size:12.5px;">🃏 ยังไม่มีการ์ดมอนสเตอร์ในกระเป๋า</div>`}
-        </div>
-      `;
-    }
-
-    // 4. Sub-category: `potion` (ยา & อาหาร)
-    if (bagSubCat === 'potion') {
-      const filteredPots = potFoodMats.filter(matchMatQuery);
-      return `
-        ${subCatBarHtml}
-        <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:7px;">
-          ${filteredPots.length > 0
-            ? filteredPots.map(m => renderNightcampMatCardHtml(m)).join('')
-            : `<div style="grid-column:1 / -1; text-align:center; padding:36px 16px; color:#64748b; background:rgba(2,6,23,0.45); border:1px dashed rgba(148,163,184,0.2); border-radius:10px; font-size:12.5px;">🧪 ไม่พบยาหรืออาหารในกระเป๋า</div>`}
-        </div>
-      `;
-    }
-
-    // 5. Sub-category: `fashion` (แฟชั่น)
-    if (bagSubCat === 'fashion') {
-      const fGear = fashionGear.filter(matchGearQuery);
-      const fMats = fashionMats.filter(matchMatQuery);
-      return `
-        ${subCatBarHtml}
-        ${fGear.length > 0 ? `
-          <div style="display:flex; flex-direction:column; gap:7px; margin-bottom:${fMats.length > 0 ? '10px' : '0'};">
-            ${fGear.map(it => renderNightcampGearCardHtml(it, { isStorage: false })).join('')}
-          </div>
-        ` : ''}
-        ${fMats.length > 0 ? `
-          <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:7px;">
-            ${fMats.map(m => renderNightcampMatCardHtml(m)).join('')}
-          </div>
-        ` : ''}
-        ${fGear.length === 0 && fMats.length === 0 ? `
-          <div style="text-align:center; padding:36px 16px; color:#64748b; background:rgba(2,6,23,0.45); border:1px dashed rgba(148,163,184,0.2); border-radius:10px; font-size:12.5px;">👗 ไม่พบไอเทมแฟชั่นในกระเป๋า</div>
-        ` : ''}
-      `;
-    }
-
-    // 6. Sub-category: `rune` (รูน)
-    if (bagSubCat === 'rune') {
-      const filteredRunes = runeMats.filter(matchMatQuery);
-      return `
-        ${subCatBarHtml}
-        <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:7px;">
-          ${filteredRunes.length > 0
-            ? filteredRunes.map(m => renderNightcampMatCardHtml(m)).join('')
-            : `<div style="grid-column:1 / -1; text-align:center; padding:36px 16px; color:#64748b; background:rgba(2,6,23,0.45); border:1px dashed rgba(148,163,184,0.2); border-radius:10px; font-size:12.5px;">💠 ยังไม่มีรูนในกระเป๋า</div>`}
-        </div>
-      `;
-    }
-
-    // 7. Default Sub-category: `all` (ทั้งหมดในกระเป๋า: อุปกรณ์ + ยา/อาหาร + การ์ด + วัสดุ)
-    const allFilteredGear = allGear.filter(matchGearQuery);
-    const allFilteredMats = allMats.filter(matchMatQuery);
     return `
-      ${subCatBarHtml}
-      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px; margin-bottom:8px;">
-        <span style="font-size:11px; color:#94a3b8;">แสดงทั้งหมดในกระเป๋า: อุปกรณ์ <b>${allFilteredGear.length}</b> ชิ้น · ยา/ของใช้/วัสดุ <b>${allFilteredMats.length}</b> รายการ</span>
-        <button type="button" onclick="runNightcampCharacterAction({ action: 'store_all_mats' })" title="ฝากวัตถุดิบและเมล็ดพันธุ์ทั้งหมดเข้าคลังค่าย (ต้องอยู่ใกล้ลุงโกโก้)" style="background:rgba(14,165,233,0.18);border:1px solid rgba(56,189,248,0.45);color:#7dd3fc;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;">📦 ฝากวัสดุทั้งหมดเข้าคลัง</button>
+      <div style="display:grid; grid-template-columns:minmax(0, 1.12fr) minmax(0, 0.98fr); gap:12px; align-items:start;">
+        <!-- LEFT HALF: Equipment Slots around Character Paperdoll + 6-Column Base Stats -->
+        <div style="display:flex; flex-direction:column; gap:10px; min-width:0;">
+          <div style="background:rgba(15,23,42,0.72); border:1px solid rgba(56,189,248,0.25); border-radius:12px; padding:11px;">
+            <div style="display:grid; grid-template-columns:minmax(0, 1fr) 150px minmax(0, 1fr); gap:8px; align-items:stretch;">
+              <!-- Left 5 Slots -->
+              <div style="display:flex; flex-direction:column; gap:6px; justify-content:space-between; min-width:0;">
+                ${NC_CHAR_SLOTS_LEFT.map(def => renderNightcampEquipSlotCard(def, d.equipment?.[def.key] || (def.key === 'top' ? d.equipment?.robe : null))).join('')}
+              </div>
+
+              <!-- Center Paperdoll Showcase (Aetheria-style) -->
+              <div style="background:radial-gradient(circle at 50% 45%, rgba(14,165,233,0.22), rgba(2,6,23,0.92)); border:1px solid rgba(56,189,248,0.3); border-radius:11px; padding:10px 8px; display:flex; flex-direction:column; align-items:center; justify-content:space-between; text-align:center; gap:6px;">
+                <div style="font-size:10px; font-weight:700; color:#7dd3fc;">${escapeHTML(d.jobName)}</div>
+                <div style="width:118px; height:150px; display:flex; align-items:center; justify-content:center; overflow:hidden;">
+                  ${d.heroPaperdollUrl
+                    ? `<img src="${escapeHTML(d.heroPaperdollUrl)}" alt="" style="max-width:114px; max-height:146px; object-fit:contain; filter:drop-shadow(0 8px 16px rgba(0,0,0,0.75));">`
+                    : `<span style="font-size:48px;">🌙</span>`}
+                </div>
+                <div style="width:100%; display:flex; flex-direction:column; gap:4px;">
+                  <div style="font-size:9.5px; color:${d.nearShop || d.nearForge ? '#4ade80' : '#94a3b8'}; line-height:1.25;">
+                    ${d.nearShop ? '🟢 ใกล้ลุงโกโก้' : (d.nearForge ? '🟢 ใกล้เตาตีบวก' : '🏕️ นอกจุดร้านค้า')}
+                  </div>
+                  <div style="display:flex; gap:4px; justify-content:center;">
+                    <button type="button" onclick="runNightcampCharacterAction({ action: 'walk_to_coco' })" title="เดินไปหาลุงโกโก้ในค่าย" style="flex:1; background:rgba(245,158,11,0.16); border:1px solid rgba(251,191,36,0.45); color:#fde68a; border-radius:6px; padding:3px 4px; font-size:9.5px; font-weight:700; cursor:pointer;">🛒 โกโก้</button>
+                    <button type="button" onclick="runNightcampCharacterAction({ action: 'walk_to_forge' })" title="เดินไปเตาตีบวกป๋าหมูหริ่ง" style="flex:1; background:rgba(168,85,247,0.16); border:1px solid rgba(192,132,252,0.45); color:#e9d5ff; border-radius:6px; padding:3px 4px; font-size:9.5px; font-weight:700; cursor:pointer;">🔨 ตีบวก</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Right 5 Slots -->
+              <div style="display:flex; flex-direction:column; gap:6px; justify-content:space-between; min-width:0;">
+                ${NC_CHAR_SLOTS_RIGHT.map(def => renderNightcampEquipSlotCard(def, d.equipment?.[def.key] || (def.key === 'fhat' ? d.equipment?.frobe : null))).join('')}
+              </div>
+            </div>
+          </div>
+
+          <!-- Aetheria-style 6-Column Base Stats Strip -->
+          <div style="background:rgba(15,23,42,0.78); border:1px solid rgba(250,204,21,0.3); border-radius:11px; padding:9px 11px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+              <span style="font-size:11px; font-weight:800; color:#fde047;">⚡ ค่าสเตตัสหลัก (STR · AGI · VIT · INT · DEX · LUK)</span>
+              <span style="font-size:10.5px; font-weight:700; color:${d.statPoints > 0 ? '#4ade80' : '#94a3b8'};">แต้มคงเหลือ: <b>${d.statPoints}</b></span>
+            </div>
+            <div style="display:grid; grid-template-columns:repeat(6, minmax(0, 1fr)); gap:5px;">
+              ${['str', 'agi', 'vit', 'int', 'dex', 'luk'].map(k => {
+                const st = d.baseStats?.[k] || { label: k.toUpperCase(), th: k, base: 5, bonus: 0, total: 5, cost: 2, canRaise: false, desc: '' };
+                return `
+                  <div title="${escapeHTML(st.desc)}" style="background:rgba(2,6,23,0.72); border:1px solid rgba(148,163,184,0.2); border-radius:8px; padding:5px 4px; display:flex; flex-direction:column; align-items:center; gap:2px; text-align:center;">
+                    <span style="font-size:10px; font-weight:800; color:#94a3b8;">${escapeHTML(st.label)}</span>
+                    <span style="font-size:11.5px; font-weight:800; color:#f8fafc; font-family:'JetBrains Mono',monospace;">
+                      ${st.base}${st.bonus !== 0 ? `<span style="color:#4ade80;font-size:9.5px;">(${st.bonus > 0 ? '+' : ''}${st.bonus})</span>` : ''}
+                    </span>
+                    <div style="display:flex; gap:2px; margin-top:1px;">
+                      <button type="button" ${st.canRaise ? '' : 'disabled'} onclick="runNightcampCharacterAction({ action: 'stat_up', stat: '${k}', count: 1 })"
+                              style="background:${st.canRaise ? '#f59e0b' : '#1e293b'}; border:1px solid ${st.canRaise ? '#fbbf24' : '#334155'}; color:${st.canRaise ? '#1f1300' : '#64748b'}; border-radius:4px; padding:1px 6px; font-size:10px; font-weight:900; cursor:${st.canRaise ? 'pointer' : 'not-allowed'};">+</button>
+                      <button type="button" ${st.canRaise ? '' : 'disabled'} onclick="runNightcampCharacterAction({ action: 'stat_up', stat: '${k}', count: 5 })"
+                              style="background:${st.canRaise ? 'rgba(245,158,11,0.2)' : '#1e293b'}; border:1px solid ${st.canRaise ? '#fbbf24' : '#334155'}; color:${st.canRaise ? '#fde047' : '#64748b'}; border-radius:4px; padding:1px 4px; font-size:9px; font-weight:800; cursor:${st.canRaise ? 'pointer' : 'not-allowed'};">+5</button>
+                    </div>
+                    <span style="font-size:8.5px; color:#64748b;">${st.cost} pts</span>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        </div>
+
+        <!-- RIGHT HALF: Detailed Combat Stats OR Slot Replacement Scanner -->
+        <div style="min-width:0;">
+          ${rightSideHtml}
+        </div>
       </div>
-      ${allFilteredGear.length > 0 ? `
-        <div style="font-size:11.5px; font-weight:800; color:#7dd3fc; margin-bottom:6px;">⚔️ อุปกรณ์ในกระเป๋า (${allFilteredGear.length} ชิ้น):</div>
-        <div style="display:flex; flex-direction:column; gap:7px; margin-bottom:12px;">
-          ${allFilteredGear.map(it => renderNightcampGearCardHtml(it, { isStorage: false })).join('')}
-        </div>
-      ` : ''}
-      ${allFilteredMats.length > 0 ? `
-        <div style="font-size:11.5px; font-weight:800; color:#6ee7b7; margin-bottom:6px;">🌰 ยา / อาหาร / การ์ด / วัสดุในกระเป๋า (${allFilteredMats.length} รายการ):</div>
-        <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:7px;">
-          ${allFilteredMats.map(m => renderNightcampMatCardHtml(m)).join('')}
-        </div>
-      ` : ''}
-      ${allFilteredGear.length === 0 && allFilteredMats.length === 0 ? `
-        <div style="text-align:center; padding:36px 16px; color:#64748b; background:rgba(2,6,23,0.45); border:1px dashed rgba(148,163,184,0.2); border-radius:10px; font-size:12.5px;">🎒 ไม่พบไอเทมในกระเป๋าที่ตรงกับคำค้นหา</div>
-      ` : ''}
     `;
   }
 
   if (tab === 'stats') {
-    const s = d.statSheet || {};
-    const row = (lbl, val, accent = '#f8fafc') => `
-      <div style="display:flex; justify-content:space-between; align-items:center; padding:4px 0; border-bottom:1px solid rgba(255,255,255,0.05); font-size:11.5px;">
-        <span style="color:#94a3b8;">${lbl}</span>
-        <b style="color:${accent}; font-family:'JetBrains Mono',monospace;">${val}</b>
-      </div>
-    `;
-    const lineEntries = Object.entries(s.lineLv || {});
-    return `
-      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(230px, 1fr)); gap:10px;">
-        <div style="background:rgba(15,23,42,0.78); border:1px solid rgba(248,113,113,0.35); border-radius:10px; padding:11px 13px;">
-          <div style="font-size:12.5px; font-weight:800; color:#fca5a5; margin-bottom:6px;">⚔️ พลังโจมตี & ความแม่นยำ</div>
-          ${row('พลังโจมตีพื้นฐาน (BATK)', s.batk, '#fca5a5')}
-          ${row('พลังอาวุธ (WATK)', s.watk, '#fecaca')}
-          ${row('โบนัสพลังโจมตี (ATK%)', (s.atkMulPct >= 0 ? '+' : '') + s.atkMulPct + '%', '#fde68a')}
-          ${row('พลังเวท (MATK)', s.matk, '#93c5fd')}
-          ${row('ความแม่นยำ (HIT)', s.hit, '#86efac')}
-          ${row('คริติคอล (CRIT)', s.crit + '%', '#fbbf24')}
-          ${row('โบนัสแรงคริติคอล', '+' + s.critDmg + '%', '#fbbf24')}
-          ${row('โอกาสตีเบิ้ล (Double)', s.dbl + '%', '#c084fc')}
-          ${row('ความเร็วโจมตี (ASPD)', `${s.aspd} (${s.aspdMulPct >= 0 ? '+' : ''}${s.aspdMulPct}%)`, '#38bdf8')}
-          ${row('ธาตุโจมตี', s.atkElement, '#7dd3fc')}
-        </div>
-
-        <div style="background:rgba(15,23,42,0.78); border:1px solid rgba(56,189,248,0.35); border-radius:10px; padding:11px 13px;">
-          <div style="font-size:12.5px; font-weight:800; color:#7dd3fc; margin-bottom:6px;">🛡️ พลังป้องกัน & การฟื้นฟู</div>
-          ${row('HP สูงสุด (Max HP)', Number(s.maxHp || d.hpMax || 0).toLocaleString(), '#86efac')}
-          ${row('SP สูงสุด (Max SP)', Number(s.maxSp || d.spMax || 0).toLocaleString(), '#93c5fd')}
-          ${row('ป้องกันกายภาพ (DEF)', `${s.def} (+VIT ${s.vdef})`, '#cbd5e1')}
-          ${row('ป้องกันเวท (MDEF)', `${s.mdef} (+INT ${s.imdef})`, '#c4b5fd')}
-          ${row('หลบหลีก (FLEE)', s.flee, '#6ee7b7')}
-          ${row('หลบสมบูรณ์ (Perfect Dodge)', s.pdodge + '%', '#fde68a')}
-          ${row('ฟื้นฟู HP ต่อวินาที', '+' + s.hpRegen + '/วิ', '#4ade80')}
-          ${row('ฟื้นฟู SP ต่อวินาที', '+' + s.spRegen + '/วิ', '#60a5fa')}
-          ${row('ลดคูลดาวน์สกิล (CDR)', s.cdr + '%', '#e9d5ff')}
-          ${row('ธาตุเกราะป้องกัน', s.armorElement, '#cbd5e1')}
-        </div>
-
-        <div style="background:rgba(15,23,42,0.78); border:1px solid rgba(192,132,252,0.35); border-radius:10px; padding:11px 13px;">
-          <div style="font-size:12.5px; font-weight:800; color:#e9d5ff; margin-bottom:6px;">✨ เรโซแนนซ์สกิล & โบนัสอุปกรณ์</div>
-          ${lineEntries.length > 0
-            ? lineEntries.map(([lineKey, lv]) => row(`เรโซแนนซ์ ${lineKey}`, `${lv} แต้ม`, '#d8b4fe')).join('')
-            : `<div style="font-size:11px;color:#64748b;padding:6px 0;">ยังไม่มีแต้มเรโซแนนซ์สายสกิล</div>`}
-          <div style="margin-top:8px; font-size:11.5px; font-weight:700; color:#fde68a;">🌟 โบนัสรวมจากอุปกรณ์ (Mods):</div>
-          ${Object.entries(s.mods || {}).filter(([, v]) => Number(v) !== 0).map(([k, v]) => row(k, (v > 0 ? '+' : '') + v)).join('') || `<div style="font-size:11px;color:#64748b;padding:4px 0;">ไม่มีโบนัสเพิ่มเติม</div>`}
-        </div>
-      </div>
-    `;
+    return renderNightcampCombatStatsPanelHtml(d);
   }
 
   if (tab === 'storage') {
@@ -21264,18 +21239,21 @@ function renderNightcampRightPaneContentHtml(d) {
           🏦 <b>คลังค่าย (ลุงโกโก้):</b> อุปกรณ์ <b>${d.storeUsed}/${d.storeCap}</b> ช่อง · วัตถุดิบในคลัง <b>${stMats.length}</b> ชนิด
           ${d.vaultCoins !== null ? ` · 💰 <b>เงินในคลังร่วมไอดี:</b> <span style="color:#fde047;font-weight:800;">${Number(d.vaultCoins).toLocaleString()} เหรียญ</span>` : ''}
         </div>
-        <button type="button" onclick="runNightcampCharacterAction({ action: 'walk_to_coco' })" style="background:#0284c7;border:1px solid #38bdf8;color:#fff;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;">🏃 เดินไปหาลุงโกโก้ในค่าย</button>
+        <div style="display:flex; gap:6px; flex-wrap:wrap;">
+          <button type="button" onclick="runNightcampCharacterAction({ action: 'store_all_mats' })" style="background:rgba(16,185,129,0.2);border:1px solid rgba(52,211,153,0.45);color:#6ee7b7;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;">📦 ฝากวัสดุทั้งหมดจากกระเป๋า</button>
+          <button type="button" onclick="runNightcampCharacterAction({ action: 'walk_to_coco' })" style="background:#0284c7;border:1px solid #38bdf8;color:#fff;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;">🏃 เดินไปหาลุงโกโก้ในค่าย</button>
+        </div>
       </div>
 
       ${stGear.length > 0 ? `
         <div style="font-size:12px; font-weight:800; color:#7dd3fc; margin-bottom:6px;">🎒 อุปกรณ์ในคลังค่าย (${stGear.length} ชิ้น):</div>
-        <div style="display:flex; flex-direction:column; gap:7px; margin-bottom:14px;">
+        <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); gap:7px; margin-bottom:14px;">
           ${stGear.map(it => renderNightcampGearCardHtml(it, { isStorage: true })).join('')}
         </div>
       ` : ''}
 
       <div style="font-size:12px; font-weight:800; color:#6ee7b7; margin-bottom:6px;">📦 วัตถุดิบในคลังค่าย (${stMats.length} รายการ):</div>
-      <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(230px, 1fr)); gap:7px;">
+      <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:7px;">
         ${stMats.length > 0 ? stMats.map(m => {
           const mk = resolveNcMatMarketKey(m);
           const mktAttrs = buildNcMarketHoverAttrs({ key: mk, name: m.name, rarity: m.rarity, icon: m.icon, extra: m.desc || '' });
@@ -21320,6 +21298,7 @@ function renderNightcampCMarketTabHtml(d) {
   const readyRulesCount = rules.filter(r => r.ready).length;
   const reqTradeLv = Number(cm.tradeLevel || d.tradeLevel) || 45;
   const baseLvNum = Number(d.baseLv) || 0;
+  const unclaimedMailCount = Number(cm.unclaimedMailCount) || 0;
   const effectiveTradeLockMsg = String(cm.tradeLockMsg || d.tradeLockMsg || '').trim() ||
     (baseLvNum > 0 && baseLvNum < reqTradeLv
       ? `ซื้อขายกับผู้เล่นและตลาดกลางได้เมื่อตัวละครถึง Lv.${reqTradeLv} (ตอนนี้ Lv.${baseLvNum})`
@@ -21327,28 +21306,46 @@ function renderNightcampCMarketTabHtml(d) {
   const isMarketLocked = Boolean(effectiveTradeLockMsg);
 
   const tradeLockBannerHtml = isMarketLocked ? `
-    <div style="background:rgba(127,29,29,0.42); border:1px solid rgba(248,113,113,0.58); color:#fecaca; border-radius:9px; padding:8px 12px; margin-bottom:10px; font-size:11.5px; font-weight:700; display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap;">
+    <div style="background:rgba(127,29,29,0.38); border:1px solid rgba(248,113,113,0.52); color:#fecaca; border-radius:9px; padding:7px 12px; margin-bottom:10px; font-size:11.5px; font-weight:700; display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap;">
       <span>🔒 ${escapeHTML(effectiveTradeLockMsg)}</span>
-      <span style="font-size:10.5px; color:#fde68a; font-weight:600;">💡 สามารถตั้งค่ารายการ Auto-Sell ไว้ล่วงหน้าได้ (บอทจะกันของไม่ให้ขายร้าน NPC และเริ่มลงตลาดอัตโนมัติเมื่อถึง Lv.${reqTradeLv})</span>
+      <span style="font-size:10.5px; color:#fde68a; font-weight:600;">💡 ตั้งรายการ Auto-Sell ไว้ล่วงหน้าได้ (บอทจะกันของไม่ให้ขายร้าน NPC และเริ่มลงตลาดอัตโนมัติเมื่อถึง Lv.${reqTradeLv})</span>
     </div>
   ` : '';
 
   const subTabsHtml = `
-    <div style="display:flex; flex-wrap:wrap; gap:6px; align-items:center; justify-content:space-between; margin-bottom:10px; background:rgba(15,23,42,0.82); border:1px solid rgba(129,140,248,0.32); border-radius:10px; padding:7px 10px;">
-      <div style="display:flex; flex-wrap:wrap; gap:5px;">
+    <div style="background:rgba(15,23,42,0.82); border:1px solid rgba(129,140,248,0.28); border-radius:11px; padding:10px 12px; margin-bottom:10px; display:flex; flex-direction:column; gap:8px;">
+      <div style="display:flex; flex-wrap:wrap; gap:6px; align-items:center;">
         ${[
-          ['autosell', `🤖 ตั้งค่า Auto-Sell ตลาดกลาง (${rules.length}${readyRulesCount > 0 ? ' · พร้อมขาย ' + readyRulesCount : ''})`],
-          ['sell', `🏷️ ลงขายไอเทมเอง (${tradableBagItems.length})`],
-          ['active', `📦 ชั้นวางของฉัน & รับเงิน (${openCount}/${maxSlots})`],
-          ['browse', `🔍 ค้นหา & ซื้อของในตลาดกลาง`]
-        ].map(([k, lbl]) => `
-          <button type="button" onclick="switchNightcampCMarketSubTab('${k}')"
-                  style="background:${subTab === k ? 'linear-gradient(135deg,#4f46e5,#4338ca)' : 'rgba(2,6,23,0.65)'}; border:1px solid ${subTab === k ? '#818cf8' : 'rgba(148,163,184,0.25)'}; color:${subTab === k ? '#fff' : '#cbd5e1'}; border-radius:7px; padding:5px 11px; font-size:11px; font-weight:700; cursor:pointer;">${lbl}</button>
-        `).join('')}
+          ['sell', `🏷️ ลงขายไอเทม`, tradableBagItems.length > 0 ? `${tradableBagItems.length}` : ''],
+          ['autosell', `🤖 Auto Sell ตลาดกลาง`, `${rules.length}`],
+          ['active', `📦 ของที่ลงขายอยู่`, `${openCount}/${maxSlots}`],
+          ['claim', `📬 รับของ / รับเงิน`, unclaimedMailCount > 0 ? `${unclaimedMailCount}` : ''],
+          ['browse', `🔍 ค้นหา / ซื้อของ`, '']
+        ].map(([k, lbl, badge]) => {
+          const active = subTab === k;
+          const isAuto = k === 'autosell';
+          const bg = active
+            ? (isAuto ? 'linear-gradient(135deg,#9333ea,#7e22ce)' : 'linear-gradient(135deg,#2563eb,#1d4ed8)')
+            : 'rgba(9,13,24,0.85)';
+          const border = active
+            ? (isAuto ? '#c084fc' : '#60a5fa')
+            : 'rgba(148,163,184,0.25)';
+          return `
+            <button type="button" onclick="switchNightcampCMarketSubTab('${k}')"
+                    style="display:inline-flex; align-items:center; gap:6px; background:${bg}; border:1px solid ${border}; color:${active ? '#fff' : '#cbd5e1'}; border-radius:8px; padding:6px 13px; font-size:11.5px; font-weight:800; cursor:pointer; transition:all 0.14s;">
+              <span>${lbl}</span>
+              ${badge ? `<span style="background:${active ? 'rgba(0,0,0,0.28)' : 'rgba(148,163,184,0.16)'}; padding:1px 7px; border-radius:999px; font-size:10.5px;">${badge}</span>` : ''}
+            </button>
+          `;
+        }).join('')}
       </div>
-      <div style="display:flex; align-items:center; gap:6px; font-size:10.5px;">
-        <span style="background:${isMarketLocked ? 'rgba(239,68,68,0.18)' : 'rgba(16,185,129,0.16)'}; border:1px solid ${isMarketLocked ? 'rgba(248,113,113,0.5)' : 'rgba(52,211,153,0.4)'}; color:${isMarketLocked ? '#fca5a5' : '#6ee7b7'}; padding:2px 8px; border-radius:999px; font-weight:700;">
-          ${isMarketLocked ? `🔒 ล็อก Lv.${baseLvNum}/${reqTradeLv}` : `🏪 ชั้นของฉัน ${openCount}/${maxSlots} · ภาษี ${taxPct}%`}
+      <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; font-size:11px; color:#94a3b8;">
+        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+          <span>วางขายอยู่: <b style="color:#e2e8f0;">${openCount}/${maxSlots} ช่อง</b> · ภาษีตลาดกลาง <b style="color:#fde047;">${taxPct}%</b></span>
+          <button type="button" onclick="refreshNightcampCharacterModal()" style="background:rgba(15,23,42,0.9); border:1px solid rgba(148,163,184,0.3); color:#cbd5e1; border-radius:6px; padding:2px 9px; font-size:10.5px; font-weight:700; cursor:pointer;">🔄 รีเฟรชตลาด</button>
+        </div>
+        <span style="background:${isMarketLocked ? 'rgba(239,68,68,0.18)' : 'rgba(16,185,129,0.16)'}; border:1px solid ${isMarketLocked ? 'rgba(248,113,113,0.45)' : 'rgba(52,211,153,0.4)'}; color:${isMarketLocked ? '#fca5a5' : '#6ee7b7'}; padding:2px 9px; border-radius:999px; font-size:10.5px; font-weight:700;">
+          ${isMarketLocked ? `🔒 ล็อก Lv.${baseLvNum}/${reqTradeLv}` : `🟢 พร้อมซื้อขายตลาดกลาง (Lv.${d.baseLv})`}
         </span>
       </div>
     </div>
@@ -21356,11 +21353,11 @@ function renderNightcampCMarketTabHtml(d) {
   `;
 
   // =========================================================================
-  // SUB-TAB 1: 🤖 ตั้งค่า Auto-Sell ตลาดกลาง (modeled on Aetheria Auto-Sell Market)
+  // SUB-TAB 1: 🤖 Auto Sell ตลาดกลาง (Aetheria-style spacious layout)
   // =========================================================================
   if (subTab === 'autosell') {
     const filterKey = ncCharModalState.cmRuleFilter || 'all';
-    const q = ncCharModalState.searchQuery.trim().toLowerCase();
+    const q = String(ncCharModalState.cmRuleSearch || '').trim().toLowerCase();
     const countReady = rules.filter(r => r.statusKey === 'ready').length;
     const countWaiting = rules.filter(r => r.statusKey === 'waiting' || r.statusKey === 'bound').length;
     const countListed = rules.filter(r => r.activeListedCount > 0).length;
@@ -21376,162 +21373,200 @@ function renderNightcampCMarketTabHtml(d) {
     });
 
     const otherProfiles = (currentProfiles || []).filter(p => String(p.id) !== String(pid));
+    const copyQ = String(ncCharModalState.cmCopyFilterQ || '').trim().toLowerCase();
 
     return `
       ${subTabsHtml}
 
-      <!-- Master Auto-Sell Banner Card -->
-      <div style="background:linear-gradient(135deg, rgba(49,46,129,0.42), rgba(15,23,42,0.92)); border:1px solid rgba(129,140,248,0.48); border-radius:11px; padding:11px 13px; margin-bottom:10px; display:flex; flex-direction:column; gap:8px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
-          <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-            <label style="display:flex; align-items:center; gap:7px; font-size:13px; font-weight:800; color:#e0e7ff; cursor:pointer;">
-              <input type="checkbox" ${cfg.enabled ? 'checked' : ''} onchange="updateNightcampCMarketMasterSetting('enabled', this.checked)" style="width:16px; height:16px; accent-color:#6366f1; cursor:pointer;">
-              <span>🤖 เปิดระบบ Auto-Sell ตลาดกลางอัตโนมัติ</span>
+      <!-- Master Auto-Sell Card (Aetheria Compact Style) -->
+      <div style="background:linear-gradient(135deg, rgba(46,16,101,0.38), rgba(15,23,42,0.92)); border:1px solid rgba(168,85,247,0.45); border-radius:11px; padding:11px 14px; margin-bottom:10px; display:flex; flex-direction:column; gap:9px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+          <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+            <!-- Toggle Pill -->
+            <label style="display:inline-flex; align-items:center; gap:8px; font-size:13px; font-weight:800; color:#f8fafc; cursor:pointer; user-select:none;">
+              <input type="checkbox" ${cfg.enabled ? 'checked' : ''} onchange="updateNightcampCMarketMasterSetting('enabled', this.checked)" style="display:none;">
+              <span style="width:38px; height:21px; border-radius:999px; background:${cfg.enabled ? '#10b981' : '#334155'}; position:relative; display:inline-block; transition:background 0.18s;">
+                <span style="width:17px; height:17px; border-radius:50%; background:#fff; position:absolute; top:2px; left:${cfg.enabled ? '19px' : '2px'}; transition:left 0.18s; box-shadow:0 1px 3px rgba(0,0,0,0.4);"></span>
+              </span>
+              <span>เปิดใช้งาน Auto Sell ตลาดกลาง (${rules.length} รายการ${readyRulesCount > 0 ? ` · พร้อมขาย ${readyRulesCount}` : ''})</span>
             </label>
-            <span style="font-size:10px; font-weight:700; color:#86efac; background:rgba(16,185,129,0.16); border:1px solid rgba(52,211,153,0.4); padding:2px 8px; border-radius:999px;">
-              🛡️ ขายเฉพาะตอนกลับค่ายตามปกติ · ข้ามราคาล่ออัตโนมัติ · ไม่ขายร้าน NPC
+
+            <!-- Strategy Inline Pill -->
+            <div style="display:inline-flex; align-items:center; gap:5px; background:rgba(88,28,135,0.35); border:1px solid rgba(192,132,252,0.45); border-radius:999px; padding:2px 10px; font-size:10.5px; color:#e9d5ff; font-weight:700;">
+              <span>⚖️ กลยุทธ์:</span>
+              <select onchange="updateNightcampCMarketMasterSetting('priceStrategy', this.value)" style="background:transparent; border:none; color:#f3e8ff; font-size:10.5px; font-weight:800; cursor:pointer; outline:none;">
+                <option value="undercut_1" style="background:#0f172a;color:#f8fafc;" ${(cfg.priceStrategy || 'undercut_1') === 'undercut_1' ? 'selected' : ''}>ตัดราคาต่ำสุด 1g (ข้ามราคาล่อ)</option>
+                <option value="median" style="background:#0f172a;color:#f8fafc;" ${cfg.priceStrategy === 'median' ? 'selected' : ''}>ราคากลางสมดุล (FairTrade Median)</option>
+                <option value="lowest" style="background:#0f172a;color:#f8fafc;" ${cfg.priceStrategy === 'lowest' ? 'selected' : ''}>เท่ากับราคาต่ำสุดในตลาด</option>
+                <option value="band_max" style="background:#0f172a;color:#f8fafc;" ${cfg.priceStrategy === 'band_max' ? 'selected' : ''}>ราคาเพดานสูงสุดตามกรอบตลาด</option>
+              </select>
+            </div>
+
+            <span style="font-size:10.5px; font-weight:700; color:#6ee7b7; background:rgba(16,185,129,0.16); border:1px solid rgba(52,211,153,0.4); padding:2px 9px; border-radius:999px;">
+              🛡️ ป้องกันขาย NPC อัตโนมัติ
+            </span>
+            <span style="font-size:10.5px; font-weight:700; color:#7dd3fc; background:rgba(14,165,233,0.16); border:1px solid rgba(56,189,248,0.4); padding:2px 9px; border-radius:999px;">
+              โควตาวางขาย: ${openCount}/${maxSlots} ช่อง
             </span>
           </div>
+        </div>
+
+        <!-- Action Buttons + Quick Checkboxes Row -->
+        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
           <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
-            <button type="button" onclick="toggleNightcampCMarketCopyPanel()" style="background:rgba(14,165,233,0.2); border:1px solid rgba(56,189,248,0.5); color:#7dd3fc; border-radius:7px; padding:5px 10px; font-size:11px; font-weight:700; cursor:pointer;">
-              📋 Copy To จออื่น (${otherProfiles.length} จอ)
+            <button type="button" ${isMarketLocked ? 'disabled' : ''} onclick="runNightcampCharacterAction({ action: 'cmarket_run_autosell_now' })"
+                    title="${escapeHTML(isMarketLocked ? effectiveTradeLockMsg : 'ตรวจสอบกระเป๋าและวางขายลงตลาดกลางทันที')}"
+                    style="background:${isMarketLocked ? '#1e293b' : 'rgba(139,92,246,0.24)'}; border:1px solid ${isMarketLocked ? '#334155' : '#a78bfa'}; color:${isMarketLocked ? '#64748b' : '#ddd6fe'}; border-radius:7px; padding:5px 12px; font-size:11px; font-weight:800; cursor:${isMarketLocked ? 'not-allowed' : 'pointer'};">
+              ⚡ ตรวจสอบทันที
             </button>
-            <button type="button" onclick="runNightcampCharacterAction({ action: 'cmarket_claim_mail' })" style="background:rgba(16,185,129,0.2); border:1px solid rgba(52,211,153,0.5); color:#6ee7b7; border-radius:7px; padding:5px 10px; font-size:11px; font-weight:700; cursor:pointer;">
-              📬 รับเงินจากการขาย
+            <button type="button" onclick="toggleNightcampCMarketCopyPanel()"
+                    style="background:${ncCharModalState.cmCopyPanelOpen ? 'linear-gradient(135deg,#0284c7,#0369a1)' : 'rgba(14,165,233,0.2)'}; border:1px solid #38bdf8; color:${ncCharModalState.cmCopyPanelOpen ? '#fff' : '#7dd3fc'}; border-radius:7px; padding:5px 12px; font-size:11px; font-weight:800; cursor:pointer;">
+              📋 Copy To จออื่น (${otherProfiles.length})
             </button>
-            <button type="button" ${isMarketLocked ? 'disabled' : ''} onclick="runNightcampCharacterAction({ action: 'cmarket_run_autosell_now' })" title="${escapeHTML(isMarketLocked ? effectiveTradeLockMsg : 'ตรวจสอบกระเป๋าและวางขายลงตลาดกลางทันที')}" style="background:${isMarketLocked ? '#1e293b' : 'linear-gradient(135deg,#4f46e5,#4338ca)'}; border:1px solid ${isMarketLocked ? '#334155' : '#818cf8'}; color:${isMarketLocked ? '#64748b' : '#fff'}; border-radius:7px; padding:5px 12px; font-size:11px; font-weight:800; cursor:${isMarketLocked ? 'not-allowed' : 'pointer'}; ${isMarketLocked ? '' : 'box-shadow:0 4px 12px rgba(79,70,229,0.35);'}">
-              ⚡ ตรวจสอบ &amp; ลงขายทันที
+            <button type="button" onclick="runNightcampCharacterAction({ action: 'cmarket_claim_mail', goCampIfSkipped: true })"
+                    style="background:rgba(16,185,129,0.18); border:1px solid rgba(52,211,153,0.45); color:#6ee7b7; border-radius:7px; padding:5px 11px; font-size:11px; font-weight:700; cursor:pointer;">
+              📬 รับเงินจากการขาย${unclaimedMailCount > 0 ? ` (${unclaimedMailCount})` : ''}
             </button>
+          </div>
+
+          <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:10.5px;">
+            <label style="display:inline-flex; align-items:center; gap:4px; color:#fde68a; cursor:pointer; font-weight:700;" title="รูนเทียบเฉพาะ % คุณภาพใกล้เคียงหรือสูงกว่า · อุปกรณ์เทียบเฉพาะเกรดและระดับตีบวกเดียวกัน">
+              <input type="checkbox" ${cfg.smartQualityPricing !== false ? 'checked' : ''} onchange="updateNightcampCMarketMasterSetting('smartQualityPricing', this.checked)" style="accent-color:#f59e0b;">
+              <span>🎯 เทียบตาม % รูน/เกรด</span>
+            </label>
+            <div style="display:inline-flex; align-items:center; gap:4px; color:#fde68a; font-weight:700;">
+              <span>🔒 กันรูนท็อป:</span>
+              <select onchange="updateNightcampCMarketMasterSetting('keepTopRuneQualityPct', Number(this.value) || 0)" style="background:#090d16; border:1px solid rgba(251,191,36,0.45); color:#fde68a; border-radius:5px; font-size:10px; font-weight:700; padding:2px 5px;">
+                <option value="0" ${Number(cfg.keepTopRuneQualityPct ?? 90) === 0 ? 'selected' : ''}>ปิด</option>
+                <option value="80" ${Number(cfg.keepTopRuneQualityPct ?? 90) === 80 ? 'selected' : ''}>≥ 80%</option>
+                <option value="85" ${Number(cfg.keepTopRuneQualityPct ?? 90) === 85 ? 'selected' : ''}>≥ 85%</option>
+                <option value="90" ${Number(cfg.keepTopRuneQualityPct ?? 90) === 90 ? 'selected' : ''}>≥ 90%</option>
+                <option value="95" ${Number(cfg.keepTopRuneQualityPct ?? 90) === 95 ? 'selected' : ''}>≥ 95%</option>
+              </select>
+            </div>
+            <label style="display:inline-flex; align-items:center; gap:4px; color:#cbd5e1; cursor:pointer;">
+              <input type="checkbox" ${cfg.autoClaimMail !== false ? 'checked' : ''} onchange="updateNightcampCMarketMasterSetting('autoClaimMail', this.checked)" style="accent-color:#10b981;">
+              <span>📬 รับเงินออโต้</span>
+            </label>
+            <label style="display:inline-flex; align-items:center; gap:4px; color:#cbd5e1; cursor:pointer;">
+              <input type="checkbox" ${cfg.autoUnlistExpired !== false ? 'checked' : ''} onchange="updateNightcampCMarketMasterSetting('autoUnlistExpired', this.checked)" style="accent-color:#38bdf8;">
+              <span>🔄 ตั้งขายของหมดเวลาใหม่</span>
+            </label>
           </div>
         </div>
-
-        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(210px, 1fr)); gap:8px; align-items:center; background:rgba(2,6,23,0.55); border:1px solid rgba(148,163,184,0.18); border-radius:8px; padding:7px 10px;">
-          <div style="display:flex; align-items:center; gap:6px;">
-            <span style="font-size:11px; color:#cbd5e1; white-space:nowrap;">💰 กลยุทธ์ตั้งราคา:</span>
-            <select onchange="updateNightcampCMarketMasterSetting('priceStrategy', this.value)" style="flex:1; background:#090d16; border:1px solid rgba(129,140,248,0.5); color:#e0e7ff; border-radius:6px; font-size:11px; font-weight:700; padding:4px 7px;">
-              <option value="undercut_1" ${(cfg.priceStrategy || 'undercut_1') === 'undercut_1' ? 'selected' : ''}>⚡ ตัดราคาต่ำสุด 1 เหรียญ (ข้ามราคาล่อ)</option>
-              <option value="lowest" ${cfg.priceStrategy === 'lowest' ? 'selected' : ''}>🏷️ เท่ากับราคาต่ำสุดในตลาด</option>
-              <option value="median" ${cfg.priceStrategy === 'median' ? 'selected' : ''}>⚖️ ราคากลางสมดุล (FairTrade Median)</option>
-              <option value="band_max" ${cfg.priceStrategy === 'band_max' ? 'selected' : ''}>📈 ราคาเพดานสูงสุดตามกรอบตลาด</option>
-            </select>
-          </div>
-          <label style="display:flex; align-items:center; gap:6px; font-size:11px; color:#fde68a; cursor:pointer; font-weight:700;" title="รูนเทียบเฉพาะ % คุณภาพใกล้เคียงหรือสูงกว่า · อุปกรณ์เทียบเฉพาะเกรดและระดับตีบวกเดียวกัน ไม่เอาของดีไปตัดราคาของต่ำ">
-            <input type="checkbox" ${cfg.smartQualityPricing !== false ? 'checked' : ''} onchange="updateNightcampCMarketMasterSetting('smartQualityPricing', this.checked)" style="accent-color:#f59e0b;">
-            <span>🎯 เทียบราคาตาม % รูน / เกรดของ</span>
-          </label>
-          <div style="display:flex; align-items:center; gap:6px;" title="กันไม่ให้บอทลงขายรูนที่สุ่มได้เกรดท็อปอัตโนมัติ (เก็บไว้ใช้เองหรือตั้งราคาเอง)">
-            <span style="font-size:11px; color:#fde68a; white-space:nowrap;">🔒 กันขายรูนท็อป:</span>
-            <select onchange="updateNightcampCMarketMasterSetting('keepTopRuneQualityPct', Number(this.value) || 0)" style="flex:1; background:#090d16; border:1px solid rgba(251,191,36,0.5); color:#fde68a; border-radius:6px; font-size:11px; font-weight:700; padding:4px 7px;">
-              <option value="0" ${Number(cfg.keepTopRuneQualityPct ?? 90) === 0 ? 'selected' : ''}>ปิด (ขายทุกชิ้น)</option>
-              <option value="80" ${Number(cfg.keepTopRuneQualityPct ?? 90) === 80 ? 'selected' : ''}>เก็บไว้เอง ≥ 80%</option>
-              <option value="85" ${Number(cfg.keepTopRuneQualityPct ?? 90) === 85 ? 'selected' : ''}>เก็บไว้เอง ≥ 85%</option>
-              <option value="90" ${Number(cfg.keepTopRuneQualityPct ?? 90) === 90 ? 'selected' : ''}>เก็บไว้เอง ≥ 90% (แนะนำ)</option>
-              <option value="95" ${Number(cfg.keepTopRuneQualityPct ?? 90) === 95 ? 'selected' : ''}>เก็บไว้เอง ≥ 95%</option>
-            </select>
-          </div>
-          <label style="display:flex; align-items:center; gap:6px; font-size:11px; color:#cbd5e1; cursor:pointer;">
-            <input type="checkbox" ${cfg.autoClaimMail !== false ? 'checked' : ''} onchange="updateNightcampCMarketMasterSetting('autoClaimMail', this.checked)" style="accent-color:#10b981;">
-            <span>📬 รับเงินจากการขายผ่านจดหมายอัตโนมัติ</span>
-          </label>
-          <label style="display:flex; align-items:center; gap:6px; font-size:11px; color:#cbd5e1; cursor:pointer;">
-            <input type="checkbox" ${cfg.autoUnlistExpired !== false ? 'checked' : ''} onchange="updateNightcampCMarketMasterSetting('autoUnlistExpired', this.checked)" style="accent-color:#38bdf8;">
-            <span>🔄 ถอนของหมดเวลากลับมาตั้งขายใหม่อัตโนมัติ</span>
-          </label>
-        </div>
-
-        <div style="font-size:10.5px; color:#a5b4fc; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">
-          <span>📌 สถานะล่าสุด: <b style="color:#e0e7ff;">${escapeHTML(cm.lastLog || 'พร้อมตรวจสอบรายการขายตลาดกลาง')}</b></span>
-          ${isMarketLocked ? `<span style="color:#fca5a5; font-weight:700;">🔒 ${escapeHTML(effectiveTradeLockMsg)}</span>` : `<span style="color:#86efac;">🟢 ตัวละครพร้อมซื้อขายตลาดกลาง (Lv.${d.baseLv} · เกณฑ์ Lv.${reqTradeLv}+)</span>`}
-        </div>
-
-        ${ncCharModalState.cmCopyPanelOpen ? `
-          <!-- Copy To Other Profiles Drawer -->
-          <div style="background:rgba(2,6,23,0.88); border:1px solid rgba(56,189,248,0.5); border-radius:9px; padding:10px 12px; display:flex; flex-direction:column; gap:8px;">
-            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
-              <span style="font-size:12px; font-weight:800; color:#7dd3fc;">📋 คัดลอกรายการ Auto-Sell ตลาดกลาง (${rules.length} รายการ) ไปยังจออื่น</span>
-              <div style="display:flex; align-items:center; gap:10px; font-size:11px;">
-                <label style="display:flex; align-items:center; gap:4px; color:#86efac; cursor:pointer; font-weight:700;">
-                  <input type="radio" name="nc-cm-copy-mode" value="merge" ${ncCharModalState.cmCopyMode !== 'replace' ? 'checked' : ''}>
-                  <span>➕ เพิ่มเฉพาะที่ยังไม่มี (ไม่ทับ/ไม่ซ้ำ)</span>
-                </label>
-                <label style="display:flex; align-items:center; gap:4px; color:#fde047; cursor:pointer; font-weight:700;">
-                  <input type="radio" name="nc-cm-copy-mode" value="replace" ${ncCharModalState.cmCopyMode === 'replace' ? 'checked' : ''}>
-                  <span>🔄 เขียนทับทั้งหมด (Replace)</span>
-                </label>
-              </div>
-            </div>
-            <div style="display:flex; gap:5px; flex-wrap:wrap;">
-              <button type="button" onclick="selectNightcampCMarketCopyTargets('all')" style="background:rgba(14,165,233,0.16); border:1px solid rgba(56,189,248,0.4); color:#7dd3fc; border-radius:5px; padding:3px 8px; font-size:10px; font-weight:700; cursor:pointer;">เลือกทุกจอ</button>
-              <button type="button" onclick="selectNightcampCMarketCopyTargets('online')" style="background:rgba(16,185,129,0.16); border:1px solid rgba(52,211,153,0.4); color:#6ee7b7; border-radius:5px; padding:3px 8px; font-size:10px; font-weight:700; cursor:pointer;">🟢 เฉพาะจอออนไลน์</button>
-              <button type="button" onclick="selectNightcampCMarketCopyTargets('none')" style="background:rgba(148,163,184,0.14); border:1px solid rgba(148,163,184,0.3); color:#cbd5e1; border-radius:5px; padding:3px 8px; font-size:10px; cursor:pointer;">ล้างที่เลือก</button>
-            </div>
-            <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); gap:5px; max-height:130px; overflow-y:auto;">
-              ${otherProfiles.map(p => `
-                <label style="display:flex; align-items:center; justify-content:space-between; gap:6px; background:rgba(15,23,42,0.85); border:1px solid rgba(148,163,184,0.22); border-radius:6px; padding:5px 8px; font-size:11px; cursor:pointer;">
-                  <span style="display:flex; align-items:center; gap:5px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
-                    <input type="checkbox" class="nc-cm-copy-target-cb" value="${escapeHTML(p.id)}" data-online="${p.isRunning ? '1' : '0'}" checked style="accent-color:#38bdf8;">
-                    <b>${escapeHTML(p.liveState?.charName || p.lastCharName || p.name)}</b>
-                    <small style="color:#94a3b8;">(${escapeHTML(p.name)})</small>
-                  </span>
-                  <span style="font-size:9.5px; color:${p.isRunning ? '#4ade80' : '#94a3b8'};">${p.isRunning ? '🟢' : '⚪'}</span>
-                </label>
-              `).join('')}
-            </div>
-            <div style="display:flex; justify-content:flex-end; gap:6px;">
-              <button type="button" onclick="toggleNightcampCMarketCopyPanel()" style="background:rgba(148,163,184,0.15); border:1px solid rgba(148,163,184,0.3); color:#cbd5e1; border-radius:6px; padding:5px 11px; font-size:11px; cursor:pointer;">ยกเลิก</button>
-              <button type="button" onclick="executeNightcampCMarketCopyToProfiles()" style="background:linear-gradient(135deg,#0284c7,#0369a1); border:1px solid #38bdf8; color:#fff; border-radius:6px; padding:5px 14px; font-size:11px; font-weight:800; cursor:pointer;">✅ ยืนยันคัดลอกไปยังจอที่เลือก</button>
-            </div>
-          </div>
-        ` : ''}
       </div>
 
-      <!-- Add Rule Bar & Quick-Pick Bag Chips -->
-      <div style="background:rgba(15,23,42,0.78); border:1px solid rgba(56,189,248,0.32); border-radius:10px; padding:10px 12px; margin-bottom:10px; display:flex; flex-direction:column; gap:8px;">
-        <div style="font-size:11.5px; font-weight:800; color:#7dd3fc;">➕ เพิ่มรายการไอเทมเข้า Auto-Sell ตลาดกลาง</div>
-        <div style="display:grid; grid-template-columns:2fr 0.8fr 1.1fr 0.9fr 0.8fr auto; gap:6px; align-items:end;">
-          <div style="display:flex; flex-direction:column; gap:2px; position:relative;">
-            <span style="font-size:9.5px; color:#94a3b8;">🔍 ค้นหาชื่อไอเทม / การ์ด / รูน (ชี้ที่รายการเพื่อดูข้อมูล):</span>
-            <input type="text" id="nc-cm-add-name" placeholder="พิมพ์ค้นหา เช่น การ์ดซอม, รูนแยก, หินขัดเกรด, ดาบ..." autocomplete="off"
+      <!-- Copy To Other Profiles Drawer (Aetheria 4-Column Grid Style) -->
+      ${ncCharModalState.cmCopyPanelOpen ? `
+        <div style="background:rgba(10,16,31,0.95); border:1.5px solid rgba(56,189,248,0.55); border-radius:11px; padding:12px 14px; margin-bottom:10px; display:flex; flex-direction:column; gap:9px;">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px; flex-wrap:wrap;">
+            <div>
+              <div style="font-size:12.5px; font-weight:800; color:#7dd3fc;">📋 คัดลอกรายการ Auto Sell (${rules.length} รายการ) ไปยังโปรไฟล์อื่น</div>
+              <div style="font-size:10.5px; color:#94a3b8; margin-top:2px;">รองรับทั้งจอที่กำลังออนไลน์ (ซิงค์เข้าเกมทันที) และจอที่ออฟไลน์อยู่</div>
+            </div>
+            <button type="button" onclick="toggleNightcampCMarketCopyPanel()" style="background:rgba(148,163,184,0.14); border:1px solid rgba(148,163,184,0.3); color:#cbd5e1; border-radius:6px; padding:3px 9px; font-size:10.5px; font-weight:700; cursor:pointer;">✕ ปิด</button>
+          </div>
+
+          <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; font-size:11px;">
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span style="color:#cbd5e1;">โหมดการคัดลอก:</span>
+              <select id="nc-cm-copy-mode-select" onchange="ncCharModalState.cmCopyMode = this.value"
+                      style="background:#050811; border:1px solid rgba(56,189,248,0.45); color:#f8fafc; border-radius:6px; padding:4px 8px; font-size:11px; font-weight:700;">
+                <option value="replace" ${ncCharModalState.cmCopyMode !== 'merge' ? 'selected' : ''}>เขียนทับรายการทั้งหมดให้เหมือนจอนี้เป๊ะ (Replace)</option>
+                <option value="merge" ${ncCharModalState.cmCopyMode === 'merge' ? 'selected' : ''}>เพิ่มเฉพาะรายการที่ยังไม่มี (Merge ไม่ทับของเดิม)</option>
+              </select>
+            </div>
+            <label style="display:inline-flex; align-items:center; gap:5px; color:#7dd3fc; font-weight:700; cursor:pointer;">
+              <input type="checkbox" id="nc-cm-copy-master-enabled" checked style="accent-color:#38bdf8;">
+              <span>คัดลอกสถานะ เปิด/ปิด Auto Sell (${cfg.enabled ? 'เปิด' : 'ปิด'}) ไปด้วย</span>
+            </label>
+          </div>
+
+          <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+            <input type="text" placeholder="ค้นหาชื่อจอ..." value="${escapeHTML(ncCharModalState.cmCopyFilterQ || '')}"
+                   oninput="ncCharModalState.cmCopyFilterQ = this.value; renderNightcampRightPaneOnly()"
+                   style="width:160px; background:#050811; border:1px solid rgba(148,163,184,0.3); color:#f8fafc; border-radius:6px; padding:4px 8px; font-size:11px;">
+            <button type="button" onclick="selectNightcampCMarketCopyTargets('all')" style="background:rgba(14,165,233,0.18); border:1px solid rgba(56,189,248,0.45); color:#7dd3fc; border-radius:6px; padding:4px 9px; font-size:10.5px; font-weight:700; cursor:pointer;">☑️ เลือกทุกจอ</button>
+            <button type="button" onclick="selectNightcampCMarketCopyTargets('online')" style="background:rgba(16,185,129,0.18); border:1px solid rgba(52,211,153,0.45); color:#6ee7b7; border-radius:6px; padding:4px 9px; font-size:10.5px; font-weight:700; cursor:pointer;">🟢 เฉพาะออนไลน์</button>
+            <button type="button" onclick="selectNightcampCMarketCopyTargets('none')" style="background:rgba(148,163,184,0.14); border:1px solid rgba(148,163,184,0.3); color:#cbd5e1; border-radius:6px; padding:4px 9px; font-size:10.5px; cursor:pointer;">⬜ ล้างที่เลือก</button>
+          </div>
+
+          <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(215px, 1fr)); gap:6px; max-height:175px; overflow-y:auto; padding-right:2px;">
+            ${otherProfiles.filter(p => {
+              if (!copyQ) return true;
+              const nm = `${p.name || ''} ${p.liveState?.charName || ''} ${p.lastCharName || ''}`.toLowerCase();
+              return nm.includes(copyQ);
+            }).map(p => {
+              const pCfg = loadLocalNightcampCMarketCfg(p.id);
+              const pCount = Array.isArray(pCfg?.rules) ? pCfg.rules.length : 0;
+              const pChar = p.liveState?.charName || p.lastCharName || '';
+              return `
+                <label style="display:flex; align-items:center; gap:8px; background:rgba(14,116,144,0.18); border:1px solid rgba(56,189,248,0.42); border-radius:8px; padding:6px 9px; cursor:pointer;">
+                  <input type="checkbox" class="nc-cm-copy-target-cb" value="${escapeHTML(p.id)}" data-online="${p.isRunning ? '1' : '0'}" checked style="width:14px; height:14px; accent-color:#38bdf8;">
+                  <div style="min-width:0; flex:1;">
+                    <div style="font-size:11px; font-weight:800; color:#f8fafc; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                      ${escapeHTML(p.name)}${pChar ? ` (${escapeHTML(pChar)})` : ''}
+                    </div>
+                    <div style="font-size:9.5px; color:${p.isRunning ? '#6ee7b7' : '#94a3b8'};">
+                      ${p.isRunning ? '🟢 ออนไลน์' : '⚪ ออฟไลน์'} · มี ${pCount} รายการ (${pCfg?.enabled ? 'เปิดอยู่' : 'ปิด'})
+                    </div>
+                  </div>
+                </label>
+              `;
+            }).join('')}
+          </div>
+
+          <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; padding-top:4px; border-top:1px solid rgba(148,163,184,0.14);">
+            <span style="font-size:10.5px; color:#fde68a;">💡 จอที่ได้รับรายการจะเก็บไอเทมเหล่านี้ไว้ลงขายตลาดกลางและไม่ขายทิ้งให้ NPC</span>
+            <div style="display:flex; gap:6px;">
+              <button type="button" onclick="executeNightcampCMarketCopyToProfiles(false)"
+                      style="background:rgba(14,165,233,0.22); border:1px solid #38bdf8; color:#e0f2fe; border-radius:7px; padding:6px 13px; font-size:11px; font-weight:800; cursor:pointer;">
+                📋 คัดลอกไปยังจอที่เลือก
+              </button>
+              <button type="button" onclick="executeNightcampCMarketCopyToProfiles(true)"
+                      style="background:linear-gradient(135deg,#7c3aed,#6d28d9); border:1px solid #c084fc; color:#fff; border-radius:7px; padding:6px 13px; font-size:11px; font-weight:800; cursor:pointer;">
+                ⚡ คัดลอกไปทุกจอทันที (${otherProfiles.length} จอ)
+              </button>
+            </div>
+          </div>
+        </div>
+      ` : ''}
+
+      <!-- Add Rule Bar & Quick-Pick Bag Chips (Aetheria Compact Bar) -->
+      <div style="background:rgba(15,23,42,0.78); border:1px solid rgba(148,163,184,0.24); border-radius:11px; padding:10px 12px; margin-bottom:10px; display:flex; flex-direction:column; gap:8px;">
+        <div style="display:flex; align-items:center; gap:7px; flex-wrap:wrap;">
+          <div style="flex:1; min-width:240px; position:relative;">
+            <input type="text" id="nc-cm-add-name" placeholder="พิมพ์หรือเลือกชื่อไอเทมที่จะตั้งขายอัตโนมัติ เช่น การ์ดซอม, รูนแยก, หินออปชัน..." autocomplete="off"
                    onfocus="openNightcampCMarketPickerDropdown()"
                    oninput="filterNightcampCMarketPicker()"
                    onblur="closeNightcampCMarketPickerDropdown()"
-                   style="width:100%; box-sizing:border-box; background:#090d16; border:1px solid rgba(56,189,248,0.5); color:#f8fafc; border-radius:6px; padding:5px 8px; font-size:11px;">
+                   style="width:100%; box-sizing:border-box; background:#090d16; border:1px solid rgba(148,163,184,0.35); color:#f8fafc; border-radius:7px; padding:6px 10px; font-size:11.5px;">
             <div id="nc-cm-catalog-dropdown" style="display:none; position:absolute; left:0; right:0; top:100%; margin-top:4px; z-index:9500; background:rgba(9,13,22,0.98); border:1.5px solid rgba(56,189,248,0.55); border-radius:9px; box-shadow:0 12px 32px rgba(0,0,0,0.75); overflow:hidden; min-width:340px;"></div>
           </div>
-          <div style="display:flex; flex-direction:column; gap:2px;">
-            <span style="font-size:9.5px; color:#94a3b8;">ครบขั้นต่ำ (ชิ้น):</span>
-            <input type="number" id="nc-cm-add-minqty" value="10" min="1" max="9999"
-                   style="width:100%; box-sizing:border-box; background:#090d16; border:1px solid rgba(56,189,248,0.4); color:#fde047; font-weight:700; border-radius:6px; padding:5px 6px; font-size:11px;">
-          </div>
-          <div style="display:flex; flex-direction:column; gap:2px;">
-            <span style="font-size:9.5px; color:#94a3b8;">รูปแบบการขาย:</span>
-            <select id="nc-cm-add-mode" style="width:100%; background:#090d16; border:1px solid rgba(56,189,248,0.4); color:#e2e8f0; border-radius:6px; padding:5px 6px; font-size:10.5px;">
-              <option value="all">ขายทั้งหมดในตัว</option>
-              <option value="min">ขายเป็นชุด (ตามขั้นต่ำ)</option>
-              <option value="single">ขายทีละ 1 ชิ้น</option>
-            </select>
-          </div>
-          <div style="display:flex; flex-direction:column; gap:2px;">
-            <span style="font-size:9.5px; color:#94a3b8;">ราคาต่อชิ้น (0=ออโต้):</span>
-            <input type="number" id="nc-cm-add-price" value="0" min="0" step="10"
-                   style="width:100%; box-sizing:border-box; background:#090d16; border:1px solid rgba(56,189,248,0.4); color:#86efac; font-weight:700; border-radius:6px; padding:5px 6px; font-size:11px;">
-          </div>
-          <div style="display:flex; flex-direction:column; gap:2px;">
-            <span style="font-size:9.5px; color:#94a3b8;">เก็บสำรองไว้:</span>
-            <input type="number" id="nc-cm-add-reserve" value="0" min="0" max="9999"
-                   style="width:100%; box-sizing:border-box; background:#090d16; border:1px solid rgba(56,189,248,0.4); color:#cbd5e1; border-radius:6px; padding:5px 6px; font-size:11px;">
-          </div>
+          <span style="font-size:11px; color:#94a3b8; white-space:nowrap;">ครบ ≥</span>
+          <input type="number" id="nc-cm-add-minqty" value="10" min="1" max="9999"
+                 style="width:58px; box-sizing:border-box; background:#090d16; border:1px solid rgba(148,163,184,0.35); color:#7dd3fc; font-weight:800; border-radius:7px; padding:6px 7px; font-size:11.5px; text-align:center;">
+          <span style="font-size:11px; color:#94a3b8; white-space:nowrap;">ชิ้น</span>
+          <select id="nc-cm-add-mode" style="background:#090d16; border:1px solid rgba(148,163,184,0.35); color:#e2e8f0; border-radius:7px; padding:6px 9px; font-size:11px; font-weight:700;">
+            <option value="all">ขายหมดในตัว</option>
+            <option value="min">ขายเป็นชุด (ตามขั้นต่ำ)</option>
+            <option value="single">ขายทีละ 1 ชิ้น</option>
+          </select>
+          <span style="font-size:11px; color:#94a3b8; white-space:nowrap;">ราคา (0=ออโต้):</span>
+          <input type="number" id="nc-cm-add-price" value="0" min="0" step="10"
+                 style="width:72px; box-sizing:border-box; background:#090d16; border:1px solid rgba(148,163,184,0.35); color:#86efac; font-weight:800; border-radius:7px; padding:6px 7px; font-size:11.5px; text-align:right;">
+          <input type="hidden" id="nc-cm-add-reserve" value="0">
           <button type="button" onclick="addNightcampCMarketAutoSellRuleFromForm()"
-                  style="background:linear-gradient(135deg,#059669,#10b981); border:1px solid #34d399; color:#fff; border-radius:6px; padding:6px 12px; font-size:11px; font-weight:800; cursor:pointer; white-space:nowrap;">
-            ➕ เพิ่มรายการ
+                  style="background:linear-gradient(135deg,#eab308,#ca8a04); border:1px solid #facc15; color:#090d16; border-radius:8px; padding:6px 14px; font-size:11.5px; font-weight:900; cursor:pointer; white-space:nowrap;">
+            + เพิ่มรายการลงขาย
           </button>
         </div>
 
         <!-- Quick-Pick from Current Bag -->
         ${tradableBagItems.length > 0 ? `
-          <div style="display:flex; flex-direction:column; gap:4px; padding-top:4px; border-top:1px solid rgba(255,255,255,0.06);">
-            <span style="font-size:10px; font-weight:700; color:#fde68a;">🎒 คลิกเพิ่มจากของในกระเป๋าที่แลกเปลี่ยนได้ (${tradableBagItems.length} รายการ · ชี้เพื่อดูราคาตลาดกลาง):</span>
-            <div style="display:flex; flex-wrap:wrap; gap:5px; max-height:76px; overflow-y:auto;">
+          <div style="display:flex; flex-direction:column; gap:5px; padding-top:6px; border-top:1px solid rgba(255,255,255,0.06);">
+            <span style="font-size:10.5px; font-weight:800; color:#fde047;">🎒 คลิกเพิ่มจากของในกระเป๋า (หรือคลิกไอเทมในกระเป๋าขวามือแล้วกด "🏷️ เพิ่ม Auto Sell"):</span>
+            <div style="display:flex; flex-wrap:wrap; gap:5px; max-height:70px; overflow-y:auto;">
               ${tradableBagItems.map(h => {
                 const mk = `${h.k || 'mat'}:${h.id}`;
                 const hoverAttrs = buildNcMarketHoverAttrs({
@@ -21542,21 +21577,20 @@ function renderNightcampCMarketTabHtml(d) {
                   extra: Array.isArray(h.band) && h.band.length === 2 ? `กรอบราคา FairTrade: ${Number(h.band[0]).toLocaleString()}–${Number(h.band[1]).toLocaleString()}g` : ''
                 });
                 return `
-                <button type="button" ${hoverAttrs} onclick="quickAddNightcampCMarketRule('${escapeHTML(h.id)}', '${escapeHTML(h.baseName || h.name)}', '${escapeHTML(h.k)}', ${h.k === 'item' || h.k === 'rune' ? 1 : Math.min(10, Math.max(1, h.freeQty))})"
-                        style="display:inline-flex; align-items:center; gap:5px; background:rgba(2,6,23,0.75); border:1px solid rgba(56,189,248,0.38); color:#e2e8f0; border-radius:999px; padding:3px 9px 3px 5px; font-size:10.5px; font-weight:600; cursor:pointer;">
-                  ${h.icon ? `<img src="${escapeHTML(h.icon)}" alt="" style="width:18px;height:18px;object-fit:contain;">` : `<span>📦</span>`}
-                  <span>${escapeHTML(h.baseName || h.name)}</span>
-                  <b style="color:#fde047;">x${h.freeQty}</b>
-                </button>
-              `;
+                  <button type="button" ${hoverAttrs} onclick="quickAddNightcampCMarketRule('${escapeHTML(h.id)}', '${escapeHTML(h.baseName || h.name)}', '${escapeHTML(h.k)}', ${h.k === 'item' || h.k === 'rune' ? 1 : Math.min(10, Math.max(1, h.freeQty))})"
+                          style="display:inline-flex; align-items:center; gap:5px; background:rgba(234,179,8,0.12); border:1px solid rgba(250,204,21,0.38); color:#fef08a; border-radius:7px; padding:3px 9px; font-size:10.5px; font-weight:800; cursor:pointer;">
+                    <span>+ ${escapeHTML(h.baseName || h.name)}</span>
+                    <b style="color:#facc15;">x${h.freeQty.toLocaleString()}</b>
+                  </button>
+                `;
               }).join('')}
             </div>
           </div>
         ` : ''}
 
         <!-- 1-Click Popular Presets -->
-        <div style="display:flex; align-items:center; flex-wrap:wrap; gap:5px; padding-top:4px; border-top:1px solid rgba(255,255,255,0.06);">
-          <span style="font-size:10px; font-weight:700; color:#a5b4fc;">✨ เพิ่มรายการยอดนิยม 1-Click:</span>
+        <div style="display:flex; align-items:center; flex-wrap:wrap; gap:5px; padding-top:5px; border-top:1px solid rgba(255,255,255,0.05);">
+          <span style="font-size:10px; font-weight:700; color:#a5b4fc;">✨ ยอดนิยม 1-Click:</span>
           ${NC_CMARKET_PRESET_ITEMS.map(pr => {
             const hoverAttrs = buildNcMarketHoverAttrs({
               key: `${pr.kind || 'mat'}:${pr.itemId}`,
@@ -21564,18 +21598,18 @@ function renderNightcampCMarketTabHtml(d) {
               rarity: pr.kind === 'rune' ? 'epic' : 'rare'
             });
             return `
-            <button type="button" ${hoverAttrs} onclick="quickAddNightcampCMarketRule('${escapeHTML(pr.itemId)}', '${escapeHTML(pr.itemName)}', '${escapeHTML(pr.kind)}', ${pr.minQty})"
-                    style="background:rgba(79,70,229,0.18); border:1px solid rgba(129,140,248,0.4); color:#c7d2fe; border-radius:999px; padding:2px 8px; font-size:10px; font-weight:600; cursor:pointer;">
-              + ${escapeHTML(pr.itemName)} (≥${pr.minQty})
-            </button>
-          `;
+              <button type="button" ${hoverAttrs} onclick="quickAddNightcampCMarketRule('${escapeHTML(pr.itemId)}', '${escapeHTML(pr.itemName)}', '${escapeHTML(pr.kind)}', ${pr.minQty})"
+                      style="background:rgba(79,70,229,0.16); border:1px solid rgba(129,140,248,0.35); color:#c7d2fe; border-radius:999px; padding:2px 8px; font-size:10px; font-weight:700; cursor:pointer;">
+                + ${escapeHTML(pr.itemName)} (≥${pr.minQty})
+              </button>
+            `;
           }).join('')}
         </div>
       </div>
 
-      <!-- Filter Pills -->
-      <div style="display:flex; flex-wrap:wrap; gap:5px; align-items:center; justify-content:space-between; margin-bottom:8px;">
-        <div style="display:flex; flex-wrap:wrap; gap:4px;">
+      <!-- Filter Pills & Rule Search Bar -->
+      <div style="display:flex; flex-wrap:wrap; gap:6px; align-items:center; justify-content:space-between; margin-bottom:8px;">
+        <div style="display:flex; flex-wrap:wrap; gap:5px;">
           ${[
             ['all', `ทั้งหมด (${rules.length})`],
             ['ready', `✅ พร้อมขาย (${countReady})`],
@@ -21584,16 +21618,21 @@ function renderNightcampCMarketTabHtml(d) {
             ['missing', `❌ ไม่มีในตัว (${countMissing})`]
           ].map(([k, lbl]) => `
             <button type="button" onclick="setNightcampCMarketRuleFilter('${k}')"
-                    style="background:${filterKey === k ? '#4f46e5' : 'rgba(15,23,42,0.75)'}; border:1px solid ${filterKey === k ? '#818cf8' : 'rgba(148,163,184,0.25)'}; color:${filterKey === k ? '#fff' : '#cbd5e1'}; border-radius:6px; padding:4px 9px; font-size:10.5px; font-weight:700; cursor:pointer;">
+                    style="background:${filterKey === k ? '#4f46e5' : 'rgba(15,23,42,0.75)'}; border:1px solid ${filterKey === k ? '#818cf8' : 'rgba(148,163,184,0.25)'}; color:${filterKey === k ? '#fff' : '#cbd5e1'}; border-radius:7px; padding:4px 10px; font-size:10.5px; font-weight:700; cursor:pointer;">
               ${lbl}
             </button>
           `).join('')}
         </div>
-        <span style="font-size:10.5px; color:#94a3b8;">แสดง <b>${filteredRules.length}</b> รายการ</span>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <input type="search" placeholder="🔍 กรองชื่อรายการ Auto-Sell..." value="${escapeHTML(ncCharModalState.cmRuleSearch || '')}"
+                 oninput="ncCharModalState.cmRuleSearch = this.value; renderNightcampRightPaneOnly()"
+                 style="width:190px; background:#090d16; border:1px solid rgba(148,163,184,0.32); color:#f8fafc; border-radius:6px; padding:4px 9px; font-size:10.5px;">
+          <span style="font-size:10.5px; color:#94a3b8;">แสดง <b>${filteredRules.length}</b> รายการ</span>
+        </div>
       </div>
 
-      <!-- Rules List -->
-      <div style="display:flex; flex-direction:column; gap:7px;">
+      <!-- Compact Single-Row Rules List -->
+      <div style="display:flex; flex-direction:column; gap:6px;">
         ${filteredRules.length > 0 ? filteredRules.map(r => {
           const badgeColor = r.statusKey === 'ready'
             ? { bg: 'rgba(16,185,129,0.2)', border: '#34d399', text: '#6ee7b7' }
@@ -21603,12 +21642,12 @@ function renderNightcampCMarketTabHtml(d) {
                     ? { bg: 'rgba(14,165,233,0.18)', border: '#38bdf8', text: '#7dd3fc' }
                     : { bg: 'rgba(148,163,184,0.14)', border: 'rgba(148,163,184,0.35)', text: '#94a3b8' }));
           const bandTxt = Array.isArray(r.band) && r.band.length === 2
-            ? `กรอบราคา FairTrade: ${Number(r.band[0]).toLocaleString()}–${Number(r.band[1]).toLocaleString()}g`
+            ? `FairTrade ${Number(r.band[0]).toLocaleString()}–${Number(r.band[1]).toLocaleString()}g`
             : '';
           const medTxt = r.medianPrice > 0
-            ? ` · 📊 ราคากลาง 7 วัน: ${Number(r.medianPrice).toLocaleString()}g`
-            : (r.refPrice > 0 ? ` · ราคาอ้างอิงร้าน: ${Number(r.refPrice).toLocaleString()}g` : '');
-          const cheapTxt = r.cheapKnown > 0 ? ` · 🏷️ ต่ำสุดตลาด: ${Number(r.cheapKnown).toLocaleString()}g` : '';
+            ? ` · กลาง ${Number(r.medianPrice).toLocaleString()}g`
+            : (r.refPrice > 0 ? ` · ร้าน ${Number(r.refPrice).toLocaleString()}g` : '');
+          const cheapTxt = r.cheapKnown > 0 ? ` · ต่ำสุด ${Number(r.cheapKnown).toLocaleString()}g` : '';
           const rMk = `${r.kind || 'mat'}:${r.itemId}`;
           const rHoverAttrs = buildNcMarketHoverAttrs({
             key: rMk,
@@ -21619,77 +21658,70 @@ function renderNightcampCMarketTabHtml(d) {
           });
 
           return `
-            <div ${rHoverAttrs} style="background:rgba(15,23,42,0.82); border:1px solid ${r.ready ? 'rgba(52,211,153,0.55)' : 'rgba(129,140,248,0.32)'}; border-radius:10px; padding:9px 11px; display:flex; flex-direction:column; gap:7px; opacity:${r.enabled ? '1' : '0.6'};">
-              <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap;">
-                <div style="display:flex; align-items:center; gap:9px; min-width:0;">
-                  <input type="checkbox" ${r.enabled ? 'checked' : ''} onchange="updateNightcampCMarketRuleField('${escapeHTML(r.id)}', 'enabled', this.checked)"
-                         title="เปิด/ปิดรายการนี้" style="width:15px; height:15px; accent-color:#6366f1; cursor:pointer;">
-                  <div style="width:38px; height:38px; border-radius:8px; background:#020617; border:1px solid rgba(129,140,248,0.4); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
-                    ${r.icon ? `<img src="${escapeHTML(r.icon)}" alt="" style="width:32px;height:32px;object-fit:contain;">` : `<span>🏪</span>`}
-                  </div>
-                  <div style="min-width:0;">
-                    <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
-                      <span style="font-size:12.5px; font-weight:800; color:#f8fafc;">${escapeHTML(r.itemName)}</span>
-                      ${buildNcInlineMarketPricePillHtml(rMk)}
-                      <code style="font-size:9.5px; color:#94a3b8; background:rgba(2,6,23,0.65); padding:1px 5px; border-radius:4px;">${escapeHTML(r.itemId)}</code>
-                      <span style="font-size:10px; font-weight:700; color:${badgeColor.text}; background:${badgeColor.bg}; border:1px solid ${badgeColor.border}; padding:1px 8px; border-radius:999px;">
-                        ${escapeHTML(r.statusLabel)}
-                      </span>
-                      ${r.activeListedCount > 0 ? `
-                        <span style="font-size:10px; font-weight:700; color:#7dd3fc; background:rgba(14,165,233,0.16); border:1px solid rgba(56,189,248,0.4); padding:1px 7px; border-radius:999px;">
-                          🏷️ บนชั้น ${r.activeListedCount} รายการ (${r.activeListedQty} ชิ้น)
-                        </span>
-                      ` : ''}
-                    </div>
-                    <div style="font-size:10px; color:#94a3b8; margin-top:2px;">
-                      ${escapeHTML(bandTxt)}${escapeHTML(medTxt)}${escapeHTML(cheapTxt)} · ในกระเป๋าทั้งหมด <b>${r.bagQty}</b> ชิ้น (แลกเปลี่ยนได้ <b>${r.freeQty}</b> ชิ้น)
-                    </div>
-                  </div>
+            <div ${rHoverAttrs} style="background:rgba(15,23,42,0.84); border:1px solid ${r.ready ? 'rgba(52,211,153,0.55)' : 'rgba(129,140,248,0.26)'}; border-radius:9px; padding:7px 10px; display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; opacity:${r.enabled ? '1' : '0.58'};">
+              <!-- Left: Item Icon + Name + Market Info -->
+              <div style="display:flex; align-items:center; gap:8px; min-width:240px; flex:1;">
+                <input type="checkbox" ${r.enabled ? 'checked' : ''} onchange="updateNightcampCMarketRuleField('${escapeHTML(r.id)}', 'enabled', this.checked)"
+                       title="เปิด/ปิดรายการนี้" style="width:15px; height:15px; accent-color:#6366f1; cursor:pointer; flex-shrink:0;">
+                <div style="width:34px; height:34px; border-radius:7px; background:#020617; border:1px solid rgba(129,140,248,0.38); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                  ${r.icon ? `<img src="${escapeHTML(r.icon)}" alt="" style="width:28px;height:28px;object-fit:contain;">` : `<span>🏪</span>`}
                 </div>
-
-                <div style="display:flex; align-items:center; gap:5px;">
-                  <button type="button" ${r.ready ? '' : 'disabled'} onclick="runNightcampCharacterAction({ action: 'cmarket_sell_rule_now', ruleId: '${escapeHTML(r.id)}' })"
-                          style="background:${r.ready ? 'linear-gradient(135deg,#059669,#10b981)' : '#1e293b'}; border:1px solid ${r.ready ? '#34d399' : '#334155'}; color:${r.ready ? '#fff' : '#64748b'}; border-radius:6px; padding:4px 10px; font-size:10.5px; font-weight:800; cursor:${r.ready ? 'pointer' : 'not-allowed'};">
-                    ⚡ ขายทันที
-                  </button>
-                  <button type="button" onclick="deleteNightcampCMarketRule('${escapeHTML(r.id)}')" title="ลบรายการนี้ออกจาก Auto-Sell"
-                          style="background:rgba(239,68,68,0.16); border:1px solid rgba(248,113,113,0.4); color:#fca5a5; border-radius:6px; padding:4px 8px; font-size:10.5px; font-weight:700; cursor:pointer;">
-                    🗑️ ลบ
-                  </button>
+                <div style="min-width:0;">
+                  <div style="display:flex; align-items:center; gap:5px; flex-wrap:wrap;">
+                    <span style="font-size:12px; font-weight:800; color:#f8fafc;">${escapeHTML(r.itemName)}</span>
+                    ${buildNcInlineMarketPricePillHtml(rMk)}
+                    <span style="font-size:9.5px; font-weight:700; color:${badgeColor.text}; background:${badgeColor.bg}; border:1px solid ${badgeColor.border}; padding:1px 7px; border-radius:999px;">
+                      ${escapeHTML(r.statusLabel)}
+                    </span>
+                    ${r.activeListedCount > 0 ? `
+                      <span style="font-size:9.5px; font-weight:700; color:#7dd3fc; background:rgba(14,165,233,0.16); border:1px solid rgba(56,189,248,0.4); padding:1px 6px; border-radius:999px;">
+                        🏷️ บนชั้น ${r.activeListedCount} (${r.activeListedQty})
+                      </span>
+                    ` : ''}
+                  </div>
+                  <div style="font-size:10px; color:#94a3b8; margin-top:1px;">
+                    ในตัว <b style="color:#fde047;">${r.freeQty}</b>/${r.bagQty} ชิ้น ${bandTxt ? `· ${escapeHTML(bandTxt)}` : ''}${escapeHTML(medTxt)}${escapeHTML(cheapTxt)}
+                  </div>
                 </div>
               </div>
 
-              <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:6px; background:rgba(2,6,23,0.5); border-radius:7px; padding:6px 8px; font-size:10.5px;">
-                <label style="display:flex; align-items:center; justify-content:space-between; gap:5px; color:#cbd5e1;">
-                  <span>ครบขั้นต่ำ (ชิ้น):</span>
+              <!-- Right: Inline Controls + Buttons -->
+              <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                <label style="display:inline-flex; align-items:center; gap:4px; font-size:10px; color:#cbd5e1; background:rgba(2,6,23,0.6); padding:3px 7px; border-radius:6px; border:1px solid rgba(148,163,184,0.18);">
+                  <span>ขั้นต่ำ≥</span>
                   <input type="number" value="${r.minQty}" min="1" max="9999" onchange="updateNightcampCMarketRuleField('${escapeHTML(r.id)}', 'minQty', this.value)"
-                         style="width:62px; background:#090d16; border:1px solid rgba(129,140,248,0.45); color:#fde047; font-weight:700; border-radius:5px; padding:2px 5px; text-align:right;">
+                         style="width:46px; background:#090d16; border:1px solid rgba(129,140,248,0.4); color:#fde047; font-weight:700; border-radius:4px; padding:2px 4px; text-align:right; font-size:10.5px;">
                 </label>
-                <label style="display:flex; align-items:center; justify-content:space-between; gap:5px; color:#cbd5e1;">
-                  <span>เก็บสำรอง (ชิ้น):</span>
+                <label style="display:inline-flex; align-items:center; gap:4px; font-size:10px; color:#cbd5e1; background:rgba(2,6,23,0.6); padding:3px 7px; border-radius:6px; border:1px solid rgba(148,163,184,0.18);">
+                  <span>สำรอง</span>
                   <input type="number" value="${r.reserveQty}" min="0" max="9999" onchange="updateNightcampCMarketRuleField('${escapeHTML(r.id)}', 'reserveQty', this.value)"
-                         style="width:62px; background:#090d16; border:1px solid rgba(129,140,248,0.45); color:#cbd5e1; border-radius:5px; padding:2px 5px; text-align:right;">
+                         style="width:42px; background:#090d16; border:1px solid rgba(129,140,248,0.4); color:#cbd5e1; border-radius:4px; padding:2px 4px; text-align:right; font-size:10.5px;">
                 </label>
-                <label style="display:flex; align-items:center; justify-content:space-between; gap:5px; color:#cbd5e1;">
-                  <span>โหมดขาย:</span>
-                  <select onchange="updateNightcampCMarketRuleField('${escapeHTML(r.id)}', 'sellMode', this.value)"
-                          style="background:#090d16; border:1px solid rgba(129,140,248,0.45); color:#e2e8f0; border-radius:5px; padding:2px 5px; font-size:10px;">
-                    <option value="all" ${r.sellMode === 'all' ? 'selected' : ''}>ขายหมดในตัว</option>
-                    <option value="min" ${r.sellMode === 'min' ? 'selected' : ''}>ขายเป็นชุด (${r.minQty} ชิ้น)</option>
-                    <option value="single" ${r.sellMode === 'single' ? 'selected' : ''}>ขายทีละ 1 ชิ้น</option>
-                  </select>
-                </label>
-                <label style="display:flex; align-items:center; justify-content:space-between; gap:5px; color:#cbd5e1;">
-                  <span>ราคาเอง (0=ออโต้):</span>
+                <select onchange="updateNightcampCMarketRuleField('${escapeHTML(r.id)}', 'sellMode', this.value)"
+                        style="background:#090d16; border:1px solid rgba(129,140,248,0.4); color:#e2e8f0; border-radius:6px; padding:3px 6px; font-size:10px; font-weight:700;">
+                  <option value="all" ${r.sellMode === 'all' ? 'selected' : ''}>ขายหมดในตัว</option>
+                  <option value="min" ${r.sellMode === 'min' ? 'selected' : ''}>เป็นชุด (${r.minQty})</option>
+                  <option value="single" ${r.sellMode === 'single' ? 'selected' : ''}>ทีละ 1 ชิ้น</option>
+                </select>
+                <label style="display:inline-flex; align-items:center; gap:4px; font-size:10px; color:#cbd5e1; background:rgba(2,6,23,0.6); padding:3px 7px; border-radius:6px; border:1px solid rgba(148,163,184,0.18);" title="ตั้งเป็น 0 เพื่อให้บอทคำนวณตัดราคาตลาดอัตโนมัติ">
+                  <span>ราคา</span>
                   <input type="number" value="${r.customPrice || 0}" min="0" step="10" onchange="updateNightcampCMarketRuleField('${escapeHTML(r.id)}', 'customPrice', this.value)"
-                         style="width:78px; background:#090d16; border:1px solid rgba(52,211,153,0.45); color:#86efac; font-weight:700; border-radius:5px; padding:2px 5px; text-align:right;">
+                         style="width:62px; background:#090d16; border:1px solid rgba(52,211,153,0.45); color:#86efac; font-weight:700; border-radius:4px; padding:2px 4px; text-align:right; font-size:10.5px;">
                 </label>
+                <button type="button" ${r.ready ? '' : 'disabled'} onclick="runNightcampCharacterAction({ action: 'cmarket_sell_rule_now', ruleId: '${escapeHTML(r.id)}' })"
+                        style="background:${r.ready ? 'linear-gradient(135deg,#059669,#10b981)' : '#1e293b'}; border:1px solid ${r.ready ? '#34d399' : '#334155'}; color:${r.ready ? '#fff' : '#64748b'}; border-radius:6px; padding:4px 9px; font-size:10.5px; font-weight:800; cursor:${r.ready ? 'pointer' : 'not-allowed'};">
+                  ⚡ ขาย
+                </button>
+                <button type="button" onclick="deleteNightcampCMarketRule('${escapeHTML(r.id)}')" title="ลบรายการนี้ออกจาก Auto-Sell"
+                        style="background:rgba(239,68,68,0.16); border:1px solid rgba(248,113,113,0.4); color:#fca5a5; border-radius:6px; padding:4px 7px; font-size:10.5px; font-weight:700; cursor:pointer;">
+                  🗑️
+                </button>
               </div>
             </div>
           `;
         }).join('') : `
           <div style="text-align:center; padding:32px 16px; color:#94a3b8; background:rgba(2,6,23,0.45); border:1px dashed rgba(129,140,248,0.3); border-radius:10px; font-size:12px;">
-            🏪 ยังไม่มีรายการ Auto-Sell ตลาดกลางในหมวดนี้ — คลิกเลือกไอเทมจากกระเป๋าด้านบน หรือกดปุ่ม <b>"+ เพิ่มรายการยอดนิยม 1-Click"</b> ได้เลย!
+            🏪 ยังไม่มีรายการ Auto-Sell ตลาดกลางในหมวดนี้ — คลิกไอเทมในกระเป๋าขวามือแล้วกด <b>"🏷️ เพิ่ม Auto Sell"</b> หรือกดปุ่ม <b>"+ ยอดนิยม 1-Click"</b> ได้เลย!
           </div>
         `}
       </div>
@@ -21700,7 +21732,7 @@ function renderNightcampCMarketTabHtml(d) {
   // SUB-TAB 2: 🏷️ ลงขายไอเทมด้วยตัวเอง (Manual Sell)
   // =========================================================================
   if (subTab === 'sell') {
-    const q = ncCharModalState.searchQuery.trim().toLowerCase();
+    const q = String(ncCharModalState.cmRuleSearch || '').trim().toLowerCase();
     const list = tradableBagItems.filter(h => !q || String(h.name || '').toLowerCase().includes(q) || String(h.id || '').toLowerCase().includes(q));
     return `
       ${subTabsHtml}
@@ -21715,13 +21747,14 @@ function renderNightcampCMarketTabHtml(d) {
         ` : `<span style="color:#4ade80; font-weight:700;">🟢 ยืนอยู่ใกล้ลุงโกโก้แล้ว (กดวางขายได้ทันที)</span>`}
       </div>
 
-      <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(310px, 1fr)); gap:8px;">
+      <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(295px, 1fr)); gap:8px;">
         ${list.length > 0 ? list.map((h, idx) => {
           const st = getNightcampRarityStyle(h.rarity, false);
           const band = Array.isArray(h.band) && h.band.length === 2 ? h.band : [1, 999999];
           const defaultPrice = Math.max(band[0], Math.min(band[1], h.refPrice || band[0] || 100));
           const isSingle = (h.k === 'item' || h.k === 'rune');
           const sMk = `${h.k || 'mat'}:${h.id}`;
+          const isHighlighted = ncCharModalState.cmHighlightSellKey === sMk;
           const sHoverAttrs = buildNcMarketHoverAttrs({
             key: sMk,
             name: h.name,
@@ -21730,7 +21763,7 @@ function renderNightcampCMarketTabHtml(d) {
             extra: `กรอบราคา FairTrade: ${band[0].toLocaleString()}–${band[1].toLocaleString()}g`
           });
           return `
-            <div ${sHoverAttrs} style="background:rgba(15,23,42,0.82); border:1px solid ${st.border}; border-radius:10px; padding:10px; display:flex; flex-direction:column; justify-content:space-between; gap:8px;">
+            <div ${sHoverAttrs} style="background:${isHighlighted ? 'rgba(88,28,135,0.32)' : 'rgba(15,23,42,0.82)'}; border:${isHighlighted ? '1.5px solid #c084fc' : `1px solid ${st.border}`}; border-radius:10px; padding:10px; display:flex; flex-direction:column; justify-content:space-between; gap:8px;">
               <div style="display:flex; align-items:flex-start; gap:9px;">
                 <div style="width:42px; height:42px; border-radius:8px; background:#020617; border:1px solid ${st.border}; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
                   ${h.icon ? `<img src="${escapeHTML(h.icon)}" alt="" style="width:36px;height:36px;object-fit:contain;">` : `<span>📦</span>`}
@@ -21783,14 +21816,13 @@ function renderNightcampCMarketTabHtml(d) {
   }
 
   // =========================================================================
-  // SUB-TAB 3: 📦 ชั้นวางของฉัน & รับเงิน (Active Listings + Sold/Expired History)
+  // SUB-TAB 3 & 4: 📦 ของที่ลงขายอยู่ / 📬 รับของ & รับเงิน
   // =========================================================================
-  if (subTab === 'active') {
+  if (subTab === 'active' || subTab === 'claim') {
     const openListings = mineListings.filter(l => l && l.state === 'open');
     const historyListings = mineListings.filter(l => l && l.state !== 'open');
     const soldListings = historyListings.filter(l => l.state === 'sold');
     const totalListedValue = openListings.reduce((s, l) => s + (Number(l.totalPrice) || 0), 0);
-    const unclaimedMailCount = Number(cm.unclaimedMailCount) || 0;
     const isNearCoco = Boolean(cm.nearCoco);
 
     const renderListingCard = (l) => {
@@ -21911,33 +21943,35 @@ function renderNightcampCMarketTabHtml(d) {
         </div>
       </div>
 
-      <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin:4px 0 6px; flex-wrap:wrap;">
-        <div style="font-size:11.5px; font-weight:800; color:#7dd3fc;">🟢 กำลังวางขายบนชั้น (${openListings.length} รายการ)</div>
-        ${openListings.length > 0 ? `
-          <button type="button" onclick="if(confirm('ยืนยันสั่งตัวละครถอนของที่กำลังวางขายอยู่ทั้ง ${openListings.length} รายการกลับเข้ากระเป๋าหรือไม่? (หากอยู่นอกค่าย บอทจะพากลับไปหาลุงโกโก้เพื่อถอนคืนแล้วกลับแมพเดิมให้อัตโนมัติ)')) runNightcampCharacterAction({ action: 'cmarket_unlist_all' })"
-                  style="background:rgba(239,68,68,0.16); border:1px solid rgba(248,113,113,0.45); color:#fca5a5; border-radius:7px; padding:4px 10px; font-size:11px; font-weight:700; cursor:pointer;">
-            ${isNearCoco ? `📥 ถอนคืนที่วางขายทั้งหมด (${openListings.length})` : `🏃 กลับเมืองถอนคืนทั้งหมด (${openListings.length})`}
-          </button>
-        ` : ''}
-      </div>
+      ${subTab === 'active' ? `
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin:4px 0 6px; flex-wrap:wrap;">
+          <div style="font-size:11.5px; font-weight:800; color:#7dd3fc;">🟢 กำลังวางขายบนชั้น (${openListings.length} รายการ)</div>
+          ${openListings.length > 0 ? `
+            <button type="button" onclick="if(confirm('ยืนยันสั่งตัวละครถอนของที่กำลังวางขายอยู่ทั้ง ${openListings.length} รายการกลับเข้ากระเป๋าหรือไม่? (หากอยู่นอกค่าย บอทจะพากลับไปหาลุงโกโก้เพื่อถอนคืนแล้วกลับแมพเดิมให้อัตโนมัติ)')) runNightcampCharacterAction({ action: 'cmarket_unlist_all' })"
+                    style="background:rgba(239,68,68,0.16); border:1px solid rgba(248,113,113,0.45); color:#fca5a5; border-radius:7px; padding:4px 10px; font-size:11px; font-weight:700; cursor:pointer;">
+              ${isNearCoco ? `📥 ถอนคืนที่วางขายทั้งหมด (${openListings.length})` : `🏃 กลับเมืองถอนคืนทั้งหมด (${openListings.length})`}
+            </button>
+          ` : ''}
+        </div>
 
-      <div style="display:flex; flex-direction:column; gap:7px; margin-bottom:14px;">
-        ${openListings.length > 0
-          ? openListings.map(renderListingCard).join('')
-          : `<div style="text-align:center; padding:18px; color:#94a3b8; background:rgba(2,6,23,0.45); border-radius:10px; font-size:11.5px;">📦 ตอนนี้ไม่มีไอเทมที่กำลังค้างวางขายบนชั้น</div>`}
-      </div>
-
-      ${historyListings.length > 0 ? `
-        <div style="font-size:11.5px; font-weight:800; color:#94a3b8; margin:4px 0 6px;">📜 ประวัติรายการที่ขายออกแล้ว / หมดเวลา / ถอนคืนแล้ว (${historyListings.length} รายการ)</div>
-        <div style="display:flex; flex-direction:column; gap:6px;">
-          ${historyListings.map(renderListingCard).join('')}
+        <div style="display:flex; flex-direction:column; gap:7px; margin-bottom:14px;">
+          ${openListings.length > 0
+            ? openListings.map(renderListingCard).join('')
+            : `<div style="text-align:center; padding:18px; color:#94a3b8; background:rgba(2,6,23,0.45); border-radius:10px; font-size:11.5px;">📦 ตอนนี้ไม่มีไอเทมที่กำลังค้างวางขายบนชั้น</div>`}
         </div>
       ` : ''}
+
+      <div style="font-size:11.5px; font-weight:800; color:#94a3b8; margin:4px 0 6px;">📜 ประวัติรายการที่ขายออกแล้ว / หมดเวลา / ถอนคืนแล้ว (${historyListings.length} รายการ)</div>
+      <div style="display:flex; flex-direction:column; gap:6px;">
+        ${historyListings.length > 0
+          ? historyListings.map(renderListingCard).join('')
+          : `<div style="text-align:center; padding:18px; color:#94a3b8; background:rgba(2,6,23,0.45); border-radius:10px; font-size:11.5px;">📜 ยังไม่มีประวัติการขายออกหรือของหมดเวลา</div>`}
+      </div>
     `;
   }
 
   // =========================================================================
-  // SUB-TAB 4: 🔍 ค้นหา & ซื้อของในตลาดกลาง (Browse & Buy)
+  // SUB-TAB 5: 🔍 ค้นหา & ซื้อของในตลาดกลาง (Browse & Buy)
   // =========================================================================
   const shelfCards = Array.isArray(cm.shelfCards) ? cm.shelfCards : [];
   const sheetListings = Array.isArray(cm.sheetListings) ? cm.sheetListings : [];
@@ -22052,6 +22086,320 @@ function renderNightcampCMarketTabHtml(d) {
   `;
 }
 
+function renderNightcampBagSidebarHtml(d) {
+  const q = ncCharModalState.searchQuery.trim().toLowerCase();
+  const slotFilter = ncCharModalState.selectedSlot;
+  const subCat = ncCharModalState.bagSubCat || 'all';
+  const viewMode = ncCharModalState.bagViewMode || 'grid';
+
+  const matchesSearch = (it) => {
+    if (!q) return true;
+    const hay = `${it.name || ''} ${it.baseName || ''} ${it.id || ''} ${it.slotTh || ''} ${it.kindTh || ''} ${it.desc || ''} ${(it.options || []).map(o => o.text).join(' ')} ${(it.runes || []).map(r => r.name + ' ' + r.statTh).join(' ')}`.toLowerCase();
+    return hay.includes(q);
+  };
+
+  const getBagItemCategory = (it) => {
+    if (it.kind === 'gear') {
+      const sl = String(it.slot || '');
+      if (sl === 'weapon' || sl === 'offhand') return 'weapon';
+      if (sl === 'acc1' || sl === 'acc2' || sl === 'acc') return 'acc';
+      if (sl === 'fhat' || sl === 'frobe' || it.isFashion) return 'fashion';
+      return 'armor';
+    }
+    if (it.kind === 'fashion' || it.isFashion) return 'fashion';
+    if (it.kind === 'potion') return 'potion';
+    if (it.kind === 'rune') return 'rune';
+    if (it.kind === 'card' || /การ์ด|card/i.test(String(it.name || it.id || ''))) return 'card';
+    return 'mat';
+  };
+
+  const allBagItems = [
+    ...(d.bagGear || []).map(it => ({ ...it, _cat: getBagItemCategory(it), _key: `gear:${it.uid || it.id}` })),
+    ...(d.consumablesAndMats || []).map(it => ({ ...it, _cat: getBagItemCategory(it), _key: `${it.kind || 'mat'}:${it.uid || it.id}` }))
+  ];
+
+  const catCounts = {
+    all: allBagItems.length,
+    weapon: 0,
+    armor: 0,
+    acc: 0,
+    potion: 0,
+    card: 0,
+    rune: 0,
+    mat: 0,
+    fashion: 0
+  };
+  for (const it of allBagItems) {
+    if (catCounts[it._cat] !== undefined) catCounts[it._cat]++;
+  }
+
+  const filteredItems = allBagItems.filter(it => {
+    if (!matchesSearch(it)) return false;
+    if (slotFilter) {
+      if (it.kind !== 'gear') return false;
+      if (slotFilter === 'acc1' || slotFilter === 'acc2') return it.slot === 'acc1' || it.slot === 'acc2' || it.slot === 'acc';
+      if (slotFilter === 'top') return it.slot === 'top' || it.slot === 'robe';
+      if (slotFilter === 'fhat') return it.slot === 'fhat' || it.slot === 'frobe';
+      return it.slot === slotFilter;
+    }
+    if (subCat === 'all') return true;
+    return it._cat === subCat;
+  });
+
+  // Determine selected item for bottom detail card (default to first item in filtered list)
+  let selectedItem = filteredItems.find(it => it._key === ncCharModalState.selectedBagItemKey)
+    || allBagItems.find(it => it._key === ncCharModalState.selectedBagItemKey)
+    || filteredItems[0]
+    || null;
+  if (selectedItem && ncCharModalState.selectedBagItemKey !== selectedItem._key) {
+    ncCharModalState.selectedBagItemKey = selectedItem._key;
+  }
+
+  const renderSelectedDetailCard = (it) => {
+    if (!it) {
+      return `
+        <div style="background:rgba(9,13,24,0.88); border:1px dashed rgba(148,163,184,0.25); border-radius:10px; padding:14px 10px; text-align:center; color:#64748b; font-size:11px;">
+          คลิกเลือกไอเทมในกระเป๋าด้านบนเพื่อดูรายละเอียดและปุ่มสั่งงานด่วน
+        </div>
+      `;
+    }
+    const st = getNightcampRarityStyle(it.rarity, it.isBoss);
+    const isGear = it.kind === 'gear';
+    const isPot = it.kind === 'potion';
+    const isRune = it.kind === 'rune';
+    const mkKind = isGear ? 'item' : (isRune ? 'rune' : (isPot ? 'pot' : 'mat'));
+    const mk = `${mkKind}:${it.id}`;
+    const qty = Number(it.count) || 1;
+    const statLine = isGear ? [
+      it.atk ? `ATK +${it.atk}` : '',
+      it.matk ? `MATK +${it.matk}` : '',
+      it.def ? `DEF +${it.def}` : '',
+      it.mdef ? `MDEF +${it.mdef}` : '',
+      it.hp ? `HP +${it.hp}` : '',
+      it.sp ? `SP +${it.sp}` : '',
+      it.crit ? `CRIT +${it.crit}%` : '',
+      it.flee ? `FLEE +${it.flee}` : ''
+    ].filter(Boolean).join(' · ') : '';
+
+    return `
+      <div style="background:rgba(15,23,42,0.92); border:1.5px solid ${st.border}; border-radius:11px; padding:10px 11px; display:flex; flex-direction:column; gap:7px; box-shadow:0 6px 20px rgba(0,0,0,0.45);">
+        <div style="display:flex; align-items:flex-start; gap:9px;">
+          <div style="width:42px; height:42px; border-radius:9px; background:#020617; border:1px solid ${st.border}; display:flex; align-items:center; justify-content:center; flex-shrink:0; position:relative;">
+            ${it.icon ? `<img src="${escapeHTML(it.icon)}" alt="" style="width:36px;height:36px;object-fit:contain;">` : `<span style="font-size:18px;">🎒</span>`}
+            ${it.locked ? `<span style="position:absolute;top:-4px;right:-4px;font-size:10px;">🔒</span>` : ''}
+          </div>
+          <div style="min-width:0; flex:1;">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:4px;">
+              <span style="font-size:12.5px; font-weight:800; color:${st.color}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHTML(it.name)}</span>
+              <span style="font-size:9.5px; font-weight:700; color:${st.color}; background:${st.bg}; border:1px solid ${st.border}; padding:0 6px; border-radius:999px; flex-shrink:0;">${escapeHTML(st.label)}</span>
+            </div>
+            <div style="font-size:10px; color:#94a3b8; margin-top:2px;">
+              ${escapeHTML(isGear ? (it.slotTh || 'อุปกรณ์') : (it.kindTh || 'ไอเทม'))} · จำนวน <b style="color:#f8fafc;">${qty.toLocaleString()}</b>${it.reqLv ? ` · Lv.${it.reqLv}` : ''}${it.sellPrice ? ` · ขาย NPC ${Number(it.sellPrice).toLocaleString()}g` : ''}
+            </div>
+            <div style="margin-top:3px;">${buildNcInlineMarketPricePillHtml(mk)}</div>
+          </div>
+        </div>
+
+        ${statLine ? `<div style="font-size:10.5px; color:#bae6fd; font-weight:700; background:rgba(2,6,23,0.55); padding:4px 7px; border-radius:6px;">${escapeHTML(statLine)}</div>` : ''}
+        ${it.options && it.options.length > 0 ? `
+          <div style="display:flex; flex-direction:column; gap:2px;">
+            ${it.options.map(o => `<div style="font-size:10px; color:#fde047; font-weight:700;">★ ${escapeHTML(o.text)}</div>`).join('')}
+          </div>
+        ` : ''}
+        ${it.runes && it.runes.length > 0 ? `
+          <div style="display:flex; flex-wrap:wrap; gap:3px;">
+            ${it.runes.map(r => `<span style="font-size:9.5px; color:#d8b4fe; background:rgba(168,85,247,0.16); border:1px solid rgba(192,132,252,0.35); padding:1px 6px; border-radius:4px;">🔮 ${escapeHTML(r.name)}: ${escapeHTML(r.statTh)}</span>`).join('')}
+          </div>
+        ` : ''}
+        ${it.desc ? `<div style="font-size:10px; color:#fde68a; line-height:1.35;">★ ${escapeHTML(it.desc)}</div>` : ''}
+
+        <!-- Quick Action Buttons Row 1 -->
+        <div style="display:flex; flex-wrap:wrap; gap:5px; padding-top:4px; border-top:1px solid rgba(255,255,255,0.07);">
+          ${isGear ? `
+            <button type="button" onclick="runNightcampCharacterAction({ action: 'equip', uid: ${Number(it.uid) || 0}, itemId: '${escapeHTML(it.id)}' })"
+                    style="background:linear-gradient(135deg,#eab308,#ca8a04); border:1px solid #facc15; color:#090d16; border-radius:6px; padding:4px 10px; font-size:10.5px; font-weight:900; cursor:pointer;">⚡ สวมใส่</button>
+            <button type="button" onclick="runNightcampCharacterAction({ action: 'toggle_lock', uid: ${Number(it.uid) || 0} })"
+                    style="background:rgba(148,163,184,0.16); border:1px solid rgba(148,163,184,0.35); color:#e2e8f0; border-radius:6px; padding:4px 8px; font-size:10.5px; font-weight:700; cursor:pointer;">${it.locked ? '🔓 ปลดล็อก' : '🔒 ล็อก'}</button>
+            <button type="button" onclick="runNightcampCharacterAction({ action: 'refine', uid: ${Number(it.uid) || 0} })"
+                    style="background:rgba(168,85,247,0.18); border:1px solid rgba(192,132,252,0.45); color:#e9d5ff; border-radius:6px; padding:4px 8px; font-size:10.5px; font-weight:700; cursor:pointer;">🔨 ตีบวก</button>
+            <button type="button" onclick="runNightcampCharacterAction({ action: 'deposit_gear', uid: ${Number(it.uid) || 0} })"
+                    style="background:rgba(14,165,233,0.18); border:1px solid rgba(56,189,248,0.45); color:#7dd3fc; border-radius:6px; padding:4px 8px; font-size:10.5px; font-weight:700; cursor:pointer;">📦 ฝากคลัง</button>
+            ${!it.locked ? `
+              <button type="button" onclick="if(confirm('ยืนยันขาย ${escapeHTML(it.name)} ให้ร้านลุงโกโก้ (${it.sellPrice}g)?')) runNightcampCharacterAction({ action: 'sell_gear', uid: ${Number(it.uid) || 0} })"
+                      style="background:rgba(245,158,11,0.16); border:1px solid rgba(251,191,36,0.45); color:#fde047; border-radius:6px; padding:4px 8px; font-size:10.5px; font-weight:700; cursor:pointer;">💰 ขาย NPC</button>
+            ` : ''}
+          ` : ''}
+          ${isPot ? `
+            <button type="button" onclick="runNightcampCharacterAction({ action: 'use_potion', itemId: '${escapeHTML(it.id)}' })"
+                    style="background:linear-gradient(135deg,#eab308,#ca8a04); border:1px solid #facc15; color:#090d16; border-radius:6px; padding:4px 11px; font-size:10.5px; font-weight:900; cursor:pointer;">🧪 ใช้</button>
+          ` : ''}
+          ${!isGear ? `
+            <button type="button" onclick="runNightcampCharacterAction({ action: 'deposit_stack', kind: '${escapeHTML(it.kind)}', itemId: '${escapeHTML(it.id)}', uid: ${Number(it.uid) || 0} })"
+                    style="background:rgba(14,165,233,0.18); border:1px solid rgba(56,189,248,0.45); color:#7dd3fc; border-radius:6px; padding:4px 8px; font-size:10.5px; font-weight:700; cursor:pointer;">📦 ฝากคลัง</button>
+            ${it.canSellShop ? `
+              <button type="button" onclick="if(confirm('ยืนยันขาย ${escapeHTML(it.name)} x${qty} ให้ร้านลุงโกโก้?')) runNightcampCharacterAction({ action: 'sell_mat', itemId: '${escapeHTML(it.id)}' })"
+                      style="background:rgba(245,158,11,0.16); border:1px solid rgba(251,191,36,0.45); color:#fde047; border-radius:6px; padding:4px 8px; font-size:10.5px; font-weight:700; cursor:pointer;">💰 ขาย NPC</button>
+            ` : ''}
+          ` : ''}
+        </div>
+
+        <!-- Quick Action Buttons Row 2: Central Market Integration (like Aetheria) -->
+        ${!it.bound && !it.locked ? `
+          <div style="display:flex; gap:6px;">
+            <button type="button" onclick="quickAddNightcampCMarketRuleFromBag('${escapeHTML(it.id)}', '${escapeHTML(it.baseName || it.name)}', '${escapeHTML(mkKind)}', ${isGear || isRune ? 1 : Math.min(10, Math.max(1, qty))})"
+                    style="flex:1; background:rgba(15,23,42,0.9); border:1px solid rgba(250,204,21,0.45); color:#fde047; border-radius:7px; padding:5px 8px; font-size:10.5px; font-weight:800; cursor:pointer;">
+              🏷️ เพิ่ม Auto Sell
+            </button>
+            <button type="button" onclick="openNightcampManualSellForBagItem('${escapeHTML(mkKind)}', '${escapeHTML(it.id)}')"
+                    style="flex:1; background:linear-gradient(135deg,#9333ea,#7e22ce); border:1px solid #c084fc; color:#fff; border-radius:7px; padding:5px 8px; font-size:10.5px; font-weight:800; cursor:pointer;">
+              🏪 ขายลงตลาด
+            </button>
+          </div>
+        ` : ''}
+      </div>
+    `;
+  };
+
+  const wtColor = d.weightPct >= 75 ? '#ef4444' : (d.weightPct >= 55 ? '#f59e0b' : '#eab308');
+
+  return `
+    <!-- Bag Sidebar Header -->
+    <div style="padding:11px 13px 9px; border-bottom:1px solid rgba(148,163,184,0.15); display:flex; flex-direction:column; gap:8px; flex-shrink:0;">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:6px;">
+        <div style="display:flex; align-items:center; gap:7px;">
+          <span style="font-size:14px; font-weight:900; color:#f8fafc;">🎒 กระเป๋า</span>
+          <span style="font-size:12px; font-weight:700; color:#94a3b8;">${allBagItems.length} ชนิด · อุปกรณ์ ${d.bagUsed}/${d.bagCap}</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:4px;">
+          <button type="button" onclick="setNightcampBagViewMode('${viewMode === 'grid' ? 'list' : 'grid'}')"
+                  title="สลับมุมมองตารางไอคอน (Grid) / รายการละเอียด (List)"
+                  style="background:rgba(15,23,42,0.85); border:1px solid rgba(148,163,184,0.3); color:#cbd5e1; border-radius:6px; padding:3px 7px; font-size:10px; font-weight:700; cursor:pointer;">
+            ${viewMode === 'grid' ? '☰ รายการ' : '⊞ ไอคอน'}
+          </button>
+          <button type="button" onclick="refreshNightcampCharacterModal()" title="รีเฟรชกระเป๋า"
+                  style="background:rgba(15,23,42,0.85); border:1px solid rgba(148,163,184,0.3); color:#cbd5e1; border-radius:6px; padding:3px 7px; font-size:11px; cursor:pointer;">🔄</button>
+        </div>
+      </div>
+
+      <!-- Bag Search Box -->
+      <input type="search" id="nc-char-bag-search" value="${escapeHTML(ncCharModalState.searchQuery)}"
+             oninput="onNightcampBagSearchInput(this.value)"
+             placeholder="ค้นหาชื่อ หรือออปชั่น เช่น cri, vit, การ์ด..." autocomplete="off"
+             style="width:100%; box-sizing:border-box; background:#060913; border:1px solid rgba(148,163,184,0.28); color:#f8fafc; border-radius:8px; padding:6px 10px; font-size:11.5px; outline:none;">
+
+      <!-- Category Filter Pills (Aetheria Style) -->
+      <div style="display:flex; flex-wrap:wrap; gap:4px;">
+        ${[
+          ['all', `ทั้งหมด ${catCounts.all}`],
+          ['weapon', `อาวุธ ${catCounts.weapon}`],
+          ['armor', `ชุดเกราะ ${catCounts.armor}`],
+          ['acc', `ประดับ ${catCounts.acc}`],
+          ['potion', `ใช้ได้ ${catCounts.potion}`],
+          ['card', `การ์ด ${catCounts.card}`],
+          ['rune', `รูน ${catCounts.rune}`],
+          ['mat', `วัสดุ ${catCounts.mat}`],
+          ['fashion', `แฟชั่น ${catCounts.fashion}`]
+        ].map(([k, lbl]) => {
+          const active = !slotFilter && subCat === k;
+          return `
+            <button type="button" onclick="setNightcampBagSubCat('${k}')"
+                    style="background:${active ? 'linear-gradient(135deg,#eab308,#ca8a04)' : 'rgba(15,23,42,0.85)'}; border:1px solid ${active ? '#facc15' : 'rgba(148,163,184,0.25)'}; color:${active ? '#090d16' : '#cbd5e1'}; border-radius:999px; padding:3px 9px; font-size:10.5px; font-weight:${active ? '900' : '700'}; cursor:pointer;">
+              ${lbl}
+            </button>
+          `;
+        }).join('')}
+      </div>
+
+      ${slotFilter ? `
+        <div style="display:flex; align-items:center; justify-content:space-between; background:rgba(14,165,233,0.14); border:1px solid rgba(56,189,248,0.4); border-radius:7px; padding:4px 8px; font-size:10.5px; color:#7dd3fc;">
+          <span>🎯 กรองเฉพาะช่อง: <b>${escapeHTML(slotFilter.toUpperCase())}</b></span>
+          <button type="button" onclick="filterNightcampBagBySlot('')" style="background:transparent; border:none; color:#fca5a5; font-size:10.5px; font-weight:800; cursor:pointer;">✕ ล้าง</button>
+        </div>
+      ` : ''}
+    </div>
+
+    <!-- Scrollable Bag Grid / List -->
+    <div id="nc-char-bag-scroll" style="flex:1; min-height:0; overflow-y:auto; padding:10px 12px;">
+      ${filteredItems.length > 0 ? (
+        viewMode === 'grid' ? `
+          <div style="display:grid; grid-template-columns:repeat(5, minmax(0, 1fr)); gap:6px;">
+            ${filteredItems.map(it => {
+              const st = getNightcampRarityStyle(it.rarity, it.isBoss);
+              const isSel = selectedItem && selectedItem._key === it._key;
+              const qty = Number(it.count) || 1;
+              const isGear = it.kind === 'gear';
+              const isRune = it.kind === 'rune';
+              const isPot = it.kind === 'potion';
+              const mk = `${isGear ? 'item' : (isRune ? 'rune' : (isPot ? 'pot' : 'mat'))}:${it.id}`;
+              const hoverAttrs = buildNcMarketHoverAttrs({
+                key: mk,
+                name: it.name,
+                rarity: it.rarity || 'common',
+                icon: it.icon || '',
+                extra: isGear ? (it.slotTh || '') : (it.desc || '')
+              });
+              return `
+                <div ${hoverAttrs}
+                     onclick="selectNightcampBagItem('${escapeHTML(it._key)}')"
+                     ondblclick="${isGear ? `runNightcampCharacterAction({ action: 'equip', uid: ${Number(it.uid) || 0}, itemId: '${escapeHTML(it.id)}' })` : (isPot ? `runNightcampCharacterAction({ action: 'use_potion', itemId: '${escapeHTML(it.id)}' })` : '')}"
+                     style="aspect-ratio:1/1; border-radius:9px; background:${isSel ? 'rgba(234,179,8,0.18)' : 'rgba(15,23,42,0.85)'}; border:${isSel ? '2px solid #facc15' : `1px solid ${st.border}`}; display:flex; align-items:center; justify-content:center; position:relative; cursor:pointer; box-sizing:border-box; padding:4px; transition:transform 0.1s;">
+                  ${it.icon ? `<img src="${escapeHTML(it.icon)}" alt="" style="width:82%; height:82%; object-fit:contain;">` : `<span style="font-size:18px;">🎒</span>`}
+                  ${it.refine > 0 ? `<span style="position:absolute; top:2px; left:3px; font-size:9px; font-weight:900; color:#fde047; background:rgba(2,6,23,0.82); padding:0 3px; border-radius:3px;">+${it.refine}</span>` : ''}
+                  ${it.locked ? `<span style="position:absolute; top:2px; right:3px; font-size:9px;">🔒</span>` : ''}
+                  ${qty > 1 ? `<span style="position:absolute; bottom:2px; right:4px; font-size:10px; font-weight:900; color:#f8fafc; text-shadow:0 1px 3px #000, 0 0 4px #000;">${qty > 9999 ? `${Math.floor(qty / 1000)}k` : qty}</span>` : ''}
+                </div>
+              `;
+            }).join('')}
+          </div>
+        ` : `
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            ${filteredItems.map(it => it.kind === 'gear' ? renderNightcampBagGearCard(it, 'bag') : renderNightcampMatCard(it, 'bag')).join('')}
+          </div>
+        `
+      ) : `
+        <div style="text-align:center; padding:26px 10px; color:#64748b; font-size:11.5px;">
+          🎒 ไม่พบไอเทมในหมวดนี้
+        </div>
+      `}
+    </div>
+
+    <!-- Bottom Selected Item Detail Card + Coins/Weight Footer -->
+    <div style="padding:10px 12px; border-top:1px solid rgba(148,163,184,0.16); background:rgba(5,8,17,0.92); display:flex; flex-direction:column; gap:8px; flex-shrink:0;">
+      ${renderSelectedDetailCard(selectedItem)}
+
+      <div style="display:flex; flex-direction:column; gap:5px; pt:2px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; font-size:11.5px;">
+          <span style="color:#94a3b8;">เหรียญ <b style="color:#facc15; font-size:13px;">${d.coins.toLocaleString()} g</b></span>
+          <div style="display:flex; gap:4px;">
+            ${!d.nearShop ? `<button type="button" onclick="runNightcampCharacterAction({ action: 'walk_to_coco' })" style="background:rgba(15,23,42,0.9); border:1px solid rgba(148,163,184,0.3); color:#cbd5e1; border-radius:6px; padding:2px 8px; font-size:10px; font-weight:700; cursor:pointer;">🛒 ไปหาลุงโกโก้</button>` : ''}
+            <button type="button" onclick="runNightcampCharacterAction({ action: 'deposit_all_mats' })" title="ฝากวัตถุดิบในกระเป๋าเข้าคลังค่าย" style="background:rgba(15,23,42,0.9); border:1px solid rgba(148,163,184,0.3); color:#cbd5e1; border-radius:6px; padding:2px 8px; font-size:10px; font-weight:700; cursor:pointer;">📥 ฝากวัสดุ</button>
+          </div>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px; font-size:10.5px; color:#94a3b8;">
+          <span>น้ำหนัก</span>
+          <div style="flex:1; height:6px; background:#020617; border-radius:999px; overflow:hidden;">
+            <div style="width:${Math.min(100, d.weightPct)}%; height:100%; background:${wtColor};"></div>
+          </div>
+          <span style="font-family:'JetBrains Mono',monospace; font-size:10px; color:#cbd5e1;">${d.weightCur.toLocaleString()}/${d.weightCap.toLocaleString()}</span>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderNightcampBagSidebarOnly(opts = {}) {
+  const d = ncCharModalState.data;
+  const bagEl = document.getElementById('nc-char-bag-sidebar');
+  if (!d || !bagEl) return;
+  const prevScrollEl = document.getElementById('nc-char-bag-scroll');
+  const prevScroll = (opts && opts.resetScroll) ? 0 : (prevScrollEl ? prevScrollEl.scrollTop : 0);
+  bagEl.innerHTML = renderNightcampBagSidebarHtml(d);
+  const nextScrollEl = document.getElementById('nc-char-bag-scroll');
+  if (nextScrollEl && prevScroll > 0) {
+    nextScrollEl.scrollTop = prevScroll;
+  }
+}
+
 function renderNightcampRightPaneOnly(opts = {}) {
   hideNcMarketTooltip();
   const d = ncCharModalState.data;
@@ -22067,6 +22415,7 @@ function renderNightcampRightPaneOnly(opts = {}) {
       });
     }
   }
+  renderNightcampBagSidebarOnly(opts);
 }
 
 function renderNightcampCharacterModal(opts = {}) {
@@ -22075,181 +22424,126 @@ function renderNightcampCharacterModal(opts = {}) {
   if (!d || !pid) return;
   const prof = currentProfiles.find(x => String(x.id) === String(pid));
   const headerEl = document.getElementById('nc-char-modal-header');
+  const tabsEl = document.getElementById('nc-char-main-tabs');
   const bodyEl = document.getElementById('nc-char-modal-body');
+  const bagEl = document.getElementById('nc-char-bag-sidebar');
   if (!headerEl || !bodyEl) return;
 
   const prevRightEl = document.getElementById('nc-char-right-content');
-  const prevLeftEl = document.getElementById('nc-char-left-scroll');
+  const prevBagScrollEl = document.getElementById('nc-char-bag-scroll');
   const savedRightScroll = (opts && opts.resetRightScroll) ? 0 : (prevRightEl ? prevRightEl.scrollTop : 0);
-  const savedLeftScroll = (opts && opts.resetLeftScroll) ? 0 : (prevLeftEl ? prevLeftEl.scrollTop : 0);
+  const savedBagScroll = (opts && opts.resetLeftScroll) ? 0 : (prevBagScrollEl ? prevBagScrollEl.scrollTop : 0);
   hideNcMarketTooltip();
 
   const hpPct = d.hpMax > 0 ? Math.min(100, Math.round((d.hp / d.hpMax) * 100)) : 100;
   const spPct = d.spMax > 0 ? Math.min(100, Math.round((d.sp / d.spMax) * 100)) : 100;
-  const wtColor = d.weightPct >= 75 ? '#ef4444' : (d.weightPct >= 55 ? '#f59e0b' : '#10b981');
 
   headerEl.innerHTML = `
     <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
-      <div style="width:46px; height:46px; border-radius:11px; background:#020617; border:1.5px solid #38bdf8; overflow:hidden; display:flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 4px 14px rgba(14,165,233,0.3);">
+      <div style="width:46px; height:46px; border-radius:50%; background:#020617; border:2px solid #38bdf8; overflow:hidden; display:flex; align-items:center; justify-content:center; flex-shrink:0; position:relative; box-shadow:0 4px 14px rgba(14,165,233,0.3);">
         ${d.portraitUrl ? `<img src="${escapeHTML(d.portraitUrl)}" alt="" style="width:100%;height:100%;object-fit:cover;">` : `<span style="font-size:22px;">🌙</span>`}
       </div>
       <div>
-        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-          <span style="font-size:16.5px; font-weight:800; color:#f8fafc;">${escapeHTML(d.charName)}</span>
-          <span style="background:rgba(56,189,248,0.18); border:1px solid rgba(56,189,248,0.45); color:#7dd3fc; font-size:11.5px; font-weight:700; padding:1px 9px; border-radius:999px;">${escapeHTML(d.jobName)} · Base Lv.${d.baseLv} / Job Lv.${d.jobLv}</span>
-          ${d.serverName ? `<span style="background:rgba(129,140,248,0.18); border:1px solid rgba(129,140,248,0.45); color:#c7d2fe; font-size:11px; font-weight:700; padding:1px 8px; border-radius:999px;">🌐 ${escapeHTML(d.serverName)}</span>` : ''}
-          <span style="background:rgba(148,163,184,0.16); border:1px solid rgba(148,163,184,0.32); color:#cbd5e1; font-size:11px; font-weight:600; padding:1px 8px; border-radius:999px;">🖥️ ${escapeHTML(prof?.name || pid)} · 📍 ${escapeHTML(d.mapName)}</span>
+        <div style="display:flex; align-items:center; gap:7px; flex-wrap:wrap;">
+          <span style="font-size:17px; font-weight:900; color:#f8fafc;">${escapeHTML(d.charName)}</span>
+          <span style="background:rgba(139,92,246,0.2); border:1px solid rgba(167,139,250,0.45); color:#ddd6fe; font-size:11px; font-weight:800; padding:2px 9px; border-radius:6px;">${escapeHTML(d.jobName)} (Base ${d.baseLv} / Job ${d.jobLv})</span>
+          <span style="background:rgba(148,163,184,0.16); border:1px solid rgba(148,163,184,0.3); color:#cbd5e1; font-size:10.5px; font-weight:700; padding:2px 8px; border-radius:6px;">${escapeHTML(prof?.name || pid)} · 📍 ${escapeHTML(d.mapName)}</span>
+          ${d.serverName ? `<span style="background:rgba(14,165,233,0.16); border:1px solid rgba(56,189,248,0.35); color:#7dd3fc; font-size:10.5px; font-weight:700; padding:2px 8px; border-radius:6px;">🌐 ${escapeHTML(d.serverName)}</span>` : ''}
         </div>
-        <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-top:4px; font-size:11.5px;">
-          <span style="color:#fde047; font-weight:700;">💰 เหรียญติดตัว: ${d.coins.toLocaleString()}g</span>
+        <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-top:4px; font-size:11px; color:#94a3b8;">
+          <span>Base <b style="color:#f8fafc;">${d.baseLv}</b></span>
+          <span>Job <b style="color:#f8fafc;">${d.jobLv}</b></span>
           ${d.vaultCoins !== null ? `<span style="color:#6ee7b7; font-weight:700;">🏦 คลังร่วม: ${Number(d.vaultCoins).toLocaleString()}g</span>` : ''}
-          <span style="color:${wtColor}; font-weight:700;">⚖️ น้ำหนัก: ${d.weightCur.toLocaleString()}/${d.weightCap.toLocaleString()} (${d.weightPct}%)</span>
-          ${d.statPoints > 0 ? `<span style="background:rgba(245,158,11,0.22);border:1px solid #fbbf24;color:#fde047;padding:0 7px;border-radius:999px;font-weight:800;">✨ แต้มสเตตัสคงเหลือ ${d.statPoints}</span>` : ''}
-          ${d.skillPoints > 0 ? `<span style="background:rgba(168,85,247,0.22);border:1px solid #c084fc;color:#e9d5ff;padding:0 7px;border-radius:999px;font-weight:800;">⚡ แต้มสกิลคงเหลือ ${d.skillPoints}</span>` : ''}
+          ${d.skillPoints > 0 ? `<span style="color:#e9d5ff; font-weight:800;">⚡ แต้มสกิล: ${d.skillPoints}</span>` : ''}
         </div>
       </div>
     </div>
-    <div style="display:flex; align-items:center; gap:7px; flex-wrap:wrap;">
-      <button type="button" onclick="runNightcampCharacterAction({ action: 'smart_gear_now' })" title="ให้ระบบ Smart Gear คำนวณและสวมใส่อุปกรณ์ในกระเป๋าที่ดีที่สุดตามสายอาชีพทันที" style="background:linear-gradient(135deg,#7c3aed,#6d28d9);border:1px solid #c084fc;color:#fff;border-radius:8px;padding:6px 11px;font-size:11.5px;font-weight:700;cursor:pointer;">⚔️ จัดของดีสุดใส่ทันที</button>
-      <button type="button" onclick="refreshNightcampCharacterModal()" style="background:rgba(14,165,233,0.18);border:1px solid rgba(56,189,248,0.45);color:#7dd3fc;border-radius:8px;padding:6px 11px;font-size:11.5px;font-weight:700;cursor:pointer;">🔄 รีเฟรช</button>
-      <button type="button" onclick="closeNightcampCharacterModal(); openWebBotHUD('${escapeHTML(pid)}')" style="background:rgba(16,185,129,0.18);border:1px solid rgba(52,211,153,0.45);color:#6ee7b7;border-radius:8px;padding:6px 11px;font-size:11.5px;font-weight:700;cursor:pointer;">🎮 เมนูบอท</button>
-      <button type="button" onclick="closeNightcampCharacterModal()" style="background:rgba(239,68,68,0.18);border:1px solid rgba(248,113,113,0.45);color:#fca5a5;border-radius:8px;padding:6px 12px;font-size:12.5px;font-weight:800;cursor:pointer;">✕</button>
+
+    <!-- Center HP/SP Bars + Right Pills & Action Buttons (Aetheria Top Header Style) -->
+    <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+      <div style="display:flex; flex-direction:column; gap:4px; min-width:190px;">
+        <div style="display:flex; align-items:center; gap:8px; font-size:11px;">
+          <span style="color:#94a3b8; width:20px; font-weight:700;">HP</span>
+          <div style="flex:1; height:7px; background:#020617; border-radius:999px; overflow:hidden; width:95px;">
+            <div style="width:${hpPct}%; height:100%; background:linear-gradient(90deg,#ef4444,#f87171);"></div>
+          </div>
+          <span style="color:#f8fafc; font-weight:800; font-family:'JetBrains Mono',monospace; font-size:11px;">${d.hp.toLocaleString()} / ${d.hpMax.toLocaleString()}</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px; font-size:11px;">
+          <span style="color:#94a3b8; width:20px; font-weight:700;">SP</span>
+          <div style="flex:1; height:7px; background:#020617; border-radius:999px; overflow:hidden; width:95px;">
+            <div style="width:${spPct}%; height:100%; background:linear-gradient(90deg,#3b82f6,#60a5fa);"></div>
+          </div>
+          <span style="color:#f8fafc; font-weight:800; font-family:'JetBrains Mono',monospace; font-size:11px;">${d.sp.toLocaleString()} / ${d.spMax.toLocaleString()}</span>
+        </div>
+      </div>
+
+      <div style="display:flex; align-items:center; gap:7px; flex-wrap:wrap;">
+        <span style="background:rgba(234,179,8,0.16); border:1px solid rgba(250,204,21,0.45); color:#fde047; padding:5px 10px; border-radius:8px; font-size:11.5px; font-weight:800;">
+          แต้มสถานะ: ${d.statPoints}
+        </span>
+        <span style="background:rgba(14,165,233,0.16); border:1px solid rgba(56,189,248,0.45); color:#38bdf8; padding:5px 10px; border-radius:8px; font-size:11.5px; font-weight:800;">
+          💰 ${d.coins.toLocaleString()} g
+        </span>
+        <button type="button" onclick="runNightcampCharacterAction({ action: 'smart_gear_now' })" title="ให้ระบบ Smart Gear คำนวณและสวมใส่อุปกรณ์ในกระเป๋าที่ดีที่สุดทันที" style="background:linear-gradient(135deg,#7c3aed,#6d28d9);border:1px solid #c084fc;color:#fff;border-radius:8px;padding:6px 10px;font-size:11px;font-weight:800;cursor:pointer;">⚔️ จัดของดีสุด</button>
+        <button type="button" onclick="closeNightcampCharacterModal(); openWebBotHUD('${escapeHTML(pid)}')" style="background:rgba(16,185,129,0.18);border:1px solid rgba(52,211,153,0.45);color:#6ee7b7;border-radius:8px;padding:6px 10px;font-size:11px;font-weight:800;cursor:pointer;">🎮 บอท</button>
+        <button type="button" onclick="closeNightcampCharacterModal()" style="background:rgba(239,68,68,0.18);border:1px solid rgba(248,113,113,0.45);color:#fca5a5;border-radius:8px;padding:5px 10px;font-size:12.5px;font-weight:900;cursor:pointer;">✕</button>
+      </div>
     </div>
   `;
 
-  const tab = ncCharModalState.activeTab;
+  const rawTab = ncCharModalState.activeTab;
+  const effTab = rawTab === 'mats' ? 'bag' : rawTab;
+  const rulesCount = (d.cmarket?.autoSellConfig?.rules || []).length;
+
+  if (tabsEl) {
+    const hintText = effTab === 'cmarket'
+      ? '🏪 ลงขายไอเทม ดูของที่ลงขายอยู่ รับของ/รับเงินค้าง และตั้งค่า Auto-Sell ตลาดกลาง'
+      : (effTab === 'storage'
+          ? '🏦 จัดการไอเทมในคลังค่ายกลางป่า (300 ช่อง ไม่คิดน้ำหนัก)'
+          : '💡 คลิกที่ช่องอุปกรณ์เพื่อดูของเปลี่ยน หรือคลิกไอเทมในกระเป๋าขวามือเพื่อสวมใส่ / ตั้ง Auto-Sell');
+    tabsEl.innerHTML = `
+      <div style="display:flex; gap:6px; flex-wrap:wrap;">
+        ${[
+          ['bag', `1 อุปกรณ์ & สเตตัส`],
+          ['storage', `2 คลังค่าย (${d.storeUsed}/${d.storeCap})`],
+          ['cmarket', `🏪 3 ตลาดกลาง & Auto-Sell (${rulesCount})`],
+          ['stats', `📊 4 ค่าสถานะเชิงลึก`]
+        ].map(([k, lbl]) => {
+          const active = effTab === k;
+          return `
+            <button type="button" onclick="switchNightcampCharTab('${k}')"
+                    style="background:${active ? 'rgba(14,165,233,0.18)' : 'transparent'}; border:1.5px solid ${active ? '#38bdf8' : 'rgba(148,163,184,0.22)'}; color:${active ? '#f8fafc' : '#94a3b8'}; border-radius:9px; padding:6px 14px; font-size:12px; font-weight:800; cursor:pointer; transition:all 0.14s;">
+              ${lbl}
+            </button>
+          `;
+        }).join('')}
+      </div>
+      <div style="font-size:11px; color:#94a3b8;">${hintText}</div>
+    `;
+  }
+
   bodyEl.innerHTML = `
-    <!-- LEFT COLUMN: Character Paperdoll, 10 Equipment Slots & 6 Base Stats Allocation -->
-    <div id="nc-char-left-scroll" style="border-right:1px solid rgba(148,163,184,0.16); padding:12px 14px; overflow-y:auto; overflow-x:hidden; min-width:0; box-sizing:border-box; display:flex; flex-direction:column; gap:10px; background:rgba(2,6,23,0.42);">
-      <!-- HP / SP Gauges -->
-      <div style="display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 1fr); gap:8px; min-width:0; background:rgba(15,23,42,0.75); border:1px solid rgba(148,163,184,0.2); border-radius:9px; padding:7px 10px;">
-        <div style="min-width:0;">
-          <div style="display:flex;justify-content:space-between;font-size:10.5px;font-weight:700;color:#fca5a5;margin-bottom:3px;">
-            <span>❤️ HP</span><span>${d.hp.toLocaleString()} / ${d.hpMax.toLocaleString()}</span>
-          </div>
-          <div style="height:6px;background:#020617;border-radius:999px;overflow:hidden;">
-            <div style="width:${hpPct}%;height:100%;background:linear-gradient(90deg,#ef4444,#f87171);"></div>
-          </div>
-        </div>
-        <div style="min-width:0;">
-          <div style="display:flex;justify-content:space-between;font-size:10.5px;font-weight:700;color:#93c5fd;margin-bottom:3px;">
-            <span>💙 SP</span><span>${d.sp.toLocaleString()} / ${d.spMax.toLocaleString()}</span>
-          </div>
-          <div style="height:6px;background:#020617;border-radius:999px;overflow:hidden;">
-            <div style="width:${spPct}%;height:100%;background:linear-gradient(90deg,#2563eb,#60a5fa);"></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Equipment Paperdoll & Slots -->
-      <div style="background:rgba(15,23,42,0.68); border:1px solid rgba(56,189,248,0.25); border-radius:11px; padding:10px; min-width:0; max-width:100%; box-sizing:border-box; overflow:hidden;">
-        <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; margin-bottom:7px; min-width:0;">
-          <span style="font-size:11.5px; font-weight:800; color:#7dd3fc; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0;">🛡️ อุปกรณ์สวมใส่ (คลิกช่องเพื่อกรองของเปลี่ยน)</span>
-          <span style="font-size:10px; color:#94a3b8; flex-shrink:0; white-space:nowrap;">ATK ${d.statSheet?.batk || 0} · DEF ${d.statSheet?.def || 0}</span>
-        </div>
-
-        <!-- Center Paperdoll Preview -->
-        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; background:radial-gradient(circle at 50% 60%, rgba(14,165,233,0.18), rgba(2,6,23,0.85)); border:1px solid rgba(56,189,248,0.25); border-radius:10px; padding:8px 12px; margin-bottom:8px; min-width:0; overflow:hidden;">
-          <div style="display:flex; align-items:center; gap:10px; min-width:0; flex:1;">
-            <div style="width:74px; height:74px; border-radius:10px; background:rgba(2,6,23,0.7); border:1px solid rgba(56,189,248,0.35); display:flex; align-items:center; justify-content:center; overflow:hidden; flex-shrink:0;">
-              ${d.heroPaperdollUrl ? `<img src="${escapeHTML(d.heroPaperdollUrl)}" alt="" style="width:70px;height:70px;object-fit:contain;">` : `<span style="font-size:30px;">🌙</span>`}
-            </div>
-            <div style="min-width:0; overflow:hidden;">
-              <div style="font-size:13px; font-weight:800; color:#e0f2fe; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHTML(d.charName)}</div>
-              <div style="font-size:11px; color:#7dd3fc; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHTML(d.jobName)} (Lv.${d.baseLv} / Job ${d.jobLv})</div>
-              <div style="font-size:10px; color:#94a3b8; margin-top:2px;">
-                ${d.nearShop ? '🟢 อยู่ใกล้ร้านลุงโกโก้ (ขาย/ฝากคลังได้ทันที)' : (d.nearForge ? '🟢 อยู่ใกล้เตาป๋าหมูหริ่ง (ตีบวก/ซ่อมได้ทันที)' : '🏕️ อยู่นอกจุดร้านค้า (สวมใส่/ถอด/ใช้ยาได้ทันที)')}
-              </div>
-            </div>
-          </div>
-          <div style="display:flex; flex-direction:column; gap:4px; flex-shrink:0;">
-            <button type="button" onclick="runNightcampCharacterAction({ action: 'walk_to_coco' })" title="เดินไปหาลุงโกโก้ในค่ายเพื่อขายของหรือฝากคลัง" style="background:rgba(245,158,11,0.16);border:1px solid rgba(251,191,36,0.45);color:#fde68a;border-radius:6px;padding:3px 8px;font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap;">🛒 ไปหาลุงโกโก้</button>
-            <button type="button" onclick="runNightcampCharacterAction({ action: 'walk_to_forge' })" title="เดินไปหาป๋าหมูหริ่งในค่ายเพื่อตีบวกหรือซ่อมของ" style="background:rgba(168,85,247,0.16);border:1px solid rgba(192,132,252,0.45);color:#e9d5ff;border-radius:6px;padding:3px 8px;font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap;">🔨 ไปเตาตีบวก</button>
-          </div>
-        </div>
-
-        <!-- 2-Column Equipment Slots Grid -->
-        <div style="display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 1fr); gap:6px; width:100%; min-width:0;">
-          <div style="display:flex; flex-direction:column; gap:5px; min-width:0; overflow:hidden;">
-            ${NC_CHAR_SLOTS_LEFT.map(def => renderNightcampEquipSlotCard(def, d.equipment?.[def.key] || (def.key === 'top' ? d.equipment?.robe : null))).join('')}
-          </div>
-          <div style="display:flex; flex-direction:column; gap:5px; min-width:0; overflow:hidden;">
-            ${NC_CHAR_SLOTS_RIGHT.map(def => renderNightcampEquipSlotCard(def, d.equipment?.[def.key] || (def.key === 'fhat' ? d.equipment?.frobe : null))).join('')}
-          </div>
-        </div>
-      </div>
-
-      <!-- 6 Base Stats Allocation Card (STR, AGI, VIT, INT, DEX, LUK) -->
-      <div style="background:rgba(15,23,42,0.75); border:1px solid rgba(250,204,21,0.32); border-radius:11px; padding:10px; min-width:0; max-width:100%; box-sizing:border-box; overflow:hidden;">
-        <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; margin-bottom:7px; min-width:0;">
-          <span style="font-size:11.5px; font-weight:800; color:#fde047;">⚡ ค่าสเตตัสหลัก (Base Stats)</span>
-          <span style="font-size:11px; font-weight:700; color:${d.statPoints > 0 ? '#4ade80' : '#94a3b8'}; flex-shrink:0;">แต้มคงเหลือ: <b>${d.statPoints}</b> แต้ม</span>
-        </div>
-        <div style="display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 1fr); gap:6px; min-width:0;">
-          ${['str', 'agi', 'vit', 'int', 'dex', 'luk'].map(k => {
-            const st = d.baseStats?.[k] || { label: k.toUpperCase(), th: k, base: 5, bonus: 0, total: 5, cost: 2, canRaise: false, desc: '' };
-            return `
-              <div title="${escapeHTML(st.desc)}" style="background:rgba(2,6,23,0.65); border:1px solid rgba(148,163,184,0.22); border-radius:8px; padding:6px 8px; display:flex; align-items:center; justify-content:space-between; gap:4px; min-width:0; box-sizing:border-box; overflow:hidden;">
-                <div style="min-width:0; overflow:hidden;">
-                  <div style="font-size:11px; font-weight:800; color:#38bdf8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHTML(st.label)} <span style="font-size:9.5px;color:#94a3b8;font-weight:500;">${escapeHTML(st.th)}</span></div>
-                  <div style="font-size:12px; font-weight:800; color:#f8fafc; font-family:'JetBrains Mono',monospace;">
-                    ${st.base}${st.bonus !== 0 ? ` <span style="color:#4ade80;font-size:10.5px;">(${st.bonus > 0 ? '+' : ''}${st.bonus})</span>` : ''}
-                  </div>
-                  <div style="font-size:8.5px; color:#64748b;">ใช้ ${st.cost} แต้ม/ขั้น</div>
-                </div>
-                <div style="display:flex; gap:3px; flex-shrink:0;">
-                  <button type="button" ${st.canRaise ? '' : 'disabled'} onclick="runNightcampCharacterAction({ action: 'stat_up', stat: '${k}', count: 1 })"
-                          style="background:${st.canRaise ? '#059669' : '#1e293b'}; border:1px solid ${st.canRaise ? '#34d399' : '#334155'}; color:${st.canRaise ? '#fff' : '#64748b'}; border-radius:5px; padding:3px 7px; font-size:10.5px; font-weight:800; cursor:${st.canRaise ? 'pointer' : 'not-allowed'};">+1</button>
-                  <button type="button" ${st.canRaise ? '' : 'disabled'} onclick="runNightcampCharacterAction({ action: 'stat_up', stat: '${k}', count: 5 })"
-                          style="background:${st.canRaise ? 'rgba(16,185,129,0.22)' : '#1e293b'}; border:1px solid ${st.canRaise ? '#34d399' : '#334155'}; color:${st.canRaise ? '#6ee7b7' : '#64748b'}; border-radius:5px; padding:3px 6px; font-size:10px; font-weight:700; cursor:${st.canRaise ? 'pointer' : 'not-allowed'};">+5</button>
-                </div>
-              </div>
-            `;
-          }).join('')}
-        </div>
-      </div>
-    </div>
-
-    <!-- RIGHT COLUMN: Unified Bag (with in-game sub-categories), Camp Storage, Central Market & Detailed Combat Stats -->
-    <div style="display:flex; flex-direction:column; min-height:0; min-width:0; overflow:hidden;">
-      <!-- Right Navigation Main Tabs & Search Bar -->
-      <div style="padding:10px 14px; background:rgba(2,6,23,0.65); border-bottom:1px solid rgba(148,163,184,0.16); display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; flex-shrink:0;">
-        <div style="display:flex; gap:5px; flex-wrap:wrap;">
-          ${[
-            ['bag', `🎒 กระเป๋า (${(d.bagGear || []).length + (d.consumablesAndMats || []).length} · อุปกรณ์ ${d.bagUsed}/${d.bagCap})`],
-            ['storage', `🏦 คลังค่าย (${d.storeUsed}/${d.storeCap})`],
-            ['cmarket', `🏪 ตลาดกลาง & Auto-Sell (${(d.cmarket?.autoSellConfig?.rules || []).length})`],
-            ['stats', `📊 ค่าสถานะเชิงลึก`]
-          ].map(([k, lbl]) => {
-            const effTab = tab === 'mats' ? 'bag' : tab;
-            return `
-              <button type="button" onclick="switchNightcampCharTab('${k}')"
-                      style="background:${effTab === k ? (k === 'cmarket' ? 'linear-gradient(135deg,#4f46e5,#4338ca)' : 'linear-gradient(135deg,#0284c7,#0369a1)') : 'rgba(15,23,42,0.8)'}; border:1px solid ${effTab === k ? (k === 'cmarket' ? '#818cf8' : '#38bdf8') : 'rgba(148,163,184,0.28)'}; color:${effTab === k ? '#fff' : '#cbd5e1'}; border-radius:8px; padding:6px 12px; font-size:11.5px; font-weight:700; cursor:pointer;">${lbl}</button>
-            `;
-          }).join('')}
-        </div>
-        <input type="search" id="nc-char-bag-search" value="${escapeHTML(ncCharModalState.searchQuery)}" oninput="onNightcampBagSearchInput(this.value)" placeholder="🔍 ค้นหาชื่อไอเทม หรือ ออปชัน (เช่น คริติคอล, VIT)..." autocomplete="off"
-               style="width:260px; max-width:100%; background:#090d16; border:1px solid rgba(56,189,248,0.4); color:#f8fafc; border-radius:7px; padding:5px 10px; font-size:11.5px; outline:none;">
-      </div>
-
-      <!-- Right Scrollable Content -->
-      <div id="nc-char-right-content" style="flex:1; min-height:0; overflow-y:auto; padding:12px 14px;">
-        ${renderNightcampRightPaneContentHtml(d)}
-      </div>
+    <div id="nc-char-right-content" style="flex:1; min-height:0; overflow-y:auto; padding:12px 16px;">
+      ${renderNightcampRightPaneContentHtml(d)}
     </div>
   `;
 
-  // Restore scroll positions so deleting/editing rules or adding items never jumps back to the top!
+  if (bagEl) {
+    bagEl.innerHTML = renderNightcampBagSidebarHtml(d);
+  }
+
+  // Restore scroll positions
   const nextRightEl = document.getElementById('nc-char-right-content');
-  const nextLeftEl = document.getElementById('nc-char-left-scroll');
+  const nextBagEl = document.getElementById('nc-char-bag-scroll');
   if (nextRightEl && savedRightScroll > 0) nextRightEl.scrollTop = savedRightScroll;
-  if (nextLeftEl && savedLeftScroll > 0) nextLeftEl.scrollTop = savedLeftScroll;
-  if (savedRightScroll > 0 || savedLeftScroll > 0) {
+  if (nextBagEl && savedBagScroll > 0) nextBagEl.scrollTop = savedBagScroll;
+  if (savedRightScroll > 0 || savedBagScroll > 0) {
     requestAnimationFrame(() => {
       const rEl = document.getElementById('nc-char-right-content');
-      const lEl = document.getElementById('nc-char-left-scroll');
+      const bEl = document.getElementById('nc-char-bag-scroll');
       if (rEl && savedRightScroll > 0) rEl.scrollTop = savedRightScroll;
-      if (lEl && savedLeftScroll > 0) lEl.scrollTop = savedLeftScroll;
+      if (bEl && savedBagScroll > 0) bEl.scrollTop = savedBagScroll;
     });
   }
 }

@@ -9,6 +9,151 @@
 (function () {
   const UPDATE_LOGS = [
     {
+      version: 'v2.3.42',
+      date: '2026-11-29 01:15',
+      type: 'major',
+      title: 'ปรับโฉมหน้าต่างตัวละคร, กระเป๋า & ตลาดกลาง (Auto-Sell) ใหม่ทั้งหมดในสไตล์ Aetheria กว้างขวางไม่อึดอัด และแก้บอทค้างเควสขายของลุงโกโก้เมื่อไม่มีวัสดุในกระเป๋า',
+      badge: 'AETHERIA-STYLE CENTRAL MARKET & PERSISTENT BAG SIDEBAR · LESSON L6 SELL FIX · BOT v2.3.58',
+      uiPreviews: [
+        {
+          label: 'UI ใหม่ · ตลาดกลาง & Auto-Sell เต็มจอ + กระเป๋าขวามือสไตล์ Aetheria',
+          title: 'หน้าต่างตลาดกลาง (Central Market) กว้างเต็มพื้นที่ 1,050px พร้อมแถบกระเป๋าด้านขวาที่เปิดคู่กันตลอดเวลา',
+          desc: 'เมื่อสลับมาที่แท็บ "3 ตลาดกลาง & Auto-Sell" พื้นที่หลักด้านซ้ายจะขยายเต็มความกว้าง ไม่ถูกเบียดด้วยกรอบอุปกรณ์อีกต่อไป พร้อมแถบ "🎒 กระเป๋า" ด้านขวาที่แสดงตารางไอคอน 5 คอลัมน์และการ์ดรายละเอียดไอเทมด้านล่าง กด "+ เพิ่ม Auto Sell" หรือ "🏪 ขายลงตลาด" ได้ในคลิกเดียว',
+          img: 'assets/updates/ui_v2342_aetheria_market_bag.svg',
+          mockupHtml: `
+            <div style="display:grid;grid-template-columns:1fr 230px;gap:8px;font-family:'Prompt',sans-serif;">
+              <div style="background:#0b1020;border:1px solid rgba(168,85,247,0.45);border-radius:10px;padding:9px;display:flex;flex-direction:column;gap:7px;">
+                <div style="display:flex;gap:5px;flex-wrap:wrap;">
+                  <span style="background:#090d16;border:1px solid #334155;color:#cbd5e1;border-radius:6px;padding:3px 8px;font-size:10px;font-weight:700;">🏷️ ลงขายไอเทม</span>
+                  <span style="background:linear-gradient(135deg,#9333ea,#7e22ce);border:1px solid #c084fc;color:#fff;border-radius:6px;padding:3px 9px;font-size:10px;font-weight:800;">🤖 Auto Sell ตลาดกลาง (12)</span>
+                  <span style="background:#090d16;border:1px solid #334155;color:#cbd5e1;border-radius:6px;padding:3px 8px;font-size:10px;font-weight:700;">📦 ของที่ลงขายอยู่ 3/20</span>
+                  <span style="background:#090d16;border:1px solid #334155;color:#cbd5e1;border-radius:6px;padding:3px 8px;font-size:10px;font-weight:700;">📬 รับของ / รับเงิน</span>
+                </div>
+                <div style="background:rgba(46,16,101,0.38);border:1px solid rgba(168,85,247,0.45);border-radius:8px;padding:7px 9px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;">
+                  <span style="font-size:11px;font-weight:800;color:#f8fafc;">🟢 เปิดใช้งาน Auto Sell ตลาดกลาง (12 รายการ)</span>
+                  <div style="display:flex;gap:4px;flex-wrap:wrap;">
+                    <span style="font-size:9.5px;background:rgba(88,28,135,0.4);border:1px solid #c084fc;color:#e9d5ff;padding:1px 7px;border-radius:999px;font-weight:700;">⚖️ กลยุทธ์: ตัดราคา 1g</span>
+                    <span style="font-size:9.5px;background:rgba(16,185,129,0.18);border:1px solid #34d399;color:#6ee7b7;padding:1px 7px;border-radius:999px;font-weight:700;">🛡️ ป้องกันขาย NPC</span>
+                  </div>
+                </div>
+                <div style="background:rgba(10,16,31,0.95);border:1px solid rgba(56,189,248,0.5);border-radius:8px;padding:7px 9px;">
+                  <div style="font-size:10.5px;font-weight:800;color:#7dd3fc;margin-bottom:5px;">📋 คัดลอกรายการ Auto Sell ไปยังโปรไฟล์อื่น (4 คอลัมน์)</div>
+                  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px;">
+                    <div style="background:rgba(14,116,144,0.22);border:1px solid rgba(56,189,248,0.45);border-radius:5px;padding:4px 6px;font-size:9.5px;color:#f8fafc;">☑️ <b>จอที่ 2 (PriestA)</b><br><span style="color:#6ee7b7;font-size:8.5px;">🟢 ออนไลน์ · 12 รายการ</span></div>
+                    <div style="background:rgba(14,116,144,0.22);border:1px solid rgba(56,189,248,0.45);border-radius:5px;padding:4px 6px;font-size:9.5px;color:#f8fafc;">☑️ <b>จอที่ 3 (MageB)</b><br><span style="color:#6ee7b7;font-size:8.5px;">🟢 ออนไลน์ · 12 รายการ</span></div>
+                    <div style="background:rgba(14,116,144,0.22);border:1px solid rgba(56,189,248,0.45);border-radius:5px;padding:4px 6px;font-size:9.5px;color:#f8fafc;">☑️ <b>จอที่ 4 (KnightC)</b><br><span style="color:#6ee7b7;font-size:8.5px;">🟢 ออนไลน์ · 12 รายการ</span></div>
+                  </div>
+                </div>
+              </div>
+              <div style="background:#0b1020;border:1px solid rgba(250,204,21,0.4);border-radius:10px;padding:8px;display:flex;flex-direction:column;justify-content:space-between;gap:6px;">
+                <div>
+                  <div style="font-size:11px;font-weight:800;color:#f8fafc;margin-bottom:4px;">🎒 กระเป๋า (68/200)</div>
+                  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px;">
+                    <div style="aspect-ratio:1/1;background:#0f172a;border:1px solid #f87171;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;">🧪</div>
+                    <div style="aspect-ratio:1/1;background:#0f172a;border:1px solid #60a5fa;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;">💧</div>
+                    <div style="aspect-ratio:1/1;background:rgba(234,179,8,0.2);border:2px solid #facc15;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;">💎</div>
+                    <div style="aspect-ratio:1/1;background:#0f172a;border:1px solid #c084fc;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;">🔮</div>
+                    <div style="aspect-ratio:1/1;background:#0f172a;border:1px solid #38bdf8;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;">🃏</div>
+                  </div>
+                </div>
+                <div style="background:#0f172a;border:1px solid #facc15;border-radius:8px;padding:6px 8px;">
+                  <div style="font-size:10.5px;font-weight:800;color:#fde047;">💎 หินออปชัน x14</div>
+                  <div style="display:flex;gap:4px;margin-top:5px;">
+                    <span style="flex:1;text-align:center;background:#090d16;border:1px solid #facc15;color:#fde047;border-radius:5px;padding:3px 4px;font-size:9px;font-weight:800;">🏷️ เพิ่ม Auto Sell</span>
+                    <span style="flex:1;text-align:center;background:#7e22ce;border:1px solid #c084fc;color:#fff;border-radius:5px;padding:3px 4px;font-size:9px;font-weight:800;">🏪 ขายลงตลาด</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          `
+        },
+        {
+          label: 'UI ใหม่ · แท็บ 1 อุปกรณ์ & สเตตัสคู่กับค่าสถานะการต่อสู้',
+          title: 'แสดงหุ่นตัวละคร 10 ช่องอุปกรณ์ + แถบสเตตัส 6 ช่อง (STR-LUK) คู่กับค่าสถานะโจมตี/ป้องกัน และกระเป๋าด้านขวา',
+          desc: 'ในแท็บ "1 อุปกรณ์ & สเตตัส" ด้านซ้ายจะแสดงช่องอุปกรณ์ทั้ง 10 ช่องพร้อมแถบอัปสเตตัส 6 ช่องแนวนอน ส่วนด้านขวาแสดงค่าสถานะโจมตี/ป้องกันครบถ้วน และเมื่อคลิกช่องอุปกรณ์ใดจะสลับเป็นหน้าสแกนหาของเปลี่ยนจากกระเป๋าทันที',
+          img: 'assets/updates/ui_v2342_equip_stats_split.svg'
+        }
+      ],
+      features: [
+        '🏪 ปรับโฉมหน้าต่างตัวละคร & ตลาดกลางใหม่ทั้งหมดในสไตล์ Aetheria (แยก 2 พาเนลซ้าย-ขวา กว้าง 1,440px) — พาเนลหลักด้านซ้ายสลับเต็มพื้นที่ระหว่าง "1 อุปกรณ์ & สเตตัส", "2 คลังค่าย", "3 ตลาดกลาง & Auto-Sell" และ "4 ค่าสถานะเชิงลึก" ทำให้หน้าตลาดกลางกว้างเต็มตาไม่อึดอัดอีกต่อไป',
+        '🎒 แถบ "กระเป๋า" ด้านขวามือแสดงคู่กันตลอดเวลา — แสดงไอเทมในกระเป๋าแบบตารางไอคอน 5 คอลัมน์ (สลับมุมมองรายการละเอียดได้) พร้อมปุ่มหมวดหมู่ (ทั้งหมด, อาวุธ, ชุดเกราะ, ประดับ, ใช้ได้, การ์ด, รูน, วัสดุ, แฟชั่น) และการ์ดรายละเอียดไอเทมด้านล่างที่มีปุ่มลัด "⚡ สวมใส่/ใช้", "🔒 ล็อก", "🔨 ตีบวก", "📦 ฝากคลัง", "💰 ขาย NPC", "🏷️ เพิ่ม Auto Sell" และ "🏪 ขายลงตลาด" ในคลิกเดียว',
+        '📋 ปรับแผง "Copy To จออื่น" ในหน้า Auto-Sell ตลาดกลางให้เป็นตาราง 4 คอลัมน์ดูง่าย แสดงสถานะออนไลน์/ออฟไลน์และจำนวนรายการของแต่ละจอ พร้อมปุ่ม "⚡ คัดลอกไปทุกจอทันที" และแถวรายการ Auto-Sell แบบแถวเดียวกระชับอ่านง่าย'
+      ],
+      fixes: [
+        '🌾 แก้ปัญหาบอทยืนค้างในค่ายกลางป่าที่เควสฝึกสอน "ค่าที่พัก · ซื้อขายกับลุงโกโก้" เมื่อตัวละครไม่มีวัสดุที่ขายได้ในกระเป๋าเลย (เช่น ตีมอนสเตอร์ในปาร์ตี้ครบเควสแต่ไม่ได้เก็บของตก) — บอทจะปิดหน้าต่างร้านค้าแล้วเดินออกไปตีมอนสเตอร์หน้าเมือง (ไร่ฟักทอง) เพื่อเก็บวัสดุให้ได้อย่างน้อย 1 ชิ้นก่อน แล้วจึงเดินกลับมาขายให้ลุงโกโก้และซื้อยาต่อจนจบเควสอัตโนมัติ',
+        '🛒 แก้ปัญหาบอทกดปุ่ม "ขายวัสดุทั้งหมด" ซ้ำๆ ขณะยืนอยู่ไกลจากลุงโกโก้จนขึ้นข้อความเตือนสีเหลืองค้าง — บอทจะกดปุ่ม "พาเดินไปหาลุงโกโก้" ให้ตัวละครเดินไปถึงหน้าร้านก่อนกดขายหรือซื้อของเสมอ'
+      ]
+    },
+    {
+      version: 'v2.3.41',
+      date: '2026-11-29 00:35',
+      type: 'major',
+      title: 'เพิ่มปุ่ม "เปิดทุกจอแบบสุ่มดีเลย์ (Random Delay)", ระบบคลังแผน Cloud แชร์แผนระหว่างผู้เล่น และระบบอัปเดตบอทผ่านเซิร์ฟเวอร์กลางไม่ติดลิมิต GitHub',
+      badge: 'RANDOM DELAY MULTI-LAUNCH · CLOUD PLAN SHARING · DUAL-SERVER HOT-RELOAD',
+      uiPreviews: [
+        {
+          label: 'UI ใหม่ · เปิดทุกจอแบบสุ่มดีเลย์ & คลังแผน Cloud',
+          title: 'ตั้งเวลาสุ่มหน่วงเปิดแต่ละจอ (Random Delay) พร้อมนับถอยหลังสด และระบบแชร์แผนการเล่นขึ้น Cloud',
+          desc: 'ในเมนู "🚀 เปิดทุกจอ" สามารถตั้งช่วงเวลาสุ่มดีเลย์ (เช่น 3 - 10 วินาทีต่อจอ) เพื่อทยอยเปิดจอโดยไม่เปิดพร้อมกันทีเดียว และในหน้า "ระบบวางแผนการเล่นอัตโนมัติ (Plan Scripts)" มีปุ่ม "☁️ คลังแผน Cloud" สำหรับอัปโหลดแผนของตัวเองพร้อมชื่อผู้อัปเดตและดาวน์โหลดแผนจากผู้เล่นอื่นได้ทันที',
+          img: 'assets/updates/ui_v2341_random_delay_cloud_plan.svg',
+          mockupHtml: `
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-family:'Prompt',sans-serif;">
+              <div style="background:#0b1020;border:1px solid rgba(139,92,246,0.45);border-radius:10px;padding:9px;display:flex;flex-direction:column;gap:6px;">
+                <div style="font-size:11.5px;font-weight:800;color:#e9d5ff;">🎲 เปิดทุกจอแบบสุ่มดีเลย์ (Random Delay)</div>
+                <div style="display:flex;align-items:center;gap:6px;font-size:10.5px;color:#cbd5e1;">
+                  <span>สุ่มตั้งแต่</span>
+                  <span style="background:#050811;border:1px solid #a78bfa;color:#fde047;padding:2px 8px;border-radius:5px;font-weight:800;">3</span>
+                  <span>ถึง</span>
+                  <span style="background:#050811;border:1px solid #a78bfa;color:#fde047;padding:2px 8px;border-radius:5px;font-weight:800;">10</span>
+                  <span>วินาที/จอ</span>
+                </div>
+                <div style="background:linear-gradient(135deg,#6d28d9,#4c1d95);border:1px solid #c084fc;color:#fff;border-radius:7px;padding:6px 10px;font-size:10.5px;font-weight:800;text-align:center;">
+                  🎲 สุ่มดีเลย์เปิดเฉพาะจอไม่ติดคุก (3-10 วิ)
+                </div>
+              </div>
+              <div style="background:#0b1020;border:1px solid rgba(56,189,248,0.45);border-radius:10px;padding:9px;display:flex;flex-direction:column;gap:6px;">
+                <div style="font-size:11.5px;font-weight:800;color:#7dd3fc;">☁️ คลังแผน Cloud (แชร์แผนร่วมกัน)</div>
+                <div style="background:#0f172a;border:1px solid rgba(56,189,248,0.35);border-radius:7px;padding:6px 8px;font-size:10px;color:#f8fafc;">
+                  <b>✨ พระ → บิชอป → นักบุญแสงดาว Lv.1-80+</b><br>
+                  <span style="color:#6ee7b7;">👤 อัปเดตโดย: GolfZa</span> · <span style="color:#c7d2fe;">⬇️ ดาวน์โหลด 142</span>
+                </div>
+              </div>
+            </div>
+          `
+        }
+      ],
+      features: [
+        '🎲 เพิ่มระบบ "เปิดทุกจอแบบสุ่มดีเลย์ (Random Delay)" ในเมนูเปิดทุกจอ — สามารถกำหนดช่วงเวลาสุ่มหน่วงระหว่างแต่ละจอเป็นวินาที (เช่น 3 – 10 วินาที) พร้อมปุ่ม Preset (1–3วิ, 2–5วิ, 3–10วิ, 5–15วิ, 10–30วิ) แถบแสดงสถานะนับถอยหลังจอถัดไปแบบเรียลไทม์ และปุ่มยกเลิกคิวได้ตลอดเวลา',
+        '☁️ เพิ่มระบบ "คลังแผน Cloud (Cloud Plan Sharing)" ในหน้าต่าง Plan Scripts — ผู้ใช้งานสามารถกดปุ่ม "☁️ แชร์ขึ้น Cloud" ที่แผนของตัวเองเพื่อตั้งชื่อแผน คำอธิบาย และแสดงชื่อผู้อัปเดตให้ผู้เล่นคนอื่นกดดาวน์โหลดไปใช้งานได้ทันที',
+        '⚡ อัปเกรดระบบอัปเดตบอท (Hot-Reload) และระบบอัปเดตโปรแกรม Manager ให้ดึงข้อมูลจากเซิร์ฟเวอร์กลางควบคู่กับระบบ Git เดิม — แก้ปัญหาติดลิมิต GitHub API Rate Limit จนเช็คอัปเดตไม่ได้ พร้อมรองรับผู้ใช้งานเวอร์ชันเก่าควบคู่กัน 100%'
+      ],
+      fixes: [
+        '☁️ แก้ปัญหาการกดแชร์แผนขึ้น Cloud แล้วขึ้นแจ้งเตือน "Unsupported announcement route" โดยเพิ่มระบบสำรองข้อมูลอัตโนมัติให้แชร์และดาวน์โหลดแผน Cloud ได้ตลอดเวลาไม่มีสะดุด'
+      ]
+    },
+    {
+      version: 'v2.3.40',
+      date: '2026-11-28 23:20',
+      type: 'major',
+      title: 'เพิ่มสวิตช์เปิด/ปิดระบบสมัครไอดีด้วยอีเมล & OTP อัตโนมัติ และรองรับการล็อกอิน SmailPro ผ่านปุ่ม Sign in with Google (Gmail)',
+      badge: 'EMAIL OTP MASTER TOGGLE · SMAILPRO GOOGLE SIGN-IN SUPPORT',
+      uiPreviews: [
+        {
+          label: 'UI ใหม่ · สวิตช์เปิด/ปิดระบบสมัครเมล & ล็อกอิน SmailPro ด้วย Gmail',
+          title: 'เลือกเปิด/ปิดการยืนยันอีเมล OTP ได้อิสระ พร้อมระบบเปิดหน้าต่าง SmailPro ที่รองรับการล็อกอินผ่านบัญชี Google (Gmail)',
+          desc: 'ในหน้าต่าง "📧 ตั้งค่าสมัครเมล & OTP" มีสวิตช์หลักสำหรับเปิด/ปิดระบบยืนยันอีเมล และเมื่อใช้โหมด SmailPro / Sonjj Premium สามารถกดปุ่ม "Sign in with Google" เพื่อล็อกอินผ่าน Gmail ได้อย่างราบรื่นโดยไม่ถูก Google บล็อก',
+          img: 'assets/updates/ui_v2340_email_otp_google_login.svg'
+        }
+      ],
+      features: [
+        '🔘 เพิ่มสวิตช์หลัก "เปิด / ปิด ระบบสมัครไอดีด้วยอีเมล & ยืนยัน OTP อัตโนมัติ" ในหน้าตั้งค่าสมัครเมล — เมื่อปิดสวิตช์ บอทจะสมัครไอดีโหมดปกติทันทีโดยไม่ผูกอีเมล และเมื่อเปิดสวิตช์ บอทจะสร้างอีเมลและดึงรหัส OTP 6 หลักมายืนยันให้อัตโนมัติ',
+        '🌐 รองรับการล็อกอิน SmailPro / Sonjj Premium ผ่านปุ่ม "Sign in with Google (Gmail)" — ปรับปรุงเบราว์เซอร์ล็อกอินให้ผ่านการตรวจสอบของ Google และรอให้กรอกรหัสผ่าน/ยืนยันตัวตนบนหน้า Google จนเสร็จสมบูรณ์ก่อนดึงสถานะล็อกอินกลับมาที่โปรแกรมอัตโนมัติ'
+      ],
+      fixes: [
+        '🔒 แก้ปัญหาหน้าต่างล็อกอิน SmailPro ปิดตัวเองหรือเด้งกลับก่อนล็อกอิน Gmail เสร็จเมื่อสลับไปหน้ายืนยันบัญชีของ Google'
+      ]
+    },
+    {
       version: 'v2.3.38',
       date: '2026-11-27',
       title: 'แก้หน้าจัดเซ็ตอุปกรณ์ (Set Gear) พิมพ์ค้นหาไม่หลุดโฟกัส, กรองอาวุธตรงทุกอาชีพ + รูปไอคอนจริง และแก้รูปไอคอนใน Wiki สลับกันถาวร',
