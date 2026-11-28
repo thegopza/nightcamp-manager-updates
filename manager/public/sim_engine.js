@@ -786,7 +786,7 @@
       rotation: Array.isArray(raw.rotation) ? raw.rotation.filter(id => idx.skillsById[id]) : def.rotation,
       hotbar: Object.assign({ q: null, e: null, r: null, f: null, '3': null, '4': null, '5': null, '6': null }, raw.hotbar || def.hotbar),
       runes: {},
-      basicRunes: [null, null],
+      basicRunes: [null, null, null],
       cards: { pas: [null, null, null], act: [null, null] },
       buffs: {
         pots: Array.isArray(raw.buffs && raw.buffs.pots) ? raw.buffs.pots.slice() : [],
@@ -810,7 +810,7 @@
       }
     }
     if (Array.isArray(raw.basicRunes)) {
-      b.basicRunes = [normalizeRuneSlot(raw.basicRunes[0]), normalizeRuneSlot(raw.basicRunes[1])];
+      b.basicRunes = [normalizeRuneSlot(raw.basicRunes[0]), normalizeRuneSlot(raw.basicRunes[1]), normalizeRuneSlot(raw.basicRunes[2])];
     }
     if (raw.cards) {
       for (let i = 0; i < 3; i++) b.cards.pas[i] = normalizeCardSlot(raw.cards.pas && raw.cards.pas[i]);
@@ -2011,13 +2011,13 @@
       }
     }
 
-    // Step 5: Optimize Basic Attack Runes (Lv.40 / Lv.70)
-    const basicCands = (idx.wiki.runes || []).filter(r => r.kind === 'proc' || r.kind === 'pierce').map(r => r.k).slice(0, 8);
+    // Step 5: Optimize Basic Attack Runes (Lv.40 / Lv.70 / Lv.90)
+    const basicCands = (idx.wiki.runes || []).filter(r => r.on === 'basic' || r.kind === 'proc' || r.kind === 'pierce').map(r => r.k).slice(0, 12);
     if (best.lv >= 40) {
-      const slotsOpen = best.lv >= 70 ? 2 : 1;
+      const slotsOpen = best.lv >= 90 ? 3 : (best.lv >= 70 ? 2 : 1);
       for (let slotIdx = 0; slotIdx < slotsOpen; slotIdx++) {
         for (const rk of basicCands) {
-          if (slotIdx === 1 && best.basicRunes[0] && best.basicRunes[0].k === rk) continue;
+          if (best.basicRunes.some((br, idxBr) => idxBr !== slotIdx && br && br.k === rk)) continue;
           const trial = cloneJson(best);
           trial.basicRunes[slotIdx] = { k: rk, tier: runeTier, qb: 0.1, qd: 0.1 };
           const r = simulateFight(idx, trial, targetCfg, simOpts);

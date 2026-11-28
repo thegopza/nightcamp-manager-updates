@@ -1,425 +1,530 @@
 {
   "schema": 1,
-  "sourceCommit": "11258cc39c7cf97756f308d7caa2bf194bf8254c",
+  "sourceCommit": "04a3df843d82cdf7611e65f642fde7ef25f65914",
   "files": [
     {
       "path": "manager/asset_cache.js",
+      "sha": "af330c03615a42bc040a836f6a56272fc8d26143",
       "sha256": "2d571ef6c008856880eef545f3cce1673c5beb06afdd86c985a44295c9176a95"
     },
     {
       "path": "manager/auth_sync.js",
+      "sha": "429a27fb3e7a1d0fbff53d572f592d7c3cb9c930",
       "sha256": "f4179f94c38ab62f330dc6eed980043850e015f1fa46f3a1f82e5a2a4000eda1"
     },
     {
       "path": "manager/bot_auto_update.js",
+      "sha": "00a8302aa72ad0cef5aa37db9b57ed893554df06",
       "sha256": "bd683eb9f853354f0b96ea1af8e83438b50a1abff6f9071e8f74762c7a1fe275"
     },
     {
       "path": "manager/browser_mode.js",
-      "sha256": "11c8433bab6d7e943c04593eeb1eb86539ed6400420e23d78385db081ebab3e4"
+      "sha": "da0bff8af45811300df2be61067c690e38324fb1",
+      "sha256": "324225dcf1b8e6744deb42a4d849c387a45745ba1eefb81e15f2b93a4cf36a5c"
     },
     {
       "path": "manager/captcha_stats.js",
+      "sha": "388224bf50a403c68688e0568c250f56d2cc55ef",
       "sha256": "21bebdf93441519a8929d69cb7cd41c7ac7b8912e3955585b7ce192a693c6349"
     },
     {
       "path": "manager/card_market_api.js",
-      "sha256": "7078c4fcc472f4b407b2e34e8df693ebb539657e27b3a86f1de5b060c5838859"
+      "sha": "305b3fc376fe3924eabec557af9a1cfe4305c4e3",
+      "sha256": "7262c620b02f531eae93e0d27c424dec3c4a502f95d24def105c64f2cb082f21"
     },
     {
       "path": "manager/config_copy_api.js",
+      "sha": "b0cd23b1cc71074e3b7ad9efc0b115645e30f638",
       "sha256": "90749c67cbaedb732be8e2b91f2429bca22f028d3c54e63e10c6f2636295d443"
     },
     {
       "path": "manager/coordinated_coordinator.js",
+      "sha": "ed2f857e93785ec6f9e0dcde3600c8b163ef8ed4",
       "sha256": "fa799ea7d15c8cf13efacdb0f2aabd3c93bfaa8e4749fa5a041a36c09712c31c"
     },
     {
       "path": "manager/credentials.js",
+      "sha": "2399a76a34ac70001472dac28c379a125d6ce9e0",
       "sha256": "2ef3f6c1b26ccb0c713c70d1da5f4a619f41b2a319088979f5e4aa21758da514"
     },
     {
       "path": "manager/discord_bot.js",
+      "sha": "8144c3a35ef2a339b3debdce9395b6e33010215f",
       "sha256": "053ba61350ef5f3f6281e2f4d4d5880117039a80acd4ebc62d7107d54cec15dd"
     },
     {
       "path": "manager/embedded_human_check_bridge.js",
+      "sha": "a9780aa4bff0df0fb371583d1e950f779a42cc00",
       "sha256": "6d935b8b6df8a141b2c010b817c1cd3937af637496e0e1ce581c12c55d37ed5a"
     },
     {
       "path": "manager/fleet_zeny_consolidation.js",
+      "sha": "6b47750c0a3e82447f2102b490156389faa53e8b",
       "sha256": "c95a15b34f8070e0ca627694f57d1febc79e175fc06e49bcb3873414852a8221"
     },
     {
       "path": "manager/game_loader/main.js",
+      "sha": "6aa9f1c53a78400108c6e408194bfee675ba7bbe",
       "sha256": "e85fa1e8197297bb0778e5c846a70697b08ca05dc842d6873b00bc6208568ed3"
     },
     {
       "path": "manager/github_check.js",
+      "sha": "b5f4bbf41384cde7a167eff4d212089a12a83fb9",
       "sha256": "6f534bf09371692a876229ef0a0acc768aca9725a0647253d9064acd1d3c30bf"
     },
     {
       "path": "manager/human_check_catalog_seed.json",
+      "sha": "60402fd3faef5100065457f4e28b211bdef05661",
       "sha256": "259877fc0b3441525c0dbf777575057568fba6afd9f2bec87ce9f5c3a38a0423"
     },
     {
       "path": "manager/human_check_solver.js",
+      "sha": "17bc1f5ec518ea8643e4532599a60d92a14762dc",
       "sha256": "b385404c59cb884c287b5943b0c551b9cb11ee4c35c60fef90c3f7eaf4ceadd2"
     },
     {
       "path": "manager/image_board_solver.js",
+      "sha": "899595736c082a556aa21f9474413ad9c4f19994",
       "sha256": "68da8127b929d9030b6452f5d9e4185ffd4e67dd71fbb65aa813712588779149"
     },
     {
       "path": "manager/installer.js",
+      "sha": "1fc995ed45d0e71d3121f08300f0b277e36a1450",
       "sha256": "4b4255d76ae1b16c391582b39cafefe47f18ba906235c814f7407c26ed58f1b8"
     },
     {
       "path": "manager/inventory_market_api.js",
+      "sha": "2a68a26bc038c8f6e916d6bab9723370bbc8e519",
       "sha256": "7c32f2aac0db2bcf061b18f75117c04601256527ad1f525324b51fd17af7d4a0"
     },
     {
       "path": "manager/local_human_check.js",
+      "sha": "dbb12e2e29a9f5e2faeef6f2737b63cdeae2db98",
       "sha256": "7f987de478586957cb11305c945c6421a14dd80921b1267badabd4bdc72ea172"
     },
     {
       "path": "manager/local_request_security.js",
+      "sha": "a68bc415a3ce22564eefa391914775e1e0b2d8cc",
       "sha256": "2248bbbac51ba138757e5f1b543025e285abc66e6196f9788b98e62d7d1c34eb"
     },
     {
       "path": "manager/manager_self_update.js",
-      "sha256": "aa3aea02dc14dbb9d1603866a62bc5914bd66fa2c9c791c6f65541f99735ad61"
+      "sha": "5f51ab43f55ea5bbb52efd41df780d987847b4dc",
+      "sha256": "f8da5fe212d3b8f5360d9f37b9373b24238e5bc117e55032f1fe3771318bc7fe"
     },
     {
       "path": "manager/market_sniper_api.js",
+      "sha": "cb8215390b08182fc6461de490180274c00d9dab",
       "sha256": "ccb6ccfb5f3b5d2d3afc2281039ca6abac2ea7b4e00786ddc271e93b612f9f5a"
     },
     {
       "path": "manager/nc_consolidation_engine.js",
+      "sha": "d10983f40adbe0ecfa96744660d9cbfad1b1b4d6",
       "sha256": "24ff5cbf74434022424aec57b7f0edcdb0b3a531e2407c36daa9da1ef29ba3b8"
     },
     {
       "path": "manager/offline_coordinator.js",
+      "sha": "17fd3bc691c141a73652c203b9a15e74648bc6c3",
       "sha256": "0461ef0c7ea4172e97a749e2e99dc45de05023db4211a4218cd6d948d73aa3b8"
     },
     {
       "path": "manager/offline_journal.js",
+      "sha": "af40d40126857311f4455ffea2b97a365769c223",
       "sha256": "a24b0de21bd8ad455e5e2a1c00ad93e4c88fb81aa2ea20f175278506857f33a7"
     },
     {
       "path": "manager/offline_payload_cache.js",
+      "sha": "4121e433625bae304797b2d88ce370e5f1449a74",
       "sha256": "e710b0fa1781d9206011fa2ff21b578bdf70fe98bfc3abf7e7cb94a895e482b5"
     },
     {
       "path": "manager/offline_script_bootstrap.js",
+      "sha": "b7e04c6bc73883bdaf54393c3ecac5807f3378ff",
       "sha256": "af2397aa263191abf6386682c972cb40000e3b8631bd5d0472d45e20436dc11a"
     },
     {
       "path": "manager/party_api.js",
+      "sha": "3e7ca882d0b440dd4b5c6dcf2e073547f8685ade",
       "sha256": "a0ce793da85b965f8a48faa2f21891eb4847f60bf82fc3f622b41fb55d662d60"
     },
     {
       "path": "manager/plan_sync.js",
+      "sha": "244b40376c9067277abdfe708aac137f504e5437",
       "sha256": "8765c7b4da47fe50f2b31b5c5406088357037f0bd1cc5f4b3a408f2abb471c52"
     },
     {
       "path": "manager/premium_api.js",
+      "sha": "17b8ae019f322a4a245ea264f88391ec384f3283",
       "sha256": "a3bfcb4300df6dd8532de2026a4927b7eee4e19a3455e15ffc6539036cb79137"
     },
     {
       "path": "manager/guild_api.js",
+      "sha": "5b6f91f62348d4601e4c881edbc39b73e21180b8",
       "sha256": "d8669d06c9bcab9079c8a5d683d01f86c3ba8c93eaf872237e4d382d5c88db0b"
     },
     {
       "path": "manager/proxy_register.js",
+      "sha": "269acb03ce84f34e8a8415616e0b8cfbfe35ac9f",
       "sha256": "b6dc84ba1878b46e5a02288a03fdde6c8d375a0c94dddcc56fc4afaf8d3eb3c4"
     },
     {
       "path": "manager/proxy_tunnel_daemon.js",
+      "sha": "c0476525cc8eae2d369d3c91327059fd75244ecd",
       "sha256": "830cf74b338942578bd2928720fdf0528533d3c05fed2ae35d30927c33c77bd0"
     },
     {
       "path": "manager/public/announcements.js",
+      "sha": "7602db62e93f50456dc20304d60f20b996be37c5",
       "sha256": "e03d7c979ee4de2f58f5bb41cd8543eb10dedbe4702061dbd4034a6693b19bbd"
     },
     {
       "path": "manager/public/app.js",
-      "sha256": "5aab7551336fe8478a45c0e902929a5c600c6da3c53aaff7058e34ed4e7ca7b9"
+      "sha": "c0d47342bca99c20e1d27249f5ccdf52fadbd376",
+      "sha256": "90cb47fc8cede7e1e4db592d68c9bc58c58efdd723d7feddf6e21409df15364f"
     },
     {
       "path": "manager/public/assets/updates/ui_v212_bag_rightclick.jpg",
+      "sha": "35cd4600fb2e6d767f62e52a8ca726aca6d907a7",
       "sha256": "cff4bba9ce8fcdc518a432446dc40df213d54edacaa423926c7eb1a97bb18b86"
     },
     {
       "path": "manager/public/assets/updates/ui_v212_item_wl_button.jpg",
+      "sha": "f636000bfd0f375ff37e430d6027c9fd7a9a4b9a",
       "sha256": "157e285b8b4ed45a765338e6dbb6238235c9a445fb3c8d43dad46b5094d7b76b"
     },
     {
       "path": "manager/public/assets/updates/ui_v212_market_tab.jpg",
+      "sha": "d73a17cbfae272ed43e222343ccb44ac137a1da6",
       "sha256": "b75ac037eab2f363ab228bb2031dfb3d2fb42f1d19f238c034d023477d3a7173"
     },
     {
       "path": "manager/public/assets/updates/ui_v212_wl_dialog.jpg",
+      "sha": "578ecfefad2b726680b2111d25d143610133f868",
       "sha256": "0694d443fac4800ab2293e56188989ee9d65263ac8739c53d45ed633efe6b9c4"
     },
     {
       "path": "manager/public/bot_update.css",
+      "sha": "2e3373fc93abab1a84d2b3890f9d32aa00d7c813",
       "sha256": "3a96a3eefd0e65b1f12811521e28711dd803de80ff14e2f47bd09dcbb2b121df"
     },
     {
       "path": "manager/public/bot_update.js",
+      "sha": "14935e8833deae3b606b17540f6d03197bfc574a",
       "sha256": "f1891af70a3dd3e6bb920c025b7638c4b28c8fbf7abe11eb0d97dbb63227c2a2"
     },
     {
       "path": "manager/public/build_sim.css",
+      "sha": "54d5f91501595222d0f98ade07b544d51d1260fa",
       "sha256": "12d820a606b4df1e39f8d7c43bbcba750839c4f6e50b1578298ddf26fe5dc0f1"
     },
     {
       "path": "manager/public/build_sim.html",
+      "sha": "df9df6fb69b45dbb1862ed20c5500ba6204268cb",
       "sha256": "8d0fe037fc32d78db602b36607efa0c97ad51b6cbac48b2724dfe53da44efc69"
     },
     {
       "path": "manager/public/build_sim.js",
-      "sha256": "8eca93fb0d7c9941cc32de55c2a8f3eaf15fbb2c783c2832290d195e26680b23"
+      "sha": "6b5bcf76b993c5f674b375a22eb89aa459e46ece",
+      "sha256": "75373f8a388ef58d5e17ee58c5a7cb000f327bc2edee42313c24b4cd83475a50"
     },
     {
       "path": "manager/public/build_sim_arena.js",
+      "sha": "ab50fb2c448991c5ef7f46c341a536ccc01db89e",
       "sha256": "a45ea7c6623f62319afd2d9620167ed88a2f7ea99ea7327b4ca965e1074da275"
     },
     {
       "path": "manager/public/builder_module.js",
+      "sha": "b169805174ad04cebdd81a36cff8b5039e6c190f",
       "sha256": "e98f325f76fcfc3b2a29c16339a54a890bafa29b26ca2cc2eb5a51704419178f"
     },
     {
       "path": "manager/public/card_manager.css",
+      "sha": "e93fa7ec7f70087110008ebd95b01cff6e194aa9",
       "sha256": "c0bd5fc5e45d12e2e56832d8cfa05698c2446c7383bf14ec9bd7b82f54a3ea31"
     },
     {
       "path": "manager/public/card_manager.js",
-      "sha256": "355cdf81be70fcb3ddfc6a8221460108c4a18b61db1bfea0871b73ea73a6d6fa"
+      "sha": "379d92ca412ed1443079ee38816b10ee58e7db5a",
+      "sha256": "5358b7da40534948c02e4f9342de60d7f905772cddf5713a69674552b38d3ee8"
     },
     {
       "path": "manager/public/config_copy.js",
+      "sha": "9b6821a2056a56ed1d9abdac35e115cde620ec17",
       "sha256": "6e7e95f73175400538f65dad96cabf0171ced37b197780e5e90e2f4b36a94cb2"
     },
     {
       "path": "manager/public/device_manager.css",
+      "sha": "b011c19185e678da0e35584a886f8943fd26f159",
       "sha256": "abb6ecff0c7bec342f34bcd437c40630de61af98619b4f20386aa619f5a9a9be"
     },
     {
       "path": "manager/public/device_manager.js",
+      "sha": "f62b3179ac0f9371a7a7f6e6b0576e1a7eca0f5f",
       "sha256": "c5c0bcdfe832fad9f8ce68b9a11442eeab8c4716c8dc15796f84e0c4ced0d122"
     },
     {
       "path": "manager/public/fleet_dashboard.css",
+      "sha": "da23cecca1479d8344f0f2ea691569bf0deb34cc",
       "sha256": "5b782b2fc562db89e09cebc292adef99e4ee685a814d30bad85f54c9c998477d"
     },
     {
       "path": "manager/public/fleet_dashboard.js",
+      "sha": "8e41b9e5e82e61d347f2f64407173aefca3cfff4",
       "sha256": "aba73a75bb2c4dccc0cd06c56b60a300524e11f68aa8cbe9429460a6fd587157"
     },
     {
       "path": "manager/public/fleet_zeny.js",
+      "sha": "a36d33f678b3c7987701251245f0962511ac50e9",
       "sha256": "4d293a70f70de681e1f468b727377dec90cdade62cfb44b800dc28067cdcd5da"
     },
     {
       "path": "manager/public/game-classes.json",
+      "sha": "5a9985c57c875a8cde67c8fdadfd89ef78aecf5e",
       "sha256": "10cfc93b9b6dd98aa95546adf228effd726e25752cbf593ea0a3520a9bc1a789"
     },
     {
       "path": "manager/public/gear_builder.js",
-      "sha256": "4ce642a639eb955ccedabb2a92843c990b9d90148972d9fd96da1c0aaa19499b"
+      "sha": "e68e09afea0d9bbeb12dc7581395abee03ecc685",
+      "sha256": "b5dbac8204f0e138ac7bc6d3e73334cbfa4b24450c0894b8c2f6bf7a2b960c34"
     },
     {
       "path": "manager/public/nightcamp_gear_catalog.json",
-      "sha256": "f0c7c4d9fe087394f700103f45f7c981bc96b44bc8fcc6a1ca88105b90067fec"
+      "sha": "c8bf3a93a85ce66dfff1ce067209f749fdbf7b15",
+      "sha256": "fc41e9170b25d354bdb6f066ac0fb47b989fcd9987e0a97a0aa7035631bdec10"
     },
     {
       "path": "manager/public/guild_manager.css",
+      "sha": "5dc85a740d97bc9f25c1534c34b58710d05e6f7e",
       "sha256": "9149677f10f3d2d2d82cbb1f213dd7118d2b88e02131662ff4901e318b4b7952"
     },
     {
       "path": "manager/public/guild_manager.js",
+      "sha": "7b7433b80425a5488bc48905ac1be771e1dbd359",
       "sha256": "225baff9c7bc7dc3345e623460241ad286c4338e754a160082114aa9c22dc309"
     },
     {
       "path": "manager/public/image_board_solver.js",
+      "sha": "899595736c082a556aa21f9474413ad9c4f19994",
       "sha256": "68da8127b929d9030b6452f5d9e4185ffd4e67dd71fbb65aa813712588779149"
     },
     {
       "path": "manager/public/index.html",
-      "sha256": "95ab66bc54e15519fd5b74c18362c17b575e14ab19f51e9f5aee342e264661a5"
+      "sha": "d031f24aa6a4c9367c118f5654bcbaf257ee4817",
+      "sha256": "0fc819c6bb0e5f79fa805f8520d0424d3d7610cf01f5bd4c7c3f4de3ca3b869b"
     },
     {
       "path": "manager/public/inventory_market.css",
+      "sha": "762a699300c60c32f9b23ee7d6da6c614de2dca6",
       "sha256": "25c33ca762c13b42665a7963ae282f8b48e2c09fc1d7dd58e1a2f7f2e5ccdef9"
     },
     {
       "path": "manager/public/inventory_market.js",
+      "sha": "6d891337b2d2700edbf57d5c7eca404b2216bb57",
       "sha256": "38ffe1aae522174ce221b8aaa2aafc5d70632a4aabf8801fe8453fd9743175c8"
     },
     {
       "path": "manager/public/jail_manager.css",
+      "sha": "d66fea256ac875124199f09bfa1581d5f652151c",
       "sha256": "4f591b8e4be1b2daa689d5a01457a2bb91670a420c398930c40f509cd5bb6e6f"
     },
     {
       "path": "manager/public/jail_manager.js",
+      "sha": "c3b3e24d1b77df1696901de329097c29b61dcf29",
       "sha256": "a2e012b5773ef4bcae45dc2b90ea44f0370e35dd3a8588c7825c506d7aa4a7cc"
     },
     {
       "path": "manager/public/market_overview.css",
+      "sha": "da3303d2b2fc32eedc3a3ad2e503e051252b307e",
       "sha256": "bffd9584cb4ab38b018ded1d44c8e6581cc4542bf52a80ef50a32e02651a8e63"
     },
     {
       "path": "manager/public/market_overview.js",
+      "sha": "18e0d34751e9c1ad7076423a962b9ebb9b73a956",
       "sha256": "8bf34c5a45d66cfb3c47021aa6a6d6523ffcfd8ac6206c539cdb7c67631a60c5"
     },
     {
       "path": "manager/public/market_sniper.js",
+      "sha": "80f6781613d0b3f2953e14e26adf4c4b6a2453f8",
       "sha256": "ceeb1ad1fd13f2ba7f5dcfc6863eb1697dddc97f435766c78ba6d84e4ca84554"
     },
     {
       "path": "manager/public/party_manager.css",
+      "sha": "d3157191853a379986ab74a64ebc86bc3fc24d0b",
       "sha256": "05f58c3b8a256a8433cef0db52b22b3402df1ded0fe21435eb5b3419857c4f87"
     },
     {
       "path": "manager/public/party_manager.js",
+      "sha": "c4c8f2cc027d4f8270b3ef0536d841617bccf6ff",
       "sha256": "e91dbe160d4b81ed40148e7ec1a96532e37537157a73536698f9107a3885437b"
     },
     {
       "path": "manager/public/patcher_module.js",
+      "sha": "fd0501381700c5cba152632d81a864f1a80d7fea",
       "sha256": "fefe4221456bdc50860a297ac293fe21d97ea1ebae0e98ab7ce4c58bd6b9c0b4"
     },
     {
       "path": "manager/public/plan_editor.css",
+      "sha": "78490492cd1819ad69d7afb40d25a6c2a9bff5cb",
       "sha256": "2a085d4562af1a9f2444c6789cb4f0e20727182c74dd1a141471e0ff60fec707"
     },
     {
       "path": "manager/public/premium_manager.css",
+      "sha": "2dce799384f2372b80453ae9ea4938e6d3dac8ad",
       "sha256": "9bab5bbb3f4c6aa68a8bc0667026dd92542ee4d10cb02ede88d2fce782502e20"
     },
     {
       "path": "manager/public/premium_manager.js",
+      "sha": "25366da4d2c8001f9904883e868ae0b79c35536e",
       "sha256": "3fbdc3552fe6110132ab10f84e928781d20d130f664b3a1c008ddb61c00cd303"
     },
     {
       "path": "manager/public/script_status.html",
+      "sha": "c6800ff3fa74eae7f4cc5276075b25e79df60bdc",
       "sha256": "ed5394673bd07cd9f162288c7e202726f64be5218c51c6c3f4d3b2820975a3aa"
     },
     {
       "path": "manager/public/script_status.js",
+      "sha": "20ba9d3a24e04c64e803b122828b5b5399a1da42",
       "sha256": "38d018c265a0a48cca1c6db604bb347b2e5d57b576d9d60f62ebfc08015c0475"
     },
     {
       "path": "manager/public/sim_engine.js",
-      "sha256": "e1ed00b2e1330a8b903ad4fcb4ea634a27dd8fd22edc88b0250b59628cbdc639"
+      "sha": "99e86c19f866ace5a77f5793d576f36c08f640a9",
+      "sha256": "250bb5b1beb82cbcbbfc82dee9bbbdfe3e92568f814a2087ab3861784377b287"
     },
     {
       "path": "manager/public/style.css",
+      "sha": "a0874b7e122be9a21451d752c686125b063bf0cb",
       "sha256": "21ee9974e47a6b973ab262a8bc0d7b100365e9915f420ca846b2f5fd60eb229d"
     },
     {
       "path": "manager/public/support_chat.css",
+      "sha": "ec6cb8c021467a6b8456a162107c0f6b943d658a",
       "sha256": "4e7f45d9daf5e029deff1acebf4f63d5329d9ba938e634cab7637ff4b5211570"
     },
     {
       "path": "manager/public/support_chat.js",
+      "sha": "ecdb761872a4a7c745ec5391fa2b86233afe56d3",
       "sha256": "ce05edd71a146570d6ea1a0cad03de136dbcece46a4df6dd3a8adf1dbad842f2"
     },
     {
       "path": "manager/public/tower_manager.js",
+      "sha": "98977ef38a9a4b574241d59629362b84c72a8463",
       "sha256": "484745e0486b3b3980d9eb152844d0b19f26e7c37e889b530c84884ffca251b7"
     },
     {
       "path": "manager/public/update_log.js",
+      "sha": "1659ac079cbfda2f3ca7b5333ffb44bb523cd9fd",
       "sha256": "6dff488a16adedce9b1310da4492718f12ad09bfeebd9ad0194a5196a6b2e490"
     },
     {
       "path": "manager/public/wiki/atlases/wiki_hats128.webp",
+      "sha": "1131a2c8361ccf63b52167faec2c256a1c5910df",
       "sha256": "3617c305f73ea62313df1450735294b8898215cee386beccc6a327de5b0f8c97"
     },
     {
       "path": "manager/public/wiki/atlases/wiki_items.webp",
+      "sha": "4ed980f0b4a2e4a5ba850238a2b432a947483860",
       "sha256": "55616f979d3556cb0d8d289fafb0bd5bd1cf32fd7159ce4be9c37a89acfa8048"
     },
     {
       "path": "manager/public/wiki/atlases/wiki_jobs.webp",
+      "sha": "1042b43a942dd85af6a094da7b19552198f0c2d9",
       "sha256": "156e78828fa5bd503131cb3ba4cdd4db9f6a86123388aa84c6e6d26c3b52985f"
     },
     {
       "path": "manager/public/wiki/atlases/wiki_mats.webp",
+      "sha": "17ac17bd228e87abc2fbec4a0996e3972ede2473",
       "sha256": "0c3e53d7cef08291a3947aa3fd097f358f9b91fef49be1095b2f77ccc7c51bb6"
     },
     {
       "path": "manager/public/wiki/atlases/wiki_mons.webp",
+      "sha": "2fba78347b5149b8b1a333580500374ffca196ad",
       "sha256": "3ba12d0d817dddb29b6ad1b471e6e72c473a41a77d2a9ae0679ddafcef2f7ae6"
     },
     {
       "path": "manager/public/wiki/atlases/wiki_skills.webp",
+      "sha": "1a2bf75511eebac6606fa0e4ac2c695efc8c3f09",
       "sha256": "54985d7400b5f2a51dea59382b58573e55a264ad2d43af9d6871bdd8009c4828"
     },
     {
       "path": "manager/public/wiki/calc.js",
+      "sha": "846c5ea797b6037100b2a68f31d2c5dac4a69c0f",
       "sha256": "d1a4d5871a163d4137fefc9af7901f3a58aadf6e93503b60c916425754325c91"
     },
     {
       "path": "manager/public/wiki/data.json",
-      "sha256": "161c126822f0350d64896789c7777d276bd7a90d81bef04e30b60b8bab5bc604"
+      "sha": "b4c462bce8c41a55cd6753ed04f2951d02a8dfb4",
+      "sha256": "294614a0a6fe794a7a79e1a4b4e24816fe59631b71c8a971a230a24cf2b84639"
     },
     {
       "path": "manager/public/wiki/index.html",
+      "sha": "c27914bcb05bd7b4cbb8f79281c2457b74e993d4",
       "sha256": "28112c27e12670d94ac517b51ddde60a2c73274e9666bf5b4ff57ddc634ce12d"
     },
     {
       "path": "manager/remote_fleet.js",
+      "sha": "bc7a2aa717f35ae15591f429b645e684b303ee03",
       "sha256": "d0f5f1fb059074076ec7583c1383054fb8666e827d7be756da40b429aa0f224e"
     },
     {
       "path": "manager/screen_proxy_manager.js",
+      "sha": "b7f916592910aaab4198324104b3283dd2d4a899",
       "sha256": "7cb775a596f69b16f02711a21d279894df17bd1ece4a5120c05bb60fdcf67b14"
     },
     {
       "path": "manager/script_bootstrap.js",
+      "sha": "935b03fcbc2cc2530d28065c518fa8ce5cd1968f",
       "sha256": "44c00ec7b0fa9bfefb94a8388813c981d7dc0d5437e41aa831d62eedc83a61fb"
     },
     {
       "path": "manager/script_coordinator.js",
+      "sha": "0c42184f48e640d91b17b3eb8c585ace0a4947d5",
       "sha256": "09399fe8e783e2bb30dd76ca695eb56c41f310d63b6219af99cedc566db7cbd4"
     },
     {
       "path": "manager/script_release_keys.js",
+      "sha": "b0edaa0ee26d9aa0fef195f4d6c34bd01abbe49f",
       "sha256": "00b5cd58b465d8b201107de9b3928c5e0ba3f73431b2b1f603ec1a8ceb1cc625"
     },
     {
       "path": "manager/script_rollout.example.json",
+      "sha": "a64daf12a63414dc2124e8bc8ffa28a6396563de",
       "sha256": "d6f6ce0d2dd95123901127c84fae3bb0472eb5809145c44e633550891489c53f"
     },
     {
       "path": "manager/script_rollout.js",
+      "sha": "0b83ffe12da2fc1f352a26fb6a8db4df0bf1e1f2",
       "sha256": "e1ebf86c83569cac2eb929d4a749a702ad08c9a44dac28f57d4e6a7e4bd9aee4"
     },
     {
       "path": "manager/server.js",
-      "sha256": "b2cd33e839550b9f59326c21a4225b970a37d85ea706518b12e00fe0eef65c10"
+      "sha": "ef9de0c27c17de7b88e771ff4b10604742eceb5b",
+      "sha256": "c30628dd265b30ca74ecd2f8af41c9f487ff0c5aa8533c8a31cff4035380418c"
     },
     {
       "path": "manager/sim_api.js",
+      "sha": "0c01f5571c1cdbdf7cd1df18c00167b9db103f42",
       "sha256": "cbb727075da28b6a2b3e5ecd14f5305994d7988cf870afead0036940622f21b6"
     },
     {
       "path": "manager/smailpro_service.js",
+      "sha": "3b560dfe45d410aa26481f0f481c32cfb392108f",
       "sha256": "cc3968ab0e2b0f10619f452f5f0b2a6d988f88248ade6998c41331eeab2a9bf8"
     },
     {
       "path": "manager/test_isolation.js",
+      "sha": "1255a0c37c5a5e38ee88097290493cdc15679b2f",
       "sha256": "ae8ed5c6bb6fd0267b89419070654b014a806cd37a4c8a8e72b164d7d6ee3e7f"
     },
     {
       "path": "manager/tower_carry.js",
+      "sha": "cde9e73761094f5237c609e879a414491ea80bea",
       "sha256": "ec5299c113e296c826e03468791e6531c01781e1a4e629a16c623a963c72d47b"
     },
     {
       "path": "README.md",
+      "sha": "857b95b6f08ff1d383dd1430acec98a4d9b7f884",
       "sha256": "7143f3b4ccb8b3f2cb22c708f3bd47a3b5b1b985733c26434f06c2fef3d7a400"
     }
   ]

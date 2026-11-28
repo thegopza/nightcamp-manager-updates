@@ -14196,6 +14196,11 @@ function renderPlanProfilesList() {
                 ⚡ กำลังใช้งานกับจอนี้
               </span>
             ` : ''}
+            ${plan.cloudUploader ? `
+              <span class="badge" style="background: rgba(14, 165, 233, 0.16); color: #7dd3fc; border: 1px solid rgba(56, 189, 248, 0.4); font-size: 10px; padding: 2px 7px; border-radius: 4px;" title="แผนจากคลัง Cloud">
+                ☁️ ผู้อัปเดต: ${escapeHTML(plan.cloudUploader)}
+              </span>
+            ` : ''}
           </div>
           <div style="display: flex; align-items: center; gap: 12px; font-size: 11.5px; color: #94a3b8; flex-wrap: wrap;">
             <span>🎯 <b>${triggersCount}</b> เงื่อนไขเลเวล/Job</span>
@@ -14211,6 +14216,9 @@ function renderPlanProfilesList() {
           <button type="button" class="btn ${isAssigned ? 'btn-secondary' : 'btn-success'} btn-sm" onclick="openPlanAssignPicker('${plan.id}')" title="เลือกจอเกมที่จะใช้แผนนี้">
             <span>⚡</span> ${isAssigned ? 'ซิงค์ซ้ำ' : 'ใช้งาน'}
           </button>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="openUploadPlanToCloudDialog('${plan.id}')" style="border-color: rgba(56, 189, 248, 0.45); background: rgba(14, 165, 233, 0.14); color: #7dd3fc;" title="อัปโหลดหรือแชร์แผนนี้ขึ้นคลัง Cloud (ตั้งชื่อแผนได้ และแสดงชื่อคุณเป็นผู้อัปเดต)">
+            <span>☁️</span> แชร์
+          </button>
           <button type="button" class="btn btn-secondary btn-sm btn-icon" onclick="exportPlanProfiles(['${plan.id}'])" title="ส่งออกแผนนี้เป็นไฟล์ (.json)">
             <span>📤</span>
           </button>
@@ -14225,6 +14233,290 @@ function renderPlanProfilesList() {
     `;
   }).join('');
 }
+
+// ---------------- Cloud Plan Community Sharing ----------------
+let cachedCloudPlansList = [];
+let isCloudPlansPanelOpen = false;
+
+function toggleCloudPlansPanel(forceOpen) {
+  const cloudPanel = document.getElementById("plan-cloud-panel");
+  const localContainer = document.getElementById("plan-profiles-list-container");
+  const btnToggle = document.getElementById("btn-toggle-cloud-plans");
+  if (!cloudPanel || !localContainer) return;
+
+  isCloudPlansPanelOpen = typeof forceOpen === 'boolean' ? forceOpen : (cloudPanel.style.display === 'none');
+  if (isCloudPlansPanelOpen) {
+    cloudPanel.style.display = 'flex';
+    localContainer.style.display = 'none';
+    if (btnToggle) {
+      btnToggle.innerHTML = '<span>📜</span> กลับไปแผนในเครื่อง';
+      btnToggle.style.background = 'rgba(56, 189, 248, 0.32)';
+      btnToggle.style.color = '#fff';
+    }
+    fetchCloudPlansList(false);
+  } else {
+    cloudPanel.style.display = 'none';
+    localContainer.style.display = 'flex';
+    if (btnToggle) {
+      btnToggle.innerHTML = '<span>☁️</span> คลังแผน Cloud (แชร์ผู้เล่น)';
+      btnToggle.style.background = 'linear-gradient(135deg, rgba(14, 165, 233, 0.22), rgba(99, 102, 241, 0.22))';
+      btnToggle.style.color = '#7dd3fc';
+    }
+  }
+}
+
+async function fetchCloudPlansList(showSuccessToast = false) {
+  const listEl = document.getElementById("plan-cloud-list-container");
+  if (listEl) {
+    listEl.innerHTML = '<div style="text-align: center; color: #94a3b8; padding: 26px; font-size: 12.5px;">⏳ กำลังดึงรายการแผนจาก Cloud...</div>';
+  }
+  try {
+    const res = await fetch(`${API_BASE}/api/cloud-plans`);
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || data.message || 'โหลดคลังแผน Cloud ไม่สำเร็จ');
+    }
+    cachedCloudPlansList = Array.isArray(data.plans) ? data.plans : [];
+    renderCloudPlansList();
+    if (showSuccessToast && typeof showToast === 'function') {
+      showToast(`☁️ โหลดคลังแผน Cloud สำเร็จ (${cachedCloudPlansList.length} แผน)`, 'success');
+    }
+  } catch (err) {
+    if (listEl) {
+      listEl.innerHTML = `<div style="text-align: center; color: #f87171; padding: 24px; font-size: 12.5px;">⚠️ ${escapeHTML(err.message || 'ไม่สามารถเชื่อมต่อคลังแผน Cloud ได้')}</div>`;
+    }
+  }
+}
+
+function renderCloudPlansList() {
+  const listEl = document.getElementById("plan-cloud-list-container");
+  if (!listEl) return;
+  const q = String(document.getElementById("plan-cloud-search")?.value || '').trim().toLowerCase();
+  const filtered = cachedCloudPlansList.filter(p => {
+    if (!q) return true;
+    const hay = [p.name, p.description, p.classTag, p.uploaderUsername].map(x => String(x || '').toLowerCase()).join(' ');
+    return hay.includes(q);
+  });
+
+  if (filtered.length === 0) {
+    listEl.innerHTML = `
+      <div style="text-align: center; color: #94a3b8; padding: 32px 16px; font-size: 12.5px;">
+        <span style="font-size: 28px; display: block; margin-bottom: 8px; opacity: 0.7;">☁️</span>
+        ${cachedCloudPlansList.length === 0
+          ? 'ยังไม่มีแผนที่แชร์บน Cloud ในขณะนี้<br>คุณสามารถกดปุ่ม <b>"☁️ แชร์"</b> ที่แผนของคุณในเครื่องเพื่อเป็นคนแรกที่แชร์แผนได้!'
+          : `ไม่พบแผนใน Cloud ที่ตรงกับคำค้นหา "${escapeHTML(q)}"`}
+      </div>
+    `;
+    return;
+  }
+
+  listEl.innerHTML = filtered.map(cp => {
+    const updatedStr = cp.updatedAt ? new Date(cp.updatedAt).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' }) : '-';
+    return `
+      <div class="plan-profile-item" style="border-color: ${cp.isMine ? 'rgba(56, 189, 248, 0.45)' : 'rgba(148, 163, 184, 0.16)'}; background: rgba(15, 23, 42, 0.75);">
+        <div style="display: flex; flex-direction: column; gap: 5px; flex: 1;">
+          <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+            <span style="font-size: 14px; font-weight: 800; color: #f8fafc;">${escapeHTML(cp.name)}</span>
+            <span class="badge" style="background: rgba(14, 165, 233, 0.2); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.45); font-size: 10.5px; padding: 2px 8px; font-weight: 700;">
+              👤 ผู้อัปเดต: ${escapeHTML(cp.uploaderUsername || 'ไม่ระบุ')}
+            </span>
+            ${cp.classTag ? `
+              <span class="badge" style="background: rgba(168, 85, 247, 0.16); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.35); font-size: 10px; padding: 2px 7px;">
+                ${escapeHTML(cp.classTag)}
+              </span>
+            ` : ''}
+            <span class="badge" style="background: rgba(34, 197, 94, 0.14); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.3); font-size: 10px; padding: 2px 7px;">
+              📥 ดาวน์โหลด ${Number(cp.downloadsCount || 0).toLocaleString()} ครั้ง
+            </span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 12px; font-size: 11.5px; color: #94a3b8; flex-wrap: wrap;">
+            <span>🎯 <b>${Number(cp.triggerCount || 0)}</b> เงื่อนไขเลเวล/Job</span>
+            <span>⚡ <b>${Number(cp.actionCount || 0)}</b> การทำงาน</span>
+            <span>🕒 อัปเดตเมื่อ: ${escapeHTML(updatedStr)}</span>
+            ${cp.description ? `<span style="color: #cbd5e1;">· ${escapeHTML(cp.description)}</span>` : ''}
+          </div>
+        </div>
+        <div style="display: flex; gap: 6px; align-items: center;">
+          <button type="button" class="btn btn-success btn-sm" onclick="downloadCloudPlan('${escapeHTML(cp.planId)}', false)" title="ดาวน์โหลดแผนนี้เก็บเข้าเครื่องของคุณ">
+            <span>📥</span> ดาวน์โหลดเข้าเครื่อง
+          </button>
+          <button type="button" class="btn btn-primary btn-sm" onclick="downloadCloudPlan('${escapeHTML(cp.planId)}', true)" title="ดาวน์โหลดแผนนี้เข้าเครื่องและเปิดเลือกจอใช้งานทันที">
+            <span>⚡</span> โหลด & ใช้งาน
+          </button>
+          ${cp.isMine ? `
+            <button type="button" class="btn btn-danger btn-sm btn-icon" onclick="deleteCloudPlan('${escapeHTML(cp.planId)}', '${escapeHTML(cp.name)}')" title="ลบแผนที่คุณแชร์ไว้ออกจาก Cloud">
+              <span>🗑️</span>
+            </button>
+          ` : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function openUploadPlanToCloudDialog(planId) {
+  const plan = currentPlanProfiles.find(p => p.id === planId);
+  if (!plan) return;
+  const box = document.getElementById("plan-cloud-upload-box");
+  const idInp = document.getElementById("cloud-upload-plan-id");
+  const nameInp = document.getElementById("cloud-upload-plan-name");
+  const descInp = document.getElementById("cloud-upload-plan-desc");
+  if (!box || !idInp || !nameInp || !descInp) return;
+
+  idInp.value = plan.id;
+  nameInp.value = plan.name || '';
+  descInp.value = plan.description || '';
+  box.style.display = 'block';
+  setTimeout(() => { try { nameInp.focus(); nameInp.select(); } catch (_) {} }, 50);
+}
+
+function closeUploadPlanToCloudDialog() {
+  const box = document.getElementById("plan-cloud-upload-box");
+  if (box) box.style.display = 'none';
+}
+
+async function confirmUploadPlanToCloud() {
+  const planId = document.getElementById("cloud-upload-plan-id")?.value || '';
+  const customName = String(document.getElementById("cloud-upload-plan-name")?.value || '').trim();
+  const customDesc = String(document.getElementById("cloud-upload-plan-desc")?.value || '').trim();
+  const plan = currentPlanProfiles.find(p => p.id === planId);
+  if (!plan) return;
+  if (!customName) {
+    alert('กรุณาตั้งชื่อแผนที่จะแสดงบน Cloud');
+    return;
+  }
+
+  const c1Label = planClassLabel(plan.class1Target || 'archer').replace(/^\[Class \d\]\s*/, '');
+  const c2Label = planClassLabel(plan.class2Target || 'ranger').replace(/^\[Class \d\]\s*/, '');
+  const classTag = `${c1Label} ➔ ${c2Label}`;
+
+  const btn = document.getElementById("btn-confirm-cloud-upload");
+  const oldHtml = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '⏳ กำลังอัปโหลด...';
+  }
+  try {
+    const res = await fetch(`${API_BASE}/api/cloud-plans/upload`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        cloudPlanId: plan.cloudPlanId || '',
+        name: customName,
+        description: customDesc,
+        classTag,
+        plan
+      })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || data.message || 'อัปโหลดแผนขึ้น Cloud ไม่สำเร็จ');
+    }
+    closeUploadPlanToCloudDialog();
+    if (data.plan) {
+      plan.cloudPlanId = data.plan.planId;
+      plan.cloudUploader = data.plan.uploaderUsername;
+      await fetch(`${API_BASE}/api/plan-profiles/${encodeURIComponent(plan.id)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...plan,
+          name: customName,
+          description: customDesc || plan.description,
+          cloudPlanId: data.plan.planId,
+          cloudUploader: data.plan.uploaderUsername
+        })
+      }).catch(() => {});
+      await fetchAndRenderPlanProfiles();
+    }
+    if (typeof showToast === 'function') {
+      showToast(`☁️ ${data.updatedExisting ? 'อัปเดต' : 'แชร์'}แผน "${customName}" ขึ้น Cloud สำเร็จ! (ผู้อัปเดต: ${data.plan?.uploaderUsername || 'คุณ'})`, 'success');
+    }
+    if (isCloudPlansPanelOpen) {
+      await fetchCloudPlansList(false);
+    }
+  } catch (err) {
+    alert(err.message || 'เกิดข้อผิดพลาดในการอัปโหลดแผนขึ้น Cloud');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = oldHtml || '☁️ ยืนยันอัปโหลดขึ้น Cloud';
+    }
+  }
+}
+
+async function downloadCloudPlan(cloudPlanId, openAssignAfter = false) {
+  try {
+    const res = await fetch(`${API_BASE}/api/cloud-plans/download`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ planId: cloudPlanId })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success || !data.cloudPlan?.plan) {
+      throw new Error(data.error || data.message || 'ดาวน์โหลดแผนจาก Cloud ไม่สำเร็จ');
+    }
+    const cp = data.cloudPlan;
+    const rawPlan = cp.plan;
+    const importedPayload = {
+      ...rawPlan,
+      id: undefined,
+      name: `${cp.name} (โดย ${cp.uploaderUsername})`,
+      description: cp.description || rawPlan.description || `ดาวน์โหลดจากคลัง Cloud · ผู้อัปเดต: ${cp.uploaderUsername}`,
+      cloudPlanId: cp.planId,
+      cloudUploader: cp.uploaderUsername
+    };
+    const saveRes = await fetch(`${API_BASE}/api/plan-profiles`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(importedPayload)
+    });
+    const saveData = await saveRes.json();
+    if (!saveRes.ok || !saveData.success || !saveData.profile) {
+      throw new Error(saveData.error || 'บันทึกแผนลงเครื่องไม่สำเร็จ');
+    }
+    await fetchAndRenderPlanProfiles();
+    toggleCloudPlansPanel(false);
+    if (typeof showToast === 'function') {
+      showToast(`📥 ดาวน์โหลดแผน "${cp.name}" (โดย ${cp.uploaderUsername}) เข้าเครื่องเรียบร้อย!`, 'success');
+    }
+    if (openAssignAfter && saveData.profile.id) {
+      openPlanAssignPicker(saveData.profile.id);
+    }
+  } catch (err) {
+    alert(err.message || 'ดาวน์โหลดแผนจาก Cloud ไม่สำเร็จ');
+  }
+}
+
+async function deleteCloudPlan(cloudPlanId, planName) {
+  if (!confirm(`ต้องการลบแผน "${planName}" ออกจากคลังแผน Cloud ใช่หรือไม่?`)) return;
+  try {
+    const res = await fetch(`${API_BASE}/api/cloud-plans/delete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ planId: cloudPlanId })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || data.message || 'ลบแผนจาก Cloud ไม่สำเร็จ');
+    }
+    if (typeof showToast === 'function') {
+      showToast(`🗑️ ลบแผน "${planName}" ออกจาก Cloud แล้ว`, 'info');
+    }
+    await fetchCloudPlansList(false);
+  } catch (err) {
+    alert(err.message || 'ลบแผนจาก Cloud ไม่สำเร็จ');
+  }
+}
+
+window.toggleCloudPlansPanel = toggleCloudPlansPanel;
+window.fetchCloudPlansList = fetchCloudPlansList;
+window.renderCloudPlansList = renderCloudPlansList;
+window.openUploadPlanToCloudDialog = openUploadPlanToCloudDialog;
+window.closeUploadPlanToCloudDialog = closeUploadPlanToCloudDialog;
+window.confirmUploadPlanToCloud = confirmUploadPlanToCloud;
+window.downloadCloudPlan = downloadCloudPlan;
+window.deleteCloudPlan = deleteCloudPlan;
 
 // Seed or Reset the Nightcamp Example Plan
 async function seedNightcampExamplePlan() {
@@ -19986,7 +20278,7 @@ function getNightcampFilteredCatalogList(queryStr, catFilter) {
     scored.push({ item: bagQty > 0 ? Object.assign({}, c, { bagQty }) : c, score });
   }
   scored.sort((a, b) => b.score - a.score || String(a.item.name).localeCompare(String(b.item.name), 'th'));
-  return scored.slice(0, 60).map(x => x.item);
+  return scored.slice(0, 500).map(x => x.item);
 }
 
 function renderNightcampCMarketPickerDropdown() {

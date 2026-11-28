@@ -144,7 +144,9 @@
     { key: 'tier1', label: '🔮 Tier I (ดรอปมอน)' },
     { key: 'traded', label: '🔥 มีขายใน 24ชม.' },
     { key: 'tier2', label: '✨ Tier II (หลอม)' },
+    { key: 'tier3', label: '🌟 Tier III (ขั้นสูงสุด)' },
     { key: '100k', label: '💎 แสน+ (≥100k)' },
+    { key: 'cat:basic', label: '🗡️ ตีปกติ' },
     { key: 'cat:proj', label: '🎯 ยิงไกล' },
     { key: 'cat:attack', label: '⚔️ โจมตี' },
     { key: 'cat:area', label: '💥 พื้นที่/AOE' },
@@ -478,6 +480,7 @@
       if (flt === 'hot' && !it.isHot) return false;
       if (flt === 'tier1' && it.tier !== 1) return false;
       if (flt === 'tier2' && it.tier !== 2) return false;
+      if (flt === 'tier3' && it.tier !== 3) return false;
       if (flt.startsWith('cat:') && it.category !== flt.slice(4)) return false;
 
       if (minLv != null || maxLv != null) {

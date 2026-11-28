@@ -938,8 +938,8 @@
     });
     body.innerHTML = `
       <div class="ncsim-sk-card in-rot" style="border-color:rgba(56,189,248,0.5);">
-        <div style="display:flex;justify-content:space-between;font-size:11.5px;"><b style="color:#7dd3fc;">⚔️ รูนตีปกติ (Basic Attack Runes)</b><span style="color:#94a3b8;font-size:10px;">Lv.40 / Lv.70</span></div>
-        <div class="ncsim-rune-row">${renderRunePill('__basic__', 0, b.basicRunes[0])}${renderRunePill('__basic__', 1, b.basicRunes[1])}</div>
+        <div style="display:flex;justify-content:space-between;font-size:11.5px;"><b style="color:#7dd3fc;">⚔️ รูนตีปกติ (Basic Attack Runes)</b><span style="color:#94a3b8;font-size:10px;">Lv.40 / Lv.70 / Lv.90 (3 ช่อง)</span></div>
+        <div class="ncsim-rune-row">${renderRunePill('__basic__', 0, b.basicRunes[0])}${renderRunePill('__basic__', 1, b.basicRunes[1])}${renderRunePill('__basic__', 2, b.basicRunes[2])}</div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;">
         ${skills.map(sk => {
@@ -1383,7 +1383,7 @@
     const b = state.build, isBasic = skillId === '__basic__', sk = !isBasic ? idx.skillsById[skillId] : null;
     const cur = isBasic ? b.basicRunes[slotIdx] : ((b.runes[skillId] || [])[slotIdx] || null);
     let tier = (cur && cur.tier) || 2, rollPct = Math.round(((cur && cur.qb) || 0.1) * 100);
-    const eligible = isBasic ? (idx.wiki.runes || []).filter(r => r.kind === 'proc' || r.kind === 'pierce' || r.kind === 'gun') : (idx.wiki.runes || []).filter(r => !sk || !sk.fit || sk.fit.includes(r.k));
+    const eligible = isBasic ? (idx.wiki.runes || []).filter(r => r.on === 'basic' || r.kind === 'proc' || r.kind === 'pierce' || r.kind === 'gun') : (idx.wiki.runes || []).filter(r => !sk || !sk.fit || sk.fit.includes(r.k));
 
     showModal(`💠 ใส่รูน · ${isBasic ? 'ตีปกติ' : esc(sk.n.th)} ช่อง ${slotIdx + 1}`, `
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:rgba(16,12,30,0.9);padding:9px;border-radius:10px;">

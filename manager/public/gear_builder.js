@@ -186,7 +186,8 @@
 
   const DEFAULT_BASIC_UNIVERSAL_FITS = [
     'arc', 'wildfire', 'frostbite', 'venom', 'shade', 'trap',
-    'spmeteor', 'spthunder', 'spfrost', 'spquake', 'spmagnus', 'spwhirl', 'splord', 'spshadow'
+    'spmeteor', 'spthunder', 'spfrost', 'spquake', 'spmagnus', 'spwhirl', 'splord', 'spshadow',
+    'tempo', 'rend', 'splash', 'charge', 'skillrhythm', 'leech'
   ];
   const DEFAULT_BASIC_GUN_FITS = ['grenade', 'ricochet', 'hollow', 'duel', 'dragon', 'barrel', 'recoil'];
   const DEFAULT_BASIC_FIRE_FITS = ['lavapool', 'flarejump', 'minimeteor', 'firefan'];
@@ -195,11 +196,12 @@
 
   function getBasicRuneMeta(cat) {
     const br = (cat && cat.basicRunes) || {};
-    const slotLvs = (Array.isArray(br.slotLvs) && br.slotLvs.length >= 2) ? br.slotLvs : [40, 70];
+    const slotLvs = (Array.isArray(br.slotLvs) && br.slotLvs.length >= 2) ? br.slotLvs : [40, 70, 90];
     return {
       id: br.id || 'bl_basic',
       slot0Lv: Number(slotLvs[0]) || 40,
       slot1Lv: Number(slotLvs[1]) || 70,
+      slot2Lv: Number(slotLvs[2]) || 90,
       universalSet: new Set(Array.isArray(br.universalFits) && br.universalFits.length ? br.universalFits : DEFAULT_BASIC_UNIVERSAL_FITS),
       gunSet: new Set(Array.isArray(br.gunFits) && br.gunFits.length ? br.gunFits : DEFAULT_BASIC_GUN_FITS),
       fireSet: new Set(Array.isArray(br.fireFits) && br.fireFits.length ? br.fireFits : DEFAULT_BASIC_FIRE_FITS),
@@ -580,13 +582,14 @@
       box.innerHTML = `
         <div class="gb-picker-title"><b>⚔️ เพิ่มรูนตีปกติ (ซื้อตลาดกลาง + ฝังลงช่องตีปกติอัตโนมัติ)</b></div>
         <div style="font-size:11px;color:#94a3b8;margin-bottom:6px;line-height:1.4;">
-          คัดกรองเฉพาะรูนที่ใส่ใน <b style="color:#7dd3fc;">รูนตีปกติ</b> ได้จริงเท่านั้น (ช่อง 1 ปลดที่ตัวละคร Lv.${bm.slot0Lv} · ช่อง 2 ปลดที่ Lv.${bm.slot1Lv})
+          คัดกรองเฉพาะรูนที่ใส่ใน <b style="color:#7dd3fc;">รูนตีปกติ</b> ได้จริงเท่านั้น (ช่อง 1 ปลดที่ตัวละคร Lv.${bm.slot0Lv} · ช่อง 2 ปลดที่ Lv.${bm.slot1Lv} · ช่อง 3 ปลดที่ Lv.${bm.slot2Lv})
         </div>
         <div class="nc-gb-mini-grid">
           <label>ช่องรูนตีปกติ:
             <select id="gb-basic-rune-slot" class="gb-search">
               <option value="0" ${basicRuneTargetSlot === 0 ? 'selected' : ''}>ช่อง 1 (ปลด Lv.${bm.slot0Lv})</option>
               <option value="1" ${basicRuneTargetSlot === 1 ? 'selected' : ''}>ช่อง 2 (ปลด Lv.${bm.slot1Lv})</option>
+              <option value="2" ${basicRuneTargetSlot === 2 ? 'selected' : ''}>ช่อง 3 (ปลด Lv.${bm.slot2Lv})</option>
             </select>
           </label>
           <label>ขั้นรูน:
@@ -1100,15 +1103,16 @@
       } else if (s.type === 'buy_rune') {
         const rName = (cat.runes || []).find(r => r.k === s.runeKind)?.name || s.runeKind;
         const tierNum = Math.max(1, Math.min(3, Number(s.tier) || 1));
-        const slotIdx = Math.max(0, Math.min(1, Number(s.skillSlot) || 0));
+        const slotIdx = Math.max(0, Math.min(isBasicRune ? 2 : 1, Number(s.skillSlot) || 0));
         if (isBasicRune) {
-          const unlockLv = slotIdx === 0 ? bm.slot0Lv : bm.slot1Lv;
+          const unlockLv = slotIdx === 0 ? bm.slot0Lv : (slotIdx === 1 ? bm.slot1Lv : bm.slot2Lv);
           title = `<span style="color:#7dd3fc;">[รูนตีปกติ]</span> <b>${esc(rName)} ขั้น ${'I'.repeat(tierNum)}</b> ➔ ช่อง ${slotIdx + 1} <small style="color:#94a3b8;">(ปลด Lv.${unlockLv})</small>`;
           extraHtml = `
             <div class="gb-step-opts">
               <select data-idx="${idx}" data-field="skillSlot" class="gb-opt-type">
                 <option value="0" ${slotIdx === 0 ? 'selected' : ''}>ช่อง 1 (Lv.${bm.slot0Lv})</option>
                 <option value="1" ${slotIdx === 1 ? 'selected' : ''}>ช่อง 2 (Lv.${bm.slot1Lv})</option>
+                <option value="2" ${slotIdx === 2 ? 'selected' : ''}>ช่อง 3 (Lv.${bm.slot2Lv})</option>
               </select>
               <select data-idx="${idx}" data-field="tier" class="gb-opt-type">
                 <option value="1" ${tierNum === 1 ? 'selected' : ''}>ขั้น I+</option>
@@ -1204,10 +1208,13 @@
         let val = isNum ? Math.max(0, Math.floor(Number(el.value) || 0)) : el.value;
         if (f === 'targetLevel') val = clampCardTargetLevel(val);
         else if (f === 'tier') val = Math.max(1, Math.min(3, val || 1));
-        else if (f === 'skillSlot') val = Math.max(0, Math.min(1, val || 0));
+        else if (f === 'skillSlot') {
+          const maxSlot = (g.steps[i].type === 'buy_rune' && (g.steps[i].skillId === 'bl_basic' || g.steps[i].skillId === bm.id)) ? 2 : 1;
+          val = Math.max(0, Math.min(maxSlot, val || 0));
+        }
         g.steps[i][f] = val;
         if (f === 'skillSlot' && g.steps[i].type === 'buy_rune' && (g.steps[i].skillId === 'bl_basic' || g.steps[i].skillId === bm.id)) {
-          const reqUnlock = val === 0 ? bm.slot0Lv : bm.slot1Lv;
+          const reqUnlock = val === 0 ? bm.slot0Lv : (val === 1 ? bm.slot1Lv : bm.slot2Lv);
           if ((Number(g.steps[i].minLevel) || 0) < reqUnlock) g.steps[i].minLevel = reqUnlock;
         }
         renderBoard();

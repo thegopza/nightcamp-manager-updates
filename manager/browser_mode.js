@@ -7462,6 +7462,11 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
         try {
           if (!document.body) return;
           const host = String(location.hostname || '').toLowerCase();
+          if (host.includes('google.com') || host.includes('googleusercontent.com') || host.includes('gstatic.com')) {
+            const oldBar = document.getElementById('pm-smailpro-helper-bar');
+            if (oldBar) oldBar.remove();
+            return;
+          }
           const html = document.documentElement?.innerHTML || '';
           const alpineEl = document.querySelector('[x-data*="TemporaryEmail"]');
           const alpineData = alpineEl && alpineEl._x_dataStack && alpineEl._x_dataStack[0] ? alpineEl._x_dataStack[0] : null;
@@ -7650,7 +7655,7 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
     const targets = Array.isArray(tRes?.targetInfos) ? tRes.targetInfos : [];
     const matchingTabs = targets.filter(t =>
       t.type === 'page' &&
-      (t.targetId === smailproWebState.targetId || /smailpro\.com|my\.sonjj\.com/i.test(String(t.url || '')))
+      (t.targetId === smailproWebState.targetId || /smailpro\.com|my\.sonjj\.com|accounts\.google\.com/i.test(String(t.url || '')))
     );
     // Close any duplicate smailpro.com tabs automatically so at most 1 tab ever exists
     if (matchingTabs.length > 1) {
@@ -7740,10 +7745,10 @@ function createBrowserMode({ rootDir, sessionsDir, getSettings, loadProfiles, pr
       const val = r?.result?.value;
       if (val && val.ready && val.ready !== 'loading' && val.href !== 'about:blank') {
         const hostLow = String(val.host || '').toLowerCase();
-        const isUserLoggingInOnSonjj = hostLow.includes('sonjj.com');
+        const isUserLoggingInOnSonjj = hostLow.includes('sonjj.com') || hostLow.includes('google.com') || hostLow.includes('googleusercontent.com') || hostLow.includes('gstatic.com');
         if (requireSmailProOrigin && hostLow !== 'smailpro.com') {
           if (isUserLoggingInOnSonjj) {
-            throw new Error('กรุณาล็อกอินในหน้าต่าง SmailPro (my.sonjj.com) ที่เปิดอยู่ให้เสร็จก่อน');
+            throw new Error('กรุณาล็อกอินในหน้าต่าง SmailPro (my.sonjj.com / Google) ที่เปิดอยู่ให้เสร็จก่อน');
           }
           await send('Page.navigate', { url: 'https://smailpro.com/temporary-email' }, sessionId, 8000).catch(() => {});
           await new Promise(res => setTimeout(res, 1200));

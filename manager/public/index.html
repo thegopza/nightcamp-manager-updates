@@ -1279,7 +1279,7 @@
 
         <div id="plan-live-status" class="pl-status"><span class="pl-muted">⏳ กำลังอ่านสถานะ Plan Script ของจอนี้...</span></div>
 
-        <!-- Toolbar: Add, Seed Example, Import, Export -->
+        <!-- Toolbar: Add, Seed Example, Cloud Plans, Import, Export -->
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
             <button type="button" class="btn btn-primary btn-sm" id="btn-create-new-plan" style="padding: 6px 14px; font-weight: 600;">
@@ -1287,6 +1287,9 @@
             </button>
             <button type="button" class="btn btn-secondary btn-sm" id="btn-seed-example-plan" style="padding: 6px 12px; font-size: 11.5px; font-weight: 600; border-color: rgba(52, 211, 153, 0.45); background: rgba(16, 185, 129, 0.14); color: #6ee7b7;" title="สร้างหรือรีเซ็ตแผนตัวอย่าง Nightcamp Lv.1-50 (Auto-Quest + เปลี่ยนอาชีพ + ย้ายแมพฟาร์ม) เพื่อใช้เป็นต้นแบบปรับแต่งต่อได้ทันที">
               <span>🌱</span> โหลดแผนตัวอย่าง (Lv.1–50)
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" id="btn-toggle-cloud-plans" onclick="toggleCloudPlansPanel()" style="padding: 6px 13px; font-size: 11.5px; font-weight: 700; border-color: rgba(56, 189, 248, 0.55); background: linear-gradient(135deg, rgba(14, 165, 233, 0.22), rgba(99, 102, 241, 0.22)); color: #7dd3fc;" title="เปิดคลังแผน Cloud เพื่อดูและดาวน์โหลดแผนที่ผู้ใช้งานคนอื่นแชร์ไว้ หรืออัปโหลดแผนของคุณให้คนอื่นใช้">
+              <span>☁️</span> คลังแผน Cloud (แชร์ผู้เล่น)
             </button>
           </div>
           <div style="display: flex; gap: 8px;">
@@ -1297,6 +1300,55 @@
             <button type="button" class="btn btn-secondary btn-sm" id="btn-export-plans" style="font-size: 11.5px; padding: 6px 12px;">
               <span>📤</span> ส่งออก (Export)
             </button>
+          </div>
+        </div>
+
+        <!-- Cloud Plans Browser Panel (Hidden by default, toggled via ☁️ คลังแผน Cloud) -->
+        <div id="plan-cloud-panel" style="display: none; flex-direction: column; flex: 1 1 auto; min-height: 0; overflow: hidden; background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(56, 189, 248, 0.35); border-radius: 10px; padding: 12px; margin-bottom: 8px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid rgba(148, 163, 184, 0.16);">
+            <div>
+              <div style="font-size: 13.5px; font-weight: 800; color: #38bdf8; display: flex; align-items: center; gap: 6px;">
+                <span>☁️</span> คลังแผน Cloud (แชร์แผนร่วมกันระหว่างผู้ใช้งาน)
+              </div>
+              <div style="font-size: 11px; color: #94a3b8; margin-top: 2px;">
+                เลือกดาวน์โหลดแผนจากผู้เล่นอื่นไปใช้งานได้ทันที หรือกดปุ่ม <b>"☁️ แชร์ขึ้น Cloud"</b> ที่แผนของคุณในหน้ารายการแผนเพื่อแบ่งปัน
+              </div>
+            </div>
+            <div style="display: flex; gap: 6px; align-items: center;">
+              <input type="text" id="plan-cloud-search" class="form-input" placeholder="🔍 ค้นหาชื่อแผน / อาชีพ / ชื่อผู้อัปเดต..." oninput="renderCloudPlansList()" style="font-size: 11.5px; padding: 5px 10px; width: 230px;">
+              <button type="button" class="btn btn-secondary btn-sm" onclick="fetchCloudPlansList(true)" style="padding: 5px 10px; font-size: 11px;">🔄 รีเฟรช</button>
+              <button type="button" class="btn btn-primary btn-sm" onclick="toggleCloudPlansPanel(false)" style="padding: 5px 12px; font-size: 11px; font-weight: 700;">📜 กลับไปแผนในเครื่อง</button>
+            </div>
+          </div>
+          <div id="plan-cloud-list-container" style="flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-right: 4px;">
+            <div style="text-align: center; color: #94a3b8; padding: 24px; font-size: 12px;">⏳ กำลังโหลดรายการแผนจาก Cloud...</div>
+          </div>
+        </div>
+
+        <!-- Cloud Upload Dialog Box (Inline overlay when sharing a plan) -->
+        <div id="plan-cloud-upload-box" style="display: none; background: linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(30, 41, 59, 0.96)); border: 1.5px solid rgba(56, 189, 248, 0.55); border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <div style="font-size: 13px; font-weight: 800; color: #38bdf8;">☁️ อัปโหลด / แชร์แผนของคุณขึ้น Cloud</div>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="closeUploadPlanToCloudDialog()" style="padding: 2px 8px; font-size: 12px;">✕</button>
+          </div>
+          <input type="hidden" id="cloud-upload-plan-id">
+          <div style="display: grid; grid-template-columns: 1.2fr 1.5fr auto; gap: 8px; align-items: end;">
+            <div>
+              <label style="font-size: 11px; color: #cbd5e1; display: block; margin-bottom: 3px; font-weight: 600;">ชื่อแผนที่จะแสดงบน Cloud:</label>
+              <input type="text" id="cloud-upload-plan-name" class="form-input" placeholder="ตั้งชื่อแผน เช่น พระซัพตี้ Lv.1-80" style="font-size: 12.5px; padding: 6px 10px; font-weight: 700;">
+            </div>
+            <div>
+              <label style="font-size: 11px; color: #cbd5e1; display: block; margin-bottom: 3px; font-weight: 600;">คำอธิบายเพิ่มเติม (ไม่บังคับ):</label>
+              <input type="text" id="cloud-upload-plan-desc" class="form-input" placeholder="อธิบายจุดเด่นของแผน เช่น ประหยัดยา ฟาร์มไว..." style="font-size: 12px; padding: 6px 10px;">
+            </div>
+            <div style="display: flex; gap: 6px;">
+              <button type="button" id="btn-confirm-cloud-upload" class="btn btn-success btn-sm" onclick="confirmUploadPlanToCloud()" style="padding: 7px 14px; font-weight: 800; font-size: 12px; white-space: nowrap;">
+                ☁️ ยืนยันอัปโหลดขึ้น Cloud
+              </button>
+            </div>
+          </div>
+          <div style="font-size: 10.5px; color: #94a3b8; margin-top: 6px;">
+            💡 ระบบจะแสดงชื่อผู้อัปเดตเป็น Username ของคุณโดยอัตโนมัติ (หากตั้งชื่อแผนตรงกับแผนเดิมที่คุณเคยอัปโหลด ระบบจะอัปเดตทับแผนเดิมให้ทันที)
           </div>
         </div>
 

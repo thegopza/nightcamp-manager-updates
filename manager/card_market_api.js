@@ -66,6 +66,7 @@ const EXTRACT_CATALOG_JS = `(() => {
   }
 
   const RUNE_CAT_LABELS = {
+    basic: '🗡️ ตีปกติ (Basic)',
     proj: '🎯 ยิงไกล/กระสุน',
     attack: '⚔️ โจมตี',
     area: '💥 พื้นที่/AOE',
@@ -74,6 +75,17 @@ const EXTRACT_CATALOG_JS = `(() => {
     buff: '✨ บัฟ/ซัพพอร์ต',
     any: '🔮 ทั่วไป'
   };
+
+  const LOW_LIFE_RUNES = ['boil', 'lastgasp', 'bloodsip', 'bloodward', 'bloodseal'];
+  const LOW_LIFE_TYPES = new Set([
+    'bat', 'bat_crimson', 'bat_king', 'echo_bat', 'fire_bat', 'kite_bat', 'kite_bat_crimson', 'mother_bat',
+    'mosquito', 'mud_leech', 'mud_leech_red', 'root_crawler_crimson', 'fire_imp', 'imp_blue', 'lava_imp',
+    'blast_imp', 'vial_imp', 'vial_imp_gold', 'baphomet', 'baphomet_root'
+  ]);
+  const PROJ_NEW_RUNES = ['farshot', 'focusfire', 'cluster', 'boomerang', 'rapidbounce'];
+  const PROJ_NEW_FAMS = new Set(['shoot', 'split', 'wave']);
+  const BASIC_AA_RUNES = ['tempo', 'rend', 'splash', 'charge', 'skillrhythm', 'leech'];
+  const DAILY_DUN_RUNES = ['thornstab', 'deepcut', 'woundburst', 'bloodspread', 'woundsip', 'thornmantle'];
 
   const PAS_LABELS = {
     leech: (v) => 'ดูดเลือด +' + v + '%',
@@ -201,6 +213,11 @@ const EXTRACT_CATALOG_JS = `(() => {
     // Map Bosses drop 'heavy' (รูนหนัก) at 8% rate!
     for (const b of bossEntries) {
       addRuneRec('heavy', { sp: b.sp, lo: b.lv, hi: b.lv, midLv: b.lv }, 8);
+      if (LOW_LIFE_TYPES.has(b.sp)) {
+        for (const lrk of LOW_LIFE_RUNES) {
+          addRuneRec(lrk, { sp: b.sp, lo: b.lv, hi: b.lv, midLv: b.lv }, 8);
+        }
+      }
     }
 
     for (const e of entries) {
@@ -220,10 +237,14 @@ const EXTRACT_CATALOG_JS = `(() => {
       });
 
       const monSpec = NC.SPECIES?.[e.sp] || NC.MONSTERS?.[e.sp] || {};
+      const famKey = (typeof NC.BL.familyOf === 'function') ? NC.BL.familyOf(e.sp) : '';
       if (monSpec.eliteOf) {
-        // Elites drop BOTH 'focus' & 'execute' (50/50 at 1% rate)
+        // Elites drop 'focus' & 'execute' AND the 6 Basic Attack Runes (AA_DROP)!
         addRuneRec('focus', e, sharePct);
         addRuneRec('execute', e, sharePct);
+        for (const aark of BASIC_AA_RUNES) {
+          addRuneRec(aark, e, sharePct);
+        }
       } else {
         let rk = null;
         try {
@@ -231,6 +252,19 @@ const EXTRACT_CATALOG_JS = `(() => {
           if (Array.isArray(rf) && rf[0]) rk = rf[0];
         } catch (_) {}
         if (rk) addRuneRec(rk, e, sharePct);
+      }
+      // Low-life runes drop from blood/demon monsters (LOW_DROP)
+      if (LOW_LIFE_TYPES.has(e.sp) || (monSpec.eliteOf && LOW_LIFE_TYPES.has(monSpec.eliteOf))) {
+        for (const lrk of LOW_LIFE_RUNES) {
+          addRuneRec(lrk, e, sharePct);
+        }
+      }
+      // Projectile runes drop from shoot / split / wave monster families (PROJ_DROP)
+      const baseFam = famKey || ((monSpec.eliteOf && typeof NC.BL.familyOf === 'function') ? NC.BL.familyOf(monSpec.eliteOf) : '');
+      if (PROJ_NEW_FAMS.has(baseFam)) {
+        for (const prk of PROJ_NEW_RUNES) {
+          addRuneRec(prk, e, sharePct);
+        }
       }
     }
 
@@ -276,7 +310,30 @@ const EXTRACT_CATALOG_JS = `(() => {
     });
   }
 
-  // 3. Build Skill Runes list (Tier I & Tier II)
+  // Daily Dungeon Runes (โพรงเนื้อหนาม flesh_d)
+  for (const ddrk of DAILY_DUN_RUNES) {
+    if (!runeMaps[ddrk]) {
+      runeMaps[ddrk] = [{
+        mapId: 'flesh_d',
+        mapName: 'โพรงเนื้อหนาม (ดันเจี้ยนรายวัน)',
+        lvText: 'Lv 60–99',
+        minLv: 60,
+        maxLv: 99,
+        mapMinLv: 60,
+        mapMaxLv: 99,
+        monsterLv: 75,
+        sharePct: 100,
+        hasBoss: true,
+        monsters: [
+          { sp: 'fl_eye', name: 'ตาเนื้อหนาม', lv: 65, sharePct: 35 },
+          { sp: 'fl_sac', name: 'ถุงน้ำดีหนาม', lv: 75, sharePct: 35 },
+          { sp: 'fl_crawler', name: 'หนอนเอ็นกระดูก', lv: 85, sharePct: 30 }
+        ]
+      }];
+    }
+  }
+
+  // 3. Build Skill Runes list (Tier I, Tier II & Tier III)
   const runes = [];
   for (const [rk, rdef] of Object.entries(NC.BL?.RUNES || {})) {
     if (!rdef) continue;
@@ -290,8 +347,8 @@ const EXTRACT_CATALOG_JS = `(() => {
     const cat = rdef.on || 'any';
     const catLabel = RUNE_CAT_LABELS[cat] || '🔮 ทั่วไป';
     const baseName = rdef.n || rk;
-    for (const tier of [1, 2]) {
-      const roman = tier === 1 ? 'I' : 'II';
+    for (const tier of [1, 2, 3]) {
+      const roman = tier === 1 ? 'I' : (tier === 2 ? 'II' : 'III');
       const id = 'bl_rune_' + rk + '_' + tier;
       const tArr = Array.isArray(rdef.t) ? rdef.t : [];
       runes.push({
@@ -305,7 +362,7 @@ const EXTRACT_CATALOG_JS = `(() => {
         category: cat,
         categoryLabel: catLabel,
         effectText: tArr[tier - 1] || tArr[0] || '',
-        craftNote: tier === 2 ? 'หลอมจาก Tier I (3 ชิ้น) · ฟาร์มแมพดรอป Tier I' : '',
+        craftNote: tier === 2 ? 'หลอมจาก Tier I (3 ชิ้น) · ฟาร์มแมพดรอป Tier I' : (tier === 3 ? 'หลอมจาก Tier II (3 ชิ้น) · ขั้นสูงสุด' : ''),
         minLv,
         maxLv,
         maps
@@ -481,26 +538,470 @@ function createCardMarketService(deps = {}) {
     return list[0]?.debugPort || null;
   }
 
+  function enrichRuneMapsFromWiki(runesList) {
+    try {
+      const wikiPath = path.join(__dirname, 'public', 'wiki', 'data.json');
+      if (!fs.existsSync(wikiPath)) return runesList;
+      const wiki = JSON.parse(fs.readFileSync(wikiPath, 'utf8'));
+      const mapByTh = new Map();
+      for (const mp of (wiki.maps || [])) {
+        const thName = mp?.n?.th || mp?.n?.en || mp?.id;
+        if (thName) mapByTh.set(thName, mp);
+      }
+      const wikiRuneByKey = new Map((wiki.runes || []).map(r => [r.k, r]));
+      for (const r of runesList) {
+        if (Array.isArray(r.maps) && r.maps.length > 0) continue;
+        const wr = wikiRuneByKey.get(r.runeKey);
+        if (!wr || !Array.isArray(wr.drops) || wr.drops.length === 0) continue;
+        const perMap = new Map();
+        for (const d of wr.drops) {
+          // d = [monId, chance, lv, monNameObj, mapNameObjs]
+          const monId = d[0];
+          const monLv = Number(d[2]) || 1;
+          const monName = d[3]?.th || d[3]?.en || monId;
+          const mapNames = Array.isArray(d[4]) ? d[4] : [];
+          for (const mnObj of mapNames) {
+            const mName = mnObj?.th || mnObj?.en || '';
+            if (!mName) continue;
+            const wMap = mapByTh.get(mName);
+            const mapId = wMap?.id || mName;
+            let rec = perMap.get(mapId);
+            if (!rec) {
+              rec = {
+                mapId,
+                mapName: mName,
+                lvText: wMap?.lv ? `Lv ${wMap.lv}` : `Lv ${monLv}`,
+                minLv: monLv,
+                maxLv: monLv,
+                mapMinLv: monLv,
+                mapMaxLv: monLv,
+                monsterLv: monLv,
+                sharePct: 25,
+                hasBoss: false,
+                monsters: []
+              };
+              perMap.set(mapId, rec);
+            }
+            if (monLv < rec.minLv) rec.minLv = monLv;
+            if (monLv > rec.maxLv) rec.maxLv = monLv;
+            rec.monsters.push({ sp: monId, name: monName, lv: monLv, sharePct: 25 });
+          }
+        }
+        const builtMaps = Array.from(perMap.values()).sort((a, b) => a.minLv - b.minLv);
+        if (builtMaps.length > 0) {
+          r.maps = builtMaps;
+          r.minLv = Math.min(...builtMaps.map(m => m.minLv));
+          r.maxLv = Math.max(...builtMaps.map(m => m.maxLv));
+        }
+      }
+    } catch (_) {}
+    return runesList;
+  }
+
   async function ensureCatalog(force = false) {
-    if (!force && catalog.cards?.length > 50 && catalog.runes?.length > 20) return catalog;
+    if (!force && catalog.cards?.length >= 338 && catalog.runes?.length >= 231) return catalog;
     const port = await pickHealthyPort();
     if (!port) return catalog;
     try {
       const res = await evalProfilePort(port, EXTRACT_CATALOG_JS, 15000);
       const data = res?.result || res;
       if (data && data.ok && Array.isArray(data.cards) && Array.isArray(data.runes)) {
-        catalog = { cards: data.cards, runes: data.runes, extractedAt: data.extractedAt || Date.now() };
+        const enrichedRunes = enrichRuneMapsFromWiki(data.runes);
+        catalog = { cards: data.cards, runes: enrichedRunes, extractedAt: data.extractedAt || Date.now() };
         safeWriteJson(CATALOG_FILE, catalog);
       }
     } catch (_) {}
     return catalog;
   }
 
+  const EXTRACT_FULL_GAMEDATA_JS = `(() => {
+    const NC = window.NC;
+    if (!NC || !NC.BL || !NC.ITEMS || !NC.MATERIALS || !NC.SKILLS) {
+      return { ok: false, error: 'nightcamp-not-ready' };
+    }
+    const runes = {};
+    for (const [k, r] of Object.entries(NC.BL.RUNES || {})) {
+      if (!r) continue;
+      runes[k] = {
+        k,
+        n: r.n || k,
+        on: r.on || 'any',
+        el: r.el || null,
+        t: Array.isArray(r.t) ? r.t.slice() : [],
+        extra: r.extra, kVal: r.k, s: r.s, d: r.d, c: r.c, dk: r.dk, n2: r.n2, at: r.at, hi: r.hi, hp: r.hp,
+        roll: r.roll || null,
+        proc: Boolean(r.proc),
+        gun: Boolean(r.gun),
+        ice: r.ice || null,
+        wield: r.wield || null
+      };
+    }
+    const rkeys = Array.isArray(NC.BL.RKEYS) ? NC.BL.RKEYS.slice() : Object.keys(runes);
+    const skillFits = {};
+    for (const [sid, sk] of Object.entries(NC.SKILLS || {})) {
+      if (!sk || sk.hidden) continue;
+      try {
+        const kinds = typeof NC.BL.kindsOf === 'function' ? NC.BL.kindsOf(sid) : [];
+        const fit = typeof NC.BL.fits === 'function' ? rkeys.filter(rk => NC.BL.fits(sid, rk)) : [];
+        skillFits[sid] = { kinds, fit };
+      } catch (_) {}
+    }
+    const basicSk = NC.SKILLS?.bl_basic || {};
+    const basicSlotLvs = Array.isArray(basicSk.runeLv) && basicSk.runeLv.length > 0 ? basicSk.runeLv.slice() : [40, 70, 90];
+    const items = {};
+    for (const [id, it] of Object.entries(NC.ITEMS || {})) {
+      if (!it || !id) continue;
+      const wtype = (typeof NC.wtypeOf === 'function' && it.slot === 'weapon') ? NC.wtypeOf(it) : (it.wtype || it.wt || undefined);
+      items[id] = {
+        id,
+        name: it.name || id,
+        slot: it.slot || '',
+        h: it.twoHand ? 2 : 1,
+        lv: Number(it.lvReq || it.level || it.lv || it.reqLv || 1),
+        rar: it.rarity || it.rar || 'common',
+        wt: wtype || undefined,
+        el: it.element || it.el || undefined,
+        atk: Array.isArray(it.dmg) ? Math.round((Number(it.dmg[0] || 0) + Number(it.dmg[1] || 0)) / 2) : (it.atk || undefined),
+        stats: it.stats || {},
+        desc: it.desc || '',
+        set: it.of?.set || it.set || undefined,
+        abil: typeof it.abilText === 'string' ? it.abilText : (typeof it.abil === 'string' ? it.abil : undefined),
+        wsk: it.wskillText || undefined
+      };
+    }
+    const outfitSets = {};
+    for (const [sid, s] of Object.entries(NC.OUTFITS?.sets || {})) {
+      if (!s || !sid) continue;
+      const pcs = [s.items?.top, s.items?.pants, s.acc].filter(Boolean);
+      const pEntry = NC.SetFx?.S?.[sid];
+      outfitSets[sid] = {
+        id: sid,
+        n: s.name || sid,
+        line: s.line || 'hv',
+        g: Number(s.grade || 3),
+        lv: Number(s.lv || 60),
+        pcs,
+        pas: Array.isArray(pEntry) ? String(pEntry[0] || '') : ''
+      };
+    }
+    const materials = {};
+    for (const [id, mt] of Object.entries(NC.MATERIALS || {})) {
+      if (!mt || !id) continue;
+      materials[id] = {
+        id,
+        name: mt.name || id,
+        price: Number(mt.price || mt.p || 0),
+        desc: mt.desc || '',
+        rare: Boolean(mt.rare),
+        kindTh: mt.kindTh || ''
+      };
+    }
+    const monsters = {};
+    for (const [id, m] of Object.entries(NC.MONSTERS || {})) {
+      if (!m || !id) continue;
+      monsters[id] = {
+        id,
+        name: m.name || id,
+        lv: Number(m.lv || 1),
+        el: m.element || 'neutral',
+        race: m.race || '',
+        boss: Boolean(m.boss || m.story || m.root),
+        hp: Number(m.hp || 0)
+      };
+    }
+    return {
+      ok: true,
+      rkeys,
+      runes,
+      skillFits,
+      basicSlotLvs,
+      items,
+      outfitSets,
+      materials,
+      monsters
+    };
+  })()`;
+
+  async function syncLiveGameDataToCatalogs() {
+    await ensureCatalog(true);
+    const port = await pickHealthyPort();
+    if (!port) return { success: false, error: 'no-online-client' };
+    const raw = await evalProfilePort(port, EXTRACT_FULL_GAMEDATA_JS, 25000);
+    const live = raw?.result || raw;
+    if (!live || !live.ok) {
+      return { success: false, error: live?.error || 'extract-failed' };
+    }
+
+    const EN_RUNE_NAMES = {
+      boil: 'Blood Boil Rune',
+      lastgasp: 'Last Gasp Rune',
+      bloodsip: 'Wounded Thirst Rune',
+      bloodward: 'Blood Ward Rune',
+      bloodseal: 'Blood Seal Rune',
+      farshot: 'Farshot Rune',
+      focusfire: 'Focus Fire Rune',
+      cluster: 'Cluster Shard Rune',
+      boomerang: 'Boomerang Rune',
+      rapidbounce: 'Rapid Ricochet Rune',
+      tempo: 'Tempo Rune',
+      rend: 'Deep Rend Rune',
+      splash: 'Splash Rune',
+      charge: 'Power Charge Rune',
+      skillrhythm: 'Skill Rhythm Rune',
+      leech: 'Life Leech Rune',
+      thornstab: 'Thorn Stab Rune',
+      deepcut: 'Deep Cut Rune',
+      woundburst: 'Wound Burst Rune',
+      bloodspread: 'Blood Spread Rune',
+      woundsip: 'Wound Sip Rune',
+      thornmantle: 'Thorn Mantle Rune'
+    };
+
+    // 1. Update manager/public/nightcamp_gear_catalog.json
+    let gearAddedRunes = 0, gearAddedItems = 0;
+    const gearCatPath = path.join(__dirname, 'public', 'nightcamp_gear_catalog.json');
+    if (fs.existsSync(gearCatPath)) {
+      const g = JSON.parse(fs.readFileSync(gearCatPath, 'utf8'));
+      const existingRuneMap = new Map((g.runes || []).map(r => [r.k, r]));
+      for (const rk of live.rkeys) {
+        const lr = live.runes[rk];
+        if (!lr) continue;
+        if (existingRuneMap.has(rk)) {
+          const er = existingRuneMap.get(rk);
+          er.name = lr.n || er.name;
+          er.on = lr.on || er.on;
+          if (Array.isArray(lr.t) && lr.t.length > 0) er.t = lr.t;
+        } else {
+          g.runes.push({
+            k: rk,
+            name: lr.n,
+            on: lr.on,
+            t: lr.t,
+            ic: [null, null, null]
+          });
+          gearAddedRunes++;
+        }
+      }
+      if (g.basicRunes) {
+        g.basicRunes.slotLvs = live.basicSlotLvs || [40, 70, 90];
+        const aaKeys = live.rkeys.filter(rk => live.runes[rk]?.on === 'basic');
+        const uni = new Set([...(g.basicRunes.universalFits || []), ...aaKeys]);
+        g.basicRunes.universalFits = Array.from(uni);
+      }
+      for (const sk of (g.skills || [])) {
+        const lf = live.skillFits[sk.id];
+        if (lf) {
+          if (Array.isArray(lf.kinds) && lf.kinds.length > 0) sk.kinds = lf.kinds;
+          if (Array.isArray(lf.fit) && lf.fit.length > 0) {
+            sk.fit = lf.fit;
+            sk.fits = lf.fit;
+          }
+        }
+      }
+      const existingItemMap = new Map((g.items || []).map(it => [it.id, it]));
+      for (const [id, lit] of Object.entries(live.items || {})) {
+        if (existingItemMap.has(id)) {
+          const ex = existingItemMap.get(id);
+          if (lit.lv > 1 && (!ex.lv || ex.lv === 1)) ex.lv = lit.lv;
+          if (lit.wt && !ex.wt) ex.wt = lit.wt;
+          if (lit.atk && !ex.atk) ex.atk = lit.atk;
+          if (lit.set && !ex.set) ex.set = lit.set;
+          if (lit.abil && typeof lit.abil === 'string' && (!ex.abil || typeof ex.abil !== 'string')) ex.abil = lit.abil;
+          continue;
+        }
+        if (!['weapon', 'shield', 'hat', 'glasses', 'top', 'pants', 'gloves', 'boots', 'cape', 'acc'].includes(lit.slot)) continue;
+        g.items.push({
+          id: lit.id,
+          name: lit.name,
+          slot: lit.slot,
+          h: lit.h,
+          lv: lit.lv,
+          rar: lit.rar,
+          ...(lit.wt ? { wt: lit.wt } : {}),
+          ...(lit.el ? { el: lit.el } : {}),
+          ...(lit.atk ? { atk: lit.atk } : {}),
+          stats: lit.stats || {},
+          ...(lit.set ? { set: lit.set } : {}),
+          ...(lit.wsk ? { wsk: lit.wsk } : {}),
+          ...(lit.abil ? { abil: lit.abil } : {})
+        });
+        gearAddedItems++;
+      }
+      g.generatedAt = new Date().toISOString();
+      fs.writeFileSync(gearCatPath, JSON.stringify(g), 'utf8');
+    }
+
+    // 2. Update manager/public/wiki/data.json and nightcamp-wiki/data.json
+    let wikiAddedRunes = 0, wikiAddedItems = 0, wikiAddedMats = 0;
+    const wikiPaths = [
+      path.join(__dirname, 'public', 'wiki', 'data.json'),
+      path.join(__dirname, '..', 'nightcamp-wiki', 'data.json')
+    ];
+    const catRuneByKey = new Map();
+    for (const r of (catalog.runes || [])) {
+      if (r.tier === 1) catRuneByKey.set(r.runeKey, r);
+    }
+
+    for (const wp of wikiPaths) {
+      if (!fs.existsSync(wp)) continue;
+      const w = JSON.parse(fs.readFileSync(wp, 'utf8'));
+      if (w.meta && w.meta.on && !w.meta.on.basic) {
+        w.meta.on.basic = { en: 'Basic Attack', th: 'ตีปกติ' };
+      }
+      const wRuneMap = new Map((w.runes || []).map(r => [r.k, r]));
+      for (const rk of live.rkeys) {
+        const lr = live.runes[rk];
+        if (!lr) continue;
+        const catR = catRuneByKey.get(rk);
+        const builtDrops = (catR?.maps || []).slice(0, 12).map(mp => {
+          const m0 = (mp.monsters && mp.monsters[0]) || { sp: mp.mapId, name: mp.mapName, lv: mp.minLv || 1 };
+          return [
+            m0.sp,
+            0.0015,
+            m0.lv || mp.minLv || 1,
+            { en: m0.name, th: m0.name },
+            [{ en: mp.mapName, th: mp.mapName }]
+          ];
+        });
+        const numObj = {};
+        if (lr.extra) numObj.extra = lr.extra;
+        if (lr.kVal) numObj.k = lr.kVal;
+        if (lr.s) numObj.s = lr.s;
+        if (lr.d) numObj.d = lr.d;
+        if (lr.c) numObj.c = lr.c;
+        if (lr.dk) numObj.dk = lr.dk;
+        if (lr.n2) numObj.n2 = lr.n2;
+        if (lr.at) numObj.at = lr.at;
+        if (lr.hi) numObj.hi = lr.hi;
+        if (lr.hp) numObj.hp = lr.hp;
+        if (lr.roll) numObj.roll = lr.roll;
+
+        if (wRuneMap.has(rk)) {
+          const wr = wRuneMap.get(rk);
+          if (wr.n && (wr.n.th === wr.n.en || !wr.n.th) && lr.n) {
+            wr.n.th = lr.n;
+          }
+          if (Array.isArray(lr.t) && lr.t.length === 3) {
+            wr.t = wr.t.map((tobj, idx) => ({
+              en: tobj?.en || lr.t[idx],
+              th: lr.t[idx] || tobj?.th || tobj?.en
+            }));
+          }
+          if ((!wr.drops || wr.drops.length === 0) && builtDrops.length > 0) {
+            wr.drops = builtDrops;
+          }
+          if (Object.keys(numObj).length > 0 && (!wr.num || Object.keys(wr.num).length === 0)) {
+            wr.num = numObj;
+          }
+        } else {
+          w.runes.push({
+            k: rk,
+            kind: lr.gun ? 'gun' : (lr.proc ? 'proc' : 'skill'),
+            on: lr.on || 'any',
+            el: lr.el || null,
+            n: { en: EN_RUNE_NAMES[rk] || lr.n || rk, th: lr.n || rk },
+            t: (lr.t || []).map(txt => ({ en: txt, th: txt })),
+            num: numObj,
+            drops: builtDrops,
+            ic: [null, null, null]
+          });
+          if (wp === wikiPaths[0]) wikiAddedRunes++;
+        }
+      }
+      for (const sk of (w.skills || [])) {
+        const lf = live.skillFits[sk.id];
+        if (lf) {
+          if (Array.isArray(lf.kinds) && lf.kinds.length > 0) sk.kinds = lf.kinds;
+          if (Array.isArray(lf.fit) && lf.fit.length > 0) sk.fit = lf.fit;
+        }
+      }
+      const wEqItems = w.equip?.items || [];
+      const wEqMap = new Map(wEqItems.map(x => [x.id, x]));
+      for (const [id, lit] of Object.entries(live.items || {})) {
+        if (wEqMap.has(id)) {
+          const ex = wEqMap.get(id);
+          if (lit.lv > 1 && (!ex.lv || ex.lv === 1)) ex.lv = lit.lv;
+          if (lit.wt && !ex.wt) ex.wt = lit.wt;
+          if (lit.atk && !ex.atk) ex.atk = lit.atk;
+          if (lit.set && !ex.set) ex.set = lit.set;
+          if (lit.abil && typeof lit.abil === 'string') ex.ab = { en: lit.abil, th: lit.abil };
+          continue;
+        }
+        if (!['weapon', 'shield', 'hat', 'glasses', 'top', 'pants', 'gloves', 'boots', 'cape', 'acc'].includes(lit.slot)) continue;
+        wEqItems.push({
+          id: lit.id,
+          n: { en: lit.name, th: lit.name },
+          s: lit.slot,
+          r: lit.rar,
+          lv: lit.lv,
+          d: { en: lit.desc || '', th: lit.desc || '' },
+          st: lit.stats || {},
+          src: { t: id.startsWith('top_fl_') || id.startsWith('pants_fl_') || id.startsWith('acc_fl_') || id.startsWith('dw_') ? 'world' : 'forge' },
+          ...(lit.set ? { set: lit.set } : {}),
+          ...(lit.wt ? { wt: lit.wt } : {}),
+          ...(lit.atk ? { atk: lit.atk } : {}),
+          ...(lit.el ? { el: lit.el } : {}),
+          ...(lit.abil ? { ab: { en: lit.abil, th: lit.abil } } : {})
+        });
+        if (wp === wikiPaths[0]) wikiAddedItems++;
+      }
+      const wSets = w.equip?.sets || [];
+      const wSetIds = new Set(wSets.map(x => x.id));
+      for (const [sid, s] of Object.entries(live.outfitSets || {})) {
+        if (wSetIds.has(sid)) continue;
+        wSets.push({
+          id: s.id,
+          n: { en: s.n, th: s.n },
+          line: s.line,
+          g: s.g,
+          lv: s.lv,
+          pcs: s.pcs,
+          b2: { en: '2-piece line bonus', th: 'ครบ 2 ชิ้น: โบนัสสายอาชีพ' },
+          b3: { en: '3-piece set bonus', th: 'ครบ 3 ชิ้น: โบนัสเซ็ต' },
+          pas: { en: s.pas || '', th: s.pas || '' }
+        });
+      }
+      const wMatList = w.materials || [];
+      const wMatIds = new Set(wMatList.map(x => x.id));
+      for (const [id, lmt] of Object.entries(live.materials || {})) {
+        if (wMatIds.has(id)) continue;
+        wMatList.push({
+          id: lmt.id,
+          n: { en: lmt.name, th: lmt.name },
+          p: lmt.price,
+          d: { en: lmt.desc || '', th: lmt.desc || '' },
+          rare: lmt.rare,
+          life: false,
+          from: null,
+          ic: null,
+          drops: []
+        });
+        if (wp === wikiPaths[0]) wikiAddedMats++;
+      }
+      fs.writeFileSync(wp, JSON.stringify(w), 'utf8');
+    }
+
+    return {
+      success: true,
+      liveRunesTotal: live.rkeys.length,
+      catalogRunesTotal: catalog.runes?.length || 0,
+      catalogCardsTotal: catalog.cards?.length || 0,
+      gearAddedRunes,
+      gearAddedItems,
+      wikiAddedRunes,
+      wikiAddedItems,
+      wikiAddedMats
+    };
+  }
+
   async function scanMarket(opts = {}) {
+    if (opts.refreshCatalog) {
+      await ensureCatalog(true).catch(() => {});
+    }
     if (scanning) return { ok: false, error: 'already-scanning' };
     scanning = true;
     try {
-      await ensureCatalog(Boolean(opts.refreshCatalog));
+      await ensureCatalog(false);
       const port = await pickHealthyPort();
       if (!port) return { ok: false, error: 'no-online-client' };
 
@@ -882,6 +1383,12 @@ function createCardMarketService(deps = {}) {
         const body = await readJsonBody(req);
         const result = await applyMultiFarm(kind, body);
         sendJSON(result, result.success ? 200 : 400);
+        return true;
+      }
+
+      if (req.method === 'POST' && pathname === '/api/runes/sync-gamedata') {
+        const syncRes = await syncLiveGameDataToCatalogs();
+        sendJSON(syncRes, syncRes.success ? 200 : 500);
         return true;
       }
 

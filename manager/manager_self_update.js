@@ -36,12 +36,21 @@ function getBuffer(url) {
 }
 
 const blobSha = buf => crypto.createHash('sha1').update(`blob ${buf.length}\0`).update(buf).digest('hex');
+const sha256Hex = buf => crypto.createHash('sha256').update(buf).digest('hex');
 const isText = buf => !buf.includes(0);
 // Git stores text with LF; checkouts may have CRLF. A file matches if either form hashes the same.
-function fileMatches(buf, sha) {
-  if (blobSha(buf) === sha) return true;
-  return isText(buf) && blobSha(Buffer.from(buf.toString('utf8').replace(/\r\n/g, '\n'), 'utf8')) === sha;
+function fileMatches(buf, sha, sha256) {
+  if (sha) {
+    if (blobSha(buf) === sha) return true;
+    if (isText(buf) && blobSha(Buffer.from(buf.toString('utf8').replace(/\r\n/g, '\n'), 'utf8')) === sha) return true;
+  }
+  if (sha256) {
+    if (sha256Hex(buf) === sha256) return true;
+    if (isText(buf) && sha256Hex(Buffer.from(buf.toString('utf8').replace(/\r\n/g, '\n'), 'utf8')) === sha256) return true;
+  }
+  return false;
 }
+const OWNER_API_ORIGIN = (process.env.PMHEE_OWNER_API_ORIGIN || 'https://api.noggunsshop.xyz').replace(/\/+$/, '');
 const isWebFile = rel => rel.startsWith('public/');
 
 function listFiles(dir, base = dir) {
@@ -177,40 +186,120 @@ function createManagerSelfUpdater({ managerDir, dataDir, isBusy }) {
     if (status.enabled) scheduleRestart(restartReason || `local commit: ${changedServer.join(', ')}`);
   }
 
-  // ---------- release mode: pull manager/ from GitHub ----------
-  // api.github.com allows 60 requests/h per IP: main's commit comes from git's ref list (free), then one
-  // API call reads the manager/ folder's tree id, and the file list is read only when that folder changed.
-  // The folder's tree id is the "version" (a failed update is remembered by it, not by commit).
-  let checked = { head: null, treeSha: null, files: null };
+  // ---------- release mode: pull manager/ from Owner Central API first (zero GitHub rate limit), then GitHub Raw distribution.json, then GitHub API ----------
+  let checked = { head: null, treeSha: null, files: null, source: null };
   async function checkRemote() {
     status.lastCheckAt = Date.now();
     try {
-      const head = await getMainHeadSha(MANAGER_UPDATE_REPO);
-      if (checked.head !== head) {
-        const root = await apiGetJSON(`https://api.github.com/repos/${MANAGER_UPDATE_REPO}/git/trees/${head}`);
-        const dir = (root.tree || []).find(e => e.path === 'manager' && e.type === 'tree');
-        if (!dir) throw new Error('ไม่พบโฟลเดอร์ manager/ บน GitHub');
-        if (dir.sha !== checked.treeSha || !checked.files) {
-          const tree = await apiGetJSON(`https://api.github.com/repos/${MANAGER_UPDATE_REPO}/git/trees/${dir.sha}?recursive=1`);
-          checked.files = (tree.tree || []).filter(e => e.type === 'blob').map(e => ({ path: e.path, sha: e.sha }));
-          checked.treeSha = dir.sha;
+      let loadedFromMirror = false;
+      // 1. Primary: Owner Central API (https://api.noggunsshop.xyz/v1/aetheria/pmheenc/manager-updates/manifest) — 0 GitHub rate limit!
+      try {
+        const rawBuf = await getBuffer(`${OWNER_API_ORIGIN}/v1/aetheria/pmheenc/manager-updates/manifest?t=${Date.now()}`);
+        const manifest = JSON.parse(rawBuf.toString('utf8'));
+        if (manifest && manifest.success && Array.isArray(manifest.files) && manifest.files.length > 0) {
+          checked.head = String(manifest.sourceCommit || manifest.treeSha || 'latest');
+          checked.treeSha = String(manifest.treeSha || manifest.sourceCommit || checked.head);
+          checked.files = manifest.files
+            .map(f => ({
+              path: String(f.path || '').replace(/^manager\//, ''),
+              sha: f.sha || null,
+              sha256: f.sha256 || null
+            }))
+            .filter(f => f.path && (f.sha || f.sha256));
+          checked.source = 'owner-api';
+          loadedFromMirror = checked.files.length > 0;
         }
-        checked.head = head;
+      } catch (_) {}
+
+      // 2. Secondary: GitHub Smart-HTTP ref + raw.githubusercontent.com/distribution.json (still 0 calls to api.github.com!)
+      if (!loadedFromMirror) {
+        const head = await getMainHeadSha(MANAGER_UPDATE_REPO);
+        if (checked.head !== head || !checked.files) {
+          try {
+            const distBuf = await getBuffer(`https://raw.githubusercontent.com/${MANAGER_UPDATE_REPO}/${head}/distribution.json`);
+            const dist = JSON.parse(distBuf.toString('utf8'));
+            if (dist && Array.isArray(dist.files) && dist.files.length > 0) {
+              const files = dist.files
+                .filter(f => f && typeof f.path === 'string' && f.path.startsWith('manager/'))
+                .map(f => ({
+                  path: f.path.slice('manager/'.length),
+                  sha: f.sha || null,
+                  sha256: f.sha256 || null
+                }))
+                .filter(f => f.path && (f.sha || f.sha256));
+              if (files.length > 0) {
+                checked.files = files;
+                checked.treeSha = crypto.createHash('sha1')
+                  .update(files.map(x => `${x.path}:${x.sha || x.sha256}`).sort().join('|'))
+                  .digest('hex');
+                checked.head = head;
+                checked.source = 'github-raw';
+                loadedFromMirror = true;
+              }
+            }
+          } catch (_) {}
+        } else {
+          loadedFromMirror = true;
+        }
+
+        // 3. Tertiary fallback: GitHub Tree API
+        if (!loadedFromMirror && checked.head !== head) {
+          const root = await apiGetJSON(`https://api.github.com/repos/${MANAGER_UPDATE_REPO}/git/trees/${head}`);
+          const dir = (root.tree || []).find(e => e.path === 'manager' && e.type === 'tree');
+          if (!dir) throw new Error('ไม่พบโฟลเดอร์ manager/ บน GitHub');
+          if (dir.sha !== checked.treeSha || !checked.files) {
+            const tree = await apiGetJSON(`https://api.github.com/repos/${MANAGER_UPDATE_REPO}/git/trees/${dir.sha}?recursive=1`);
+            checked.files = (tree.tree || []).filter(e => e.type === 'blob').map(e => ({ path: e.path, sha: e.sha, sha256: null }));
+            checked.treeSha = dir.sha;
+          }
+          checked.head = head;
+          checked.source = 'github-api';
+        }
       }
+
       const pending = [];
-      for (const e of checked.files) {
+      for (const e of (checked.files || [])) {
         const rel = e.path;
         if (EXCLUDE.test(rel)) continue;
         let buf = null;
         try { buf = fs.readFileSync(path.join(managerDir, rel)); } catch (err) {}
-        if (!buf || !fileMatches(buf, e.sha)) pending.push({ path: rel, kind: isWebFile(rel) ? 'web' : 'server', sha: e.sha });
+        if (!buf || !fileMatches(buf, e.sha, e.sha256)) {
+          pending.push({ path: rel, kind: isWebFile(rel) ? 'web' : 'server', sha: e.sha || null, sha256: e.sha256 || null });
+        }
       }
-      status.latest = { sha: checked.head, treeSha: checked.treeSha, message: `manager/ ${checked.treeSha.slice(0, 7)}`, date: Date.now() };
+      status.latest = {
+        sha: checked.head,
+        treeSha: checked.treeSha,
+        source: checked.source || 'owner-api',
+        message: `manager/ ${(checked.treeSha || checked.head || '').slice(0, 7)}`,
+        date: Date.now()
+      };
       status.pending = pending;
       status.lastError = null;
     } catch (e) {
-      status.lastError = `เช็ก GitHub ไม่สำเร็จ: ${e.message}`;
+      status.lastError = `เช็กอัปเดตไม่สำเร็จ: ${e.message}`;
     }
+  }
+
+  async function downloadVerifiedManagerFile(f, sha) {
+    const candidateUrls = [
+      `${OWNER_API_ORIGIN}/v1/aetheria/pmheenc/manager-updates/file?path=${encodeURIComponent(f.path)}&t=${Date.now()}`,
+      ...(sha && /^[0-9a-f]{40}$/i.test(sha) ? [`https://raw.githubusercontent.com/${MANAGER_UPDATE_REPO}/${sha}/manager/${f.path}`] : []),
+      `https://raw.githubusercontent.com/${MANAGER_UPDATE_REPO}/main/manager/${f.path}?t=${Date.now()}`
+    ];
+    let lastErr = null;
+    for (const url of candidateUrls) {
+      try {
+        const buf = await getBuffer(url);
+        if (fileMatches(buf, f.sha, f.sha256)) {
+          return buf;
+        }
+        lastErr = new Error(`แฮชไฟล์ ${f.path} ไม่ตรงกับต้นฉบับ`);
+      } catch (err) {
+        lastErr = err;
+      }
+    }
+    throw lastErr || new Error(`ดาวน์โหลดไฟล์ ${f.path} ไม่สำเร็จ`);
   }
 
   async function applyRemote() {
@@ -219,11 +308,10 @@ function createManagerSelfUpdater({ managerDir, dataDir, isBusy }) {
     const sha = status.latest.sha;
     const files = status.pending.slice();
     try {
-      // 1. Download everything first and verify each file against its git blob sha
+      // 1. Download everything first (from Owner API first, fallback to GitHub Raw) and verify against git blob sha / sha256
       const downloads = [];
       for (const f of files) {
-        const buf = await getBuffer(`https://raw.githubusercontent.com/${MANAGER_UPDATE_REPO}/${sha}/manager/${f.path}`);
-        if (blobSha(buf) !== f.sha) throw new Error(`ไฟล์ ${f.path} ที่ดาวน์โหลดมาไม่ตรงกับ GitHub`);
+        const buf = await downloadVerifiedManagerFile(f, sha);
         downloads.push({ f, buf });
       }
       // 2. Back up current files, then write the new ones

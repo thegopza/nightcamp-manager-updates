@@ -10483,6 +10483,58 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // Cloud Plan Community Sharing (Upload / Browse / Download / Delete)
+  if (pathname === '/api/cloud-plans' && req.method === 'GET') {
+    try {
+      const accessSt = typeof humanCheckSolver.getAccessState === 'function' ? humanCheckSolver.getAccessState() : {};
+      if (accessSt.requiresLogin || !accessSt.isUserAccount || !accessSt.username) {
+        return sendJSON({
+          success: false,
+          code: 'LOGIN_REQUIRED',
+          error: 'กรุณาเข้าสู่ระบบบัญชีผู้ใช้ (Username) ก่อนใช้งานคลังแผน Cloud'
+        }, 401);
+      }
+      const result = await humanCheckSolver.announcementRequest('/v1/aetheria/pmheenc/machine/cloud-plans', null);
+      return sendJSON(result);
+    } catch (e) {
+      return sendJSON({
+        success: false,
+        code: e?.code || 'CLOUD_PLANS_FETCH_FAILED',
+        error: e?.message || 'โหลดรายการแผนจาก Cloud ไม่สำเร็จ'
+      }, e?.status && e.status >= 400 ? e.status : 500);
+    }
+  }
+
+  if ((pathname === '/api/cloud-plans/upload' || pathname === '/api/cloud-plans/download' || pathname === '/api/cloud-plans/delete') && req.method === 'POST') {
+    let body = '';
+    let tooLarge = false;
+    req.on('data', c => {
+      if (tooLarge) return;
+      body += c;
+      if (Buffer.byteLength(body, 'utf8') > 524288) {
+        tooLarge = true;
+        sendJSON({ success: false, code: 'BODY_TOO_LARGE', error: 'ข้อมูลแผนมีขนาดใหญ่เกินไป' }, 413);
+        req.destroy();
+      }
+    });
+    req.on('end', async () => {
+      if (tooLarge) return;
+      try {
+        const data = JSON.parse(body || '{}');
+        const subRoute = pathname.slice('/api/cloud-plans'.length); // '/upload' | '/download' | '/delete'
+        const result = await humanCheckSolver.announcementRequest('/v1/aetheria/pmheenc/machine/cloud-plans' + subRoute, data);
+        return sendJSON(result);
+      } catch (e) {
+        return sendJSON({
+          success: false,
+          code: e?.code || 'CLOUD_PLANS_ACTION_FAILED',
+          error: e?.message || 'ดำเนินการกับคลังแผน Cloud ไม่สำเร็จ'
+        }, e?.status && e.status >= 400 ? e.status : 400);
+      }
+    });
+    return;
+  }
+
   // Gatekeeper: Block game launch & bot control routes if machine access is pending/revoked or logged out
   const currentAccessStateObj = typeof humanCheckSolver.getAccessState === 'function' ? humanCheckSolver.getAccessState() : {};
   const currentMachineAccessStatus = currentAccessStateObj.accessStatus || 'approved';
