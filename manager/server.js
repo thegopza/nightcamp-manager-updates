@@ -2485,7 +2485,15 @@ function loadAutoFarmState() {
   const state = {
     schemaVersion: 2,
     config: { ...getDefaultAutoFarmConfig(), ...(parsed && parsed.config ? parsed.config : {}) },
-    entries: Array.isArray(parsed && parsed.entries) ? parsed.entries.filter(e => e && e.profileId) : []
+    entries: Array.isArray(parsed && parsed.entries)
+      ? parsed.entries.filter(e => e && e.profileId).map(e => {
+          // Lv.45 requirement removed (v2.3.50): auto-clear any stale `no_lv45` stamp!
+          if (e.ineligibleReason === "no_lv45") {
+            return { ...e, ineligibleReason: "", eligible: null, statusText: "พร้อมเริ่มรัน (ปลดล็อกเงื่อนไขเลเวลแล้ว)" };
+          }
+          return e;
+        })
+      : []
   };
   autoFarmStateCache = state;
   return state;
@@ -7544,8 +7552,9 @@ function getProfileIpIsolationInfo(profileId) {
       : null;
     if (!meta) return null;
     const sc = typeof screenProxy.getSurchargeConfig === 'function' ? screenProxy.getSurchargeConfig() : null;
+    const isHomeIp = Boolean(meta.useHomeIp || meta.ipMode === 'home' || String(meta.ipGroupKey || '').startsWith('home:'));
     let surchargePct = 0;
-    if (sc && sc.enabled !== false && (spSettings.enabled || meta.isCustom)) {
+    if (!isHomeIp && sc && sc.enabled !== false && (spSettings.enabled || meta.isCustom)) {
       const n = Math.max(1, Math.min(20, Number(meta.shareCount) || 6));
       const base = Math.max(1, Math.min(20, Number(sc.baseline) || 6));
       if (n < base && sc.tiers && Number.isFinite(Number(sc.tiers[String(n)]))) {
@@ -7557,8 +7566,9 @@ function getProfileIpIsolationInfo(profileId) {
     }
     return {
       ...meta,
-      proxyEnabled: Boolean(spSettings.enabled),
-      surchargePct: Math.round(surchargePct * 100) / 100
+      useHomeIp: isHomeIp,
+      proxyEnabled: Boolean(spSettings.enabled && !isHomeIp),
+      surchargePct: isHomeIp ? 0 : (Math.round(surchargePct * 100) / 100)
     };
   } catch (_) {
     return null;
@@ -14379,11 +14389,16 @@ public class PmFocus {
               entry.totalCoinsDeposited = Number(gr.totalCoinsDeposited);
               afDirty = true;
             }
-            if (gr.ineligibleReason && entry.ineligibleReason !== gr.ineligibleReason) {
+            if (entry.ineligibleReason === "no_lv45") {
+              entry.eligible = null;
+              entry.ineligibleReason = "";
+              afDirty = true;
+            }
+            if (gr.ineligibleReason && gr.ineligibleReason !== "no_lv45" && entry.ineligibleReason !== gr.ineligibleReason) {
               entry.eligible = false;
               entry.ineligibleReason = gr.ineligibleReason;
               afDirty = true;
-            } else if (gr.eligible === true && entry.eligible !== true && !gr.ineligibleReason) {
+            } else if (gr.eligible === true && entry.eligible !== true && (!gr.ineligibleReason || gr.ineligibleReason === "no_lv45")) {
               entry.eligible = true;
               entry.ineligibleReason = "";
               afDirty = true;
@@ -14566,7 +14581,7 @@ public class PmFocus {
               tempCharName: "",
               returnCharName: mp.lastCharName || mp.charName || "",
               phase: "idle",
-              statusText: "รอเช็กตัวละคร Lv.45+ เมื่อเริ่มรัน",
+              statusText: "รอเช็กช่องว่างตัวละครเมื่อเริ่มรัน",
               updatedAt: Date.now()
             });
             existingSet.add(pid);
@@ -14624,7 +14639,7 @@ public class PmFocus {
             }
           }
           afState.config.lastStatusText = nextRunning
-            ? "💎 กำลังตรวจสอบเงื่อนไข Lv.45+ และเริ่มปั๊มเพชรจันทร์ (20 เพชร/รอบ)..."
+            ? "💎 กำลังตรวจสอบช่องตัวละครและเริ่มปั๊มเพชรจันทร์ (20 เพชร/รอบ)..."
             : "🛑 กำลังหยุด Gem Rush และพาทุกจอกลับไปทำงานตัวหลักตามปกติ...";
           saveAutoFarmState(afState);
 
@@ -14767,7 +14782,7 @@ public class PmFocus {
           entry.cycles = 0;
           entry.gemsEarned = 0;
           entry.lastCycleMs = 0;
-          entry.statusText = "💎 กำลังเริ่มรันจอนี้ (ตรวจสอบ Lv.45+)...";
+          entry.statusText = "💎 กำลังเริ่มรันจอนี้ (ตรวจสอบช่องว่างตัวละคร)...";
           entry.updatedAt = nowTs;
 
           afState.config.totalCycles = afState.entries.reduce((s, e) => s + (Number(e.cycles) || 0), 0);
@@ -14796,7 +14811,7 @@ public class PmFocus {
       return;
     }
 
-    // POST /api/autofarm/profiles/:id/recheck — Clear ineligible stamp & re-check Lv.45+ / empty slot
+    // POST /api/autofarm/profiles/:id/recheck — Clear ineligible stamp & re-check empty slot
     if (req.method === "POST" && pathname.match(/^\/api\/autofarm\/profiles\/[^/]+\/recheck$/)) {
       const id = decodeURIComponent(pathname.split("/")[4]);
       const afState = loadAutoFarmState();
@@ -14804,14 +14819,15 @@ public class PmFocus {
       if (!entry) return sendJSON({ success: false, error: "ไม่พบโปรไฟล์นี้ในหน้า Auto Farm" }, 404);
       entry.eligible = null;
       entry.ineligibleReason = "";
-      entry.statusText = "🔍 กำลังตรวจสอบเงื่อนไข Lv.45+ ใหม่...";
+      entry.statusText = "🔍 กำลังตรวจสอบช่องตัวละครใหม่...";
       entry.updatedAt = Date.now();
       saveAutoFarmState(afState);
 
       const p = (loadProfiles() || []).find(x => x.id === id);
       if (p && p.debugPort && browserMode.isOpen(p.id)) {
         if (afState.config.running && !entry.manualPaused) {
-          await evalProfilePort(p.debugPort, `if (typeof window.__setGemRushConfig === 'function') window.__setGemRushConfig({ enabled: true, resetIneligible: true, vaultRushEnabled: ${afState.config.vaultRushEnabled !== false}, takeGems20: ${afState.config.takeGems20 !== false}, depositPassCoins: ${afState.config.depositPassCoins !== false} });`, 3000).catch(() => {});
+          const recheckJson = JSON.stringify({ enabled: true, resetIneligible: true, ...buildGemRushSyncFields(afState.config) });
+          await evalProfilePort(p.debugPort, `if (typeof window.__setGemRushConfig === 'function') window.__setGemRushConfig(${recheckJson});`, 3000).catch(() => {});
         } else {
           const chk = await evalProfilePort(p.debugPort, `(() => {
             if (typeof window.__setGemRushConfig === 'function') window.__setGemRushConfig({ resetIneligible: true });
@@ -15895,7 +15911,14 @@ async function runAutoFarmOrchestratorTick() {
         continue;
       }
 
-      // Already marked ineligible (< Lv.45 or full slots) -> leave alone so its normal main bot keeps running!
+      // Auto-clear legacy `no_lv45` stamp (Lv.45 requirement removed in v2.3.50)
+      if (entry.ineligibleReason === "no_lv45") {
+        entry.ineligibleReason = "";
+        entry.eligible = null;
+        stateChanged = true;
+      }
+
+      // Already marked ineligible (full slots) -> leave alone so its normal main bot keeps running!
       if (entry.ineligibleReason) {
         ineligibleCount++;
         continue;
@@ -15908,7 +15931,7 @@ async function runAutoFarmOrchestratorTick() {
           seedGemRushBrowserStorage(prof, true, afState.config);
           const readyProf = await ensureUsableDebugPort(prof.id);
           const targetProf = readyProf || prof;
-          entry.statusText = "🚀 กำลังเปิดหน้าต่างเกมเพื่อตรวจสอบ Lv.45+...";
+          entry.statusText = "🚀 กำลังเปิดหน้าต่างเกมเพื่อเริ่มระบบ Auto Farm...";
           entry.updatedAt = Date.now();
           stateChanged = true;
           await browserMode.launch(targetProf).catch(() => {});
@@ -15953,14 +15976,14 @@ async function runAutoFarmOrchestratorTick() {
           entry.totalCoinsDeposited = Number(gr.totalCoinsDeposited);
           stateChanged = true;
         }
-        if (gr.ineligibleReason) {
+        if (gr.ineligibleReason && gr.ineligibleReason !== "no_lv45") {
           entry.eligible = false;
           entry.ineligibleReason = gr.ineligibleReason;
           entry.maxSlotLv = Number(gr.maxSlotLv) || 0;
           entry.emptySlotsCount = Number(gr.emptySlotsCount) || 0;
           entry.totalSlotsCount = Number(gr.totalSlotsCount) || 0;
           entry.phase = "idle";
-          entry.statusText = gr.statusText || (gr.ineligibleReason === "no_lv45" ? "❌ ไม่มีตัวละครเลเวล 45 — กลับบอทปกติแล้ว" : "⚠️ ช่องตัวละครเต็ม — กลับบอทปกติแล้ว");
+          entry.statusText = gr.statusText || "⚠️ ช่องตัวละครเต็ม — กลับบอทปกติแล้ว";
           entry.updatedAt = Date.now();
           ineligibleCount++;
           stateChanged = true;

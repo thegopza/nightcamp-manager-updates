@@ -1926,7 +1926,10 @@ function buildProfileCard(p) {
             ${jobLv !== null ? `<span class="lv-text">Job <b>${jobLv}</b></span>` : ''}
             ${buildPartyRoleChip(p.id)}
             ${p.screenProxy && p.screenProxy.active && p.screenProxy.proxyHost ? `<span class="chip" style="background:rgba(168,85,247,0.18);color:#e9d5ff;border:1px solid rgba(168,85,247,0.45);font-size:0.68rem;cursor:pointer;" onclick="openScreenProxyModal()" title="จอนี้เชื่อมต่อผ่านคิวแยก IP: ${escapeHTML(p.screenProxy.proxyHost)}:${p.screenProxy.proxyPort || ''} (ช่อง ${p.screenProxy.slotIndex || 1}/${p.screenProxy.maxScreensPerIp || 6})">🛡️ IP: ${escapeHTML(p.screenProxy.proxyHost)} (${p.screenProxy.slotIndex || 1}/${p.screenProxy.maxScreensPerIp || 6})</span>` : ''}
-            ${p.ipIsolation && p.ipIsolation.isCustom ? `<span class="chip" style="background:rgba(245,158,11,0.18);color:#fde68a;border:1px solid rgba(251,191,36,0.48);font-size:0.68rem;cursor:pointer;" onclick="window.openDeviceDrawerTab && window.openDeviceDrawerTab('custom')" title="จอนี้ถูกจัดอยู่ในวงแยก IP / Device พิเศษ (${escapeHTML(p.ipIsolation.ipGroupName || 'Custom IP')} · ${escapeHTML(p.ipIsolation.deviceGroupName || 'Device')})">🎯 ${escapeHTML(p.ipIsolation.ipGroupName || 'แยกพิเศษ')}${Number(p.ipIsolation.surchargePct) > 0 ? ` (+${p.ipIsolation.surchargePct}%)` : ''}</span>` : ''}
+            ${p.ipIsolation && p.ipIsolation.isCustom ? (p.ipIsolation.useHomeIp || p.ipIsolation.ipMode === 'home'
+              ? `<span class="chip" style="background:rgba(16,185,129,0.16);color:#6ee7b7;border:1px solid rgba(52,211,153,0.45);font-size:0.68rem;cursor:pointer;" onclick="window.openDeviceDrawerTab && window.openDeviceDrawerTab('custom')" title="จอนี้แยก Device ใช้ IP บ้าน (เน็ตบ้านปกติ · ไม่ผ่าน Proxy · ไม่เก็บส่วนบุญเพิ่ม)">🏠 ${escapeHTML(p.ipIsolation.ipGroupName || 'IP บ้าน')}</span>`
+              : `<span class="chip" style="background:rgba(245,158,11,0.18);color:#fde68a;border:1px solid rgba(251,191,36,0.48);font-size:0.68rem;cursor:pointer;" onclick="window.openDeviceDrawerTab && window.openDeviceDrawerTab('custom')" title="จอนี้ถูกจัดอยู่ในวงแยก IP / Device พิเศษ (${escapeHTML(p.ipIsolation.ipGroupName || 'Custom IP')} · ${escapeHTML(p.ipIsolation.deviceGroupName || 'Device')})">🎯 ${escapeHTML(p.ipIsolation.ipGroupName || 'แยกพิเศษ')}${Number(p.ipIsolation.surchargePct) > 0 ? ` (+${p.ipIsolation.surchargePct}%)` : ''}</span>`
+            ) : ''}
           </div>
         </div>
         <div class="card-meta">
@@ -8075,7 +8078,7 @@ window.switchMainTab = switchMainTab;
       selLv45Btn.onclick = () => {
         afPullSelectedIds.clear();
         for (const p of afAvailableMainProfiles) {
-          if (!p.alreadyPulled && (Number(p.baseLv) || 0) >= 45) afPullSelectedIds.add(p.id);
+          if (!p.alreadyPulled && p.isRunning) afPullSelectedIds.add(p.id);
         }
         renderPullModalList();
       };
@@ -8279,7 +8282,7 @@ window.switchMainTab = switchMainTab;
           <div style="font-size:15.5px;font-weight:800;color:#e0f2fe;margin-bottom:6px;">ยังไม่ได้ดึงโปรไฟล์เข้ามาในหน้า Auto Farm</div>
           <div style="font-size:12.5px;max-width:560px;margin:0 auto 14px;line-height:1.5;">
             กดปุ่ม <b>"➕ ดึงโปรไฟล์จากหน้าหลัก"</b> ด้านบนเพื่อเลือก ID ที่ต้องการให้ปั๊มเพชรจันทร์ 20/รอบ<br>
-            (ไอดีต้องมีตัวละคร Lv.45+ และช่องว่างอย่างน้อย 1 ช่อง · หากไม่เข้าเงื่อนไขระบบจะแปะป้ายแดงและปล่อยกลับไปทำงานบอทปกติทันที)
+            (ไม่จำกัดเลเวล — เพียงเว้นช่องตัวละครว่างอย่างน้อย 1 ช่อง · ปลอดภัยไม่ลบตัวหลัก 100%)
           </div>
           <button type="button" class="btn btn-primary btn-sm" style="padding:8px 16px;font-weight:800;" onclick="document.getElementById('af-btn-open-pull')?.click()">
             ➕ ดึงโปรไฟล์จากหน้าหลักเดี๋ยวนี้
@@ -8292,8 +8295,8 @@ window.switchMainTab = switchMainTab;
     grid.innerHTML = afProfiles.map((p, idx) => {
       const live = p.liveState || null;
       const gr = p.gemRush || null;
-      const inelig = String(p.ineligibleReason || "");
-      const isNoLv45 = inelig === "no_lv45";
+      const inelig = String(p.ineligibleReason || "") === "no_lv45" ? "" : String(p.ineligibleReason || "");
+      const isNoLv45 = false;
       const isSlotsFull = inelig === "slots_full";
       const isIneligible = Boolean(inelig);
 
@@ -8341,7 +8344,7 @@ window.switchMainTab = switchMainTab;
         </div>
       ` : "";
 
-      const statusText = (gr && gr.statusText) || p.statusText || (isCardPaused ? "⏸ หยุดพักจอนี้ไว้ชั่วคราว (เข้าร่วมระบบรวมเงิน/ตี้ได้ปกติ)" : (p.isRunning ? "พร้อมเช็กตัวละคร Lv.45+" : "ปิดจออยู่ · รอเริ่มรัน"));
+      const statusText = (gr && gr.statusText) || p.statusText || (isCardPaused ? "⏸ หยุดพักจอนี้ไว้ชั่วคราว (เข้าร่วมระบบรวมเงิน/ตี้ได้ปกติ)" : (p.isRunning ? "พร้อมเช็กช่องว่างตัวละครและเริ่มรัน" : "ปิดจออยู่ · รอเริ่มรัน"));
       const borderColor = isNoLv45
         ? "rgba(239,68,68,0.72)"
         : (isSlotsFull
@@ -8483,7 +8486,7 @@ window.switchMainTab = switchMainTab;
               </button>
             `}
             ${isIneligible ? `
-              <button type="button" class="btn btn-secondary btn-sm" style="padding:6px 9px;font-size:11px;color:#fcd34d;border-color:rgba(251,191,36,0.4);" title="ตรวจสอบเงื่อนไข Lv.45+ และช่องว่างใหม่อีกครั้ง" onclick="window.__afRecheckProfile('${escHtml(p.id)}')">
+              <button type="button" class="btn btn-secondary btn-sm" style="padding:6px 9px;font-size:11px;color:#fcd34d;border-color:rgba(251,191,36,0.4);" title="ตรวจสอบช่องว่างตัวละครใหม่อีกครั้ง" onclick="window.__afRecheckProfile('${escHtml(p.id)}')">
                 🔄 เช็กใหม่
               </button>
             ` : ""}
@@ -8526,7 +8529,7 @@ window.switchMainTab = switchMainTab;
       method: "POST"
     }).then(r => r.json());
     if (res && res.success) {
-      if (typeof showToast === "function") showToast("🔄 ล้างป้ายแจ้งเตือนและสั่งตรวจเงื่อนไข Lv.45+ ใหม่แล้ว", "success");
+      if (typeof showToast === "function") showToast("🔄 ล้างป้ายแจ้งเตือนและสั่งตรวจช่องว่างตัวละครใหม่แล้ว", "success");
       await loadAutoFarmDashboard(true);
     }
   };
