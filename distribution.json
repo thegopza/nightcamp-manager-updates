@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "sourceCommit": "1d7f5d35c3d10d66f75a87cad492c8c8d1265262",
+  "sourceCommit": "3cbfc974ffe2b1f17f9dbb3bfcc7cfa120025073",
   "files": [
     {
       "path": "manager/asset_cache.js",
