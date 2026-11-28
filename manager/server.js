@@ -2469,6 +2469,81 @@ function buildGemRushSyncFields(afConfig) {
   };
 }
 
+function mergeEntryTempMemory(entry, gr) {
+  if (!entry || !gr || typeof gr !== "object") return false;
+  let changed = false;
+  const dedSlot = Number.isInteger(gr.dedicatedTempSlot) && gr.dedicatedTempSlot >= 0
+    ? gr.dedicatedTempSlot
+    : (Number.isInteger(gr.tempSlot) && gr.tempSlot >= 0 ? gr.tempSlot : -1);
+  if (dedSlot >= 0 && entry.dedicatedTempSlot !== dedSlot) {
+    entry.dedicatedTempSlot = dedSlot;
+    changed = true;
+  }
+  if (Number.isInteger(gr.tempSlot) && gr.tempSlot >= 0 && entry.tempSlot !== gr.tempSlot) {
+    entry.tempSlot = gr.tempSlot;
+    changed = true;
+  } else if (gr.tempSlot === -1 && !gr.tempCharName && entry.tempSlot !== -1) {
+    entry.tempSlot = -1;
+    changed = true;
+  }
+  if (gr.tempCharName !== undefined) {
+    const nextTemp = String(gr.tempCharName || "").trim();
+    if (entry.tempCharName !== nextTemp) {
+      entry.tempCharName = nextTemp;
+      changed = true;
+    }
+    if (nextTemp && entry.lastTempCharName !== nextTemp) {
+      entry.lastTempCharName = nextTemp;
+      changed = true;
+    }
+  }
+  const reuseNm = String(gr.reuseTempName || "").trim();
+  if (reuseNm && !entry.lastTempCharName) {
+    entry.lastTempCharName = reuseNm;
+    changed = true;
+  }
+  const prevNames = Array.isArray(entry.createdTempNames) ? entry.createdTempNames : [];
+  const nextSet = new Set(prevNames.map(x => String(x || "").trim()).filter(Boolean));
+  const beforeSize = nextSet.size;
+  if (Array.isArray(gr.createdTempNames)) {
+    for (const nm of gr.createdTempNames) {
+      const s = String(nm || "").trim();
+      if (s) nextSet.add(s);
+    }
+  }
+  if (entry.tempCharName) nextSet.add(entry.tempCharName);
+  if (reuseNm) nextSet.add(reuseNm);
+  if (nextSet.size !== beforeSize) {
+    entry.createdTempNames = Array.from(nextSet).slice(-40);
+    changed = true;
+  }
+  return changed;
+}
+
+function buildGemRushEntryMemoryPatch(entry) {
+  if (!entry || typeof entry !== "object") return {};
+  const names = new Set();
+  if (Array.isArray(entry.createdTempNames)) {
+    for (const nm of entry.createdTempNames) {
+      const s = String(nm || "").trim();
+      if (s) names.add(s);
+    }
+  }
+  if (entry.tempCharName) names.add(String(entry.tempCharName).trim());
+  if (entry.lastTempCharName) names.add(String(entry.lastTempCharName).trim());
+  const patch = {};
+  if (names.size > 0) patch.knownTempNames = Array.from(names).slice(-40);
+  if (Number.isInteger(entry.dedicatedTempSlot) && entry.dedicatedTempSlot >= 0) {
+    patch.knownDedicatedTempSlot = entry.dedicatedTempSlot;
+  }
+  if (Number.isInteger(entry.tempSlot) && entry.tempSlot >= 0) {
+    patch.knownTempSlot = entry.tempSlot;
+  }
+  const latestNm = String(entry.tempCharName || entry.lastTempCharName || "").trim();
+  if (latestNm) patch.knownTempCharName = latestNm;
+  return patch;
+}
+
 function loadAutoFarmState() {
   if (autoFarmStateCache && typeof autoFarmStateCache === "object") {
     return autoFarmStateCache;
@@ -14410,7 +14485,7 @@ public class PmFocus {
             if (gr.emptySlotsCount !== undefined) entry.emptySlotsCount = Number(gr.emptySlotsCount) || 0;
             if (gr.totalSlotsCount !== undefined) entry.totalSlotsCount = Number(gr.totalSlotsCount) || 0;
             if (gr.returnCharName) entry.returnCharName = gr.returnCharName;
-            if (gr.tempCharName !== undefined) entry.tempCharName = gr.tempCharName || "";
+            if (mergeEntryTempMemory(entry, gr)) afDirty = true;
             if (gr.phase) entry.phase = gr.phase;
             if (gr.statusText) entry.statusText = gr.statusText;
             if (typeof gr.liveGems === "number") entry.lastGems = gr.liveGems;
@@ -14444,7 +14519,10 @@ public class PmFocus {
             totalCoinsDeposited: Number(entry.totalCoinsDeposited) || 0,
             lastCycleMs: Number(entry.lastCycleMs) || 0,
             lastGems: typeof liveState?.gems === "number" ? liveState.gems : (entry.lastGems ?? null),
+            tempSlot: Number.isInteger(gr?.tempSlot) && gr.tempSlot >= 0 ? gr.tempSlot : (Number.isInteger(entry.tempSlot) ? entry.tempSlot : -1),
+            dedicatedTempSlot: Number.isInteger(gr?.dedicatedTempSlot) && gr.dedicatedTempSlot >= 0 ? gr.dedicatedTempSlot : (Number.isInteger(entry.dedicatedTempSlot) ? entry.dedicatedTempSlot : -1),
             tempCharName: gr ? (gr.tempCharName || "") : (entry.tempCharName || ""),
+            lastTempCharName: entry.lastTempCharName || (gr && (gr.tempCharName || gr.reuseTempName)) || "",
             returnCharName: entry.returnCharName || p.lastCharName || p.charName || "",
             phase: gr ? (gr.phase || "idle") : (entry.phase || "idle"),
             statusText: gr ? (gr.statusText || "") : (entry.statusText || ""),
@@ -14625,6 +14703,8 @@ public class PmFocus {
               if (!entry) continue;
               entry.manualPaused = false;
               entry.stopEnforceUntil = 0;
+              entry.eligible = null;
+              entry.ineligibleReason = "";
               entry.startedAt = newSessionId;
               entry.sessionId = newSessionId;
               entry.cycles = 0;
@@ -14646,17 +14726,19 @@ public class PmFocus {
           const mainMap = new Map((loadProfiles() || []).map(p => [p.id, p]));
           if (nextRunning) {
             const sid = Number(afState.config.sessionId || Date.now());
-            const startPatchJson = JSON.stringify({
-              enabled: true,
-              resetCycles: true,
-              sessionId: sid,
-              ...buildGemRushSyncFields(afState.config)
-            });
             await Promise.all(afState.entries.map(async (entry) => {
               const p = mainMap.get(entry.profileId);
               if (!p) return;
-              seedGemRushBrowserStorage(p, true, afState.config);
-              if (p.debugPort && !entry.ineligibleReason) {
+              const startPatchJson = JSON.stringify({
+                enabled: true,
+                resetCycles: true,
+                resetIneligible: true,
+                sessionId: sid,
+                ...buildGemRushSyncFields(afState.config),
+                ...buildGemRushEntryMemoryPatch(entry)
+              });
+              seedGemRushBrowserStorage(p, true, afState.config, entry);
+              if (p.debugPort) {
                 await evalProfilePort(p.debugPort, `if (typeof window.__setGemRushConfig === 'function') window.__setGemRushConfig(${startPatchJson});`, 2500).catch(() => {});
               }
             }));
@@ -14795,9 +14877,10 @@ public class PmFocus {
               resetCycles: true,
               resetIneligible: true,
               sessionId: nowTs,
-              ...buildGemRushSyncFields(afState.config)
+              ...buildGemRushSyncFields(afState.config),
+              ...buildGemRushEntryMemoryPatch(entry)
             });
-            seedGemRushBrowserStorage(p, true, afState.config);
+            seedGemRushBrowserStorage(p, true, afState.config, entry);
             if (p.debugPort && browserMode.isOpen(p.id)) {
               await evalProfilePort(p.debugPort, `if (typeof window.__setGemRushConfig === 'function') window.__setGemRushConfig(${singleStartJson});`, 2500).catch(() => {});
             }
@@ -14826,11 +14909,12 @@ public class PmFocus {
       const p = (loadProfiles() || []).find(x => x.id === id);
       if (p && p.debugPort && browserMode.isOpen(p.id)) {
         if (afState.config.running && !entry.manualPaused) {
-          const recheckJson = JSON.stringify({ enabled: true, resetIneligible: true, ...buildGemRushSyncFields(afState.config) });
+          const recheckJson = JSON.stringify({ enabled: true, resetIneligible: true, ...buildGemRushSyncFields(afState.config), ...buildGemRushEntryMemoryPatch(entry) });
           await evalProfilePort(p.debugPort, `if (typeof window.__setGemRushConfig === 'function') window.__setGemRushConfig(${recheckJson});`, 3000).catch(() => {});
         } else {
+          const recheckMemJson = JSON.stringify({ resetIneligible: true, ...buildGemRushEntryMemoryPatch(entry) });
           const chk = await evalProfilePort(p.debugPort, `(() => {
-            if (typeof window.__setGemRushConfig === 'function') window.__setGemRushConfig({ resetIneligible: true });
+            if (typeof window.__setGemRushConfig === 'function') window.__setGemRushConfig(${recheckMemJson});
             return typeof window.__checkGemRushEligibility === 'function';
           })()`, 2500).catch(() => null);
           void chk;
@@ -15773,7 +15857,7 @@ function resolveNightcampServerUrl(serverName) {
   return KNOWN_NC_SERVER_URLS.nightfall;
 }
 
-function seedGemRushBrowserStorage(profile, enableRush, afConfig) {
+function seedGemRushBrowserStorage(profile, enableRush, afConfig, entry = null) {
   if (!profile || !profile.id) return;
   try {
     const bsDir = path.join(SESSIONS_DIR, "_browser_storage");
@@ -15785,17 +15869,35 @@ function seedGemRushBrowserStorage(profile, enableRush, afConfig) {
     }
     const pfx = `pelican_${profile.id}__`;
     const key = `${pfx}gem_rush_state_v1`;
+    const createdKey = `${pfx}gem_rush_created_names_v1`;
     let prev = {};
     if (data[key]) {
       try { prev = JSON.parse(data[key]) || {}; } catch (_) { prev = {}; }
     }
+    let prevCreated = [];
+    if (data[createdKey]) {
+      try { const arr = JSON.parse(data[createdKey]); if (Array.isArray(arr)) prevCreated = arr; } catch (_) {}
+    }
+    const mem = entry ? buildGemRushEntryMemoryPatch(entry) : {};
+    const mergedNames = Array.from(new Set([
+      ...prevCreated,
+      ...(Array.isArray(prev.createdTempNames) ? prev.createdTempNames : []),
+      ...(Array.isArray(mem.knownTempNames) ? mem.knownTempNames : [])
+    ].map(x => String(x || "").trim()).filter(Boolean))).slice(-120);
     const nextObj = {
       ...prev,
       enabled: Boolean(enableRush),
       ...buildGemRushSyncFields(afConfig),
       phase: enableRush ? (prev.phase && prev.phase !== "idle" ? prev.phase : "checking") : "idle",
+      createdTempNames: mergedNames,
       updatedAt: Date.now()
     };
+    if (!(Number.isInteger(nextObj.dedicatedTempSlot) && nextObj.dedicatedTempSlot >= 0) && Number.isInteger(mem.knownDedicatedTempSlot) && mem.knownDedicatedTempSlot >= 0) {
+      nextObj.dedicatedTempSlot = mem.knownDedicatedTempSlot;
+    }
+    if (!nextObj.tempCharName && mem.knownTempCharName) {
+      nextObj.reuseTempName = nextObj.reuseTempName || mem.knownTempCharName;
+    }
     if (enableRush) {
       nextObj.eligible = null;
       nextObj.ineligibleReason = "";
@@ -15809,6 +15911,7 @@ function seedGemRushBrowserStorage(profile, enableRush, afConfig) {
       }
     }
     data[key] = JSON.stringify(nextObj);
+    if (mergedNames.length > 0) data[createdKey] = JSON.stringify(mergedNames);
     writeJsonAtomic(bsFile, data);
   } catch (_) {}
 }
@@ -15928,7 +16031,7 @@ async function runAutoFarmOrchestratorTick() {
         waitingCount++;
         if (afState.config.autoLaunchClosed !== false && !launchedThisTick) {
           launchedThisTick = true;
-          seedGemRushBrowserStorage(prof, true, afState.config);
+          seedGemRushBrowserStorage(prof, true, afState.config, entry);
           const readyProf = await ensureUsableDebugPort(prof.id);
           const targetProf = readyProf || prof;
           entry.statusText = "🚀 กำลังเปิดหน้าต่างเกมเพื่อเริ่มระบบ Auto Farm...";
@@ -15996,7 +16099,7 @@ async function runAutoFarmOrchestratorTick() {
         }
         if (gr.phase) entry.phase = gr.phase;
         if (gr.statusText) entry.statusText = gr.statusText;
-        if (gr.tempCharName !== undefined) entry.tempCharName = gr.tempCharName || "";
+        if (mergeEntryTempMemory(entry, gr)) stateChanged = true;
         if (gr.returnCharName) entry.returnCharName = gr.returnCharName;
         if (typeof gr.liveGems === "number") entry.lastGems = gr.liveGems;
         entry.updatedAt = Date.now();
@@ -16023,7 +16126,8 @@ async function runAutoFarmOrchestratorTick() {
           enabled: true,
           resetCycles: !grMatchesSession,
           sessionId: wantSessionId,
-          ...wantSync
+          ...wantSync,
+          ...buildGemRushEntryMemoryPatch(entry)
         });
         const engRes = await evalProfilePort(prof.debugPort, `(() => {
           if (typeof window.__setGemRushConfig === 'function') {

@@ -8405,6 +8405,17 @@ window.switchMainTab = switchMainTab;
                 <span>${showingTemp ? "⚡ ตัวรัช:" : "👑 ตัวหลัก:"} ${escHtml(liveChar)}</span>
                 <span style="font-size:12px;color:#38bdf8;font-weight:800;">Lv.${baseLv}</span>
                 ${showingTemp ? `<span style="font-size:10.5px;color:#fde68a;background:rgba(245,158,11,0.18);padding:1px 6px;border-radius:5px;">หลัก: ${escHtml(mainChar)}</span>` : ""}
+                ${(() => {
+                  const remSlot = Number.isInteger(p.dedicatedTempSlot) && p.dedicatedTempSlot >= 0
+                    ? p.dedicatedTempSlot
+                    : (Number.isInteger(p.tempSlot) && p.tempSlot >= 0 ? p.tempSlot : (Number.isInteger(gr?.dedicatedTempSlot) && gr.dedicatedTempSlot >= 0 ? gr.dedicatedTempSlot : -1));
+                  const remName = activeTemp || p.lastTempCharName || (gr && gr.reuseTempName) || "";
+                  if (showingTemp || (remSlot < 0 && !remName)) return "";
+                  const parts = [];
+                  if (remSlot >= 0) parts.push(`ช่อง #${remSlot + 1}`);
+                  if (remName) parts.push(remName);
+                  return `<span title="ระบบจำช่อง/ชื่อตัวเด็กรับเพชรล่าสุดไว้ให้อัตโนมัติ (กดหยุดแล้วเริ่มใหม่จะไม่แจ้งช่องเต็ม)" style="font-size:10.5px;color:#c4b5fd;background:rgba(139,92,246,0.18);border:1px solid rgba(167,139,250,0.35);padding:1px 6px;border-radius:5px;">⚡ ตัวเด็ก: ${escHtml(parts.join(" · "))}</span>`;
+                })()}
               </div>
               ${p.account ? `<div style="font-size:11px;color:#94a3b8;margin-top:2px;font-family:monospace;">📧 ${escHtml(p.account)}</div>` : ""}
             </div>

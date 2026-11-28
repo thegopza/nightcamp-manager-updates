@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "sourceCommit": "3cbfc974ffe2b1f17f9dbb3bfcc7cfa120025073",
+  "sourceCommit": "5840ec1c1c8982b519972010c9ba7962d6394ce7",
   "files": [
     {
       "path": "manager/asset_cache.js",
@@ -144,7 +144,7 @@
     },
     {
       "path": "manager/public/app.js",
-      "sha256": "565e45c3ee8018ecaee851ceb9d18948f1c4d5d48b36ef8f36fa00f293a6d7f6"
+      "sha256": "c1eab9c332f7d5a02f3799b71e7d56c7c9d9ff7bdc4f105ddefaa37097a4d4ee"
     },
     {
       "path": "manager/public/assets/updates/ui_v212_bag_rightclick.jpg",
@@ -380,7 +380,7 @@
     },
     {
       "path": "manager/script_coordinator.js",
-      "sha256": "7d7d092a05adaa461403c93c654e745fe5712cfc196466595fab08711cc12b27"
+      "sha256": "09399fe8e783e2bb30dd76ca695eb56c41f310d63b6219af99cedc566db7cbd4"
     },
     {
       "path": "manager/script_release_keys.js",
@@ -396,7 +396,7 @@
     },
     {
       "path": "manager/server.js",
-      "sha256": "cf4311f9b0188b97f22c15ae69ea21582ef663dade0887a5ae96c59282554b28"
+      "sha256": "c233881db582eb8f280c3557c0729cd77f08329894df180f041ede47f40bad3f"
     },
     {
       "path": "manager/sim_api.js",

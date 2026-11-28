@@ -25,7 +25,7 @@ async function fetchApprovedPayload(service, metadata, lease) {
     if(!response?.success || response.version!==metadata.version || response.hash!==metadata.hash || !Array.isArray(response.chunks) || response.chunks.length!==count) throw new Error('INVALID_PAYLOAD_CHUNKS');
     for(let i=0;i<count;i++) {
       const chunk=response.chunks[i];
-      if(chunk?.ordinal!==ordinal+i || typeof chunk.source!=='string' || Buffer.byteLength(chunk.source)>60000) throw new Error('INVALID_PAYLOAD_CHUNK_ORDER_OR_SIZE');
+      if(chunk?.ordinal!==ordinal+i || typeof chunk.source!=='string' || Buffer.byteLength(chunk.source)>131072) throw new Error('INVALID_PAYLOAD_CHUNK_ORDER_OR_SIZE');
       bytes+=Buffer.byteLength(chunk.source);if(bytes>metadata.size) throw new Error('PAYLOAD_SIZE_MISMATCH');pieces.push(chunk.source);
     }
   }
